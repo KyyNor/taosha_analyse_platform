@@ -14,6 +14,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **核心框架**: LangGraph + Vanna
   - LangGraph: 多轮对话管理、工作流编排、交互记录
   - Vanna: 专业NL2SQL转换、数据库schema管理
+- **OLAP引擎**: DuckDB + cachetools
+  - DuckDB: 嵌入式OLAP数据库，高性能分析查询
+  - cachetools: Python内存缓存，支持TTL和LRU策略
+- **数据源**: Hadoop + Spark SQL (原始数据)
 - **API框架**: FastAPI
 - **AI模型**: VLLM (内网本地部署)
 
@@ -97,21 +101,51 @@ uv run python scripts/metadata_import.py
 - 数据库schema学习和管理
 - SQL查询优化和验证
 
-### 3. 数据可视化
+### 3. 轻量级OLAP引擎 (DuckDB + cachetools)
+- 嵌入式OLAP数据库，无需额外部署
+- 智能内存缓存，支持TTL过期和LRU淘汰
+- 从Hadoop加载热点数据到内存进行快速查询
+- 预聚合表支持，加速常见分析场景
+- 查询性能：秒级响应 vs Spark SQL分钟级
+
+### 4. 数据可视化
 - 支持多种图表类型
 - 自动根据数据特征选择合适的可视化方式
 - 表格、柱状图、折线图、饼图等
 
-### 4. 内网部署支持
+### 5. 内网部署支持
 - 完全离线运行，无外部API依赖
 - 支持企业内部VLLM模型
 - 适配企业内部数据库环境
+- 零额外组件部署，纯Python包解决方案
+
+## 数据架构设计
+
+### 数据流转模式
+```
+Hadoop (原始数据) → Spark SQL (ETL+复杂查询) → DuckDB (热点数据缓存) → 用户界面
+                                                    ↑
+                                              cachetools (结果缓存)
+```
+
+### 查询路由策略
+- **热点数据查询**: DuckDB内存引擎 (1-3秒响应)
+- **缓存命中查询**: cachetools缓存 (<1秒响应)  
+- **复杂分析查询**: Spark SQL (1-5分钟响应)
+- **历史数据查询**: 直接查询Hadoop
+
+### 内存优化策略
+- 只加载最近30-90天热点数据到DuckDB
+- 使用数据类型优化减少内存占用
+- 支持数据采样以适应内存限制
+- TTL缓存自动清理过期数据
 
 ## 开发注意事项
 - 项目专注于自然语言转SQL的AI分析平台
 - 考虑数据安全和SQL注入防护
 - 优先使用内网环境兼容的技术方案
 - 保持代码的模块化和可扩展性
+- OLAP引擎采用零部署方案，避免额外组件依赖
 
 ## 快速上手
 1. 首先开发Streamlit原型验证核心功能
