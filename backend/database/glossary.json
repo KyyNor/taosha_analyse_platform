@@ -1,0 +1,78 @@
+{
+  "version": "1.0",
+  "last_updated": "2024-12-19",
+  "terms": [
+    {
+      "term": "销售额",
+      "definition": "价格乘以数量的总金额",
+      "sql_expression": "price * quantity",
+      "aliases": ["营业额", "收入", "销售金额"]
+    },
+    {
+      "term": "总销售额",
+      "definition": "所有销售记录的销售额之和",
+      "sql_expression": "SUM(price * quantity)",
+      "aliases": ["总营业额", "总收入"]
+    },
+    {
+      "term": "平均销售额",
+      "definition": "平均每笔销售的金额",
+      "sql_expression": "AVG(price * quantity)",
+      "aliases": ["平均营业额"]
+    },
+    {
+      "term": "销售量",
+      "definition": "销售的商品数量",
+      "sql_expression": "quantity",
+      "aliases": ["销量", "出货量"]
+    },
+    {
+      "term": "总销售量",
+      "definition": "所有销售记录的数量之和",
+      "sql_expression": "SUM(quantity)",
+      "aliases": ["总销量", "总出货量"]
+    },
+    {
+      "term": "客户数",
+      "definition": "不重复的客户数量",
+      "sql_expression": "COUNT(DISTINCT customer_id)",
+      "aliases": ["用户数", "顾客数"]
+    },
+    {
+      "term": "订单数",
+      "definition": "销售记录的总数",
+      "sql_expression": "COUNT(*)",
+      "aliases": ["交易数", "订单量"]
+    },
+    {
+      "term": "今年",
+      "definition": "当前年份",
+      "sql_expression": "YEAR(sale_date) = YEAR(CURRENT_DATE)",
+      "aliases": ["本年", "当年"]
+    },
+    {
+      "term": "今月",
+      "definition": "当前月份",
+      "sql_expression": "YEAR(sale_date) = YEAR(CURRENT_DATE) AND MONTH(sale_date) = MONTH(CURRENT_DATE)",
+      "aliases": ["本月", "当月"]
+    },
+    {
+      "term": "电子产品",
+      "definition": "电子产品类别",
+      "sql_expression": "category = '电子产品'",
+      "aliases": ["电子设备", "数码产品"]
+    },
+    {
+      "term": "北京地区",
+      "definition": "北京销售区域",
+      "sql_expression": "region = '北京'",
+      "aliases": ["北京", "北京市"]
+    },
+    {
+      "term": "上海地区",
+      "definition": "上海销售区域",
+      "sql_expression": "region = '上海'",
+      "aliases": ["上海", "上海市"]
+    }
+  ]
+}
