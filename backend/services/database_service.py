@@ -2,8 +2,8 @@
 数据库服务层 - 支持可插拔设计
 """
 
-import logging
 from abc import ABC, abstractmethod
+from loguru import logger
 from typing import Dict, List, Any, Optional
 import pandas as pd
 import duckdb
@@ -11,7 +11,6 @@ from pathlib import Path
 
 from config import settings
 
-logger = logging.getLogger(__name__)
 
 class DatabaseService(ABC):
     """数据库服务抽象基类"""

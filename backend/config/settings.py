@@ -27,15 +27,17 @@ class Settings(BaseSettings):
     # OpenAI配置
     openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
     openai_base_url: Optional[str] = os.getenv("OPENAI_BASE_URL")
-    openai_model: str = "gpt-3.5-turbo"
+    openai_model: str = "Qwen/Qwen3-8B"
     
     # 缓存配置
     cache_ttl: int = 3600  # 1小时
     cache_size: int = 1000
     
-    # 日志配置
-    log_level: str = "DEBUG"
-    log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    # 日志配置 (loguru)
+    log_level: str = "INFO"  # 改为 INFO 减少日志输出
+    log_rotation: str = "10 MB"  # 日志轮转大小
+    log_retention: str = "7 days"  # 日志保留时间
+    log_compression: str = "gz"  # 日志压缩格式
     
     class Config:
         env_prefix = "TAOSHA_"

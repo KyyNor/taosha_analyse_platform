@@ -3,8 +3,8 @@ API路由定义
 """
 
 import time
-import logging
 from typing import List
+from loguru import logger
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 
@@ -18,7 +18,6 @@ from services import (
 )
 from config import settings
 
-logger = logging.getLogger(__name__)
 
 # 创建路由器
 router = APIRouter()

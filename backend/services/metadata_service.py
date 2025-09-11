@@ -3,15 +3,14 @@
 """
 
 import json
-import logging
 from pathlib import Path
+from loguru import logger
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import hashlib
 
 from config import settings
 
-logger = logging.getLogger(__name__)
 
 class MetadataService:
     """元数据管理服务"""

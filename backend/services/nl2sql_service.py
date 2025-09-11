@@ -2,8 +2,8 @@
 自然语言转SQL服务 - LangGraph + Vanna 实现
 """
 
-import logging
 import hashlib
+from loguru import logger
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
@@ -26,7 +26,6 @@ from config import settings
 from services.database_service import get_database_service
 from services.metadata_service import get_metadata_service, get_glossary_service
 
-logger = logging.getLogger(__name__)
 
 # 状态定义
 class GraphState(TypedDict):

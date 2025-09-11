@@ -2,10 +2,10 @@
 淘沙分析平台 - FastAPI主应用
 """
 
-import logging
 import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
+from loguru import logger
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,18 +14,6 @@ from fastapi.responses import JSONResponse
 from config import settings
 from api.routes import router
 from services import get_database_service, get_nl2sql_service
-
-# 配置日志
-logging.basicConfig(
-    level=getattr(logging, settings.log_level),
-    format=settings.log_format,
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler(settings.database_dir / "app.log", encoding='utf-8')
-    ]
-)
-
-logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -127,6 +115,15 @@ def main():
     """主函数"""
     import uvicorn
     
+    # 配置 loguru
+    logger.remove()  # 移除默认处理器
+    logger.add(
+        sys.stdout,
+        level=settings.log_level,
+        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        colorize=True
+    )
+    
     logger.info(f"启动 {settings.app_name} v{settings.app_version}")
     logger.info(f"数据库路径: {settings.duckdb_path}")
     logger.info(f"ChromaDB路径: {settings.chromadb_path}")
@@ -137,6 +134,7 @@ def main():
         host="0.0.0.0",
         port=8000,
         reload=settings.debug,
+        reload_excludes=["database/*", "*.log", "__pycache__/*"] if settings.debug else None,
         log_level=settings.log_level.lower()
     )
 
