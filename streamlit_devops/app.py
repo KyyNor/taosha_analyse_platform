@@ -34,7 +34,7 @@ class TaoshaAPIClient:
             response = requests.post(
                 f"{self.base_url}/query",
                 json={"query": query_text, "max_retries": max_retries},
-                timeout=30
+                timeout=240
             )
             response.raise_for_status()
             return response.json()

@@ -65,6 +65,7 @@ class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
         openai_config = {
             'model': settings.openai_model
         }
+        client = None
         
         # 只有当 API key 存在时才设置
         if settings.openai_api_key:
@@ -75,14 +76,13 @@ class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
             try:
                 from openai import OpenAI
                 client = OpenAI(
-                    api_key=settings.openai_api_key or "dummy",
+                    api_key=settings.openai_api_key,
                     base_url=settings.openai_base_url
                 )
-                openai_config['client'] = client
             except ImportError:
                 logger.warning("OpenAI package not available, using default configuration")
         
-        OpenAI_Chat.__init__(self, config=openai_config)
+        OpenAI_Chat.__init__(self, client=client, config=openai_config)
         
         self.training_hash = None
         logger.info("TaoshaVanna initialized")
