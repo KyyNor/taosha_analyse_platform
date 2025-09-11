@@ -8,15 +8,15 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 
-from backend.api.models import (
+from api.models import (
     QueryRequest, QueryResponse, TableInfo, 
     DatabaseStatus, SystemStatus, ErrorResponse
 )
-from backend.services import (
+from services import (
     get_nl2sql_service, get_database_service, 
     get_metadata_service, get_glossary_service
 )
-from backend.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -258,17 +258,3 @@ async def health_check():
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=503, detail="服务不可用")
 
-# 错误处理器
-@router.exception_handler(Exception)
-async def general_exception_handler(request, exc):
-    """
-    通用异常处理器
-    """
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content=ErrorResponse(
-            error="内部服务器错误",
-            detail=str(exc)
-        ).dict()
-    )

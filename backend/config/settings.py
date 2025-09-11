@@ -5,7 +5,7 @@
 import os
 from pathlib import Path
 from typing import Optional
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     """应用配置"""

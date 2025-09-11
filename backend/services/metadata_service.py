@@ -9,7 +9,7 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import hashlib
 
-from backend.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 

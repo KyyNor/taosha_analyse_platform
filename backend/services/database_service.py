@@ -9,7 +9,7 @@ import pandas as pd
 import duckdb
 from pathlib import Path
 
-from backend.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 

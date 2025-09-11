@@ -13,7 +13,6 @@ from pathlib import Path
 
 # LangGraph imports
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolExecutor
 from langgraph.graph.message import add_messages
 from typing_extensions import Annotated, TypedDict
 
@@ -23,9 +22,9 @@ from vanna.openai import OpenAI_Chat
 from vanna.chromadb import ChromaDB_VectorStore
 
 # Local imports
-from backend.config import settings
-from backend.services.database_service import get_database_service
-from backend.services.metadata_service import get_metadata_service, get_glossary_service
+from config import settings
+from services.database_service import get_database_service
+from services.metadata_service import get_metadata_service, get_glossary_service
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ class NL2SQLLog:
     success: bool
     error: Optional[str] = None
 
-class TaoshaVanna(VannaBase, OpenAI_Chat, ChromaDB_VectorStore):
+class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
     """自定义Vanna实现"""
     
     def __init__(self, config=None):
@@ -62,11 +61,29 @@ class TaoshaVanna(VannaBase, OpenAI_Chat, ChromaDB_VectorStore):
         Path(chroma_path).mkdir(parents=True, exist_ok=True)
         
         ChromaDB_VectorStore.__init__(self, config={'path': chroma_path})
-        OpenAI_Chat.__init__(self, config={
-            'api_key': settings.openai_api_key,
-            'model': settings.openai_model,
-            'api_base': settings.openai_base_url
-        })
+        
+        # 创建 OpenAI 客户端配置
+        openai_config = {
+            'model': settings.openai_model
+        }
+        
+        # 只有当 API key 存在时才设置
+        if settings.openai_api_key:
+            openai_config['api_key'] = settings.openai_api_key
+            
+        # 如果有自定义 base_url，需要传递 OpenAI 客户端实例
+        if settings.openai_base_url:
+            try:
+                from openai import OpenAI
+                client = OpenAI(
+                    api_key=settings.openai_api_key or "dummy",
+                    base_url=settings.openai_base_url
+                )
+                openai_config['client'] = client
+            except ImportError:
+                logger.warning("OpenAI package not available, using default configuration")
+        
+        OpenAI_Chat.__init__(self, config=openai_config)
         
         self.training_hash = None
         logger.info("TaoshaVanna initialized")

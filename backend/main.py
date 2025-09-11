@@ -11,14 +11,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-# 添加backend目录到Python路径
-backend_dir = Path(__file__).parent
-if str(backend_dir) not in sys.path:
-    sys.path.insert(0, str(backend_dir))
-
-from backend.config import settings
-from backend.api.routes import router
-from backend.services import get_database_service, get_nl2sql_service
+from config import settings
+from api.routes import router
+from services import get_database_service, get_nl2sql_service
 
 # 配置日志
 logging.basicConfig(
