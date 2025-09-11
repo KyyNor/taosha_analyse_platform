@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     class Config:
         env_prefix = "TAOSHA_"
         case_sensitive = False
+        env_file = ".env"  # 从当前目录加载.env文件
+        env_file_encoding = "utf-8"
 
 # 全局配置实例
 settings = Settings()
