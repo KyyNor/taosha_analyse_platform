@@ -153,6 +153,14 @@ class NL2SQLService:
             user_input = state['user_input']
             logs = state.get('logs', [])
             
+            # 检查API配置
+            if not settings.openai_api_key:
+                logger.warning("OpenAI API key not configured, skipping input validation")
+                state['is_clear'] = True
+                state['processed_input'] = user_input
+                state['logs'] = logs
+                return state
+            
             # 构建验证提示词
             validation_prompt = f"""
 请判断以下用户查询是否足够清晰，可以转换为SQL查询：
@@ -170,7 +178,13 @@ class NL2SQLService:
             
             try:
                 response = self.vanna.submit_prompt(validation_prompt)
-                is_clear = response.lower().startswith('是')
+                
+                # 确保response是字符串
+                if not isinstance(response, str):
+                    logger.warning(f"Unexpected response type: {type(response)}, content: {response}")
+                    response = str(response) if response else ""
+                
+                is_clear = response.lower().startswith('是') if response else True
                 
                 log_entry = self.vanna.log_interaction(
                     step="input_validation",
