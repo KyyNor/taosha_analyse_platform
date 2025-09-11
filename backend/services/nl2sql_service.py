@@ -87,6 +87,39 @@ class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
         self.training_hash = None
         logger.info("TaoshaVanna initialized")
     
+    def submit_prompt(self, prompt: str) -> str:
+        """重写submit_prompt方法，直接调用OpenAI API"""
+        try:
+            if not settings.openai_api_key:
+                logger.warning("OpenAI API key not configured")
+                return "抱歉，AI服务未配置，无法处理您的请求。"
+            
+            from openai import OpenAI
+            
+            # 创建OpenAI客户端
+            client = OpenAI(
+                api_key=settings.openai_api_key,
+                base_url=settings.openai_base_url
+            )
+            
+            # 调用API
+            response = client.chat.completions.create(
+                model=settings.openai_model,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1000
+            )
+            
+            result = response.choices[0].message.content
+            logger.debug(f"OpenAI API response: {result[:100]}...")
+            return result
+            
+        except Exception as e:
+            logger.error(f"OpenAI API call failed: {e}")
+            return f"API调用失败: {str(e)}"
+    
     def log_interaction(self, step: str, input_data: str, prompt: str, 
                        model_output: str, success: bool, error: str = None):
         """记录交互日志"""
