@@ -90,6 +90,16 @@ class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
     def log_interaction(self, step: str, input_data: str, prompt: str, 
                        model_output: str, success: bool, error: str = None):
         """记录交互日志"""
+        import traceback
+        import inspect
+        
+        # 获取调用者信息
+        frame = inspect.currentframe()
+        caller_frame = frame.f_back
+        caller_file = caller_frame.f_code.co_filename
+        caller_line = caller_frame.f_lineno
+        caller_function = caller_frame.f_code.co_name
+        
         log_entry = {
             'step': step,
             'timestamp': datetime.now().isoformat(),
@@ -97,14 +107,23 @@ class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
             'prompt': prompt,
             'model_output': model_output,
             'success': success,
-            'error': error
+            'error': error,
+            'caller_info': {
+                'file': caller_file,
+                'line': caller_line,
+                'function': caller_function
+            }
         }
         
         logger.debug(f"[{step}] Input: {input_data}")
-        logger.debug(f"[{step}] Prompt: {prompt}")
+        logger.debug(f"[{step}] Prompt: {prompt[:200]}..." if len(prompt) > 200 else f"[{step}] Prompt: {prompt}")
         logger.debug(f"[{step}] Output: {model_output}")
+        
         if error:
-            logger.error(f"[{step}] Error: {error}")
+            logger.error(f"[{step}] Error in {caller_function}() at line {caller_line}: {error}")
+            # 如果有活跃的异常，打印完整的traceback
+            if hasattr(error, '__traceback__'):
+                logger.error(f"[{step}] Full traceback:\n{''.join(traceback.format_tb(error.__traceback__))}")
         
         return log_entry
 
@@ -200,13 +219,17 @@ class NL2SQLService:
                 state['logs'] = logs
                 
             except Exception as e:
+                import traceback
+                error_traceback = traceback.format_exc()
+                logger.error(f"Input validation failed with traceback:\n{error_traceback}")
+                
                 log_entry = self.vanna.log_interaction(
                     step="input_validation",
                     input_data=user_input,
                     prompt=validation_prompt,
                     model_output="",
                     success=False,
-                    error=str(e)
+                    error=f"{str(e)}\nTraceback:\n{error_traceback}"
                 )
                 logs.append(log_entry)
                 state['is_clear'] = False
