@@ -3,6 +3,7 @@
 """
 
 import hashlib
+import json
 from loguru import logger
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
@@ -180,9 +181,9 @@ class NL2SQLService:
                 state['logs'] = logs
                 return state
             
-            # 构建验证提示词
+            # 构建验证提示词，要求返回JSON格式
             validation_prompt = f"""
-请判断以下用户查询是否足够清晰，可以转换为SQL查询：
+请判断以下用户查询是否足够清晰，可以转换为SQL查询。
 
 用户查询: {user_input}
 
@@ -192,7 +193,12 @@ class NL2SQLService:
 可用的术语:
 {self._get_glossary_text()}
 
-请回答"是"或"否"，并说明原因。如果不够清晰，请说明需要什么额外信息。
+请严格按照以下JSON格式返回结果，不要添加任何其他文字：
+{{
+    "is_clear": true/false,
+    "reason": "判断的详细原因",
+    "suggestions": ["如果不清晰，提供改进建议"]
+}}
 """
             
             try:
@@ -205,7 +211,26 @@ class NL2SQLService:
                     logger.warning(f"Unexpected response type: {type(response)}, content: {response}")
                     response = str(response) if response else ""
                 
-                is_clear = response.lower().startswith('是') if response else True
+                # 解析JSON响应
+                try:
+                    # 尝试解析JSON
+                    validation_result = json.loads(response.strip())
+                    is_clear = validation_result.get('is_clear', True)
+                    reason = validation_result.get('reason', '')
+                    suggestions = validation_result.get('suggestions', [])
+                    
+                    # 构建更详细的处理输入
+                    processed_input = {
+                        'is_clear': is_clear,
+                        'reason': reason,
+                        'suggestions': suggestions
+                    }
+                    
+                except json.JSONDecodeError as json_error:
+                    # JSON解析失败，降级到原有逻辑
+                    logger.warning(f"Failed to parse JSON response: {json_error}, using fallback logic")
+                    is_clear = response.lower().startswith('是') if response else True
+                    processed_input = response
                 
                 log_entry = self.vanna.log_interaction(
                     step="input_validation",
@@ -217,7 +242,7 @@ class NL2SQLService:
                 logs.append(log_entry)
                 
                 state['is_clear'] = is_clear
-                state['processed_input'] = response
+                state['processed_input'] = processed_input
                 state['logs'] = logs
                 
             except Exception as e:
