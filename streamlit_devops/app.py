@@ -67,6 +67,144 @@ class TaoshaAPIClient:
             return response.status_code == 200
         except:
             return False
+    
+    def get_all_metadata_tables(self) -> List[Dict[str, Any]]:
+        """获取所有元数据表"""
+        try:
+            response = requests.get(f"{self.base_url}/dev/metadata/tables", timeout=10)
+            response.raise_for_status()
+            return response.json().get('data', [])
+        except requests.exceptions.RequestException as e:
+            st.error(f"获取元数据失败: {str(e)}")
+            return []
+    
+    def add_table_metadata(self, name: str, comment: str) -> bool:
+        """添加表元数据"""
+        try:
+            response = requests.post(
+                f"{self.base_url}/dev/metadata/tables",
+                json={"name": name, "comment": comment},
+                timeout=10
+            )
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            st.error(f"添加表元数据失败: {str(e)}")
+            return False
+    
+    def update_table_metadata(self, table_name: str, comment: str) -> bool:
+        """更新表元数据"""
+        try:
+            response = requests.put(
+                f"{self.base_url}/dev/metadata/tables/{table_name}",
+                json={"comment": comment},
+                timeout=10
+            )
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            st.error(f"更新表元数据失败: {str(e)}")
+            return False
+    
+    def delete_table_metadata(self, table_name: str) -> bool:
+        """删除表元数据"""
+        try:
+            response = requests.delete(
+                f"{self.base_url}/dev/metadata/tables/{table_name}",
+                timeout=10
+            )
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            st.error(f"删除表元数据失败: {str(e)}")
+            return False
+    
+    def add_column_metadata(self, table_name: str, column_name: str, column_type: str, 
+                           comment: str, is_primary_key: bool, is_nullable: bool) -> bool:
+        """添加列元数据"""
+        try:
+            response = requests.post(
+                f"{self.base_url}/dev/metadata/columns",
+                json={
+                    "table_name": table_name,
+                    "name": column_name,
+                    "type": column_type,
+                    "comment": comment,
+                    "is_primary_key": is_primary_key,
+                    "is_nullable": is_nullable
+                },
+                timeout=10
+            )
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            st.error(f"添加列元数据失败: {str(e)}")
+            return False
+    
+    def delete_column_metadata(self, table_name: str, column_name: str) -> bool:
+        """删除列元数据"""
+        try:
+            response = requests.delete(
+                f"{self.base_url}/dev/metadata/columns/{table_name}/{column_name}",
+                timeout=10
+            )
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            st.error(f"删除列元数据失败: {str(e)}")
+            return False
+    
+    def sync_metadata_from_database(self) -> Dict[str, Any]:
+        """从数据库同步元数据"""
+        try:
+            response = requests.post(
+                f"{self.base_url}/dev/metadata/sync-from-database",
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {"success": False, "error": str(e)}
+    
+    def get_all_terms(self) -> List[Dict[str, Any]]:
+        """获取所有术语"""
+        try:
+            response = requests.get(f"{self.base_url}/dev/glossary/terms", timeout=10)
+            response.raise_for_status()
+            return response.json().get('data', [])
+        except requests.exceptions.RequestException as e:
+            st.error(f"获取术语失败: {str(e)}")
+            return []
+    
+    def add_term(self, term: str, definition: str, sql_expression: str, category: str, aliases: List[str]) -> bool:
+        """添加术语"""
+        try:
+            response = requests.post(
+                f"{self.base_url}/dev/glossary/terms",
+                json={
+                    "term": term,
+                    "definition": definition,
+                    "sql_expression": sql_expression,
+                    "category": category,
+                    "aliases": aliases
+                },
+                timeout=10
+            )
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            st.error(f"添加术语失败: {str(e)}")
+            return False
+    
+    def delete_term(self, term_id: int) -> bool:
+        """删除术语"""
+        try:
+            response = requests.delete(f"{self.base_url}/dev/glossary/terms/{term_id}", timeout=10)
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            st.error(f"删除术语失败: {str(e)}")
+            return False
 
 # 初始化API客户端
 @st.cache_resource
@@ -215,9 +353,25 @@ def display_query_logs(logs: List[Dict]):
 
 def main():
     """主应用"""
+    # 页面导航
+    st.sidebar.title("🔍 淘沙分析平台")
+    
+    page = st.sidebar.radio(
+        "选择页面",
+        ["🏠 数据查询", "🛠️ 元数据管理", "📖 术语搜索"],
+        index=0
+    )
+    
+    if page == "🛠️ 元数据管理":
+        metadata_management_page()
+        return
+    elif page == "📖 术语搜索":
+        glossary_search_page()
+        return
+    
+    # 主页面（数据查询）
     # 侧边栏
     with st.sidebar:
-        st.title("🔍 淘沙分析平台")
         st.markdown("---")
         
         # 健康检查
@@ -249,8 +403,229 @@ def main():
                         st.write(f"_{table['comment']}_")
                     st.write(f"行数: {table.get('row_count', 0)}")
                     st.divider()
+
+def metadata_management_page():
+    """元数据管理页面"""
+    st.title("🛠️ 元数据管理")
+    st.markdown("管理数据表和列的元数据信息，以及业务术语表")
+    
+    api_client = get_api_client()
+    
+    # 创建选项卡
+    tab1, tab2, tab3 = st.tabs(["📋 表元数据", "📝 术语表", "🔄 数据库同步"])
+    
+    with tab1:
+        st.header("表元数据管理")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # 显示现有表元数据
+            st.subheader("📋 现有表元数据")
+            metadata_tables = api_client.get_all_metadata_tables()
+            
+            if metadata_tables:
+                for table in metadata_tables:
+                    with st.expander(f"📊 {table['name']}", expanded=False):
+                        st.write(f"**描述**: {table.get('comment', '无描述')}")
+                        
+                        # 显示列信息
+                        columns = table.get('columns', [])
+                        if columns:
+                            st.write(f"**列数**: {len(columns)}")
+                            col_df = pd.DataFrame(columns)
+                            st.dataframe(col_df, use_container_width=True)
+                        else:
+                            st.info("该表暂无列元数据")
+                        
+                        # 操作按钮
+                        col_edit, col_del = st.columns(2)
+                        
+                        with col_edit:
+                            new_comment = st.text_input(
+                                "更新描述",
+                                value=table.get('comment', ''),
+                                key=f"edit_comment_{table['name']}"
+                            )
+                            if st.button(f"更新描述", key=f"update_{table['name']}"):
+                                if api_client.update_table_metadata(table['name'], new_comment):
+                                    st.success(f"表 {table['name']} 描述已更新")
+                                    st.rerun()
+                        
+                        with col_del:
+                            st.write("")  # 对齐
+                            if st.button(f"删除表", key=f"delete_{table['name']}", type="secondary"):
+                                if st.session_state.get(f"confirm_delete_{table['name']}", False):
+                                    if api_client.delete_table_metadata(table['name']):
+                                        st.success(f"表 {table['name']} 元数据已删除")
+                                        st.rerun()
+                                else:
+                                    st.session_state[f"confirm_delete_{table['name']}"] = True
+                                    st.warning("再次点击确认删除")
+                        
+                        # 添加列元数据
+                        st.markdown("**添加列元数据**")
+                        col_col1, col_col2, col_col3 = st.columns(3)
+                        
+                        with col_col1:
+                            new_col_name = st.text_input("列名", key=f"col_name_{table['name']}")
+                            new_col_type = st.selectbox(
+                                "列类型",
+                                ["VARCHAR", "INTEGER", "DECIMAL", "DATE", "BOOLEAN", "TEXT"],
+                                key=f"col_type_{table['name']}"
+                            )
+                        
+                        with col_col2:
+                            new_col_comment = st.text_area("列描述", key=f"col_comment_{table['name']}")
+                            is_pk = st.checkbox("主键", key=f"col_pk_{table['name']}")
+                        
+                        with col_col3:
+                            is_nullable = st.checkbox("允许空值", value=True, key=f"col_nullable_{table['name']}")
+                            if st.button("添加列", key=f"add_col_{table['name']}"):
+                                if new_col_name and new_col_type:
+                                    if api_client.add_column_metadata(
+                                        table['name'], new_col_name, new_col_type, 
+                                        new_col_comment, is_pk, is_nullable
+                                    ):
+                                        st.success(f"列 {new_col_name} 已添加到表 {table['name']}")
+                                        st.rerun()
+                                else:
+                                    st.error("请填写列名和类型")
             else:
-                st.warning("未找到数据表")
+                st.info("暂无表元数据，可从右侧添加或使用数据库同步功能")
+        
+        with col2:
+            st.subheader("➕ 添加新表")
+            
+            with st.form("add_table_form"):
+                new_table_name = st.text_input("表名")
+                new_table_comment = st.text_area("表描述")
+                
+                submit_table = st.form_submit_button("添加表", type="primary")
+                
+                if submit_table:
+                    if new_table_name:
+                        if api_client.add_table_metadata(new_table_name, new_table_comment):
+                            st.success(f"表 {new_table_name} 元数据已添加")
+                            st.rerun()
+                    else:
+                        st.error("请输入表名")
+    
+    with tab2:
+        st.header("业务术语表管理")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # 显示现有术语
+            st.subheader("📖 现有术语")
+            terms = api_client.get_all_terms()
+            
+            if terms:
+                for i, term in enumerate(terms):
+                    with st.expander(f"📝 {term['term']}", expanded=False):
+                        st.write(f"**定义**: {term.get('definition', '无定义')}")
+                        st.write(f"**SQL表达式**: {term.get('sql_expression', '无表达式')}")
+                        st.write(f"**分类**: {term.get('category', '无分类')}")
+                        
+                        aliases = term.get('aliases', [])
+                        if aliases:
+                            st.write(f"**别名**: {', '.join(aliases)}")
+                        
+                        # 删除按钮（注意：这里假设术语有ID，实际需要根据API调整）
+                        if st.button(f"删除术语", key=f"del_term_{i}", type="secondary"):
+                            # 这里需要术语ID，现在使用索引作为替代
+                            # 实际实现中应该从API获取术语ID
+                            st.warning("删除功能需要术语ID，请在后端实现中确保返回ID字段")
+            else:
+                st.info("暂无业务术语，可从右侧添加")
+        
+        with col2:
+            st.subheader("➕ 添加新术语")
+            
+            with st.form("add_term_form"):
+                new_term = st.text_input("术语名称")
+                new_definition = st.text_area("术语定义")
+                new_sql_expr = st.text_area("SQL表达式")
+                new_category = st.text_input("分类")
+                new_aliases_str = st.text_input("别名（用逗号分隔）")
+                
+                submit_term = st.form_submit_button("添加术语", type="primary")
+                
+                if submit_term:
+                    if new_term:
+                        aliases = [alias.strip() for alias in new_aliases_str.split(",") if alias.strip()]
+                        if api_client.add_term(new_term, new_definition, new_sql_expr, new_category, aliases):
+                            st.success(f"术语 {new_term} 已添加")
+                            st.rerun()
+                    else:
+                        st.error("请输入术语名称")
+    
+    with tab3:
+        st.header("数据库同步")
+        st.markdown("从实际数据库自动同步表结构到元数据管理系统")
+        
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            st.info("""
+            **同步功能说明**：
+            - 自动扫描数据库中的所有表
+            - 为不存在的表创建基础元数据
+            - 自动添加列信息（名称、类型、是否可空）
+            - 不会覆盖已有的描述信息
+            """)
+        
+        with col2:
+            if st.button("🔄 从数据库同步元数据", type="primary", use_container_width=True):
+                with st.spinner("正在同步数据库元数据..."):
+                    result = api_client.sync_metadata_from_database()
+                
+                if result.get('success'):
+                    st.success(f"✅ 同步完成！{result.get('message', '')}")
+                    
+                    synced_tables = result.get('synced_tables', [])
+                    if synced_tables:
+                        st.write("**同步的表：**")
+                        for table in synced_tables:
+                            st.write(f"- {table}")
+                    
+                    # 刷新页面显示最新数据
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error(f"❌ 同步失败：{result.get('error', '未知错误')}")
+
+def glossary_search_page():
+    """术语表搜索页面"""
+    st.title("🔍 术语表搜索")
+    st.markdown("搜索和查找业务术语定义")
+    
+    api_client = get_api_client()
+    
+    # 搜索框
+    search_query = st.text_input("输入要搜索的术语或别名", placeholder="例如：销售额、收入")
+    
+    if search_query:
+        # 这里需要实现搜索API调用
+        st.info("搜索功能待实现 - 需要调用术语搜索API")
+    
+    # 显示所有术语作为参考
+    st.subheader("📋 所有术语")
+    terms = api_client.get_all_terms()
+    
+    if terms:
+        for term in terms:
+            with st.expander(f"📝 {term['term']}"):
+                st.write(f"**定义**: {term.get('definition', '无定义')}")
+                if term.get('sql_expression'):
+                    st.code(term['sql_expression'], language='sql')
+                if term.get('category'):
+                    st.badge(term['category'])
+                if term.get('aliases'):
+                    st.write(f"**别名**: {', '.join(term['aliases'])}")
+    else:
+        st.info("暂无术语数据")
         
         # 示例查询
         st.markdown("### 💡 示例查询")

@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 from config import settings
 from api.routes import router
+from api.dev_routes import router as dev_router
 from services import get_database_service, get_nl2sql_service
 
 @asynccontextmanager
@@ -71,6 +72,7 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(router, prefix="/api/v1", tags=["查询"])
+app.include_router(dev_router, prefix="/api/v1")
 
 @app.get("/", tags=["根路径"])
 async def root():
