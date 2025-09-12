@@ -382,7 +382,7 @@ def main():
             'timestamp': time.time(),
             'success': result.get('success', False),
             'sql': result.get('sql_query', ''),
-            'data_count': len(result.get('data', []))
+            'data_count': len(result.get('data', [])) if result.get('data') is not None else 0
         }
         st.session_state.chat_history.append(chat_entry)
         # 只保留最近10条
