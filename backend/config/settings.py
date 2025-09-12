@@ -21,8 +21,21 @@ class Settings(BaseSettings):
     chromadb_path: str = str(database_dir / "chromadb")
     
     # 元数据配置
-    metadata_file: str = str(database_dir / "metadata.json")
-    glossary_file: str = str(database_dir / "glossary.json")
+    metadata_file: str = str(database_dir / "metadata.json")  # 兼容旧版本
+    glossary_file: str = str(database_dir / "glossary.json")  # 兼容旧版本
+    
+    # 元数据数据库配置
+    metadata_db_type: str = "sqlite"  # sqlite 或 mysql
+    
+    # SQLite配置（默认）
+    metadata_sqlite_path: str = str(database_dir / "metadata.db")
+    
+    # MySQL配置（当metadata_db_type为mysql时使用）
+    metadata_mysql_host: str = "localhost"
+    metadata_mysql_port: int = 3306
+    metadata_mysql_database: str = "taosha_metadata"
+    metadata_mysql_user: str = "root"
+    metadata_mysql_password: str = ""
     
     # OpenAI配置
     openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
