@@ -32,7 +32,7 @@ from services.metadata_service import get_metadata_service, get_glossary_service
 class GraphState(TypedDict):
     """LangGraph状态定义"""
     user_input: str
-    processed_input: str
+    clear_check_details: Dict[str, Any]
     is_clear: bool
     sql_query: str
     execution_result: Optional[pd.DataFrame]
@@ -220,17 +220,18 @@ class NL2SQLService:
                     suggestions = validation_result.get('suggestions', [])
                     
                     # 构建更详细的处理输入
-                    processed_input = {
+                    clear_check_details = {
                         'is_clear': is_clear,
                         'reason': reason,
                         'suggestions': suggestions
                     }
                     
                 except json.JSONDecodeError as json_error:
-                    # JSON解析失败，降级到原有逻辑
-                    logger.warning(f"Failed to parse JSON response: {json_error}, using fallback logic")
-                    is_clear = response.lower().startswith('是') if response else True
-                    processed_input = response
+                    clear_check_details = {
+                        'is_clear': False,
+                        'reason': f"无法解析模型响应为JSON: {str(json_error)}",
+                        'suggestions': []
+                    }
                 
                 log_entry = self.vanna.log_interaction(
                     step="input_validation",
@@ -242,7 +243,8 @@ class NL2SQLService:
                 logs.append(log_entry)
                 
                 state['is_clear'] = is_clear
-                state['processed_input'] = processed_input
+                state['processed_input'] = clear_check_details
+                state['clear_check_details'] = clear_check_details
                 state['logs'] = logs
                 
             except Exception as e:
@@ -539,6 +541,7 @@ class NL2SQLService:
         initial_state = GraphState(
             user_input=user_input,
             processed_input="",
+            clear_check_details={},
             is_clear=False,
             sql_query="",
             execution_result=None,
@@ -555,6 +558,7 @@ class NL2SQLService:
         result = {
             'user_input': user_input,
             'is_clear': final_state.get('is_clear', False),
+            'clear_check_details': final_state.get('clear_check_details', {}),
             'sql_query': final_state.get('sql_query', ''),
             'success': final_state.get('execution_result') is not None,
             'data': final_state.get('execution_result'),

@@ -53,6 +53,7 @@ async def process_natural_language_query(request: QueryRequest):
             is_clear=result['is_clear'],
             sql_query=result['sql_query'],
             data=result['data'],
+            clear_check_details=result['clear_check_details'],
             row_count=result.get('row_count'),
             error=result['error'],
             retry_count=result['retry_count'],
@@ -65,6 +66,7 @@ async def process_natural_language_query(request: QueryRequest):
         
     except Exception as e:
         execution_time = time.time() - start_time
+        logger.info(result)
         error_message = f"查询处理失败: {str(e)}"
         
         logger.error(error_message, exc_info=True)

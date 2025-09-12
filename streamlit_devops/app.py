@@ -121,6 +121,51 @@ def create_chart(data: List[Dict], chart_type: str = "auto"):
     
     return None
 
+def display_input_clarity_result(clear_check_details):
+    """显示输入清晰度验证结果"""
+    if not clear_check_details:
+        return False
+    
+    # 处理结构化数据或字符串格式
+    is_clear = clear_check_details.get('is_clear', True)
+    reason = clear_check_details.get('reason', '')
+    suggestions = clear_check_details.get('suggestions', [])
+    
+    if not is_clear:
+        st.warning("🤔 您的问题可能不够清晰")
+        
+        if reason:
+            st.info(f"**原因**: {reason}")
+        
+        if suggestions:
+            st.markdown("### 💡 改进建议")
+            st.markdown("请选择以下建议之一来完善您的查询：")
+            
+            # 创建建议选择按钮
+            col_count = min(len(suggestions), 2)  # 最多2列
+            cols = st.columns(col_count)
+            
+            for i, suggestion in enumerate(suggestions):
+                with cols[i % col_count]:
+                    if st.button(
+                        suggestion, 
+                        key=f"suggestion_{i}", 
+                        use_container_width=True,
+                        help="点击将此建议作为新查询"
+                    ):
+                        # 将建议设置为新的查询输入
+                        st.session_state.query_input = suggestion
+                        st.rerun()
+            
+            # 也提供复制建议的功能
+            with st.expander("📋 复制建议内容"):
+                for i, suggestion in enumerate(suggestions, 1):
+                    st.code(f"{i}. {suggestion}", language="text")
+        
+        return True  # 表示显示了清晰度问题
+    
+    return False  # 输入清晰，没有显示额外内容
+
 def display_query_logs(logs: List[Dict]):
     """显示查询日志"""
     if not logs:
@@ -233,8 +278,9 @@ def main():
         query_input = st.text_input(
             "请输入您的问题：",
             value=st.session_state.get('query_input', ''),
-            placeholder="例如：显示北京地区本月的销售额",
-            key="main_query_input"
+            placeholder="例如：显示北京地区本月的销售额，最近一周电子产品销量统计",
+            key="main_query_input",
+            help="💡 提示：尽量明确时间范围、统计指标和筛选条件，这样能得到更准确的结果"
         )
     
     with col2:
@@ -251,6 +297,10 @@ def main():
             start_time = time.time()
             result = api_client.query(query_input, max_retries)
             end_time = time.time()
+        
+        # 首先显示输入清晰度验证结果（如果不清晰）
+        clear_check_details = result.get('clear_check_details')
+        clarity_issues_shown = display_input_clarity_result(clear_check_details)
         
         # 显示结果
         if result.get('success'):
@@ -312,18 +362,14 @@ def main():
         else:
             st.error(f"❌ 查询失败: {result.get('error', '未知错误')}")
             
+            # 如果之前没有显示过清晰度问题，再次尝试显示
+            if not clarity_issues_shown:
+                clear_check_details = result.get('clear_check_details')
+                display_input_clarity_result(clear_check_details)
+            
             # 显示执行日志（失败情况下也很有用）
             if result.get('logs'):
                 display_query_logs(result['logs'])
-            
-            # 如果输入不够清晰，显示建议
-            if not result.get('is_clear', True):
-                st.warning("💡 您的问题可能不够清晰，请尝试：")
-                st.markdown("""
-                - 明确指定要查询的表名或数据范围
-                - 使用更具体的条件和筛选项
-                - 参考右侧的示例查询
-                """)
     
     # 聊天历史（简单实现）
     if 'chat_history' not in st.session_state:
