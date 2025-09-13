@@ -211,6 +211,31 @@ class TaoshaAPIClient:
 def get_api_client():
     return TaoshaAPIClient()
 
+# 缓存数据获取函数
+@st.cache_data(ttl=30)  # 30秒缓存
+def get_metadata_tables_cached():
+    """缓存的元数据表获取"""
+    api_client = get_api_client()
+    return api_client.get_all_metadata_tables()
+
+@st.cache_data(ttl=30)  # 30秒缓存
+def get_terms_cached():
+    """缓存的术语获取"""
+    api_client = get_api_client()
+    return api_client.get_all_terms()
+
+@st.cache_data(ttl=60)  # 60秒缓存
+def get_tables_cached():
+    """缓存的数据表获取"""
+    api_client = get_api_client()
+    return api_client.get_tables()
+
+@st.cache_data(ttl=60)  # 60秒缓存  
+def get_system_status_cached():
+    """缓存的系统状态获取"""
+    api_client = get_api_client()
+    return api_client.get_system_status()
+
 def create_chart(data: List[Dict], chart_type: str = "auto"):
     """根据数据创建图表"""
     if not data:
@@ -370,39 +395,7 @@ def main():
         return
     
     # 主页面（数据查询）
-    # 侧边栏
-    with st.sidebar:
-        st.markdown("---")
-        
-        # 健康检查
-        api_client = get_api_client()
-        if api_client.health_check():
-            st.success("✅ 后端服务正常")
-        else:
-            st.error("❌ 后端服务异常")
-            st.stop()
-        
-        # 系统状态
-        with st.expander("📊 系统状态"):
-            status = api_client.get_system_status()
-            if "error" not in status:
-                st.write(f"**应用**: {status.get('app_name')}")
-                st.write(f"**版本**: {status.get('version')}")
-                st.write(f"**数据库类型**: {status.get('database', {}).get('database_type')}")
-                st.write(f"**表数量**: {status.get('database', {}).get('total_tables')}")
-            else:
-                st.error(status['error'])
-        
-        # 数据表信息
-        with st.expander("📋 数据表"):
-            tables = api_client.get_tables()
-            if tables:
-                for table in tables:
-                    st.write(f"**{table['table_name']}**")
-                    if table.get('comment'):
-                        st.write(f"_{table['comment']}_")
-                    st.write(f"行数: {table.get('row_count', 0)}")
-                    st.divider()
+    data_query_page()
 
 def metadata_management_page():
     """元数据管理页面"""
@@ -421,8 +414,15 @@ def metadata_management_page():
         
         with col1:
             # 显示现有表元数据
-            st.subheader("📋 现有表元数据")
-            metadata_tables = api_client.get_all_metadata_tables()
+            col_title, col_refresh = st.columns([3, 1])
+            with col_title:
+                st.subheader("📋 现有表元数据")
+            with col_refresh:
+                if st.button("🔄 刷新", key="refresh_metadata"):
+                    st.cache_data.clear()
+                    st.rerun()
+            
+            metadata_tables = get_metadata_tables_cached()
             
             if metadata_tables:
                 for table in metadata_tables:
@@ -450,6 +450,7 @@ def metadata_management_page():
                             if st.button(f"更新描述", key=f"update_{table['name']}"):
                                 if api_client.update_table_metadata(table['name'], new_comment):
                                     st.success(f"表 {table['name']} 描述已更新")
+                                    st.cache_data.clear()  # 清除缓存
                                     st.rerun()
                         
                         with col_del:
@@ -458,6 +459,7 @@ def metadata_management_page():
                                 if st.session_state.get(f"confirm_delete_{table['name']}", False):
                                     if api_client.delete_table_metadata(table['name']):
                                         st.success(f"表 {table['name']} 元数据已删除")
+                                        st.cache_data.clear()  # 清除缓存
                                         st.rerun()
                                 else:
                                     st.session_state[f"confirm_delete_{table['name']}"] = True
@@ -488,6 +490,7 @@ def metadata_management_page():
                                         new_col_comment, is_pk, is_nullable
                                     ):
                                         st.success(f"列 {new_col_name} 已添加到表 {table['name']}")
+                                        st.cache_data.clear()  # 清除缓存
                                         st.rerun()
                                 else:
                                     st.error("请填写列名和类型")
@@ -507,6 +510,7 @@ def metadata_management_page():
                     if new_table_name:
                         if api_client.add_table_metadata(new_table_name, new_table_comment):
                             st.success(f"表 {new_table_name} 元数据已添加")
+                            st.cache_data.clear()  # 清除缓存
                             st.rerun()
                     else:
                         st.error("请输入表名")
@@ -518,8 +522,15 @@ def metadata_management_page():
         
         with col1:
             # 显示现有术语
-            st.subheader("📖 现有术语")
-            terms = api_client.get_all_terms()
+            col_title, col_refresh = st.columns([3, 1])
+            with col_title:
+                st.subheader("📖 现有术语")
+            with col_refresh:
+                if st.button("🔄 刷新", key="refresh_terms"):
+                    st.cache_data.clear()
+                    st.rerun()
+            
+            terms = get_terms_cached()
             
             if terms:
                 for i, term in enumerate(terms):
@@ -557,6 +568,7 @@ def metadata_management_page():
                         aliases = [alias.strip() for alias in new_aliases_str.split(",") if alias.strip()]
                         if api_client.add_term(new_term, new_definition, new_sql_expr, new_category, aliases):
                             st.success(f"术语 {new_term} 已添加")
+                            st.cache_data.clear()  # 清除缓存
                             st.rerun()
                     else:
                         st.error("请输入术语名称")
@@ -590,7 +602,8 @@ def metadata_management_page():
                         for table in synced_tables:
                             st.write(f"- {table}")
                     
-                    # 刷新页面显示最新数据
+                    # 清除缓存并刷新页面显示最新数据
+                    st.cache_data.clear()
                     time.sleep(1)
                     st.rerun()
                 else:
@@ -612,7 +625,7 @@ def glossary_search_page():
     
     # 显示所有术语作为参考
     st.subheader("📋 所有术语")
-    terms = api_client.get_all_terms()
+    terms = get_terms_cached()
     
     if terms:
         for term in terms:
@@ -626,6 +639,44 @@ def glossary_search_page():
                     st.write(f"**别名**: {', '.join(term['aliases'])}")
     else:
         st.info("暂无术语数据")
+
+def data_query_page():
+    """数据查询页面"""
+    # 侧边栏信息
+    with st.sidebar:
+        st.markdown("---")
+        
+        # 健康检查
+        api_client = get_api_client()
+        if api_client.health_check():
+            st.success("✅ 后端服务正常")
+        else:
+            st.error("❌ 后端服务异常")
+            st.stop()
+        
+        # 系统状态
+        with st.expander("📊 系统状态"):
+            status = get_system_status_cached()
+            if "error" not in status:
+                st.write(f"**应用**: {status.get('app_name')}")
+                st.write(f"**版本**: {status.get('version')}")
+                st.write(f"**数据库类型**: {status.get('database', {}).get('database_type')}")
+                st.write(f"**表数量**: {status.get('database', {}).get('total_tables')}")
+            else:
+                st.error(status['error'])
+        
+        # 数据表信息
+        with st.expander("📋 数据表"):
+            tables = get_tables_cached()
+            if tables:
+                for table in tables:
+                    st.write(f"**{table['table_name']}**")
+                    if table.get('comment'):
+                        st.write(f"_{table['comment']}_")
+                    st.write(f"行数: {table.get('row_count', 0)}")
+                    st.divider()
+            else:
+                st.warning("未找到数据表")
         
         # 示例查询
         st.markdown("### 💡 示例查询")
@@ -642,9 +693,11 @@ def glossary_search_page():
             if st.button(query, key=f"example_{query}", use_container_width=True):
                 st.session_state.query_input = query
 
-    # 主界面
+    # 主界面内容
     st.title("🔍 淘沙数据分析助手")
     st.markdown("使用自然语言查询您的数据，获得即时的分析结果")
+    
+    api_client = get_api_client()
     
     # 查询输入区域
     col1, col2 = st.columns([4, 1])
@@ -778,7 +831,7 @@ def glossary_search_page():
                 with col3:
                     if st.button("重新查询", key=f"retry_{i}"):
                         st.session_state.query_input = entry['query']
-                        st.experimental_rerun()
+                        st.rerun()
     
     # 页脚
     st.markdown("---")

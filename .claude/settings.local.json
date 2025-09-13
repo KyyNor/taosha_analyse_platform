@@ -8,9 +8,19 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(uv add:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(uv pip:*)",
+      "Bash(uv sync:*)",
+      "Bash(set UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple/)",
+      "Bash(uv remove:*)",
+      "Bash(python:*)",
+      "Bash(pushd:*)",
+      "Bash(popd:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "D:\\"
+    ]
   }
 }

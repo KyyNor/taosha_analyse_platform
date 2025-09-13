@@ -73,10 +73,14 @@ class DatabaseConnectionManager:
             conn = self.create_connection(db_type, config)
             logger.debug(f"创建{db_type}数据库连接")
             yield conn, db_type
+            # 如果没有异常，自动提交事务
+            conn.commit()
+            logger.debug(f"事务已提交: {db_type}")
         except Exception as e:
             logger.error(f"数据库连接失败: {e}")
             if conn:
                 conn.rollback()
+                logger.debug(f"事务已回滚: {db_type}")
             raise
         finally:
             if conn:
