@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     metadata_mysql_database: str = "taosha_metadata"
     metadata_mysql_user: str = "root"
     metadata_mysql_password: str = ""
+    metadata_mysql_charset: str = "utf8mb4"
     
     # OpenAI配置
     openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")

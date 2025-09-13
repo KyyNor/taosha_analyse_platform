@@ -3,7 +3,7 @@
 """
 
 import sqlite3
-import mysql.connector
+import pymysql
 from typing import Dict, Any, Optional, Union
 from contextlib import contextmanager
 from loguru import logger
@@ -37,7 +37,8 @@ class DatabaseConnectionManager:
                 "port": getattr(settings, "metadata_mysql_port", 3306),
                 "database": getattr(settings, "metadata_mysql_database", "taosha_metadata"),
                 "user": getattr(settings, "metadata_mysql_user", "root"),
-                "password": getattr(settings, "metadata_mysql_password", "")
+                "password": getattr(settings, "metadata_mysql_password", ""),
+                "charset": getattr(settings, "metadata_mysql_charset", "utf8mb4")
             }
         else:
             raise ValueError(f"不支持的数据库类型: {db_type}")
@@ -50,7 +51,13 @@ class DatabaseConnectionManager:
             db_path.parent.mkdir(parents=True, exist_ok=True)
             return sqlite3.connect(config["database"])
         elif db_type == "mysql":
-            return mysql.connector.connect(**config)
+            # pymysql推荐配置
+            mysql_config = {
+                'autocommit': False,
+                'cursorclass': pymysql.cursors.Cursor,
+                **config  # 包含从settings来的charset配置
+            }
+            return pymysql.connect(**mysql_config)
         else:
             raise ValueError(f"不支持的数据库类型: {db_type}")
     
