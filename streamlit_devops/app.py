@@ -78,12 +78,12 @@ class TaoshaAPIClient:
             st.error(f"获取元数据失败: {str(e)}")
             return []
     
-    def add_table_metadata(self, name: str, comment: str) -> bool:
+    def add_table_metadata(self, name: str, comment: str, is_available: int = 0) -> bool:
         """添加表元数据"""
         try:
             response = requests.post(
                 f"{self.base_url}/dev/metadata/tables",
-                json={"name": name, "comment": comment},
+                json={"name": name, "comment": comment, "is_available": is_available},
                 timeout=10
             )
             response.raise_for_status()
@@ -92,12 +92,18 @@ class TaoshaAPIClient:
             st.error(f"添加表元数据失败: {str(e)}")
             return False
     
-    def update_table_metadata(self, table_name: str, comment: str) -> bool:
+    def update_table_metadata(self, table_name: str, comment: str = None, is_available: int = None) -> bool:
         """更新表元数据"""
         try:
+            update_data = {}
+            if comment is not None:
+                update_data["comment"] = comment
+            if is_available is not None:
+                update_data["is_available"] = is_available
+            
             response = requests.put(
                 f"{self.base_url}/dev/metadata/tables/{table_name}",
-                json={"comment": comment},
+                json=update_data,
                 timeout=10
             )
             response.raise_for_status()
@@ -120,7 +126,7 @@ class TaoshaAPIClient:
             return False
     
     def add_column_metadata(self, table_name: str, column_name: str, column_type: str, 
-                           comment: str, is_primary_key: bool, is_nullable: bool) -> bool:
+                           comment: str, is_available: int = 0, business_type: str = "", relation_id: str = "") -> bool:
         """添加列元数据"""
         try:
             response = requests.post(
@@ -130,8 +136,9 @@ class TaoshaAPIClient:
                     "name": column_name,
                     "type": column_type,
                     "comment": comment,
-                    "is_primary_key": is_primary_key,
-                    "is_nullable": is_nullable
+                    "is_available": is_available,
+                    "business_type": business_type,
+                    "relation_id": relation_id
                 },
                 timeout=10
             )
@@ -205,6 +212,54 @@ class TaoshaAPIClient:
         except requests.exceptions.RequestException as e:
             st.error(f"删除术语失败: {str(e)}")
             return False
+    
+    def get_all_relation_configs(self) -> List[Dict[str, Any]]:
+        """获取所有关联字段配置"""
+        try:
+            response = requests.get(f"{self.base_url}/dev/relation-configs", timeout=10)
+            response.raise_for_status()
+            return response.json().get('data', [])
+        except requests.exceptions.RequestException as e:
+            st.error(f"获取关联字段配置失败: {str(e)}")
+            return []
+    
+    def add_relation_config(self, family: str, subfamily: str, desc: str = "") -> bool:
+        """添加关联字段配置"""
+        try:
+            response = requests.post(
+                f"{self.base_url}/dev/relation-configs",
+                json={
+                    "relation_family": family,
+                    "relation_subfamily": subfamily,
+                    "relation_desc": desc
+                },
+                timeout=10
+            )
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            st.error(f"添加关联字段配置失败: {str(e)}")
+            return False
+    
+    def delete_relation_config(self, relation_id: str) -> bool:
+        """删除关联字段配置"""
+        try:
+            response = requests.delete(f"{self.base_url}/dev/relation-configs/{relation_id}", timeout=10)
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            st.error(f"删除关联字段配置失败: {str(e)}")
+            return False
+    
+    def get_relation_ids(self) -> List[str]:
+        """获取所有关联ID列表"""
+        try:
+            response = requests.get(f"{self.base_url}/dev/relation-configs/ids", timeout=10)
+            response.raise_for_status()
+            return response.json().get('data', [])
+        except requests.exceptions.RequestException as e:
+            st.error(f"获取关联ID列表失败: {str(e)}")
+            return []
 
 # 初始化API客户端
 @st.cache_resource
@@ -235,6 +290,18 @@ def get_system_status_cached():
     """缓存的系统状态获取"""
     api_client = get_api_client()
     return api_client.get_system_status()
+
+@st.cache_data(ttl=30)  # 30秒缓存
+def get_relation_configs_cached():
+    """缓存的关联字段配置获取"""
+    api_client = get_api_client()
+    return api_client.get_all_relation_configs()
+
+@st.cache_data(ttl=30)  # 30秒缓存
+def get_relation_ids_cached():
+    """缓存的关联ID列表获取"""
+    api_client = get_api_client()
+    return api_client.get_relation_ids()
 
 def create_chart(data: List[Dict], chart_type: str = "auto"):
     """根据数据创建图表"""
@@ -405,7 +472,7 @@ def metadata_management_page():
     api_client = get_api_client()
     
     # 创建选项卡
-    tab1, tab2, tab3 = st.tabs(["📋 表元数据", "📝 术语表", "🔄 数据库同步"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📋 表元数据", "📝 术语表", "🔗 关联配置", "🔄 数据库同步"])
     
     with tab1:
         st.header("表元数据管理")
@@ -426,8 +493,16 @@ def metadata_management_page():
             
             if metadata_tables:
                 for table in metadata_tables:
-                    with st.expander(f"📊 {table['name']}", expanded=False):
-                        st.write(f"**描述**: {table.get('comment', '无描述')}")
+                    # 表名显示，根据是否可用添加状态标识
+                    availability_icon = "✅" if table.get('is_available', 0) == 0 else "❌"
+                    with st.expander(f"{availability_icon} 📊 {table['name']}", expanded=False):
+                        col_desc, col_status = st.columns([3, 1])
+                        with col_desc:
+                            st.write(f"**描述**: {table.get('comment', '无描述')}")
+                        with col_status:
+                            is_available = table.get('is_available', 0)
+                            status_text = "🟢 可用" if is_available == 0 else "🔴 不可用"
+                            st.write(f"**状态**: {status_text}")
                         
                         # 显示列信息
                         columns = table.get('columns', [])
@@ -442,14 +517,23 @@ def metadata_management_page():
                         col_edit, col_del = st.columns(2)
                         
                         with col_edit:
+                            st.markdown("**编辑表元数据**")
                             new_comment = st.text_input(
-                                "更新描述",
+                                "描述",
                                 value=table.get('comment', ''),
                                 key=f"edit_comment_{table['name']}"
                             )
-                            if st.button(f"更新描述", key=f"update_{table['name']}"):
-                                if api_client.update_table_metadata(table['name'], new_comment):
-                                    st.success(f"表 {table['name']} 描述已更新")
+                            current_is_available = table.get('is_available', 0)
+                            new_is_available = st.selectbox(
+                                "状态",
+                                options=[0, 1],
+                                format_func=lambda x: "可用" if x == 0 else "不可用",
+                                index=current_is_available,
+                                key=f"edit_status_{table['name']}"
+                            )
+                            if st.button(f"更新表元数据", key=f"update_{table['name']}"):
+                                if api_client.update_table_metadata(table['name'], new_comment, new_is_available):
+                                    st.success(f"表 {table['name']} 元数据已更新")
                                     st.cache_data.clear()  # 清除缓存
                                     st.rerun()
                         
@@ -467,27 +551,48 @@ def metadata_management_page():
                         
                         # 添加列元数据
                         st.markdown("**添加列元数据**")
-                        col_col1, col_col2, col_col3 = st.columns(3)
+                        col_col1, col_col2, col_col3, col_col4 = st.columns(4)
                         
                         with col_col1:
                             new_col_name = st.text_input("列名", key=f"col_name_{table['name']}")
                             new_col_type = st.selectbox(
-                                "列类型",
+                                "存储类型",
                                 ["VARCHAR", "INTEGER", "DECIMAL", "DATE", "BOOLEAN", "TEXT"],
                                 key=f"col_type_{table['name']}"
                             )
                         
                         with col_col2:
                             new_col_comment = st.text_area("列描述", key=f"col_comment_{table['name']}")
-                            is_pk = st.checkbox("主键", key=f"col_pk_{table['name']}")
+                            new_business_type = st.selectbox(
+                                "业务类型",
+                                ["VARCHAR", "INTEGER", "DECIMAL", "DATE", "BOOLEAN", "TEXT"],
+                                key=f"col_business_type_{table['name']}"
+                            )
                         
                         with col_col3:
-                            is_nullable = st.checkbox("允许空值", value=True, key=f"col_nullable_{table['name']}")
+                            col_is_available = st.selectbox(
+                                "状态",
+                                options=[0, 1],
+                                format_func=lambda x: "可用" if x == 0 else "不可用",
+                                index=0,
+                                key=f"col_available_{table['name']}"
+                            )
+                            # 获取关联ID列表
+                            relation_ids = get_relation_ids_cached()
+                            relation_options = [""] + relation_ids
+                            new_relation_id = st.selectbox(
+                                "关联ID",
+                                options=relation_options,
+                                key=f"col_relation_id_{table['name']}"
+                            )
+                        
+                        with col_col4:
+                            st.write("")  # 对齐
                             if st.button("添加列", key=f"add_col_{table['name']}"):
                                 if new_col_name and new_col_type:
                                     if api_client.add_column_metadata(
                                         table['name'], new_col_name, new_col_type, 
-                                        new_col_comment, is_pk, is_nullable
+                                        new_col_comment, col_is_available, new_business_type, new_relation_id
                                     ):
                                         st.success(f"列 {new_col_name} 已添加到表 {table['name']}")
                                         st.cache_data.clear()  # 清除缓存
@@ -503,12 +608,18 @@ def metadata_management_page():
             with st.form("add_table_form"):
                 new_table_name = st.text_input("表名")
                 new_table_comment = st.text_area("表描述")
+                table_is_available = st.selectbox(
+                    "状态",
+                    options=[0, 1],
+                    format_func=lambda x: "可用" if x == 0 else "不可用",
+                    index=0
+                )
                 
                 submit_table = st.form_submit_button("添加表", type="primary")
                 
                 if submit_table:
                     if new_table_name:
-                        if api_client.add_table_metadata(new_table_name, new_table_comment):
+                        if api_client.add_table_metadata(new_table_name, new_table_comment, table_is_available):
                             st.success(f"表 {new_table_name} 元数据已添加")
                             st.cache_data.clear()  # 清除缓存
                             st.rerun()
@@ -574,6 +685,70 @@ def metadata_management_page():
                         st.error("请输入术语名称")
     
     with tab3:
+        st.header("🔗 关联字段配置管理")
+        st.markdown("管理字段关联ID配置，用于字段业务关联分类")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # 显示现有关联配置
+            col_title, col_refresh = st.columns([3, 1])
+            with col_title:
+                st.subheader("🔗 现有关联配置")
+            with col_refresh:
+                if st.button("🔄 刷新", key="refresh_relations"):
+                    st.cache_data.clear()
+                    st.rerun()
+            
+            relation_configs = get_relation_configs_cached()
+            
+            if relation_configs:
+                for config in relation_configs:
+                    relation_id = config['relation_id']
+                    with st.expander(f"🔗 {relation_id}", expanded=False):
+                        st.write(f"**关联族**: {config.get('relation_family', '')}")
+                        st.write(f"**关联子族**: {config.get('relation_subfamily', '')}")
+                        st.write(f"**描述**: {config.get('relation_desc', '无描述')}")
+                        
+                        # 删除按钮
+                        if st.button(f"删除配置", key=f"delete_relation_{relation_id}", type="secondary"):
+                            if st.session_state.get(f"confirm_delete_relation_{relation_id}", False):
+                                if api_client.delete_relation_config(relation_id):
+                                    st.success(f"关联配置 {relation_id} 已删除")
+                                    st.cache_data.clear()  # 清除缓存
+                                    st.rerun()
+                            else:
+                                st.session_state[f"confirm_delete_relation_{relation_id}"] = True
+                                st.warning("再次点击确认删除")
+            else:
+                st.info("暂无关联配置，可从右侧添加")
+        
+        with col2:
+            st.subheader("➕ 添加关联配置")
+            
+            with st.form("add_relation_form"):
+                st.info("关联ID格式：关联族|关联子族")
+                new_family = st.text_input("关联族", placeholder="如：cust_no")
+                new_subfamily = st.text_input("关联子族", placeholder="如：17")
+                new_desc = st.text_area("描述", placeholder="请输入关联字段的描述...")
+                
+                # 显示预览
+                if new_family and new_subfamily:
+                    preview_id = f"{new_family}|{new_subfamily}"
+                    st.success(f"预览关联ID: {preview_id}")
+                
+                submit_relation = st.form_submit_button("添加关联配置", type="primary")
+                
+                if submit_relation:
+                    if new_family and new_subfamily:
+                        if api_client.add_relation_config(new_family, new_subfamily, new_desc):
+                            st.success(f"关联配置 {new_family}|{new_subfamily} 已添加")
+                            st.cache_data.clear()  # 清除缓存
+                            st.rerun()
+                    else:
+                        st.error("请填写关联族和关联子族")
+    
+    with tab4:
         st.header("数据库同步")
         st.markdown("从实际数据库自动同步表结构到元数据管理系统")
         

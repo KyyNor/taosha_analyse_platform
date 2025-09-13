@@ -7,7 +7,7 @@ from loguru import logger
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from services import get_metadata_service, get_glossary_service
+from services import get_metadata_service, get_glossary_service, get_relation_field_config_service
 
 
 # 创建路由器
@@ -18,10 +18,12 @@ router = APIRouter(prefix="/dev", tags=["开发工具"])
 class TableMetadataRequest(BaseModel):
     name: str
     comment: str = ""
+    is_available: int = 0
 
 
 class TableMetadataUpdate(BaseModel):
-    comment: str = ""
+    comment: Optional[str] = None
+    is_available: Optional[int] = None
 
 
 class ColumnMetadataRequest(BaseModel):
@@ -29,15 +31,17 @@ class ColumnMetadataRequest(BaseModel):
     name: str
     type: str
     comment: str = ""
-    is_primary_key: bool = False
-    is_nullable: bool = True
+    is_available: int = 0
+    business_type: str = ""
+    relation_id: str = ""
 
 
 class ColumnMetadataUpdate(BaseModel):
     type: Optional[str] = None
     comment: Optional[str] = None
-    is_primary_key: Optional[bool] = None
-    is_nullable: Optional[bool] = None
+    is_available: Optional[int] = None
+    business_type: Optional[str] = None
+    relation_id: Optional[str] = None
 
 
 class GlossaryTermRequest(BaseModel):
@@ -53,6 +57,18 @@ class GlossaryTermUpdate(BaseModel):
     definition: Optional[str] = None
     sql_expression: Optional[str] = None
     category: Optional[str] = None
+
+
+class RelationFieldConfigRequest(BaseModel):
+    relation_family: str
+    relation_subfamily: str
+    relation_desc: str = ""
+
+
+class RelationFieldConfigUpdate(BaseModel):
+    relation_family: Optional[str] = None
+    relation_subfamily: Optional[str] = None
+    relation_desc: Optional[str] = None
 
 
 # 表元数据管理
@@ -73,7 +89,7 @@ async def add_table_metadata(request: TableMetadataRequest):
     """添加表元数据"""
     try:
         metadata_service = get_metadata_service()
-        success = metadata_service.add_table(request.name, request.comment)
+        success = metadata_service.add_table(request.name, request.comment, request.is_available)
         if success:
             # 重新加载元数据
             metadata_service.reload_if_changed()
@@ -90,7 +106,7 @@ async def update_table_metadata(table_name: str, request: TableMetadataUpdate):
     """更新表元数据"""
     try:
         metadata_service = get_metadata_service()
-        success = metadata_service.update_table(table_name, request.comment)
+        success = metadata_service.update_table(table_name, request.comment, request.is_available)
         if success:
             # 重新加载元数据
             metadata_service.reload_if_changed()
@@ -130,8 +146,9 @@ async def add_column_metadata(request: ColumnMetadataRequest):
             request.name, 
             request.type,
             request.comment,
-            request.is_primary_key,
-            request.is_nullable
+            request.is_available,
+            request.business_type,
+            request.relation_id
         )
         if success:
             # 重新加载元数据
@@ -154,8 +171,9 @@ async def update_column_metadata(table_name: str, column_name: str, request: Col
             column_name,
             request.type,
             request.comment,
-            request.is_primary_key,
-            request.is_nullable
+            request.is_available,
+            request.business_type,
+            request.relation_id
         )
         if success:
             # 重新加载元数据
@@ -308,8 +326,9 @@ async def sync_metadata_from_database():
                         column['name'],
                         column['type'],
                         f"自动从数据库同步的列: {column['name']}",
-                        False,  # 假设非主键
-                        column.get('nullable', True)
+                        0,  # 默认可用
+                        column['type'],  # 业务类型默认与存储类型相同
+                        ""  # 无关联ID
                     )
                 except Exception:
                     # 列可能已存在，忽略错误
@@ -328,4 +347,84 @@ async def sync_metadata_from_database():
         
     except Exception as e:
         logger.error(f"同步元数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# 关联字段配置管理
+@router.get("/relation-configs")
+async def get_all_relation_configs():
+    """获取所有关联字段配置"""
+    try:
+        relation_service = get_relation_field_config_service()
+        configs = relation_service.get_all_relation_configs()
+        return {"success": True, "data": configs}
+    except Exception as e:
+        logger.error(f"获取关联字段配置失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/relation-configs")
+async def add_relation_config(request: RelationFieldConfigRequest):
+    """添加关联字段配置"""
+    try:
+        relation_service = get_relation_field_config_service()
+        success = relation_service.add_relation_config(
+            request.relation_family,
+            request.relation_subfamily,
+            request.relation_desc
+        )
+        if success:
+            relation_id = f"{request.relation_family}|{request.relation_subfamily}"
+            return {"success": True, "message": f"关联字段配置已添加: {relation_id}"}
+        else:
+            raise HTTPException(status_code=400, detail="添加关联字段配置失败")
+    except Exception as e:
+        logger.error(f"添加关联字段配置失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/relation-configs/{relation_id}")
+async def update_relation_config(relation_id: str, request: RelationFieldConfigUpdate):
+    """更新关联字段配置"""
+    try:
+        relation_service = get_relation_field_config_service()
+        success = relation_service.update_relation_config(
+            relation_id,
+            request.relation_family,
+            request.relation_subfamily,
+            request.relation_desc
+        )
+        if success:
+            return {"success": True, "message": f"关联字段配置已更新: {relation_id}"}
+        else:
+            raise HTTPException(status_code=400, detail="更新关联字段配置失败")
+    except Exception as e:
+        logger.error(f"更新关联字段配置失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/relation-configs/{relation_id}")
+async def delete_relation_config(relation_id: str):
+    """删除关联字段配置"""
+    try:
+        relation_service = get_relation_field_config_service()
+        success = relation_service.delete_relation_config(relation_id)
+        if success:
+            return {"success": True, "message": f"关联字段配置已删除: {relation_id}"}
+        else:
+            raise HTTPException(status_code=400, detail="删除关联字段配置失败")
+    except Exception as e:
+        logger.error(f"删除关联字段配置失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/relation-configs/ids")
+async def get_relation_ids():
+    """获取所有关联ID列表"""
+    try:
+        relation_service = get_relation_field_config_service()
+        relation_ids = relation_service.get_relation_ids()
+        return {"success": True, "data": relation_ids}
+    except Exception as e:
+        logger.error(f"获取关联ID列表失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

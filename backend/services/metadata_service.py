@@ -27,14 +27,14 @@ class MetadataService:
             with self.db_manager.get_metadata_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 
-                cursor.execute("SELECT name, comment FROM metadata_tables ORDER BY name")
+                cursor.execute("SELECT name, comment, is_available FROM metadata_tables ORDER BY name")
                 tables_data = cursor.fetchall()
                 
                 tables = []
-                for table_name, table_comment in tables_data:
+                for table_name, table_comment, is_available in tables_data:
                     placeholder = self.db_manager.get_sql_placeholder(db_type)
                     cursor.execute(f"""
-                        SELECT name, type, comment, is_primary_key, is_nullable 
+                        SELECT name, type, comment, is_available, business_type, relation_id 
                         FROM metadata_columns 
                         WHERE table_name = {placeholder} 
                         ORDER BY name
@@ -42,18 +42,20 @@ class MetadataService:
                     columns_data = cursor.fetchall()
                     
                     columns = []
-                    for col_name, col_type, col_comment, is_pk, is_nullable in columns_data:
+                    for col_name, col_type, col_comment, col_is_available, business_type, relation_id in columns_data:
                         columns.append({
                             "name": col_name,
                             "type": col_type,
                             "comment": col_comment or "",
-                            "is_primary_key": bool(is_pk),
-                            "is_nullable": bool(is_nullable)
+                            "is_available": int(col_is_available or 0),
+                            "business_type": business_type or "",
+                            "relation_id": relation_id or ""
                         })
                     
                     tables.append({
                         "name": table_name,
                         "comment": table_comment or "",
+                        "is_available": int(is_available or 0),
                         "columns": columns
                     })
                 
@@ -107,7 +109,7 @@ class MetadataService:
         
         return ddl_statements
     
-    def add_table(self, table_name: str, comment: str = "") -> bool:
+    def add_table(self, table_name: str, comment: str = "", is_available: int = 0) -> bool:
         """添加表元数据"""
         try:
             with self.db_manager.get_metadata_connection() as (conn, db_type):
@@ -115,8 +117,8 @@ class MetadataService:
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
                 cursor.execute(
-                    f"INSERT INTO metadata_tables (name, comment) VALUES ({placeholder}, {placeholder})",
-                    (table_name, comment)
+                    f"INSERT INTO metadata_tables (name, comment, is_available) VALUES ({placeholder}, {placeholder}, {placeholder})",
+                    (table_name, comment, is_available)
                 )
                 
             logger.info(f"添加表元数据成功: {table_name}")
@@ -126,16 +128,30 @@ class MetadataService:
             logger.error(f"添加表元数据失败: {e}")
             return False
     
-    def update_table(self, table_name: str, comment: str = "") -> bool:
+    def update_table(self, table_name: str, comment: str = None, is_available: int = None) -> bool:
         """更新表元数据"""
         try:
             with self.db_manager.get_metadata_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
+                updates = []
+                params = []
+                
+                if comment is not None:
+                    updates.append(f"comment = {placeholder}")
+                    params.append(comment)
+                if is_available is not None:
+                    updates.append(f"is_available = {placeholder}")
+                    params.append(is_available)
+                
+                updates.append(f"updated_at = {placeholder}")
+                params.append(datetime.now())
+                params.append(table_name)
+                
                 cursor.execute(
-                    f"UPDATE metadata_tables SET comment = {placeholder}, updated_at = {placeholder} WHERE name = {placeholder}",
-                    (comment, datetime.now(), table_name)
+                    f"UPDATE metadata_tables SET {', '.join(updates)} WHERE name = {placeholder}",
+                    params
                 )
                 
             logger.info(f"更新表元数据成功: {table_name}")
@@ -162,7 +178,7 @@ class MetadataService:
             return False
     
     def add_column(self, table_name: str, column_name: str, column_type: str, 
-                   comment: str = "", is_primary_key: bool = False, is_nullable: bool = True) -> bool:
+                   comment: str = "", is_available: int = 0, business_type: str = "", relation_id: str = "") -> bool:
         """添加列元数据"""
         try:
             with self.db_manager.get_metadata_connection() as (conn, db_type):
@@ -170,9 +186,9 @@ class MetadataService:
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
                 cursor.execute(f"""
-                    INSERT INTO metadata_columns (table_name, name, type, comment, is_primary_key, is_nullable) 
-                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
-                """, (table_name, column_name, column_type, comment, is_primary_key, is_nullable))
+                    INSERT INTO metadata_columns (table_name, name, type, comment, is_available, business_type, relation_id) 
+                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
+                """, (table_name, column_name, column_type, comment, is_available, business_type, relation_id))
                 
             logger.info(f"添加列元数据成功: {table_name}.{column_name}")
             return True
@@ -182,7 +198,7 @@ class MetadataService:
             return False
     
     def update_column(self, table_name: str, column_name: str, column_type: str = None,
-                     comment: str = None, is_primary_key: bool = None, is_nullable: bool = None) -> bool:
+                     comment: str = None, is_available: int = None, business_type: str = None, relation_id: str = None) -> bool:
         """更新列元数据"""
         try:
             with self.db_manager.get_metadata_connection() as (conn, db_type):
@@ -198,12 +214,15 @@ class MetadataService:
                 if comment is not None:
                     updates.append(f"comment = {placeholder}")
                     params.append(comment)
-                if is_primary_key is not None:
-                    updates.append(f"is_primary_key = {placeholder}")
-                    params.append(is_primary_key)
-                if is_nullable is not None:
-                    updates.append(f"is_nullable = {placeholder}")
-                    params.append(is_nullable)
+                if is_available is not None:
+                    updates.append(f"is_available = {placeholder}")
+                    params.append(is_available)
+                if business_type is not None:
+                    updates.append(f"business_type = {placeholder}")
+                    params.append(business_type)
+                if relation_id is not None:
+                    updates.append(f"relation_id = {placeholder}")
+                    params.append(relation_id)
                 
                 updates.append(f"updated_at = {placeholder}")
                 params.append(datetime.now())
@@ -256,14 +275,14 @@ class MetadataService:
         with self.db_manager.get_metadata_connection() as (conn, db_type):
             cursor = conn.cursor()
             
-            cursor.execute("SELECT name, comment FROM metadata_tables ORDER BY name")
+            cursor.execute("SELECT name, comment, is_available FROM metadata_tables ORDER BY name")
             tables_data = cursor.fetchall()
             
             tables = []
-            for table_name, table_comment in tables_data:
+            for table_name, table_comment, is_available in tables_data:
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 cursor.execute(f"""
-                    SELECT name, type, comment, is_primary_key, is_nullable 
+                    SELECT name, type, comment, is_available, business_type, relation_id 
                     FROM metadata_columns 
                     WHERE table_name = {placeholder} 
                     ORDER BY name
@@ -271,18 +290,20 @@ class MetadataService:
                 columns_data = cursor.fetchall()
                 
                 columns = []
-                for col_name, col_type, col_comment, is_pk, is_nullable in columns_data:
+                for col_name, col_type, col_comment, col_is_available, business_type, relation_id in columns_data:
                     columns.append({
                         "name": col_name,
                         "type": col_type,
                         "comment": col_comment or "",
-                        "is_primary_key": bool(is_pk),
-                        "is_nullable": bool(is_nullable)
+                        "is_available": int(col_is_available or 0),
+                        "business_type": business_type or "",
+                        "relation_id": relation_id or ""
                     })
                 
                 tables.append({
                     "name": table_name,
                     "comment": table_comment or "",
+                    "is_available": int(is_available or 0),
                     "columns": columns
                 })
             
@@ -295,6 +316,140 @@ class MetadataService:
             logger.info("Metadata reloaded due to changes")
             return True
         return False
+    
+    def get_available_tables(self) -> List[Dict[str, Any]]:
+        """获取所有可用的表信息（is_available = 0）"""
+        all_tables = self.get_tables()
+        return [table for table in all_tables if table.get('is_available', 0) == 0]
+
+class RelationFieldConfigService:
+    """关联字段配置管理服务"""
+    
+    def __init__(self):
+        self.db_manager = get_database_manager()
+    
+    def get_all_relation_configs(self) -> List[Dict[str, Any]]:
+        """获取所有关联字段配置"""
+        try:
+            with self.db_manager.get_metadata_connection() as (conn, db_type):
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT relation_id, relation_family, relation_subfamily, relation_desc
+                    FROM relation_field_config 
+                    ORDER BY relation_family, relation_subfamily
+                """)
+                configs_data = cursor.fetchall()
+                
+                configs = []
+                for relation_id, family, subfamily, desc in configs_data:
+                    configs.append({
+                        "relation_id": relation_id,
+                        "relation_family": family,
+                        "relation_subfamily": subfamily,
+                        "relation_desc": desc or ""
+                    })
+                
+                return configs
+                
+        except Exception as e:
+            logger.error(f"获取关联字段配置失败: {e}")
+            return []
+    
+    def add_relation_config(self, family: str, subfamily: str, desc: str = "") -> bool:
+        """添加关联字段配置"""
+        try:
+            relation_id = f"{family}|{subfamily}"
+            
+            with self.db_manager.get_metadata_connection() as (conn, db_type):
+                cursor = conn.cursor()
+                placeholder = self.db_manager.get_sql_placeholder(db_type)
+                
+                cursor.execute(f"""
+                    INSERT INTO relation_field_config (relation_id, relation_family, relation_subfamily, relation_desc) 
+                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
+                """, (relation_id, family, subfamily, desc))
+                
+            logger.info(f"添加关联字段配置成功: {relation_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"添加关联字段配置失败: {e}")
+            return False
+    
+    def update_relation_config(self, relation_id: str, family: str = None, subfamily: str = None, desc: str = None) -> bool:
+        """更新关联字段配置"""
+        try:
+            with self.db_manager.get_metadata_connection() as (conn, db_type):
+                cursor = conn.cursor()
+                placeholder = self.db_manager.get_sql_placeholder(db_type)
+                
+                updates = []
+                params = []
+                
+                # 如果family或subfamily有变化，需要更新relation_id
+                new_relation_id = relation_id
+                if family is not None or subfamily is not None:
+                    # 获取当前的family和subfamily
+                    cursor.execute(
+                        f"SELECT relation_family, relation_subfamily FROM relation_field_config WHERE relation_id = {placeholder}",
+                        (relation_id,)
+                    )
+                    result = cursor.fetchone()
+                    if result:
+                        current_family, current_subfamily = result
+                        new_family = family if family is not None else current_family
+                        new_subfamily = subfamily if subfamily is not None else current_subfamily
+                        new_relation_id = f"{new_family}|{new_subfamily}"
+                        
+                        updates.append(f"relation_id = {placeholder}")
+                        params.append(new_relation_id)
+                        
+                        if family is not None:
+                            updates.append(f"relation_family = {placeholder}")
+                            params.append(family)
+                        if subfamily is not None:
+                            updates.append(f"relation_subfamily = {placeholder}")
+                            params.append(subfamily)
+                
+                if desc is not None:
+                    updates.append(f"relation_desc = {placeholder}")
+                    params.append(desc)
+                
+                if updates:
+                    params.append(relation_id)
+                    cursor.execute(
+                        f"UPDATE relation_field_config SET {', '.join(updates)} WHERE relation_id = {placeholder}",
+                        params
+                    )
+                
+            logger.info(f"更新关联字段配置成功: {relation_id} -> {new_relation_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"更新关联字段配置失败: {e}")
+            return False
+    
+    def delete_relation_config(self, relation_id: str) -> bool:
+        """删除关联字段配置"""
+        try:
+            with self.db_manager.get_metadata_connection() as (conn, db_type):
+                cursor = conn.cursor()
+                placeholder = self.db_manager.get_sql_placeholder(db_type)
+                
+                cursor.execute(f"DELETE FROM relation_field_config WHERE relation_id = {placeholder}", (relation_id,))
+                
+            logger.info(f"删除关联字段配置成功: {relation_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"删除关联字段配置失败: {e}")
+            return False
+    
+    def get_relation_ids(self) -> List[str]:
+        """获取所有关联ID列表"""
+        configs = self.get_all_relation_configs()
+        return [config['relation_id'] for config in configs]
 
 class GlossaryService:
     """术语表管理服务"""
@@ -528,6 +683,7 @@ class GlossaryService:
 # 全局服务实例
 _metadata_service: Optional[MetadataService] = None
 _glossary_service: Optional[GlossaryService] = None
+_relation_field_config_service: Optional[RelationFieldConfigService] = None
 
 def get_metadata_service() -> MetadataService:
     """获取元数据服务实例"""
@@ -542,3 +698,10 @@ def get_glossary_service() -> GlossaryService:
     if _glossary_service is None:
         _glossary_service = GlossaryService()
     return _glossary_service
+
+def get_relation_field_config_service() -> RelationFieldConfigService:
+    """获取关联字段配置服务实例"""
+    global _relation_field_config_service
+    if _relation_field_config_service is None:
+        _relation_field_config_service = RelationFieldConfigService()
+    return _relation_field_config_service

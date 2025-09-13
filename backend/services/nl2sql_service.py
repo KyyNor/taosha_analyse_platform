@@ -458,13 +458,29 @@ class NL2SQLService:
         return workflow.compile()
     
     def _train_vanna(self):
-        """训练Vanna模型"""
-        logger.info("Training Vanna with metadata and glossary...")
+        """训练Vanna模型（只使用可用的元数据）"""
+        logger.info("Training Vanna with available metadata and glossary...")
         
-        # 训练DDL语句
-        ddl_statements = self.metadata_service.get_ddl_statements()
-        for ddl in ddl_statements:
-            self.vanna.train(ddl=ddl)
+        # 训练DDL语句（只使用可用的表和列）
+        available_tables = self.metadata_service.get_available_tables()
+        for table in available_tables:
+            table_name = table.get('name')
+            columns = table.get('columns', [])
+            
+            # 只包含可用的列
+            available_columns = [col for col in columns if col.get('is_available', 0) == 0]
+            
+            if available_columns:
+                # 构建建表语句
+                column_definitions = []
+                for col in available_columns:
+                    # 使用业务类型（如果有），否则使用存储类型
+                    col_type = col.get('business_type') or col.get('type')
+                    col_def = f"{col['name']} {col_type}"
+                    column_definitions.append(col_def)
+                
+                ddl = f"CREATE TABLE {table_name} (\n  " + ",\n  ".join(column_definitions) + "\n)"
+                self.vanna.train(ddl=ddl)
         
         # 训练术语表映射
         terms = self.glossary_service.get_terms()
@@ -483,8 +499,8 @@ class NL2SQLService:
         logger.info("Vanna training completed")
     
     def _get_table_info_text(self) -> str:
-        """获取表信息的文本描述"""
-        tables = self.metadata_service.get_tables()
+        """获取可用表信息的文本描述（只包含 is_available = 0 的表和列）"""
+        tables = self.metadata_service.get_available_tables()  # 只获取可用表
         info_lines = []
         
         for table in tables:
@@ -493,8 +509,14 @@ class NL2SQLService:
             info_lines.append(f"表 {table_name}: {table_comment}")
             
             columns = table.get('columns', [])
-            for col in columns:
-                col_info = f"  - {col.get('name')} ({col.get('type')}): {col.get('comment', '')}"
+            # 只包含可用的列
+            available_columns = [col for col in columns if col.get('is_available', 0) == 0]
+            for col in available_columns:
+                # 优先使用业务类型，如果没有则使用存储类型
+                col_type = col.get('business_type') or col.get('type')
+                col_info = f"  - {col.get('name')} ({col_type}): {col.get('comment', '')}"
+                if col.get('relation_id'):
+                    col_info += f" [关联ID: {col.get('relation_id')}]"
                 info_lines.append(col_info)
         
         return "\n".join(info_lines)
