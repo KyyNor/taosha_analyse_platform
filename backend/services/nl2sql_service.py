@@ -25,7 +25,7 @@ from vanna.chromadb import ChromaDB_VectorStore
 # Local imports
 from config import settings
 from services.database_service import get_database_service
-from services.metadata_service import get_metadata_service, get_glossary_service
+from services.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service
 
 
 # 状态定义
@@ -135,6 +135,7 @@ class NL2SQLService:
         self.vanna = TaoshaVanna()
         self.metadata_service = get_metadata_service()
         self.glossary_service = get_glossary_service()
+        self.relation_config_service = get_relation_field_config_service()
         self.db_service = get_database_service()
         
         # 构建LangGraph工作流
@@ -149,11 +150,16 @@ class NL2SQLService:
             """检查是否需要重新训练Vanna"""
             logs = state.get('logs', [])
             
-            # 检查元数据和术语表是否有变化
+            # 检查元数据、术语表和关联配置是否有变化
             metadata_changed = self.metadata_service.reload_if_changed()
             glossary_changed = self.glossary_service.reload_if_changed()
+            # 目前关联配置没有缓存机制，简单检查数据变化
+            current_relations = str(self.relation_config_service.get_all_relation_configs())
+            relations_changed = getattr(self, '_last_relations', None) != current_relations
+            if relations_changed:
+                self._last_relations = current_relations
             
-            if metadata_changed or glossary_changed or not self.vanna.training_hash:
+            if metadata_changed or glossary_changed or relations_changed or not self.vanna.training_hash:
                 # 需要重新训练
                 self._train_vanna()
                 log_entry = self.vanna.log_interaction(
@@ -192,6 +198,9 @@ class NL2SQLService:
 
 可用的术语:
 {self._get_glossary_text()}
+
+字段关联配置:
+{self._get_relation_config_text()}
 
 请严格按照以下JSON格式返回结果，不要添加任何其他文字：
 {{
@@ -383,6 +392,13 @@ class NL2SQLService:
 术语表:
 {self._get_glossary_text()}
 
+字段关联配置:
+{self._get_relation_config_text()}
+
+重要提示:
+1. 字段的存储类型和业务类型可能不同，数值比较时请使用CAST转换为业务类型
+2. 关联不同表的字段时，请根据关联配置进行适当转换
+
 请生成一个新的SQL查询，避免之前的错误：
 """
             
@@ -458,31 +474,81 @@ class NL2SQLService:
         return workflow.compile()
     
     def _train_vanna(self):
-        """训练Vanna模型（只使用可用的元数据）"""
-        logger.info("Training Vanna with available metadata and glossary...")
+        """训练Vanna模型（使用文档描述方式）"""
+        logger.info("Training Vanna with available metadata, glossary and relation configs...")
         
-        # 训练DDL语句（只使用可用的表和列）
+        # 1. 训练表结构描述（只使用可用的表和列）
         available_tables = self.metadata_service.get_available_tables()
         for table in available_tables:
             table_name = table.get('name')
+            table_comment = table.get('comment', '')
             columns = table.get('columns', [])
             
             # 只包含可用的列
             available_columns = [col for col in columns if col.get('is_available', 0) == 0]
             
             if available_columns:
-                # 构建建表语句
-                column_definitions = []
-                for col in available_columns:
-                    # 使用业务类型（如果有），否则使用存储类型
-                    col_type = col.get('business_type') or col.get('type')
-                    col_def = f"{col['name']} {col_type}"
-                    column_definitions.append(col_def)
+                # 构建表结构文档
+                doc_lines = [f"表名：{table_name}"]
+                if table_comment:
+                    doc_lines.append(f"表描述：{table_comment}")
                 
-                ddl = f"CREATE TABLE {table_name} (\n  " + ",\n  ".join(column_definitions) + "\n)"
-                self.vanna.train(ddl=ddl)
+                doc_lines.append("字段信息：")
+                for col in available_columns:
+                    storage_type = col.get('type', '')
+                    business_type = col.get('business_type', '') or storage_type
+                    comment = col.get('comment', '')
+                    relation_id = col.get('relation_id', '')
+                    
+                    col_desc = f"  - {col.get('name')}：存储类型({storage_type})，业务类型({business_type})"
+                    if comment:
+                        col_desc += f"，描述({comment})"
+                    if relation_id:
+                        col_desc += f"，关联ID({relation_id})"
+                    doc_lines.append(col_desc)
+                
+                documentation = "\n".join(doc_lines)
+                self.vanna.train(documentation=documentation)
         
-        # 训练术语表映射
+        # 2. 训练字段类型处理规则
+        type_handling_doc = """
+字段类型处理规则：
+1. 由于历史原因，字段的存储类型和业务类型可能不一致
+2. 在进行数值比较、计算、排序等逻辑操作时，必须使用CAST函数将字段转换为业务类型
+3. 示例：
+   - 如果字段amount存储类型为VARCHAR，业务类型为DECIMAL
+   - 比较时应使用：WHERE CAST(amount AS DECIMAL) > 100
+   - 排序时应使用：ORDER BY CAST(amount AS DECIMAL) DESC
+4. 在生成SQL时，请始终优先考虑业务类型进行类型转换
+        """
+        self.vanna.train(documentation=type_handling_doc)
+        
+        # 3. 训练关联配置信息
+        relation_configs = self.relation_config_service.get_all_relation_configs()
+        if relation_configs:
+            relation_doc_lines = ["字段关联配置："]
+            relation_doc_lines.append("在多个表中的字段可以相互关联，但存在格式差异，需要根据关联ID进行适当的转换。")
+            
+            for config in relation_configs:
+                relation_id = config.get('relation_id')
+                family = config.get('relation_family')
+                subfamily = config.get('relation_subfamily')
+                desc = config.get('relation_desc', '')
+                
+                config_desc = f"  - 关联ID: {relation_id} (关联族: {family}, 关联子族: {subfamily})"
+                if desc:
+                    config_desc += f"\n    关联规则: {desc}"
+                relation_doc_lines.append(config_desc)
+            
+            relation_doc_lines.append("\n关联使用示例：")
+            relation_doc_lines.append("- 当需要关联不同表的相同关联族字段时，请根据关联配置中的规则进行字段转换")
+            relation_doc_lines.append("- 例如cust_no|17和cust_no|16关联需要left(col_name,16)")
+            relation_doc_lines.append("- 例如cust_no|16和cust_no|cn_start关联需要right(col_name,16)")
+            
+            relation_documentation = "\n".join(relation_doc_lines)
+            self.vanna.train(documentation=relation_documentation)
+        
+        # 4. 训练术语表映射
         terms = self.glossary_service.get_terms()
         for term in terms:
             if term.get('sql_expression'):
@@ -490,10 +556,11 @@ class NL2SQLService:
                 sql = f"SELECT {term.get('sql_expression')} AS {term.get('term')}"
                 self.vanna.train(question=question, sql=sql)
         
-        # 生成训练hash
+        # 5. 生成训练hash
         metadata_str = str(self.metadata_service.get_metadata())
         glossary_str = str(self.glossary_service.get_glossary())
-        combined_str = metadata_str + glossary_str
+        relation_str = str(self.relation_config_service.get_all_relation_configs())
+        combined_str = metadata_str + glossary_str + relation_str
         self.vanna.training_hash = hashlib.md5(combined_str.encode()).hexdigest()
         
         logger.info("Vanna training completed")
@@ -537,6 +604,27 @@ class NL2SQLService:
             term_lines.append(term_line)
         
         return "\n".join(term_lines)
+    
+    def _get_relation_config_text(self) -> str:
+        """获取关联配置的文本描述"""
+        configs = self.relation_config_service.get_all_relation_configs()
+        config_lines = []
+        
+        for config in configs:
+            relation_id = config.get('relation_id', '')
+            family = config.get('relation_family', '')
+            subfamily = config.get('relation_subfamily', '')
+            desc = config.get('relation_desc', '')
+            
+            config_line = f"- {relation_id} (关联族: {family}, 子族: {subfamily})"
+            if desc:
+                config_line += f": {desc}"
+            config_lines.append(config_line)
+        
+        if not config_lines:
+            return "暂无关联配置"
+        
+        return "\n".join(config_lines)
     
     def _extract_sql_from_response(self, response: str) -> str:
         """从响应中提取SQL语句"""
