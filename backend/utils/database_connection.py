@@ -87,24 +87,66 @@ class DatabaseConnectionManager:
                 conn.close()
                 logger.debug(f"关闭{db_type}数据库连接")
     
-    def init_metadata_tables(self):
-        """初始化元数据表结构"""
+    def init_metadata_tables(self, force_recreate: bool = False):
+        """初始化元数据表结构
+        
+        Args:
+            force_recreate: 如果为True，将删除所有表并重新创建
+        """
+        db_config = self.get_metadata_db_config()
+        db_type = db_config["type"]
+        
+        # 如果需要强制重建且是SQLite，删除数据库文件
+        if force_recreate and db_type == "sqlite":
+            db_path = Path(db_config["config"]["database"])
+            if db_path.exists():
+                db_path.unlink()
+                logger.info(f"SQLite数据库文件已删除: {db_path}")
+        
         with self.get_metadata_connection() as (conn, db_type):
             cursor = conn.cursor()
             
             try:
+                # 如果需要强制重建且是MySQL，删除所有表
+                if force_recreate and db_type == "mysql":
+                    self._drop_mysql_tables(cursor)
+                
                 if db_type == "sqlite":
                     self._create_sqlite_metadata_tables(cursor)
                 elif db_type == "mysql":
                     self._create_mysql_metadata_tables(cursor)
                 
                 conn.commit()
-                logger.info(f"元数据表初始化完成: {db_type}")
+                action = "重建完成" if force_recreate else "初始化完成"
+                logger.info(f"元数据表{action}: {db_type}")
                 
             except Exception as e:
                 logger.error(f"元数据表初始化失败: {e}")
                 conn.rollback()
                 raise
+    
+    def _drop_mysql_tables(self, cursor):
+        """删除MySQL中的所有元数据表"""
+        tables_to_drop = [
+            'glossary_aliases',
+            'glossary_terms', 
+            'metadata_columns',
+            'metadata_tables',
+            'relation_field_config'
+        ]
+        
+        # 先禁用外键约束检查
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+        
+        for table in tables_to_drop:
+            try:
+                cursor.execute(f"DROP TABLE IF EXISTS {table}")
+                logger.debug(f"已删除表: {table}")
+            except Exception as e:
+                logger.warning(f"删除表{table}失败: {e}")
+        
+        # 重新启用外键约束检查
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
     
     def _create_sqlite_metadata_tables(self, cursor):
         """创建SQLite元数据表"""
@@ -114,6 +156,7 @@ class DatabaseConnectionManager:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT UNIQUE NOT NULL,
                 comment TEXT,
+                is_available INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
@@ -126,8 +169,9 @@ class DatabaseConnectionManager:
                 name TEXT NOT NULL,
                 type TEXT NOT NULL,
                 comment TEXT,
-                is_primary_key BOOLEAN DEFAULT FALSE,
-                is_nullable BOOLEAN DEFAULT TRUE,
+                is_available INTEGER DEFAULT 0,
+                business_type TEXT DEFAULT '',
+                relation_id TEXT DEFAULT '',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (table_name) REFERENCES metadata_tables(name) ON DELETE CASCADE,
@@ -158,6 +202,19 @@ class DatabaseConnectionManager:
                 UNIQUE(alias)
             )
         """)
+        
+        # 关联字段配置表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS relation_field_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                relation_id TEXT UNIQUE NOT NULL,
+                relation_family TEXT NOT NULL,
+                relation_subfamily TEXT NOT NULL,
+                relation_desc TEXT DEFAULT '',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
     
     def _create_mysql_metadata_tables(self, cursor):
         """创建MySQL元数据表"""
@@ -167,6 +224,7 @@ class DatabaseConnectionManager:
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 name VARCHAR(255) UNIQUE NOT NULL,
                 comment TEXT,
+                is_available INT DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
@@ -179,8 +237,9 @@ class DatabaseConnectionManager:
                 name VARCHAR(255) NOT NULL,
                 type VARCHAR(100) NOT NULL,
                 comment TEXT,
-                is_primary_key BOOLEAN DEFAULT FALSE,
-                is_nullable BOOLEAN DEFAULT TRUE,
+                is_available INT DEFAULT 0,
+                business_type VARCHAR(100) DEFAULT '',
+                relation_id VARCHAR(255) DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 FOREIGN KEY (table_name) REFERENCES metadata_tables(name) ON DELETE CASCADE,
@@ -208,6 +267,19 @@ class DatabaseConnectionManager:
                 alias VARCHAR(255) NOT NULL UNIQUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (term_id) REFERENCES glossary_terms(id) ON DELETE CASCADE
+            )
+        """)
+        
+        # 关联字段配置表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS relation_field_config (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                relation_id VARCHAR(255) UNIQUE NOT NULL,
+                relation_family VARCHAR(255) NOT NULL,
+                relation_subfamily VARCHAR(255) NOT NULL,
+                relation_desc TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         """)
     
@@ -262,8 +334,9 @@ def get_database_manager() -> DatabaseConnectionManager:
     global _db_manager
     if _db_manager is None:
         _db_manager = DatabaseConnectionManager()
-        # 初始化元数据表
+        # 初始化元数据表（强制重建以支持新字段）
         try:
+            # init_metadata_tables(force_recreate=True) 可以强制重建
             _db_manager.init_metadata_tables()
         except Exception as e:
             logger.warning(f"元数据表初始化失败，但继续运行: {e}")
