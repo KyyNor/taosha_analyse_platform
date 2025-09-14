@@ -484,6 +484,7 @@ class GlossaryService:
                     aliases = [alias[0] for alias in aliases_data]
                     
                     terms.append({
+                        "id": term_id,
                         "term": term,
                         "definition": definition or "",
                         "sql_expression": sql_expr or "",
@@ -663,6 +664,7 @@ class GlossaryService:
                 aliases = [alias[0] for alias in aliases_data]
                 
                 terms.append({
+                    "id": term_id,
                     "term": term,
                     "definition": definition or "",
                     "sql_expression": sql_expr or "",

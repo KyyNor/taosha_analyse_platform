@@ -148,6 +148,33 @@ class TaoshaAPIClient:
             st.error(f"添加列元数据失败: {str(e)}")
             return False
     
+    def update_column_metadata(self, table_name: str, column_name: str, column_type: str = None,
+                              comment: str = None, is_available: int = None, business_type: str = None, relation_id: str = None) -> bool:
+        """更新列元数据"""
+        try:
+            update_data = {}
+            if column_type is not None:
+                update_data["type"] = column_type
+            if comment is not None:
+                update_data["comment"] = comment
+            if is_available is not None:
+                update_data["is_available"] = is_available
+            if business_type is not None:
+                update_data["business_type"] = business_type
+            if relation_id is not None:
+                update_data["relation_id"] = relation_id
+            
+            response = requests.put(
+                f"{self.base_url}/dev/metadata/columns/{table_name}/{column_name}",
+                json=update_data,
+                timeout=10
+            )
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            st.error(f"更新列元数据失败: {str(e)}")
+            return False
+    
     def delete_column_metadata(self, table_name: str, column_name: str) -> bool:
         """删除列元数据"""
         try:
@@ -203,6 +230,31 @@ class TaoshaAPIClient:
             st.error(f"添加术语失败: {str(e)}")
             return False
     
+    def update_term(self, term_id: int, term: str = None, definition: str = None, 
+                   sql_expression: str = None, category: str = None) -> bool:
+        """更新术语"""
+        try:
+            update_data = {}
+            if term is not None:
+                update_data["term"] = term
+            if definition is not None:
+                update_data["definition"] = definition
+            if sql_expression is not None:
+                update_data["sql_expression"] = sql_expression
+            if category is not None:
+                update_data["category"] = category
+            
+            response = requests.put(
+                f"{self.base_url}/dev/glossary/terms/{term_id}",
+                json=update_data,
+                timeout=10
+            )
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            st.error(f"更新术语失败: {str(e)}")
+            return False
+    
     def delete_term(self, term_id: int) -> bool:
         """删除术语"""
         try:
@@ -239,6 +291,28 @@ class TaoshaAPIClient:
             return True
         except requests.exceptions.RequestException as e:
             st.error(f"添加关联字段配置失败: {str(e)}")
+            return False
+    
+    def update_relation_config(self, relation_id: str, family: str = None, subfamily: str = None, desc: str = None) -> bool:
+        """更新关联字段配置"""
+        try:
+            update_data = {}
+            if family is not None:
+                update_data["relation_family"] = family
+            if subfamily is not None:
+                update_data["relation_subfamily"] = subfamily
+            if desc is not None:
+                update_data["relation_desc"] = desc
+            
+            response = requests.put(
+                f"{self.base_url}/dev/relation-configs/{relation_id}",
+                json=update_data,
+                timeout=10
+            )
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            st.error(f"更新关联字段配置失败: {str(e)}")
             return False
     
     def delete_relation_config(self, relation_id: str) -> bool:
@@ -380,7 +454,7 @@ def display_input_clarity_result(clear_check_details):
                     if st.button(
                         suggestion, 
                         key=f"suggestion_{i}", 
-                        use_container_width=True,
+                        width='stretch',
                         help="点击将此建议作为新查询"
                     ):
                         # 将建议设置为新的查询输入
@@ -508,8 +582,139 @@ def metadata_management_page():
                         columns = table.get('columns', [])
                         if columns:
                             st.write(f"**列数**: {len(columns)}")
-                            col_df = pd.DataFrame(columns)
-                            st.dataframe(col_df, use_container_width=True)
+                            
+                            # 显示列信息表格
+                            # 为显示添加状态图标
+                            display_columns = []
+                            for col in columns:
+                                display_col = col.copy()
+                                # 添加状态图标
+                                is_available = col.get('is_available', 0)
+                                status_icon = "✅" if is_available == 0 else "❌"
+                                display_col['status'] = f"{status_icon} {'可用' if is_available == 0 else '不可用'}"
+                                
+                                # 优化业务类型显示
+                                display_col['business_type'] = col.get('business_type') or col.get('type', '')
+                                
+                                display_columns.append(display_col)
+                            
+                            # 创建 DataFrame 并显示
+                            col_df = pd.DataFrame(display_columns)
+                            # 重新排列列顺序
+                            column_order = ['name', 'type', 'business_type', 'status', 'relation_id', 'comment']
+                            available_columns = [col for col in column_order if col in col_df.columns]
+                            col_df = col_df[available_columns]
+                            
+                            # 重命名列标题为中文
+                            col_df = col_df.rename(columns={
+                                'name': '列名',
+                                'type': '存储类型', 
+                                'business_type': '业务类型',
+                                'status': '状态',
+                                'relation_id': '关联ID',
+                                'comment': '描述'
+                            })
+                            
+                            st.dataframe(col_df, width='stretch')
+                            
+                            # 列编辑区域
+                            with st.expander("📝 编辑列元数据", expanded=False):
+                                if columns:
+                                    # 列选择
+                                    col_names = [col.get('name', '') for col in columns]
+                                    selected_col_name = st.selectbox("选择要编辑的列", col_names, key=f"select_col_{table['name']}")
+                                    
+                                    # 找到选中的列
+                                    selected_col = None
+                                    selected_index = -1
+                                    for i, col in enumerate(columns):
+                                        if col.get('name') == selected_col_name:
+                                            selected_col = col
+                                            selected_index = i
+                                            break
+                                    
+                                    if selected_col:
+                                        st.markdown(f"**编辑列: {selected_col_name}**")
+                                        
+                                        col_form1, col_form2, col_form3, col_form4 = st.columns(4)
+                                        
+                                        with col_form1:
+                                            edit_storage_type = st.selectbox(
+                                                "存储类型",
+                                                ["VARCHAR", "INTEGER", "DECIMAL", "DATE", "BOOLEAN", "TEXT"],
+                                                index=["VARCHAR", "INTEGER", "DECIMAL", "DATE", "BOOLEAN", "TEXT"].index(selected_col.get('type', 'VARCHAR')) if selected_col.get('type') in ["VARCHAR", "INTEGER", "DECIMAL", "DATE", "BOOLEAN", "TEXT"] else 0,
+                                                key=f"edit_col_type_{table['name']}_{selected_index}"
+                                            )
+                                            
+                                            edit_business_type = st.selectbox(
+                                                "业务类型",
+                                                ["VARCHAR", "INTEGER", "DECIMAL", "DATE", "BOOLEAN", "TEXT"],
+                                                index=["VARCHAR", "INTEGER", "DECIMAL", "DATE", "BOOLEAN", "TEXT"].index(selected_col.get('business_type') or selected_col.get('type', 'VARCHAR')) if (selected_col.get('business_type') or selected_col.get('type', 'VARCHAR')) in ["VARCHAR", "INTEGER", "DECIMAL", "DATE", "BOOLEAN", "TEXT"] else 0,
+                                                key=f"edit_col_business_type_{table['name']}_{selected_index}"
+                                            )
+                                        
+                                        with col_form2:
+                                            edit_col_comment = st.text_area(
+                                                "列描述",
+                                                value=selected_col.get('comment', ''),
+                                                key=f"edit_col_comment_{table['name']}_{selected_index}"
+                                            )
+                                        
+                                        with col_form3:
+                                            edit_col_available = st.selectbox(
+                                                "状态",
+                                                options=[0, 1],
+                                                format_func=lambda x: "可用" if x == 0 else "不可用",
+                                                index=selected_col.get('is_available', 0),
+                                                key=f"edit_col_available_{table['name']}_{selected_index}"
+                                            )
+                                            
+                                            # 获取关联ID列表
+                                            relation_ids = get_relation_ids_cached()
+                                            relation_options = [""] + relation_ids
+                                            current_relation_index = 0
+                                            if selected_col.get('relation_id') and selected_col.get('relation_id') in relation_options:
+                                                current_relation_index = relation_options.index(selected_col.get('relation_id'))
+                                            
+                                            edit_relation_id = st.selectbox(
+                                                "关联ID",
+                                                options=relation_options,
+                                                index=current_relation_index,
+                                                key=f"edit_col_relation_{table['name']}_{selected_index}"
+                                            )
+                                        
+                                        with col_form4:
+                                            st.write("")  # 对齐
+                                            
+                                            # 更新按钮
+                                            if st.button("📝 更新列", key=f"update_col_{table['name']}_{selected_index}", type="primary"):
+                                                if api_client.update_column_metadata(
+                                                    table['name'], 
+                                                    selected_col.get('name'),
+                                                    edit_storage_type,
+                                                    edit_col_comment,
+                                                    edit_col_available,
+                                                    edit_business_type,
+                                                    edit_relation_id
+                                                ):
+                                                    st.success(f"列 {selected_col.get('name')} 元数据已更新")
+                                                    st.cache_data.clear()
+                                                    st.rerun()
+                                            
+                                            # 删除按钮
+                                            if st.button("🗑️ 删除列", key=f"delete_col_{table['name']}_{selected_index}"):
+                                                if st.session_state.get(f"confirm_delete_col_{table['name']}_{selected_col.get('name')}", False):
+                                                    if api_client.delete_column_metadata(table['name'], selected_col.get('name')):
+                                                        st.success(f"列 {selected_col.get('name')} 已删除")
+                                                        st.cache_data.clear()
+                                                        st.rerun()
+                                                else:
+                                                    st.session_state[f"confirm_delete_col_{table['name']}_{selected_col.get('name')}"] = True
+                                                    st.warning("再次点击确认删除")
+                                    else:
+                                        st.warning("未找到选中的列")
+                                else:
+                                    st.info("该表暂无列元数据")
                         else:
                             st.info("该表暂无列元数据")
                         
@@ -539,7 +744,7 @@ def metadata_management_page():
                         
                         with col_del:
                             st.write("")  # 对齐
-                            if st.button(f"删除表", key=f"delete_{table['name']}", type="secondary"):
+                            if st.button(f"删除表", key=f"delete_{table['name']}"):
                                 if st.session_state.get(f"confirm_delete_{table['name']}", False):
                                     if api_client.delete_table_metadata(table['name']):
                                         st.success(f"表 {table['name']} 元数据已删除")
@@ -615,7 +820,7 @@ def metadata_management_page():
                     index=0
                 )
                 
-                submit_table = st.form_submit_button("添加表", type="primary")
+                submit_table = st.form_submit_button("添加表")
                 
                 if submit_table:
                     if new_table_name:
@@ -645,7 +850,9 @@ def metadata_management_page():
             
             if terms:
                 for i, term in enumerate(terms):
+                    term_id = term.get('id')
                     with st.expander(f"📝 {term['term']}", expanded=False):
+                        # 显示区域
                         st.write(f"**定义**: {term.get('definition', '无定义')}")
                         st.write(f"**SQL表达式**: {term.get('sql_expression', '无表达式')}")
                         st.write(f"**分类**: {term.get('category', '无分类')}")
@@ -654,11 +861,65 @@ def metadata_management_page():
                         if aliases:
                             st.write(f"**别名**: {', '.join(aliases)}")
                         
-                        # 删除按钮（注意：这里假设术语有ID，实际需要根据API调整）
-                        if st.button(f"删除术语", key=f"del_term_{i}", type="secondary"):
-                            # 这里需要术语ID，现在使用索引作为替代
-                            # 实际实现中应该从API获取术语ID
-                            st.warning("删除功能需要术语ID，请在后端实现中确保返回ID字段")
+                        if term_id:
+                            # 编辑区域
+                            st.markdown("---")
+                            st.markdown("**编辑术语**")
+                            
+                            col_term1, col_term2 = st.columns(2)
+                            
+                            with col_term1:
+                                edit_term_name = st.text_input(
+                                    "术语名称",
+                                    value=term.get('term', ''),
+                                    key=f"edit_term_name_{term_id}"
+                                )
+                                edit_definition = st.text_area(
+                                    "术语定义",
+                                    value=term.get('definition', ''),
+                                    key=f"edit_definition_{term_id}"
+                                )
+                            
+                            with col_term2:
+                                edit_sql_expr = st.text_area(
+                                    "SQL表达式",
+                                    value=term.get('sql_expression', ''),
+                                    key=f"edit_sql_expr_{term_id}"
+                                )
+                                edit_category = st.text_input(
+                                    "分类",
+                                    value=term.get('category', ''),
+                                    key=f"edit_category_{term_id}"
+                                )
+                            
+                            # 按钮区域
+                            col_btn1, col_btn2 = st.columns(2)
+                            
+                            with col_btn1:
+                                if st.button("📝 更新术语", key=f"update_term_{term_id}", type="primary"):
+                                    if api_client.update_term(
+                                        term_id,
+                                        edit_term_name,
+                                        edit_definition,
+                                        edit_sql_expr,
+                                        edit_category
+                                    ):
+                                        st.success(f"术语 {edit_term_name} 已更新")
+                                        st.cache_data.clear()
+                                        st.rerun()
+                            
+                            with col_btn2:
+                                if st.button("🗑️ 删除术语", key=f"del_term_{term_id}"):
+                                    if st.session_state.get(f"confirm_delete_term_{term_id}", False):
+                                        if api_client.delete_term(term_id):
+                                            st.success(f"术语 {term.get('term')} 已删除")
+                                            st.cache_data.clear()
+                                            st.rerun()
+                                    else:
+                                        st.session_state[f"confirm_delete_term_{term_id}"] = True
+                                        st.warning("再次点击确认删除")
+                        else:
+                            st.warning("术语ID缺失，无法编辑")
             else:
                 st.info("暂无业务术语，可从右侧添加")
         
@@ -672,7 +933,7 @@ def metadata_management_page():
                 new_category = st.text_input("分类")
                 new_aliases_str = st.text_input("别名（用逗号分隔）")
                 
-                submit_term = st.form_submit_button("添加术语", type="primary")
+                submit_term = st.form_submit_button("添加术语")
                 
                 if submit_term:
                     if new_term:
@@ -706,20 +967,71 @@ def metadata_management_page():
                 for config in relation_configs:
                     relation_id = config['relation_id']
                     with st.expander(f"🔗 {relation_id}", expanded=False):
+                        # 显示区域
                         st.write(f"**关联族**: {config.get('relation_family', '')}")
                         st.write(f"**关联子族**: {config.get('relation_subfamily', '')}")
                         st.write(f"**描述**: {config.get('relation_desc', '无描述')}")
                         
-                        # 删除按钮
-                        if st.button(f"删除配置", key=f"delete_relation_{relation_id}", type="secondary"):
-                            if st.session_state.get(f"confirm_delete_relation_{relation_id}", False):
-                                if api_client.delete_relation_config(relation_id):
-                                    st.success(f"关联配置 {relation_id} 已删除")
-                                    st.cache_data.clear()  # 清除缓存
-                                    st.rerun()
-                            else:
-                                st.session_state[f"confirm_delete_relation_{relation_id}"] = True
-                                st.warning("再次点击确认删除")
+                        # 编辑区域
+                        st.markdown("---")
+                        st.markdown("**编辑关联配置**")
+                        
+                        col_rel1, col_rel2 = st.columns(2)
+                        
+                        with col_rel1:
+                            edit_family = st.text_input(
+                                "关联族",
+                                value=config.get('relation_family', ''),
+                                key=f"edit_family_{relation_id}"
+                            )
+                            edit_subfamily = st.text_input(
+                                "关联子族",
+                                value=config.get('relation_subfamily', ''),
+                                key=f"edit_subfamily_{relation_id}"
+                            )
+                        
+                        with col_rel2:
+                            edit_desc = st.text_area(
+                                "描述",
+                                value=config.get('relation_desc', ''),
+                                key=f"edit_desc_{relation_id}"
+                            )
+                            
+                            # 预览新的关联ID
+                            if edit_family and edit_subfamily:
+                                new_relation_id = f"{edit_family}|{edit_subfamily}"
+                                if new_relation_id != relation_id:
+                                    st.info(f"新关联ID: {new_relation_id}")
+                        
+                        # 按钮区域
+                        col_btn1, col_btn2 = st.columns(2)
+                        
+                        with col_btn1:
+                            if st.button("📝 更新配置", key=f"update_relation_{relation_id}", type="primary"):
+                                if edit_family and edit_subfamily:
+                                    if api_client.update_relation_config(
+                                        relation_id,
+                                        edit_family,
+                                        edit_subfamily,
+                                        edit_desc
+                                    ):
+                                        new_id = f"{edit_family}|{edit_subfamily}"
+                                        st.success(f"关联配置已更新: {relation_id} -> {new_id}")
+                                        st.cache_data.clear()
+                                        st.rerun()
+                                else:
+                                    st.error("请填写关联族和关联子族")
+                        
+                        with col_btn2:
+                            if st.button("🗑️ 删除配置", key=f"delete_relation_{relation_id}"):
+                                if st.session_state.get(f"confirm_delete_relation_{relation_id}", False):
+                                    if api_client.delete_relation_config(relation_id):
+                                        st.success(f"关联配置 {relation_id} 已删除")
+                                        st.cache_data.clear()
+                                        st.rerun()
+                                else:
+                                    st.session_state[f"confirm_delete_relation_{relation_id}"] = True
+                                    st.warning("再次点击确认删除")
             else:
                 st.info("暂无关联配置，可从右侧添加")
         
@@ -737,7 +1049,7 @@ def metadata_management_page():
                     preview_id = f"{new_family}|{new_subfamily}"
                     st.success(f"预览关联ID: {preview_id}")
                 
-                submit_relation = st.form_submit_button("添加关联配置", type="primary")
+                submit_relation = st.form_submit_button("添加关联配置")
                 
                 if submit_relation:
                     if new_family and new_subfamily:
@@ -764,7 +1076,7 @@ def metadata_management_page():
             """)
         
         with col2:
-            if st.button("🔄 从数据库同步元数据", type="primary", use_container_width=True):
+            if st.button("🔄 从数据库同步元数据", type="primary", width='stretch'):
                 with st.spinner("正在同步数据库元数据..."):
                     result = api_client.sync_metadata_from_database()
                 
@@ -865,7 +1177,7 @@ def data_query_page():
         ]
         
         for query in example_queries:
-            if st.button(query, key=f"example_{query}", use_container_width=True):
+            if st.button(query, key=f"example_{query}", width='stretch'):
                 st.session_state.query_input = query
 
     # 主界面内容
@@ -892,7 +1204,7 @@ def data_query_page():
         with col2_1:
             max_retries = st.selectbox("重试次数", [0, 1, 2, 3], index=2)
         with col2_2:
-            submit_button = st.button("🚀 查询", type="primary", use_container_width=True)
+            submit_button = st.button("🚀 查询", type="primary", width='stretch')
     
     # 处理查询
     if submit_button and query_input:
@@ -925,7 +1237,7 @@ def data_query_page():
                 with col1:
                     st.markdown("#### 📋 数据表格")
                     df = pd.DataFrame(data)
-                    st.dataframe(df, use_container_width=True)
+                    st.dataframe(df, width='stretch')
                     
                     # 数据统计
                     st.markdown("#### 📈 数据统计")
@@ -944,7 +1256,7 @@ def data_query_page():
                     # 尝试创建图表
                     chart = create_chart(data)
                     if chart:
-                        st.plotly_chart(chart, use_container_width=True)
+                        st.plotly_chart(chart, width='stretch')
                     else:
                         st.info("数据不适合图表展示，或行数太少")
                         
