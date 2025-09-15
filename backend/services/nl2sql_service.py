@@ -188,8 +188,11 @@ class NL2SQLService:
                 return state
             
             # 构建验证提示词，要求返回JSON格式
+            current_date = datetime.now().strftime("%Y-%m-%d")
             validation_prompt = f"""
 请判断以下用户查询是否足够清晰，可以转换为SQL查询。
+
+当前日期: {current_date}
 
 用户查询: {user_input}
 
@@ -379,8 +382,11 @@ class NL2SQLService:
             logs = state.get('logs', [])
             
             # 构建包含错误信息的提示词
+            current_date = datetime.now().strftime("%Y-%m-%d")
             retry_prompt = f"""
 之前的SQL查询执行失败，请根据错误信息重新生成SQL：
+
+当前日期: {current_date}
 
 原始用户查询: {user_input}
 之前生成的SQL: {previous_sql}
@@ -511,8 +517,11 @@ class NL2SQLService:
                 self.vanna.train(documentation=documentation)
         
         # 2. 训练字段类型处理规则
-        type_handling_doc = """
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        type_handling_doc = f"""
 字段类型处理规则：
+当前日期: {current_date}
+
 1. 由于历史原因，字段的存储类型和业务类型可能不一致
 2. 在进行数值比较、计算、排序等逻辑操作时，必须使用CAST函数将字段转换为业务类型
 3. 示例：
@@ -520,6 +529,7 @@ class NL2SQLService:
    - 比较时应使用：WHERE CAST(amount AS DECIMAL) > 100
    - 排序时应使用：ORDER BY CAST(amount AS DECIMAL) DESC
 4. 在生成SQL时，请始终优先考虑业务类型进行类型转换
+5. 时间相关查询时，请参考当前日期({current_date})来处理"今天"、"本月"、"最近30天"等时间描述
         """
         self.vanna.train(documentation=type_handling_doc)
         
