@@ -112,7 +112,6 @@ backend/database/*.duckdb
 backend/database/*.duckdb.wal
 backend/database/*.sqlite3
 backend/database/*.sqlite3-journal
-backend/database/*.db
 backend/database/*.log
 
 # ChromaDB files
