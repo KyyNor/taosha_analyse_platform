@@ -108,7 +108,6 @@ dmypy.json
 cython_debug/
 
 # Database files
-backend/database/*.duckdb
 backend/database/*.duckdb.wal
 backend/database/*.sqlite3
 backend/database/*.sqlite3-journal

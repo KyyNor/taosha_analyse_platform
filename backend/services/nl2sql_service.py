@@ -117,7 +117,7 @@ class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
         }
         
         logger.debug(f"[{step}] Input: {input_data}")
-        logger.debug(f"[{step}] Prompt: {prompt[:200]}..." if len(prompt) > 200 else f"[{step}] Prompt: {prompt}")
+        logger.debug(f"[{step}] Prompt: {prompt}...")
         logger.debug(f"[{step}] Output: {model_output}")
         
         if error:
@@ -404,6 +404,8 @@ class NL2SQLService:
 重要提示:
 1. 字段的存储类型和业务类型可能不同，数值比较时请使用CAST转换为业务类型
 2. 关联不同表的字段时，请根据关联配置进行适当转换
+3. 所有表都需要使用别名，从t1开始，t1、t2、t3依次递增
+4. 所有字段都需要使用完整引用，例如t1.cust_no，不允许只写字段名
 
 请生成一个新的SQL查询，避免之前的错误：
 """
