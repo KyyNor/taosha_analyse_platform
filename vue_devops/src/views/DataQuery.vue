@@ -148,73 +148,6 @@ ORDER BY total_sales DESC;</code></pre>
       </div>
     </section>
 
-    <!-- Sidebar: System Info -->
-    <div class="fixed bottom-6 right-6 w-80 bg-white rounded-lg shadow-lg border border-slate-200 p-4 z-40">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="font-semibold text-slate-800">系统信息</h3>
-        <button
-          @click="sidebarCollapsed = !sidebarCollapsed"
-          class="p-1 hover:bg-slate-100 rounded"
-        >
-          <ChevronUpIcon :class="['w-4 h-4 text-slate-500 transition-transform duration-200', sidebarCollapsed ? 'rotate-180' : '']" />
-        </button>
-      </div>
-
-      <div v-if="!sidebarCollapsed" class="space-y-4">
-        <!-- Health Status -->
-        <div class="flex items-center space-x-2">
-          <div :class="['w-2 h-2 rounded-full', isHealthy ? 'bg-green-500' : 'bg-red-500']"></div>
-          <span class="text-sm text-slate-600">{{ isHealthy ? '服务正常' : '服务异常' }}</span>
-        </div>
-
-        <!-- System Status -->
-        <div v-if="systemStatus" class="text-sm text-slate-600 space-y-1">
-          <div><strong>应用:</strong> {{ systemStatus.app_name }}</div>
-          <div><strong>版本:</strong> {{ systemStatus.version }}</div>
-          <div><strong>数据库:</strong> {{ systemStatus.database?.database_type }}</div>
-          <div><strong>表数量:</strong> {{ systemStatus.database?.total_tables }}</div>
-        </div>
-
-        <!-- Example Queries -->
-        <div>
-          <div class="text-sm font-medium text-slate-700 mb-2">💡 示例查询</div>
-          <div class="space-y-1">
-            <button
-              v-for="example in exampleQueries"
-              :key="example"
-              @click="selectExample(example)"
-              class="block w-full text-left text-xs text-slate-600 hover:text-blue-600 hover:bg-blue-50 p-2 rounded transition-colors duration-200"
-            >
-              {{ example }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Query History -->
-        <div v-if="queryHistory.length > 0">
-          <div class="text-sm font-medium text-slate-700 mb-2">📜 查询历史</div>
-          <div class="space-y-1 max-h-32 overflow-y-auto">
-            <div
-              v-for="(entry, index) in queryHistory.slice(-5)"
-              :key="index"
-              class="text-xs p-2 bg-slate-50 rounded"
-            >
-              <div class="flex items-center space-x-2">
-                <div :class="['w-1.5 h-1.5 rounded-full', entry.success ? 'bg-green-500' : 'bg-red-500']"></div>
-                <span class="text-slate-600 truncate flex-1">{{ entry.query }}</span>
-                <button
-                  @click="retryQuery(entry.query)"
-                  class="text-blue-600 hover:text-blue-800"
-                  title="重新查询"
-                >
-                  ↻
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -223,7 +156,6 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { 
   MagnifyingGlassIcon, 
   ExclamationTriangleIcon,
-  ChevronUpIcon,
   ChatBubbleLeftRightIcon,
   ChartBarIcon,
   CpuChipIcon
@@ -242,9 +174,6 @@ const queryResult = ref<QueryResponse | null>(null)
 const executionTime = ref(0)
 const isHealthy = ref(true)
 const systemStatus = ref<SystemStatus | null>(null)
-const sidebarCollapsed = ref(false)
-const queryHistory = ref<Array<{ query: string; success: boolean; timestamp: number }>>([])
-
 // 功能特性
 const features = [
   {
@@ -264,15 +193,6 @@ const features = [
   }
 ]
 
-// 示例查询
-const exampleQueries = [
-  '显示所有销售数据',
-  '北京地区的销售额是多少？',
-  '按产品类别统计销售量',
-  '哪个客户购买最多？',
-  '今年的总销售额',
-  '电子产品的平均价格'
-]
 
 // 提交查询
 const submitQuery = async () => {
@@ -290,17 +210,6 @@ const submitQuery = async () => {
     executionTime.value = (endTime - startTime) / 1000
     queryResult.value = result
 
-    // 添加到查询历史
-    queryHistory.value.push({
-      query: queryInput.value.trim(),
-      success: result.success,
-      timestamp: Date.now()
-    })
-
-    // 保持最近10条历史
-    if (queryHistory.value.length > 10) {
-      queryHistory.value = queryHistory.value.slice(-10)
-    }
   } catch (error) {
     console.error('查询失败:', error)
     queryResult.value = {
@@ -317,15 +226,6 @@ const selectSuggestion = (suggestion: string) => {
   queryInput.value = suggestion
 }
 
-// 选择示例查询
-const selectExample = (example: string) => {
-  queryInput.value = example
-}
-
-// 重新查询
-const retryQuery = (query: string) => {
-  queryInput.value = query
-}
 
 // 健康检查
 const checkHealth = async () => {

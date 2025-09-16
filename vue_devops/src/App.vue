@@ -81,27 +81,7 @@
     <!-- Footer -->
     <footer class="bg-slate-100 border-t border-slate-200">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div class="flex justify-center space-x-8">
-          <a 
-            href="/api/v1/docs"
-            target="_blank"
-            class="text-sm text-slate-600 hover:text-blue-600 transition-colors duration-200"
-          >
-            API文档
-          </a>
-          <a 
-            href="#"
-            class="text-sm text-slate-600 hover:text-blue-600 transition-colors duration-200"
-          >
-            使用指南
-          </a>
-          <a 
-            href="#"
-            class="text-sm text-slate-600 hover:text-blue-600 transition-colors duration-200"
-          >
-            技术支持
-          </a>
-        </div>
+        <!-- 页脚内容已移除 -->
       </div>
     </footer>
   </div>
