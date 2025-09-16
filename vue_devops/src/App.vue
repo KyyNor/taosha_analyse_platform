@@ -1,219 +1,173 @@
 <template>
-  <div class="app-container">
-    <el-container>
-      <!-- 侧边栏 -->
-      <el-aside width="280px" class="sidebar">
-        <div class="sidebar-header">
-          <h2 class="app-title">淘沙分析平台</h2>
-        </div>
-        
-        <!-- 导航菜单 -->
-        <el-menu
-          :default-active="$route.path"
-          router
-          class="sidebar-menu"
-        >
-          <el-menu-item index="/query">
-            <el-icon><Search /></el-icon>
-            <span>数据查询</span>
-          </el-menu-item>
-          <el-menu-item index="/metadata">
-            <el-icon><Setting /></el-icon>
-            <span>元数据管理</span>
-          </el-menu-item>
-          <el-menu-item index="/glossary">
-            <el-icon><Document /></el-icon>
-            <span>术语搜索</span>
-          </el-menu-item>
-        </el-menu>
-        
-        <!-- 系统状态 -->
-        <div class="system-status">
-          <el-divider />
-          
-          <!-- 健康状态 -->
-          <div class="status-item">
-            <el-tag 
-              :type="appStore.isBackendHealthy ? 'success' : 'danger'"
-              size="small"
-            >
-              {{ appStore.isBackendHealthy ? '后端服务正常' : '后端服务异常' }}
-            </el-tag>
+  <div class="min-h-screen bg-white">
+    <!-- Sticky Navigation -->
+    <nav class="sticky top-0 z-50 bg-white shadow-sm border-b border-slate-100">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+          <!-- Logo -->
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+              <MagnifyingGlassIcon class="w-5 h-5 text-white" />
+            </div>
+            <div class="font-bold text-xl text-slate-800 tracking-tight">
+              淘沙分析平台
+            </div>
           </div>
-          
-          <!-- 系统信息 -->
-          <el-collapse v-if="appStore.systemStatus" accordion>
-            <el-collapse-item name="system" title="系统状态">
-              <div class="status-details">
-                <p><strong>应用:</strong> {{ appStore.systemStatus.app_name }}</p>
-                <p><strong>版本:</strong> {{ appStore.systemStatus.version }}</p>
-                <p><strong>数据库类型:</strong> {{ appStore.systemStatus.database?.database_type }}</p>
-                <p><strong>表数量:</strong> {{ appStore.systemStatus.database?.total_tables }}</p>
-              </div>
-            </el-collapse-item>
-          </el-collapse>
-          
-          <!-- 数据表信息 -->
-          <el-collapse v-if="appStore.hasData" accordion>
-            <el-collapse-item name="tables" title="数据表">
-              <div class="tables-list">
-                <div
-                  v-for="table in appStore.tables"
-                  :key="table.table_name"
-                  class="table-item"
-                >
-                  <p class="table-name">{{ table.table_name }}</p>
-                  <p v-if="table.comment" class="table-comment">{{ table.comment }}</p>
-                  <p class="table-rows">行数: {{ table.row_count }}</p>
-                </div>
-              </div>
-            </el-collapse-item>
-          </el-collapse>
+
+          <!-- Navigation Links -->
+          <div class="hidden md:flex items-center space-x-1">
+            <router-link
+              v-for="route in navRoutes"
+              :key="route.name"
+              :to="{ name: route.name }"
+              class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200"
+              :class="isActiveRoute(route.name) 
+                ? 'bg-blue-50 text-blue-600' 
+                : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'"
+            >
+              {{ route.title }}
+            </router-link>
+            
+            <!-- Health Status Indicator -->
+            <div class="ml-4 flex items-center space-x-2">
+              <div 
+                :class="[
+                  'w-2 h-2 rounded-full',
+                  isHealthy ? 'bg-green-500' : 'bg-red-500'
+                ]"
+              ></div>
+              <span class="text-xs text-slate-500">
+                {{ isHealthy ? '服务正常' : '服务异常' }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Mobile menu button -->
+          <div class="md:hidden">
+            <button
+              @click="mobileMenuOpen = !mobileMenuOpen"
+              class="p-2 rounded-lg text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+            >
+              <Bars3Icon class="w-6 h-6" />
+            </button>
+          </div>
         </div>
-      </el-aside>
-      
-      <!-- 主内容区 -->
-      <el-main class="main-content">
-        <router-view />
-      </el-main>
-    </el-container>
+
+        <!-- Mobile Navigation -->
+        <div v-if="mobileMenuOpen" class="md:hidden py-3 border-t border-slate-100">
+          <div class="space-y-1">
+            <router-link
+              v-for="route in navRoutes"
+              :key="route.name"
+              :to="{ name: route.name }"
+              @click="mobileMenuOpen = false"
+              class="block px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200"
+              :class="isActiveRoute(route.name) 
+                ? 'bg-blue-50 text-blue-600' 
+                : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'"
+            >
+              {{ route.title }}
+            </router-link>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-1">
+      <router-view />
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-100 border-t border-slate-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="flex justify-center space-x-8">
+          <a 
+            href="/api/v1/docs"
+            target="_blank"
+            class="text-sm text-slate-600 hover:text-blue-600 transition-colors duration-200"
+          >
+            API文档
+          </a>
+          <a 
+            href="#"
+            class="text-sm text-slate-600 hover:text-blue-600 transition-colors duration-200"
+          >
+            使用指南
+          </a>
+          <a 
+            href="#"
+            class="text-sm text-slate-600 hover:text-blue-600 transition-colors duration-200"
+          >
+            技术支持
+          </a>
+        </div>
+      </div>
+    </footer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useAppStore } from '@/stores/app'
-import { Search, Setting, Document } from '@element-plus/icons-vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { MagnifyingGlassIcon, Bars3Icon } from '@heroicons/vue/24/outline'
+import { apiClient } from '@/api'
 
-const appStore = useAppStore()
+// 响应式数据
+const mobileMenuOpen = ref(false)
+const isHealthy = ref(true)
+
+// 导航路由配置
+const navRoutes = [
+  { name: 'DataQuery', title: '数据查询' },
+  { name: 'MetadataManagement', title: '元数据管理' },
+]
+
+// 获取当前路由
+const route = useRoute()
+
+// 判断是否为当前激活路由
+const isActiveRoute = (routeName: string) => {
+  return route.name === routeName
+}
+
+// 健康检查
+const checkHealth = async () => {
+  try {
+    isHealthy.value = await apiClient.healthCheck()
+  } catch {
+    isHealthy.value = false
+  }
+}
+
+// 定时健康检查
+let healthCheckInterval: number
 
 onMounted(() => {
-  appStore.init()
+  // 立即执行一次健康检查
+  checkHealth()
+  
+  // 每30秒检查一次
+  healthCheckInterval = window.setInterval(checkHealth, 30000)
+})
+
+onUnmounted(() => {
+  if (healthCheckInterval) {
+    clearInterval(healthCheckInterval)
+  }
 })
 </script>
 
-<style scoped lang="scss">
-.app-container {
-  min-height: 100vh;
+<style scoped>
+/* 路由过渡动画 */
+.router-enter-active,
+.router-leave-active {
+  transition: all 0.3s ease;
 }
 
-.sidebar {
-  background: #ffffff;
-  border-right: 1px solid #e4e7ed;
-  display: flex;
-  flex-direction: column;
-  
-  .sidebar-header {
-    padding: 24px 20px;
-    border-bottom: 1px solid #e4e7ed;
-    
-    .app-title {
-      font-size: 20px;
-      font-weight: 600;
-      color: #303133;
-      margin: 0;
-    }
-  }
-  
-  .sidebar-menu {
-    border: none;
-    flex: 1;
-    
-    .el-menu-item {
-      height: 50px;
-      line-height: 50px;
-      margin: 4px 16px;
-      border-radius: 8px;
-      
-      &.is-active {
-        background-color: #ecf5ff;
-        color: #409eff;
-        
-        &::before {
-          display: none;
-        }
-      }
-      
-      &:hover {
-        background-color: #f5f7fa;
-      }
-    }
-  }
-  
-  .system-status {
-    padding: 16px;
-    margin-top: auto;
-    
-    .status-item {
-      margin-bottom: 12px;
-    }
-    
-    .status-details {
-      font-size: 12px;
-      color: #606266;
-      
-      p {
-        margin: 8px 0;
-      }
-    }
-    
-    .tables-list {
-      max-height: 200px;
-      overflow-y: auto;
-      
-      .table-item {
-        padding: 8px;
-        margin-bottom: 8px;
-        background: #f5f7fa;
-        border-radius: 6px;
-        
-        .table-name {
-          font-weight: 600;
-          font-size: 13px;
-          color: #303133;
-          margin: 0 0 4px 0;
-        }
-        
-        .table-comment {
-          font-size: 12px;
-          color: #909399;
-          font-style: italic;
-          margin: 0 0 4px 0;
-        }
-        
-        .table-rows {
-          font-size: 12px;
-          color: #606266;
-          margin: 0;
-        }
-      }
-    }
-  }
-}
-
-.main-content {
-  padding: 24px;
-  background: #f5f7fa;
-}
-
-:deep(.el-collapse) {
-  border: none;
-  
-  .el-collapse-item__header {
-    height: 40px;
-    line-height: 40px;
-    font-size: 13px;
-    background: transparent;
-    border: none;
-    padding-left: 0;
-  }
-  
-  .el-collapse-item__content {
-    padding-bottom: 12px;
-  }
-  
-  .el-collapse-item__wrap {
-    border: none;
-  }
+.router-enter-from,
+.router-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
 }
 </style>

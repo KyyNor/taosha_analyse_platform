@@ -1,252 +1,205 @@
 <template>
-  <div class="result-display">
-    <!-- SQL查询展示 -->
-    <el-card v-if="result.sql_query" class="sql-card">
-      <template #header>
-        <span>生成的SQL查询</span>
-      </template>
-      <el-input
-        v-model="result.sql_query"
-        type="textarea"
-        :rows="6"
-        readonly
-        class="sql-textarea"
-      />
-    </el-card>
-
-    <!-- 数据结果展示 -->
-    <div v-if="result.data && result.data.length > 0" class="data-results">
-      <el-row :gutter="24">
-        <el-col :span="12">
-          <!-- 数据表格 -->
-          <el-card class="table-card">
-            <template #header>
-              <span>数据表格</span>
-            </template>
-            <DataTable :data="result.data" />
-            
-            <!-- 数据统计 -->
-            <div class="data-stats">
-              <h4>数据统计</h4>
-              <p><strong>总行数:</strong> {{ result.data.length }}</p>
-              <p><strong>列数:</strong> {{ getColumnCount(result.data) }}</p>
-            </div>
-
-            <!-- 关键指标（单行数据时） -->
-            <div v-if="result.data.length === 1" class="metrics-section">
-              <h4>关键指标</h4>
-              <div class="metrics-grid">
-                <div
-                  v-for="[key, value] in Object.entries(result.data[0])"
-                  :key="key"
-                  class="metric-item"
-                >
-                  <div class="metric-label">{{ key }}</div>
-                  <div class="metric-value">{{ value }}</div>
-                </div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-
-        <el-col :span="12">
-          <!-- 可视化图表 -->
-          <el-card class="chart-card">
-            <template #header>
-              <span>可视化图表</span>
-            </template>
-            <DataChart v-if="shouldShowChart(result.data)" :data="result.data" />
-            <div v-else class="no-chart-message">
-              <el-empty description="数据不适合图表展示，或行数太少" />
-              <!-- 数值列统计 -->
-              <div v-if="getNumericStats(result.data)" class="numeric-stats">
-                <h4>数值列统计</h4>
-                <el-table :data="getNumericStats(result.data)" size="small">
-                  <el-table-column prop="column" label="列名" />
-                  <el-table-column prop="count" label="计数" />
-                  <el-table-column prop="mean" label="平均值" />
-                  <el-table-column prop="std" label="标准差" />
-                  <el-table-column prop="min" label="最小值" />
-                  <el-table-column prop="max" label="最大值" />
-                </el-table>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
+  <div class="space-y-6">
+    <!-- Query Result Header -->
+    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+      <div class="flex items-center space-x-2">
+        <CheckCircleIcon class="w-5 h-5 text-green-600" />
+        <span class="font-medium text-green-800">查询成功！</span>
+        <span class="text-sm text-green-600">耗时: {{ executionTime }}秒</span>
+      </div>
     </div>
 
-    <!-- 无数据提示 -->
-    <el-card v-else-if="result.success && (!result.data || result.data.length === 0)">
-      <el-empty description="查询成功，但没有返回数据" />
-    </el-card>
+    <!-- Generated SQL -->
+    <div v-if="sqlQuery" class="bg-white rounded-lg border border-slate-200 shadow-sm">
+      <div class="px-6 py-4 border-b border-slate-200 bg-slate-50">
+        <h3 class="text-lg font-semibold text-slate-800">生成的SQL查询</h3>
+      </div>
+      <div class="p-6">
+        <div class="bg-slate-900 rounded-lg p-4 overflow-x-auto">
+          <pre class="text-sm text-green-400 font-mono whitespace-pre-wrap">{{ sqlQuery }}</pre>
+        </div>
+        <button
+          @click="copySql"
+          class="mt-3 px-3 py-1 text-xs bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors duration-200"
+        >
+          {{ copyButtonText }}
+        </button>
+      </div>
+    </div>
 
-    <!-- 查询日志 -->
-    <QueryLogs v-if="result.logs && result.logs.length > 0" :logs="result.logs" />
+    <!-- Data Results -->
+    <div v-if="data && data.length > 0" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Data Table -->
+      <div class="lg:col-span-1">
+        <DataTable
+          title="数据表格"
+          :columns="tableColumns"
+          :data="data"
+          :show-footer="true"
+          :total="data.length"
+        />
+        
+        <!-- Data Statistics -->
+        <div class="mt-4 bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+          <h4 class="text-lg font-semibold text-slate-800 mb-3">数据统计</h4>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <div class="text-2xl font-bold text-blue-600">{{ data.length }}</div>
+              <div class="text-sm text-slate-500">总行数</div>
+            </div>
+            <div>
+              <div class="text-2xl font-bold text-blue-600">{{ tableColumns.length }}</div>
+              <div class="text-sm text-slate-500">列数</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Key Metrics for Single Row -->
+        <div v-if="data.length === 1" class="mt-4 bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+          <h4 class="text-lg font-semibold text-slate-800 mb-4">🎯 关键指标</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div 
+              v-for="[key, value] in Object.entries(data[0])"
+              :key="key"
+              class="bg-slate-50 rounded-lg p-4"
+            >
+              <div class="text-lg font-semibold text-slate-800">{{ formatMetricValue(value) }}</div>
+              <div class="text-sm text-slate-500">{{ key }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Visualization -->
+      <div class="lg:col-span-1">
+        <DataChart
+          title="可视化图表"
+          :data="data"
+          :height="400"
+        />
+
+        <!-- Numeric Statistics -->
+        <div v-if="numericStats.length > 0" class="mt-4 bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+          <h4 class="text-lg font-semibold text-slate-800 mb-4">数值列统计</h4>
+          <DataTable
+            :columns="statsColumns"
+            :data="numericStats"
+            :show-footer="false"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- No Data Message -->
+    <div v-else-if="data && data.length === 0" class="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+      <div class="flex flex-col items-center space-y-2">
+        <InformationCircleIcon class="w-8 h-8 text-blue-600" />
+        <div class="text-blue-800 font-medium">查询成功，但没有返回数据</div>
+        <div class="text-blue-600 text-sm">请检查查询条件是否正确</div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { QueryResult } from '@/types'
+import { computed, ref } from 'vue'
+import { CheckCircleIcon, InformationCircleIcon } from '@heroicons/vue/24/outline'
+import type { Column } from '@/types'
 import DataTable from './DataTable.vue'
 import DataChart from './DataChart.vue'
-import QueryLogs from './QueryLogs.vue'
 
+// 定义组件属性
 interface Props {
-  result: QueryResult
+  sqlQuery?: string
+  data?: any[]
+  executionTime: number
 }
 
 const props = defineProps<Props>()
 
-// 计算列数
-const getColumnCount = (data: Record<string, any>[]) => {
-  return data.length > 0 ? Object.keys(data[0]).length : 0
-}
+// 响应式数据
+const copyButtonText = ref('复制SQL')
 
-// 判断是否应该显示图表
-const shouldShowChart = (data: Record<string, any>[]) => {
-  if (!data || data.length <= 1) return false
+// 计算表格列
+const tableColumns = computed((): Column[] => {
+  if (!props.data || props.data.length === 0) return []
   
-  // 检查是否有数值列和分类列
-  const firstRow = data[0]
-  const keys = Object.keys(firstRow)
+  const firstRow = props.data[0]
+  return Object.keys(firstRow).map(key => ({
+    key,
+    title: key,
+    type: getColumnType(firstRow[key])
+  }))
+})
+
+// 计算数值统计
+const numericStats = computed(() => {
+  if (!props.data || props.data.length === 0) return []
   
-  let hasNumeric = false
-  let hasCategorical = false
-  
-  keys.forEach(key => {
-    const values = data.map(row => row[key])
-    const numericValues = values.filter(v => typeof v === 'number' && !isNaN(v))
+  const numericColumns = tableColumns.value.filter(col => col.type === 'number')
+  if (numericColumns.length === 0) return []
+
+  return numericColumns.map(col => {
+    const values = props.data!.map(row => row[col.key]).filter(val => typeof val === 'number')
     
-    if (numericValues.length > 0) {
-      hasNumeric = true
-    } else {
-      hasCategorical = true
+    if (values.length === 0) return { column: col.title, count: 0, mean: 0, min: 0, max: 0 }
+    
+    const sum = values.reduce((a, b) => a + b, 0)
+    const mean = sum / values.length
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    
+    return {
+      column: col.title,
+      count: values.length,
+      mean: Number(mean.toFixed(2)),
+      min,
+      max
     }
   })
-  
-  return hasNumeric && (hasCategorical || keys.length >= 2)
+})
+
+// 统计表格列定义
+const statsColumns: Column[] = [
+  { key: 'column', title: '列名', type: 'text' },
+  { key: 'count', title: '数量', type: 'number' },
+  { key: 'mean', title: '平均值', type: 'number' },
+  { key: 'min', title: '最小值', type: 'number' },
+  { key: 'max', title: '最大值', type: 'number' }
+]
+
+// 获取列类型
+const getColumnType = (value: any): Column['type'] => {
+  if (typeof value === 'number') return 'number'
+  if (typeof value === 'boolean') return 'boolean'
+  if (value instanceof Date) return 'date'
+  return 'text'
 }
 
-// 获取数值列统计
-const getNumericStats = (data: Record<string, any>[]) => {
-  if (!data || data.length === 0) return null
+// 格式化指标值
+const formatMetricValue = (value: any) => {
+  if (typeof value === 'number') {
+    return value.toLocaleString()
+  }
+  return value
+}
+
+// 复制SQL
+const copySql = async () => {
+  if (!props.sqlQuery) return
   
-  const firstRow = data[0]
-  const keys = Object.keys(firstRow)
-  const numericStats: any[] = []
-  
-  keys.forEach(key => {
-    const values = data.map(row => row[key]).filter(v => typeof v === 'number' && !isNaN(v))
-    
-    if (values.length > 0) {
-      const sum = values.reduce((a, b) => a + b, 0)
-      const mean = sum / values.length
-      const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length
-      const std = Math.sqrt(variance)
-      
-      numericStats.push({
-        column: key,
-        count: values.length,
-        mean: mean.toFixed(2),
-        std: std.toFixed(2),
-        min: Math.min(...values),
-        max: Math.max(...values)
-      })
-    }
-  })
-  
-  return numericStats.length > 0 ? numericStats : null
+  try {
+    await navigator.clipboard.writeText(props.sqlQuery)
+    copyButtonText.value = '已复制!'
+    setTimeout(() => {
+      copyButtonText.value = '复制SQL'
+    }, 2000)
+  } catch (err) {
+    console.error('复制失败:', err)
+    copyButtonText.value = '复制失败'
+    setTimeout(() => {
+      copyButtonText.value = '复制SQL'
+    }, 2000)
+  }
 }
 </script>
-
-<style scoped lang="scss">
-.result-display {
-  .sql-card {
-    margin-bottom: 24px;
-    
-    .sql-textarea {
-      :deep(.el-textarea__inner) {
-        font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
-        font-size: 13px;
-        line-height: 1.5;
-        background: #f8f9fa;
-      }
-    }
-  }
-  
-  .data-results {
-    .table-card,
-    .chart-card {
-      height: fit-content;
-      
-      .data-stats {
-        margin-top: 20px;
-        padding-top: 20px;
-        border-top: 1px solid #ebeef5;
-        
-        h4 {
-          margin: 0 0 12px 0;
-          font-size: 16px;
-          color: #303133;
-        }
-        
-        p {
-          margin: 8px 0;
-          color: #606266;
-        }
-      }
-      
-      .metrics-section {
-        margin-top: 20px;
-        padding-top: 20px;
-        border-top: 1px solid #ebeef5;
-        
-        h4 {
-          margin: 0 0 16px 0;
-          font-size: 16px;
-          color: #303133;
-        }
-        
-        .metrics-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 16px;
-          
-          .metric-item {
-            padding: 16px;
-            background: #f5f7fa;
-            border-radius: 8px;
-            text-align: center;
-            
-            .metric-label {
-              font-size: 14px;
-              color: #909399;
-              margin-bottom: 8px;
-            }
-            
-            .metric-value {
-              font-size: 24px;
-              font-weight: 600;
-              color: #409eff;
-            }
-          }
-        }
-      }
-      
-      .no-chart-message {
-        .numeric-stats {
-          margin-top: 20px;
-          
-          h4 {
-            margin: 0 0 12px 0;
-            font-size: 16px;
-            color: #303133;
-          }
-        }
-      }
-    }
-  }
-}
-</style>

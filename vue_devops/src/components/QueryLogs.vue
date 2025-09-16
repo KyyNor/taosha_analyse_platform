@@ -1,156 +1,149 @@
 <template>
-  <el-card class="query-logs-card">
-    <template #header>
-      <div class="card-header">
-        <span>查询执行日志</span>
-        <el-button size="small" text @click="expanded = !expanded">
-          {{ expanded ? '收起' : '展开' }}
-        </el-button>
+  <div class="bg-white rounded-lg border border-slate-200 shadow-sm">
+    <div class="px-6 py-4 border-b border-slate-200 bg-slate-50">
+      <h3 class="text-lg font-semibold text-slate-800">查询执行日志</h3>
+      <p class="text-sm text-slate-500 mt-1">详细的查询执行过程和步骤</p>
+    </div>
+
+    <div class="p-6 space-y-4 max-h-96 overflow-y-auto">
+      <div v-if="logs.length === 0" class="text-center text-slate-500 py-8">
+        暂无执行日志
       </div>
-    </template>
-    
-    <el-collapse v-model="activeNames" v-show="expanded">
-      <el-collapse-item
-        v-for="(log, index) in logs"
-        :key="index"
-        :name="index.toString()"
-      >
-        <template #title>
-          <div class="log-title">
-            <el-icon v-if="log.success" color="#67c23a"><CircleCheck /></el-icon>
-            <el-icon v-else color="#f56c6c"><CircleClose /></el-icon>
-            <span class="step-name">{{ index + 1 }}. {{ log.step }}</span>
-            <span v-if="log.timestamp" class="timestamp">{{ log.timestamp }}</span>
+
+      <div v-else v-for="(log, index) in logs" :key="index" class="border border-slate-200 rounded-lg p-4">
+        <!-- 步骤标题 -->
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center space-x-2">
+            <div 
+              :class="[
+                'w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium',
+                log.success ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+              ]"
+            >
+              {{ index + 1 }}
+            </div>
+            <h4 class="font-medium text-slate-800">{{ log.step }}</h4>
+            <div 
+              :class="[
+                'px-2 py-1 rounded text-xs font-medium',
+                log.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              ]"
+            >
+              {{ log.success ? '成功' : '失败' }}
+            </div>
           </div>
-        </template>
-        
-        <div class="log-content">
-          <el-row :gutter="16">
-            <el-col :span="12" v-if="log.input_data">
-              <h4>输入数据</h4>
-              <el-input
-                v-model="log.input_data"
-                type="textarea"
-                :rows="5"
-                readonly
-                class="log-textarea"
-              />
-            </el-col>
-            
-            <el-col :span="12" v-if="log.model_output">
-              <h4>模型输出</h4>
-              <el-input
-                v-model="log.model_output"
-                type="textarea"
-                :rows="5"
-                readonly
-                class="log-textarea"
-              />
-            </el-col>
-            
-            <el-col :span="24" v-if="log.error">
-              <el-alert
-                :title="`错误: ${log.error}`"
-                type="error"
-                :closable="false"
-                show-icon
-              />
-            </el-col>
-            
-            <el-col :span="24" v-if="log.prompt">
-              <el-collapse>
-                <el-collapse-item :title="`查看提示词 - ${log.step}`">
-                  <div class="prompt-content">
-                    <pre>{{ log.prompt }}</pre>
-                  </div>
-                </el-collapse-item>
-              </el-collapse>
-            </el-col>
-          </el-row>
+          <div class="text-xs text-slate-500">
+            {{ formatTimestamp(log.timestamp) }}
+          </div>
         </div>
-      </el-collapse-item>
-    </el-collapse>
-  </el-card>
+
+        <!-- 输入输出 -->
+        <div v-if="log.input_data || log.model_output" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+          <div v-if="log.input_data">
+            <label class="block text-xs font-medium text-slate-600 mb-1">输入数据</label>
+            <div class="bg-slate-50 rounded p-3 text-sm font-mono text-slate-700 max-h-32 overflow-y-auto">
+              {{ log.input_data }}
+            </div>
+          </div>
+          
+          <div v-if="log.model_output">
+            <label class="block text-xs font-medium text-slate-600 mb-1">模型输出</label>
+            <div class="bg-slate-50 rounded p-3 text-sm font-mono text-slate-700 max-h-32 overflow-y-auto">
+              {{ log.model_output }}
+            </div>
+          </div>
+        </div>
+
+        <!-- 错误信息 -->
+        <div v-if="log.error" class="mb-3">
+          <div class="bg-red-50 border border-red-200 rounded p-3">
+            <div class="flex items-start space-x-2">
+              <ExclamationTriangleIcon class="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <div class="text-sm font-medium text-red-800">错误信息</div>
+                <div class="text-sm text-red-700 mt-1">{{ log.error }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 提示词 -->
+        <div v-if="log.prompt" class="mt-3">
+          <button
+            @click="togglePrompt(index)"
+            class="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 transition-colors duration-200"
+          >
+            <ChevronRightIcon 
+              :class="[
+                'w-4 h-4 transition-transform duration-200',
+                expandedPrompts.has(index) ? 'rotate-90' : ''
+              ]" 
+            />
+            <span>查看提示词</span>
+          </button>
+          
+          <div v-if="expandedPrompts.has(index)" class="mt-2">
+            <div class="bg-slate-50 rounded p-3 text-sm font-mono text-slate-700 max-h-48 overflow-y-auto whitespace-pre-wrap">
+              {{ log.prompt }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import { ExclamationTriangleIcon, ChevronRightIcon } from '@heroicons/vue/24/outline'
 import type { QueryLog } from '@/types'
 
+// 定义组件属性
 interface Props {
   logs: QueryLog[]
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 
-const expanded = ref(false)
-const activeNames = ref<string[]>([])
-</script>
+// 响应式数据
+const expandedPrompts = ref<Set<number>>(new Set())
 
-<style scoped lang="scss">
-.query-logs-card {
-  margin-top: 24px;
-  
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  
-  .log-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    
-    .step-name {
-      font-weight: 500;
-      color: #303133;
-    }
-    
-    .timestamp {
-      margin-left: auto;
-      font-size: 12px;
-      color: #909399;
-    }
-  }
-  
-  .log-content {
-    h4 {
-      margin: 0 0 12px 0;
-      font-size: 14px;
-      color: #303133;
-    }
-    
-    .log-textarea {
-      margin-bottom: 16px;
-      
-      :deep(.el-textarea__inner) {
-        font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
-        font-size: 12px;
-        line-height: 1.4;
-        background: #f8f9fa;
-      }
-    }
-    
-    .prompt-content {
-      pre {
-        font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
-        font-size: 12px;
-        line-height: 1.4;
-        background: #f8f9fa;
-        padding: 16px;
-        border-radius: 6px;
-        overflow-x: auto;
-        white-space: pre-wrap;
-        word-wrap: break-word;
-      }
-    }
+// 切换提示词显示
+const togglePrompt = (index: number) => {
+  if (expandedPrompts.value.has(index)) {
+    expandedPrompts.value.delete(index)
+  } else {
+    expandedPrompts.value.add(index)
   }
 }
 
-:deep(.el-collapse-item__content) {
-  padding-bottom: 16px;
+// 格式化时间戳
+const formatTimestamp = (timestamp: string) => {
+  if (!timestamp) return ''
+  try {
+    return new Date(timestamp).toLocaleTimeString('zh-CN')
+  } catch {
+    return timestamp
+  }
+}
+</script>
+
+<style scoped>
+/* 自定义滚动条 */
+.overflow-y-auto::-webkit-scrollbar {
+  width: 6px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 </style>

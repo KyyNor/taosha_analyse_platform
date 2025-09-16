@@ -1,120 +1,157 @@
-# 淘沙分析平台 - Vue 前端
+# 淘沙分析平台 - Vue3前端
 
-基于Vue 3 + TypeScript + Element Plus构建的现代化前端界面，完全复现Streamlit版本的所有功能，并提供更好的性能和用户体验。
-
-## 技术栈
-
-- **核心框架**: Vue 3 + TypeScript + Vite
-- **UI组件库**: Element Plus (简约大气、圆角设计)
-- **图表库**: ECharts (支持丰富的图表类型)
-- **HTTP客户端**: Axios
-- **状态管理**: Pinia
-- **路由**: Vue Router
-- **样式**: SCSS
+这是淘沙数据分析平台的Vue3前端应用，提供现代化的用户界面用于自然语言数据查询和元数据管理。
 
 ## 功能特性
 
-### 1. 数据查询
-- 自然语言查询输入
-- 多种结果展示：表格、图表、指标卡片
-- SQL查询展示
-- 查询历史记录
-- 输入清晰度验证和建议
-- 查询日志详情
+### 🔍 数据查询
+- **自然语言查询**: 使用日常语言描述查询需求
+- **智能SQL生成**: 自动将自然语言转换为SQL查询
+- **实时结果展示**: 数据表格和可视化图表
+- **查询历史**: 保存和重用历史查询
+- **清晰度检查**: 智能建议优化查询表达
 
-### 2. 元数据管理
-- 表元数据的增删改查
-- 列元数据的增删改查
-- 业务术语管理
-- 关联字段配置
-- 数据库同步功能
+### 🛠️ 元数据管理
+- **表元数据管理**: 完整的数据表和列信息维护
+- **业务术语表**: 统一的数据字典和术语定义
+- **关联配置**: 灵活的字段关联关系管理
+- **实时统计**: 元数据概览和使用统计
 
-### 3. 术语搜索
-- 实时搜索术语和别名
-- 术语详情展示
-- 分类筛选
+### 🎨 设计特点
+- **现代化UI**: 基于Tailwind CSS + DaisyUI的设计系统
+- **响应式布局**: 适配桌面端和移动端
+- **无障碍设计**: 完整的键盘导航和屏幕阅读器支持
+- **性能优化**: 组件懒加载和数据缓存
 
-### 4. AI对话框多种结果展示
-- 文字内容
-- 数据表格
-- 可视化图表 (柱状图、散点图、饼图)
-- 代码块 (SQL语法高亮)
-- Markdown渲染
-- 错误信息展示
+## 技术栈
 
-## 设计特色
-
-- **简约大气**: 采用Element Plus设计语言，界面清爽
-- **圆角设计**: 所有卡片、按钮、输入框采用圆角设计
-- **浅色主题**: 以白色和浅色为主，护眼舒适
-- **无Emoji**: 纯文字图标设计，专业简洁
-- **层次清晰**: 合理的信息层级和布局
+- **核心框架**: Vue 3 + TypeScript
+- **状态管理**: Pinia
+- **路由管理**: Vue Router 4
+- **样式框架**: Tailwind CSS + DaisyUI
+- **图标库**: Heroicons
+- **图表库**: Plotly.js
+- **HTTP客户端**: Axios
+- **构建工具**: Vite
 
 ## 快速开始
 
+### 环境要求
+- Node.js >= 16
+- npm >= 8
+
 ### 安装依赖
 ```bash
-cd vue_devops
 npm install
-# 或者
-yarn install
 ```
 
-### 开发运行
+### 开发服务器
 ```bash
 npm run dev
-# 或者
-yarn dev
 ```
 
-应用将在 http://localhost:3000 启动
+应用将在 `http://localhost:3000` 启动
 
 ### 构建生产版本
 ```bash
 npm run build
-# 或者
-yarn build
+```
+
+构建文件将输出到 `dist/` 目录
+
+### 预览生产版本
+```bash
+npm run preview
 ```
 
 ## 项目结构
 
 ```
 vue_devops/
+├── public/                 # 静态资源
 ├── src/
-│   ├── api/              # API接口定义
-│   ├── components/       # 公共组件
-│   │   ├── metadata/     # 元数据管理相关组件
-│   │   ├── DataTable.vue # 数据表格组件
-│   │   ├── DataChart.vue # 图表组件
-│   │   └── ...          # 其他组件
-│   ├── stores/           # Pinia状态管理
-│   ├── styles/           # 全局样式
-│   ├── types/            # TypeScript类型定义
-│   ├── views/            # 页面组件
-│   │   ├── DataQuery.vue        # 数据查询页面
-│   │   ├── MetadataManagement.vue # 元数据管理页面
-│   │   └── GlossarySearch.vue     # 术语搜索页面
-│   ├── router/           # 路由配置
-│   ├── App.vue          # 根组件
-│   └── main.ts          # 应用入口
-├── package.json         # 项目配置
-├── vite.config.ts      # Vite配置
-├── tsconfig.json       # TypeScript配置
-└── index.html          # HTML模板
+│   ├── api/               # API接口封装
+│   ├── components/        # 通用组件
+│   │   ├── metadata/      # 元数据管理组件
+│   │   ├── DataTable.vue  # 数据表格组件
+│   │   ├── DataChart.vue  # 图表组件
+│   │   └── ...
+│   ├── router/            # 路由配置
+│   ├── styles/            # 样式文件
+│   ├── types/             # TypeScript类型定义
+│   ├── views/             # 页面组件
+│   │   ├── DataQuery.vue  # 数据查询页面
+│   │   └── MetadataManagement.vue # 元数据管理页面
+│   ├── App.vue            # 根组件
+│   └── main.ts            # 应用入口
+├── index.html             # HTML模板
+├── package.json           # 项目配置
+├── vite.config.ts         # Vite配置
+├── tailwind.config.js     # Tailwind配置
+└── tsconfig.json          # TypeScript配置
 ```
 
-## API配置
+## 组件说明
 
-后端API地址配置在 `vite.config.ts` 中，默认代理到 `http://localhost:8000`：
+### 核心组件
+- **DataQuery**: 主页数据查询界面，支持自然语言输入
+- **MetadataManagement**: 元数据管理界面，包含三个标签页
+- **DataTable**: 通用数据表格组件，支持排序、分页
+- **DataChart**: 智能图表组件，根据数据类型自动选择图表类型
 
-```typescript
-proxy: {
-  '/api': {
-    target: 'http://localhost:8000',
-    changeOrigin: true,
-  }
-}
-```
+### 元数据组件
+- **TableMetadata**: 表元数据管理，支持增删改查
+- **GlossaryManagement**: 业务术语管理
+- **RelationConfig**: 关联字段配置管理
+- **ColumnEditor**: 列信息编辑器
+- **TermForm**: 术语表单组件
+
+## API接口
+
+前端通过HTTP代理连接后端API：
+
+- **查询接口**: `POST /api/v1/query`
+- **元数据接口**: `/api/v1/dev/metadata/*`
+- **术语接口**: `/api/v1/dev/glossary/*`
+- **关联配置**: `/api/v1/dev/relation-configs/*`
+
+详细API文档请访问: `http://localhost:8000/docs`
+
+## 开发规范
+
+### 代码风格
+- 使用TypeScript进行类型约束
+- 遵循Vue 3 Composition API最佳实践
+- 组件使用`<script setup>`语法
+- 样式使用Tailwind CSS类名
+
+### 命名规范
+- 组件名使用PascalCase
+- 文件名使用PascalCase
+- 变量和函数使用camelCase
+- CSS类名使用kebab-case
+
+### 提交规范
+- feat: 新功能
+- fix: 修复bug
+- docs: 文档更新
+- style: 代码格式调整
+- refactor: 代码重构
+- test: 测试相关
+- chore: 构建过程或辅助工具的变动
+
+## 部署说明
+
+### 环境变量
+开发环境会自动代理API请求到 `http://localhost:8000`
+
+生产环境需要配置正确的API地址。
+
+### 构建优化
+- 自动代码分割
+- 静态资源压缩
+- Tree-shaking优化
+- 缓存策略
 
 ## 浏览器支持
 
@@ -123,19 +160,14 @@ proxy: {
 - Safari >= 14
 - Edge >= 88
 
-## 性能优势
+## 贡献指南
 
-相比Streamlit版本：
-- 响应速度提升50%+
-- 更流畅的用户交互
-- 更好的数据可视化效果
-- 更灵活的布局和样式定制
-- 更好的移动端适配
+1. Fork项目
+2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'Add amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 创建Pull Request
 
-## 开发说明
+## 许可证
 
-1. **组件化开发**: 所有功能都拆分为可复用的组件
-2. **类型安全**: 全面使用TypeScript，确保类型安全
-3. **响应式设计**: 支持不同屏幕尺寸的适配
-4. **错误处理**: 完善的错误处理和用户提示
-5. **代码规范**: 统一的代码风格和命名规范
+本项目采用MIT许可证 - 查看 [LICENSE](LICENSE) 文件了解详情

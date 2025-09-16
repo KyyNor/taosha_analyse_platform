@@ -1,220 +1,393 @@
 <template>
-  <div class="table-metadata">
-    <el-row :gutter="24">
-      <el-col :span="16">
-        <!-- 现有表元数据 -->
-        <el-card>
-          <template #header>
-            <div class="card-header">
-              <span>现有表元数据</span>
-              <el-button size="small" @click="refreshData">
-                <el-icon><Refresh /></el-icon>
-                刷新
-              </el-button>
-            </div>
-          </template>
-          
-          <div v-if="loading" class="loading">
-            <el-skeleton :rows="3" animated />
-          </div>
-          
-          <div v-else-if="metadataTables.length === 0" class="empty-state">
-            <el-empty description="暂无表元数据，可从右侧添加或使用数据库同步功能" />
-          </div>
-          
-          <div v-else class="tables-list">
-            <el-collapse>
-              <el-collapse-item
-                v-for="table in metadataTables"
-                :key="table.name"
-                :name="table.name"
-              >
-                <template #title>
-                  <div class="table-title">
-                    <el-icon v-if="table.is_available === 0" color="#67c23a"><CircleCheck /></el-icon>
-                    <el-icon v-else color="#f56c6c"><CircleClose /></el-icon>
-                    <span class="table-name">{{ table.name }}</span>
-                    <el-tag 
-                      :type="table.is_available === 0 ? 'success' : 'danger'"
-                      size="small"
-                    >
-                      {{ table.is_available === 0 ? '可用' : '不可用' }}
-                    </el-tag>
-                  </div>
-                </template>
-                
-                <div class="table-content">
-                  <div class="table-info">
-                    <p><strong>描述:</strong> {{ table.comment || '无描述' }}</p>
-                  </div>
-                  
-                  <!-- 列信息 -->
-                  <div v-if="table.columns && table.columns.length > 0" class="columns-section">
-                    <h4>列信息 ({{ table.columns.length }} 列)</h4>
-                    <el-table :data="table.columns" stripe size="small">
-                      <el-table-column prop="name" label="列名" width="120" />
-                      <el-table-column prop="type" label="存储类型" width="100" />
-                      <el-table-column prop="business_type" label="业务类型" width="100" />
-                      <el-table-column prop="relation_id" label="关联ID" width="120" />
-                      <el-table-column label="状态" width="80">
-                        <template #default="{ row }">
-                          <el-tag 
-                            :type="row.is_available === 0 ? 'success' : 'danger'"
-                            size="small"
-                          >
-                            {{ row.is_available === 0 ? '可用' : '不可用' }}
-                          </el-tag>
-                        </template>
-                      </el-table-column>
-                      <el-table-column prop="comment" label="描述" show-overflow-tooltip />
-                    </el-table>
-                    
-                    <!-- 编辑列 -->
-                    <el-collapse style="margin-top: 16px;">
-                      <el-collapse-item title="编辑列元数据">
-                        <ColumnEditor :table="table" @updated="refreshData" />
-                      </el-collapse-item>
-                    </el-collapse>
-                  </div>
-                  
-                  <div v-else class="no-columns">
-                    <el-empty description="该表暂无列元数据" />
-                  </div>
-                  
-                  <!-- 表操作 -->
-                  <div class="table-actions">
-                    <el-row :gutter="16">
-                      <el-col :span="12">
-                        <TableEditor :table="table" @updated="refreshData" />
-                      </el-col>
-                      <el-col :span="12">
-                        <AddColumn :table="table" @added="refreshData" />
-                      </el-col>
-                    </el-row>
-                  </div>
-                </div>
-              </el-collapse-item>
-            </el-collapse>
-          </div>
-        </el-card>
-      </el-col>
+  <div class="space-y-6">
+    <!-- Add Table Section -->
+    <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+      <h3 class="text-lg font-semibold text-slate-800 mb-4">➕ 添加新表</h3>
       
-      <el-col :span="8">
-        <!-- 添加新表 -->
-        <el-card>
-          <template #header>
-            <span>添加新表</span>
-          </template>
-          <AddTable @added="refreshData" />
-        </el-card>
-      </el-col>
-    </el-row>
+      <form @submit.prevent="addTable" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">表名</label>
+            <input
+              v-model="newTable.name"
+              type="text"
+              required
+              placeholder="输入表名"
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">状态</label>
+            <select
+              v-model="newTable.isAvailable"
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option :value="0">可用</option>
+              <option :value="1">不可用</option>
+            </select>
+          </div>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-2">表描述</label>
+          <textarea
+            v-model="newTable.comment"
+            rows="3"
+            placeholder="输入表的描述信息"
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          ></textarea>
+        </div>
+        
+        <button
+          type="submit"
+          :disabled="!newTable.name || isAdding"
+          class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 hover:scale-105 hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+        >
+          {{ isAdding ? '添加中...' : '添加表' }}
+        </button>
+      </form>
+    </div>
+
+    <!-- Tables List -->
+    <div class="bg-white rounded-lg border border-slate-200 shadow-sm">
+      <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+        <h3 class="text-lg font-semibold text-slate-800">📋 表元数据管理</h3>
+        <button
+          @click="refreshTables"
+          :disabled="isRefreshing"
+          class="px-3 py-1 text-sm bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors duration-200 disabled:opacity-50"
+        >
+          {{ isRefreshing ? '刷新中...' : '🔄 刷新' }}
+        </button>
+      </div>
+
+      <div class="p-6">
+        <div v-if="isLoading" class="text-center py-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+          <div class="text-slate-500 mt-2">加载中...</div>
+        </div>
+
+        <div v-else-if="tables.length === 0" class="text-center py-8">
+          <div class="text-slate-500">暂无表元数据</div>
+        </div>
+
+        <div v-else class="space-y-4">
+          <div
+            v-for="table in tables"
+            :key="table.name"
+            class="border border-slate-200 rounded-lg overflow-hidden"
+          >
+            <!-- Table Header -->
+            <div class="bg-slate-50 px-4 py-3 flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <div :class="['w-3 h-3 rounded-full', table.is_available === 0 ? 'bg-green-500' : 'bg-red-500']"></div>
+                <h4 class="font-medium text-slate-800">📊 {{ table.name }}</h4>
+                <span :class="['px-2 py-1 text-xs rounded', table.is_available === 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800']">
+                  {{ table.is_available === 0 ? '可用' : '不可用' }}
+                </span>
+              </div>
+              
+              <div class="flex items-center space-x-2">
+                <button
+                  @click="toggleTableExpansion(table.name)"
+                  class="p-1 hover:bg-slate-200 rounded transition-colors duration-200"
+                >
+                  <ChevronDownIcon 
+                    :class="['w-4 h-4 text-slate-500 transition-transform duration-200', 
+                             expandedTables.has(table.name) ? 'rotate-180' : '']" 
+                  />
+                </button>
+              </div>
+            </div>
+
+            <!-- Table Details -->
+            <div v-if="expandedTables.has(table.name)" class="p-4 space-y-4">
+              <!-- Basic Info -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-2">描述</label>
+                  <textarea
+                    v-model="table.comment"
+                    rows="2"
+                    class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  ></textarea>
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-2">状态</label>
+                  <select
+                    v-model="table.is_available"
+                    class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option :value="0">可用</option>
+                    <option :value="1">不可用</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="flex space-x-2">
+                <button
+                  @click="updateTable(table)"
+                  class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-200"
+                >
+                  📝 更新
+                </button>
+                <button
+                  @click="confirmDeleteTable(table.name)"
+                  class="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors duration-200"
+                >
+                  🗑️ 删除
+                </button>
+              </div>
+
+              <!-- Columns Section -->
+              <div class="border-t border-slate-200 pt-4">
+                <h5 class="font-medium text-slate-800 mb-3">列信息 ({{ table.columns?.length || 0 }})</h5>
+                
+                <!-- Add Column Form -->
+                <div class="mb-4 p-4 bg-slate-50 rounded-lg">
+                  <h6 class="text-sm font-medium text-slate-700 mb-3">添加新列</h6>
+                  <ColumnEditor
+                    :table-name="table.name"
+                    @column-added="handleColumnAdded"
+                  />
+                </div>
+
+                <!-- Columns List -->
+                <div v-if="table.columns && table.columns.length > 0">
+                  <DataTable
+                    :columns="columnTableColumns"
+                    :data="table.columns"
+                    :show-footer="false"
+                  >
+                    <template #column-is_available="{ value }">
+                      <span :class="['px-2 py-1 text-xs rounded', value === 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800']">
+                        {{ value === 0 ? '可用' : '不可用' }}
+                      </span>
+                    </template>
+                    
+                    <template #actions="{ row }">
+                      <div class="flex space-x-1">
+                        <button
+                          @click="editColumn(table.name, row as ColumnMetadata)"
+                          class="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors duration-200"
+                        >
+                          编辑
+                        </button>
+                        <button
+                          @click="deleteColumn(table.name, row.name)"
+                          class="px-2 py-1 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200 transition-colors duration-200"
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </template>
+                  </DataTable>
+                </div>
+                
+                <div v-else class="text-center text-slate-500 py-4">
+                  该表暂无列元数据
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Column Modal -->
+    <div v-if="editingColumn" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+        <h3 class="text-lg font-semibold text-slate-800 mb-4">编辑列: {{ editingColumn.name }}</h3>
+        
+        <ColumnEditor
+          :table-name="editingTableName"
+          :column="editingColumn"
+          :is-editing="true"
+          @column-updated="handleColumnUpdated"
+          @cancel="cancelEdit"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Refresh, CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import { ChevronDownIcon } from '@heroicons/vue/24/outline'
+import type { TableMetadata, ColumnMetadata, Column } from '@/types'
 import { apiClient } from '@/api'
-import type { MetadataTable } from '@/types'
-import TableEditor from './TableEditor.vue'
+import DataTable from '@/components/DataTable.vue'
 import ColumnEditor from './ColumnEditor.vue'
-import AddTable from './AddTable.vue'
-import AddColumn from './AddColumn.vue'
 
-const loading = ref(false)
-const metadataTables = ref<MetadataTable[]>([])
+// 响应式数据
+const tables = ref<TableMetadata[]>([])
+const isLoading = ref(false)
+const isRefreshing = ref(false)
+const isAdding = ref(false)
+const expandedTables = ref<Set<string>>(new Set())
+const editingColumn = ref<ColumnMetadata | null>(null)
+const editingTableName = ref('')
 
-// 获取表元数据
-const fetchMetadataTables = async () => {
+// 新表表单
+const newTable = ref({
+  name: '',
+  comment: '',
+  isAvailable: 0
+})
+
+// 列表格列定义
+const columnTableColumns: Column[] = [
+  { key: 'name', title: '列名', type: 'text' },
+  { key: 'type', title: '存储类型', type: 'text' },
+  { key: 'business_type', title: '业务类型', type: 'text' },
+  { key: 'is_available', title: '状态', type: 'status' },
+  { key: 'relation_id', title: '关联ID', type: 'text' },
+  { key: 'comment', title: '描述', type: 'text' }
+]
+
+// 加载表数据
+const loadTables = async () => {
+  isLoading.value = true
   try {
-    loading.value = true
-    const response = await apiClient.metadata.getTables()
-    metadataTables.value = response.data || []
-  } catch (error: any) {
-    ElMessage.error(`获取元数据失败: ${error.message}`)
+    tables.value = await apiClient.getAllMetadataTables()
+  } catch (error) {
+    console.error('加载表数据失败:', error)
   } finally {
-    loading.value = false
+    isLoading.value = false
   }
 }
 
-// 刷新数据
-const refreshData = () => {
-  fetchMetadataTables()
+// 刷新表数据
+const refreshTables = async () => {
+  isRefreshing.value = true
+  try {
+    tables.value = await apiClient.getAllMetadataTables()
+  } catch (error) {
+    console.error('刷新表数据失败:', error)
+  } finally {
+    isRefreshing.value = false
+  }
 }
 
+// 添加表
+const addTable = async () => {
+  if (!newTable.value.name) return
+  
+  isAdding.value = true
+  try {
+    const success = await apiClient.addTableMetadata(
+      newTable.value.name,
+      newTable.value.comment,
+      newTable.value.isAvailable
+    )
+    
+    if (success) {
+      // 重置表单
+      newTable.value = {
+        name: '',
+        comment: '',
+        isAvailable: 0
+      }
+      
+      // 刷新列表
+      await refreshTables()
+    }
+  } catch (error) {
+    console.error('添加表失败:', error)
+  } finally {
+    isAdding.value = false
+  }
+}
+
+// 更新表
+const updateTable = async (table: TableMetadata) => {
+  try {
+    const success = await apiClient.updateTableMetadata(
+      table.name,
+      table.comment,
+      table.is_available
+    )
+    
+    if (success) {
+      await refreshTables()
+    }
+  } catch (error) {
+    console.error('更新表失败:', error)
+  }
+}
+
+// 删除表确认
+const confirmDeleteTable = (tableName: string) => {
+  if (confirm(`确定要删除表 "${tableName}" 吗？此操作不可恢复。`)) {
+    deleteTable(tableName)
+  }
+}
+
+// 删除表
+const deleteTable = async (tableName: string) => {
+  try {
+    const success = await apiClient.deleteTableMetadata(tableName)
+    
+    if (success) {
+      await refreshTables()
+    }
+  } catch (error) {
+    console.error('删除表失败:', error)
+  }
+}
+
+// 切换表展开状态
+const toggleTableExpansion = (tableName: string) => {
+  if (expandedTables.value.has(tableName)) {
+    expandedTables.value.delete(tableName)
+  } else {
+    expandedTables.value.add(tableName)
+  }
+}
+
+// 编辑列
+const editColumn = (tableName: string, column: ColumnMetadata) => {
+  editingTableName.value = tableName
+  editingColumn.value = { ...column }
+}
+
+// 取消编辑
+const cancelEdit = () => {
+  editingColumn.value = null
+  editingTableName.value = ''
+}
+
+// 删除列
+const deleteColumn = async (tableName: string, columnName: string) => {
+  if (confirm(`确定要删除列 "${columnName}" 吗？`)) {
+    try {
+      const success = await apiClient.deleteColumnMetadata(tableName, columnName)
+      if (success) {
+        await refreshTables()
+      }
+    } catch (error) {
+      console.error('删除列失败:', error)
+    }
+  }
+}
+
+// 处理列添加
+const handleColumnAdded = () => {
+  refreshTables()
+}
+
+// 处理列更新
+const handleColumnUpdated = () => {
+  editingColumn.value = null
+  editingTableName.value = ''
+  refreshTables()
+}
+
+// 初始化
 onMounted(() => {
-  fetchMetadataTables()
+  loadTables()
 })
 </script>
-
-<style scoped lang="scss">
-.table-metadata {
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  
-  .loading {
-    padding: 20px;
-  }
-  
-  .empty-state {
-    padding: 40px 20px;
-  }
-  
-  .tables-list {
-    .table-title {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      width: 100%;
-      
-      .table-name {
-        font-weight: 500;
-        color: #303133;
-        margin-right: auto;
-      }
-    }
-    
-    .table-content {
-      .table-info {
-        margin-bottom: 16px;
-        padding: 12px;
-        background: #f5f7fa;
-        border-radius: 6px;
-        
-        p {
-          margin: 0;
-          color: #606266;
-        }
-      }
-      
-      .columns-section {
-        margin-bottom: 20px;
-        
-        h4 {
-          margin: 0 0 12px 0;
-          color: #303133;
-        }
-      }
-      
-      .no-columns {
-        margin: 20px 0;
-      }
-      
-      .table-actions {
-        margin-top: 20px;
-        padding-top: 20px;
-        border-top: 1px solid #ebeef5;
-      }
-    }
-  }
-}
-
-:deep(.el-collapse-item__content) {
-  padding-bottom: 16px;
-}
-</style>

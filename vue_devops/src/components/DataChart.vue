@@ -1,277 +1,202 @@
 <template>
-  <div class="data-chart">
-    <v-chart
-      v-if="chartOption"
-      :option="chartOption"
-      :style="{ height: '400px', width: '100%' }"
-      autoresize
-    />
-    <el-empty v-else description="无法生成图表" />
+  <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+    <!-- Chart Header -->
+    <div v-if="title" class="mb-4">
+      <h3 class="text-lg font-semibold text-slate-800">{{ title }}</h3>
+      <p v-if="description" class="text-sm text-slate-500 mt-1">{{ description }}</p>
+    </div>
+
+    <!-- Chart Container -->
+    <div 
+      ref="chartContainer" 
+      class="w-full"
+      :style="{ height: `${height}px` }"
+    >
+      <div v-if="loading" class="flex items-center justify-center h-full">
+        <div class="text-slate-500">图表加载中...</div>
+      </div>
+      <div v-else-if="error" class="flex items-center justify-center h-full">
+        <div class="text-red-500">{{ error }}</div>
+      </div>
+      <div v-else-if="!hasData" class="flex items-center justify-center h-full">
+        <div class="text-slate-500">暂无图表数据</div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
-import {
-  BarChart,
-  LineChart,
-  PieChart,
-  ScatterChart
-} from 'echarts/charts'
-import {
-  TitleComponent,
-  TooltipComponent,
-  LegendComponent,
-  GridComponent,
-  DatasetComponent
-} from 'echarts/components'
+import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
+import * as Plotly from 'plotly.js-dist'
 
-// 注册必要的组件
-use([
-  CanvasRenderer,
-  BarChart,
-  LineChart,
-  PieChart,
-  ScatterChart,
-  TitleComponent,
-  TooltipComponent,
-  LegendComponent,
-  GridComponent,
-  DatasetComponent
-])
-
+// 定义组件属性
 interface Props {
-  data: Record<string, any>[]
+  title?: string
+  description?: string
+  data: any[]
+  chartType?: 'auto' | 'bar' | 'line' | 'scatter' | 'pie'
+  height?: number
+  loading?: boolean
 }
 
-const props = defineProps<Props>()
-
-// 分析数据特征
-const analyzeData = (data: Record<string, any>[]) => {
-  if (!data || data.length === 0) return null
-  
-  const firstRow = data[0]
-  const keys = Object.keys(firstRow)
-  
-  const numericColumns: string[] = []
-  const categoricalColumns: string[] = []
-  
-  keys.forEach(key => {
-    const values = data.map(row => row[key])
-    const numericValues = values.filter(v => typeof v === 'number' && !isNaN(v))
-    
-    if (numericValues.length > values.length * 0.8) { // 80%以上是数值
-      numericColumns.push(key)
-    } else {
-      categoricalColumns.push(key)
-    }
-  })
-  
-  return {
-    numericColumns,
-    categoricalColumns,
-    totalColumns: keys.length,
-    totalRows: data.length
-  }
-}
-
-// 生成图表配置
-const chartOption = computed(() => {
-  const analysis = analyzeData(props.data)
-  if (!analysis) return null
-  
-  const { numericColumns, categoricalColumns, totalRows } = analysis
-  
-  // 如果只有一行数据，不显示图表
-  if (totalRows <= 1) return null
-  
-  // 柱状图：有分类列和数值列
-  if (categoricalColumns.length >= 1 && numericColumns.length >= 1) {
-    return createBarChart(props.data, categoricalColumns[0], numericColumns[0])
-  }
-  
-  // 散点图：有两个或更多数值列
-  if (numericColumns.length >= 2) {
-    return createScatterChart(props.data, numericColumns[0], numericColumns[1])
-  }
-  
-  // 饼图：一个分类列，数据量不太大
-  if (categoricalColumns.length >= 1 && totalRows <= 20) {
-    return createPieChart(props.data, categoricalColumns[0])
-  }
-  
-  return null
+const props = withDefaults(defineProps<Props>(), {
+  chartType: 'auto',
+  height: 400,
+  loading: false
 })
 
-// 创建柱状图
-const createBarChart = (data: Record<string, any>[], xColumn: string, yColumn: string) => {
-  const xData = data.map(row => row[xColumn])
-  const yData = data.map(row => row[yColumn])
-  
-  return {
-    title: {
-      text: `${yColumn} 按 ${xColumn} 分布`,
-      left: 'center',
-      textStyle: {
-        fontSize: 16,
-        fontWeight: 'normal'
-      }
-    },
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow'
-      }
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: xData,
-      axisLabel: {
-        rotate: xData.some(item => String(item).length > 6) ? 45 : 0
-      }
-    },
-    yAxis: {
-      type: 'value'
-    },
-    series: [
-      {
-        name: yColumn,
-        type: 'bar',
-        data: yData,
-        itemStyle: {
-          color: '#409eff',
-          borderRadius: [4, 4, 0, 0]
-        }
-      }
-    ]
-  }
-}
+// 响应式数据
+const chartContainer = ref<HTMLElement>()
+const error = ref<string>('')
 
-// 创建散点图
-const createScatterChart = (data: Record<string, any>[], xColumn: string, yColumn: string) => {
-  const seriesData = data.map(row => [row[xColumn], row[yColumn]])
-  
-  return {
-    title: {
-      text: `${yColumn} vs ${xColumn}`,
-      left: 'center',
-      textStyle: {
-        fontSize: 16,
-        fontWeight: 'normal'
-      }
-    },
-    tooltip: {
-      trigger: 'item',
-      formatter: (params: any) => {
-        return `${xColumn}: ${params.data[0]}<br/>${yColumn}: ${params.data[1]}`
-      }
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'value',
-      name: xColumn,
-      nameLocation: 'middle',
-      nameGap: 30
-    },
-    yAxis: {
-      type: 'value',
-      name: yColumn,
-      nameLocation: 'middle',
-      nameGap: 50
-    },
-    series: [
-      {
-        type: 'scatter',
-        data: seriesData,
-        itemStyle: {
-          color: '#409eff'
-        },
-        symbolSize: 8
-      }
-    ]
-  }
-}
+// 计算属性
+const hasData = computed(() => props.data && props.data.length > 0)
 
-// 创建饼图
-const createPieChart = (data: Record<string, any>[], column: string) => {
-  // 统计各分类的数量
-  const categoryCount = data.reduce((acc, row) => {
-    const category = String(row[column])
-    acc[category] = (acc[category] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
-  
-  const pieData = Object.entries(categoryCount).map(([name, value]) => ({
-    name,
-    value
-  }))
-  
-  return {
-    title: {
-      text: `${column} 分布`,
-      left: 'center',
-      textStyle: {
-        fontSize: 16,
-        fontWeight: 'normal'
+// 创建图表
+const createChart = async () => {
+  if (!chartContainer.value || !hasData.value || props.loading) {
+    return
+  }
+
+  try {
+    error.value = ''
+    
+    // 清除现有图表
+    Plotly.purge(chartContainer.value)
+
+    const df = props.data
+    
+    // 如果只有一行数据，不显示图表
+    if (df.length === 1) {
+      error.value = '数据行数太少，无法生成图表'
+      return
+    }
+
+    // 自动判断图表类型和数据
+    const numericCols = getNumericColumns(df)
+    const categoricalCols = getCategoricalColumns(df)
+
+    let plotData: any[] = []
+    let layout: any = {
+      autosize: true,
+      margin: { l: 50, r: 50, t: 30, b: 50 },
+      plot_bgcolor: 'white',
+      paper_bgcolor: 'white',
+      font: {
+        family: 'Inter, system-ui, sans-serif',
+        size: 12,
+        color: '#1e293b'
       }
-    },
-    tooltip: {
-      trigger: 'item',
-      formatter: '{a} <br/>{b}: {c} ({d}%)'
-    },
-    legend: {
-      orient: 'vertical',
-      left: 'left',
-      top: 'middle'
-    },
-    series: [
-      {
-        name: column,
-        type: 'pie',
-        radius: ['40%', '70%'],
-        avoidLabelOverlap: false,
-        label: {
-          show: false,
-          position: 'center'
-        },
-        emphasis: {
-          label: {
-            show: true,
-            fontSize: 20,
-            fontWeight: 'bold'
+    }
+
+    // 根据数据类型自动选择图表
+    if (props.chartType === 'auto') {
+      if (numericCols.length >= 1 && categoricalCols.length >= 1) {
+        // 柱状图
+        const xCol = categoricalCols[0]
+        const yCol = numericCols[0]
+        
+        plotData = [{
+          x: df.map(row => row[xCol]),
+          y: df.map(row => row[yCol]),
+          type: 'bar',
+          marker: {
+            color: '#3b82f6'
           }
-        },
-        labelLine: {
-          show: false
-        },
-        data: pieData,
-        itemStyle: {
-          borderRadius: 4,
-          borderWidth: 2,
-          borderColor: '#fff'
-        }
+        }]
+        
+        layout.xaxis = { title: xCol }
+        layout.yaxis = { title: yCol }
+        layout.title = `${yCol} 按 ${xCol} 分布`
+        
+      } else if (numericCols.length >= 2) {
+        // 散点图
+        plotData = [{
+          x: df.map(row => row[numericCols[0]]),
+          y: df.map(row => row[numericCols[1]]),
+          mode: 'markers',
+          type: 'scatter',
+          marker: {
+            color: '#3b82f6',
+            size: 8
+          }
+        }]
+        
+        layout.xaxis = { title: numericCols[0] }
+        layout.yaxis = { title: numericCols[1] }
+        layout.title = `${numericCols[1]} vs ${numericCols[0]}`
+      } else {
+        error.value = '数据结构不适合生成图表'
+        return
       }
-    ]
+    }
+
+    // 配置响应式
+    const config = {
+      responsive: true,
+      displayModeBar: false,
+      displaylogo: false
+    }
+
+    await Plotly.newPlot(chartContainer.value, plotData, layout, config)
+    
+  } catch (err: any) {
+    console.error('创建图表失败:', err)
+    error.value = `图表创建失败: ${err.message}`
   }
 }
+
+// 获取数值列
+const getNumericColumns = (data: any[]) => {
+  if (!data.length) return []
+  
+  const firstRow = data[0]
+  return Object.keys(firstRow).filter(key => {
+    const value = firstRow[key]
+    return typeof value === 'number' && !isNaN(value)
+  })
+}
+
+// 获取分类列
+const getCategoricalColumns = (data: any[]) => {
+  if (!data.length) return []
+  
+  const firstRow = data[0]
+  return Object.keys(firstRow).filter(key => {
+    const value = firstRow[key]
+    return typeof value === 'string' || typeof value === 'boolean'
+  })
+}
+
+// 监听数据变化
+watch(() => [props.data, props.chartType, props.loading], () => {
+  nextTick(() => {
+    createChart()
+  })
+}, { deep: true })
+
+// 生命周期
+onMounted(() => {
+  nextTick(() => {
+    createChart()
+  })
+})
+
+onUnmounted(() => {
+  if (chartContainer.value) {
+    Plotly.purge(chartContainer.value)
+  }
+})
+
+// 暴露重新绘制方法
+defineExpose({
+  refresh: createChart
+})
 </script>
 
-<style scoped lang="scss">
-.data-chart {
-  width: 100%;
+<style scoped>
+/* Plotly 图表容器样式 */
+:deep(.js-plotly-plot) {
+  border-radius: 0.5rem;
 }
 </style>

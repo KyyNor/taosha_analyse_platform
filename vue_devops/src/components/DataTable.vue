@@ -1,130 +1,144 @@
 <template>
-  <div class="data-table">
-    <el-table
-      :data="data"
-      stripe
-      style="width: 100%"
-      max-height="400"
-      :default-sort="{ prop: Object.keys(data[0] || {})[0], order: 'ascending' }"
-    >
-      <el-table-column
-        v-for="column in columns"
-        :key="column"
-        :prop="column"
-        :label="column"
-        :sortable="true"
-        show-overflow-tooltip
-        :width="getColumnWidth(column)"
-      >
-        <template #default="{ row }">
-          <span :class="getValueClass(row[column])">
-            {{ formatValue(row[column]) }}
-          </span>
-        </template>
-      </el-table-column>
-    </el-table>
+  <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+    <!-- Table Header -->
+    <div v-if="title" class="px-6 py-4 border-b border-slate-200 bg-slate-50">
+      <h3 class="text-lg font-semibold text-slate-800">{{ title }}</h3>
+      <p v-if="description" class="text-sm text-slate-500 mt-1">{{ description }}</p>
+    </div>
+
+    <!-- Table Content -->
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead class="bg-slate-50 border-b border-slate-200">
+          <tr>
+            <th
+              v-for="column in columns"
+              :key="column.key"
+              class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider"
+            >
+              {{ column.title }}
+            </th>
+            <th v-if="hasActions" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+              操作
+            </th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-slate-200">
+          <tr v-if="loading" class="animate-pulse">
+            <td :colspan="columns.length + (hasActions ? 1 : 0)" class="px-6 py-4 text-center text-slate-500">
+              加载中...
+            </td>
+          </tr>
+          <tr v-else-if="data.length === 0">
+            <td :colspan="columns.length + (hasActions ? 1 : 0)" class="px-6 py-4 text-center text-slate-500">
+              {{ emptyText }}
+            </td>
+          </tr>
+          <tr 
+            v-else
+            v-for="(row, index) in data" 
+            :key="index"
+            class="hover:bg-slate-50 transition-colors duration-200"
+          >
+            <td
+              v-for="column in columns"
+              :key="column.key"
+              class="px-6 py-4 whitespace-nowrap text-sm text-slate-900"
+            >
+              <slot 
+                :name="`column-${column.key}`"
+                :row="row"
+                :value="row[column.key]"
+                :index="index"
+              >
+                {{ formatValue(row[column.key], column.type) }}
+              </slot>
+            </td>
+            <td v-if="hasActions" class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+              <slot name="actions" :row="row" :index="index" />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Table Footer -->
+    <div v-if="showFooter" class="px-6 py-3 bg-slate-50 border-t border-slate-200">
+      <div class="flex items-center justify-between">
+        <div class="text-sm text-slate-700">
+          共 {{ total || data.length }} 条记录
+        </div>
+        <div v-if="$slots.footer" class="flex items-center space-x-2">
+          <slot name="footer" />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useSlots } from 'vue'
+import type { Column } from '@/types'
 
 interface Props {
+  title?: string
+  description?: string
+  columns: Column[]
   data: Record<string, any>[]
+  loading?: boolean
+  emptyText?: string
+  showFooter?: boolean
+  total?: number
 }
 
-const props = defineProps<Props>()
-
-// 获取列名
-const columns = computed(() => {
-  if (!props.data || props.data.length === 0) return []
-  return Object.keys(props.data[0])
+const props = withDefaults(defineProps<Props>(), {
+  loading: false,
+  emptyText: '暂无数据',
+  showFooter: true
 })
 
-// 格式化值
-const formatValue = (value: any) => {
-  if (value === null || value === undefined) {
-    return '—'
-  }
-  
-  if (typeof value === 'number') {
-    // 格式化数字
-    if (Number.isInteger(value)) {
-      return value.toLocaleString()
-    } else {
-      return value.toLocaleString(undefined, { 
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2
-      })
-    }
-  }
-  
-  if (typeof value === 'boolean') {
-    return value ? '是' : '否'
-  }
-  
-  return String(value)
-}
+const slots = useSlots()
 
-// 获取值的CSS类
-const getValueClass = (value: any) => {
-  if (value === null || value === undefined) {
-    return 'null-value'
-  }
-  
-  if (typeof value === 'number') {
-    return 'numeric-value'
-  }
-  
-  if (typeof value === 'boolean') {
-    return 'boolean-value'
-  }
-  
-  return 'text-value'
-}
+// 判断是否有操作列
+const hasActions = computed(() => !!slots.actions)
 
-// 计算列宽
-const getColumnWidth = (column: string) => {
-  // 根据列名长度和内容类型动态计算宽度
-  const baseWidth = Math.max(column.length * 8, 80)
-  
-  if (!props.data || props.data.length === 0) {
-    return baseWidth
+// 格式化值显示
+const formatValue = (value: any, type?: string) => {
+  if (value === null || value === undefined) {
+    return '-'
   }
-  
-  // 检查列值的最大长度
-  const maxValueLength = Math.max(
-    ...props.data.map(row => {
-      const value = formatValue(row[column])
-      return String(value).length
-    })
-  )
-  
-  return Math.min(Math.max(baseWidth, maxValueLength * 8), 200)
+
+  switch (type) {
+    case 'number':
+      return typeof value === 'number' ? value.toLocaleString() : value
+    case 'date':
+      return new Date(value).toLocaleString('zh-CN')
+    case 'boolean':
+      return value ? '是' : '否'
+    case 'status':
+      return value === 0 ? '可用' : '不可用'
+    default:
+      return value
+  }
 }
 </script>
 
-<style scoped lang="scss">
-.data-table {
-  :deep(.el-table) {
-    .null-value {
-      color: #c0c4cc;
-      font-style: italic;
-    }
-    
-    .numeric-value {
-      color: #409eff;
-      font-weight: 500;
-    }
-    
-    .boolean-value {
-      color: #67c23a;
-      font-weight: 500;
-    }
-    
-    .text-value {
-      color: #303133;
-    }
-  }
+<style scoped>
+/* 自定义滚动条 */
+.overflow-x-auto::-webkit-scrollbar {
+  height: 6px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 </style>

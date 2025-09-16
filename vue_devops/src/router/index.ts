@@ -1,29 +1,25 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import DataQuery from '@/views/DataQuery.vue'
+import MetadataManagement from '@/views/MetadataManagement.vue'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
-      redirect: '/query'
-    },
-    {
-      path: '/query',
       name: 'DataQuery',
-      component: () => import('@/views/DataQuery.vue'),
-      meta: { title: '数据查询' }
+      component: DataQuery,
+      meta: {
+        title: '数据查询'
+      }
     },
     {
       path: '/metadata',
-      name: 'MetadataManagement', 
-      component: () => import('@/views/MetadataManagement.vue'),
-      meta: { title: '元数据管理' }
-    },
-    {
-      path: '/glossary',
-      name: 'GlossarySearch',
-      component: () => import('@/views/GlossarySearch.vue'),
-      meta: { title: '术语搜索' }
+      name: 'MetadataManagement',
+      component: MetadataManagement,
+      meta: {
+        title: '元数据管理'
+      }
     }
   ]
 })

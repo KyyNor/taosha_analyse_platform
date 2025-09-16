@@ -1,228 +1,268 @@
 <template>
-  <div class="column-editor">
-    <el-select
-      v-model="selectedColumnName"
-      placeholder="选择要编辑的列"
-      style="width: 100%; margin-bottom: 16px;"
-    >
-      <el-option
-        v-for="column in availableColumns"
-        :key="column.name"
-        :label="column.name"
-        :value="column.name"
-      />
-    </el-select>
+  <form @submit.prevent="submitForm" class="space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- Column Name -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-2">列名</label>
+        <input
+          v-model="formData.name"
+          type="text"
+          :disabled="isEditing"
+          required
+          placeholder="输入列名"
+          class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+        />
+      </div>
 
-    <div v-if="selectedColumn" class="edit-form">
-      <h4>编辑列: {{ selectedColumnName }}</h4>
-      
-      <el-form ref="formRef" :model="form" label-width="80px" size="small">
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="存储类型">
-              <el-select v-model="form.type" style="width: 100%">
-                <el-option label="VARCHAR" value="VARCHAR" />
-                <el-option label="INTEGER" value="INTEGER" />
-                <el-option label="DECIMAL" value="DECIMAL" />
-                <el-option label="DATE" value="DATE" />
-                <el-option label="BOOLEAN" value="BOOLEAN" />
-                <el-option label="TEXT" value="TEXT" />
-              </el-select>
-            </el-form-item>
-            
-            <el-form-item label="业务类型">
-              <el-select v-model="form.business_type" style="width: 100%">
-                <el-option label="VARCHAR" value="VARCHAR" />
-                <el-option label="INTEGER" value="INTEGER" />
-                <el-option label="DECIMAL" value="DECIMAL" />
-                <el-option label="DATE" value="DATE" />
-                <el-option label="BOOLEAN" value="BOOLEAN" />
-                <el-option label="TEXT" value="TEXT" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          
-          <el-col :span="12">
-            <el-form-item label="列描述">
-              <el-input
-                v-model="form.comment"
-                type="textarea"
-                :rows="2"
-                placeholder="请输入列描述"
-              />
-            </el-form-item>
-            
-            <el-form-item label="状态">
-              <el-select v-model="form.is_available" style="width: 100%">
-                <el-option label="可用" :value="0" />
-                <el-option label="不可用" :value="1" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        
-        <el-form-item label="关联ID">
-          <el-select v-model="form.relation_id" clearable style="width: 100%">
-            <el-option
-              v-for="relationId in relationIds"
-              :key="relationId"
-              :label="relationId"
-              :value="relationId"
-            />
-          </el-select>
-        </el-form-item>
-        
-        <el-form-item>
-          <el-button type="primary" size="small" @click="handleUpdate" :loading="updating">
-            更新列
-          </el-button>
-          <el-button size="small" @click="handleDelete" :loading="deleting">
-            删除列
-          </el-button>
-        </el-form-item>
-      </el-form>
+      <!-- Storage Type -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-2">存储类型</label>
+        <select
+          v-model="formData.type"
+          required
+          class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value="">请选择类型</option>
+          <option value="VARCHAR">VARCHAR</option>
+          <option value="INTEGER">INTEGER</option>
+          <option value="DECIMAL">DECIMAL</option>
+          <option value="DATE">DATE</option>
+          <option value="BOOLEAN">BOOLEAN</option>
+          <option value="TEXT">TEXT</option>
+        </select>
+      </div>
+
+      <!-- Business Type -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-2">业务类型</label>
+        <select
+          v-model="formData.business_type"
+          class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value="">请选择业务类型</option>
+          <option value="VARCHAR">VARCHAR</option>
+          <option value="INTEGER">INTEGER</option>
+          <option value="DECIMAL">DECIMAL</option>
+          <option value="DATE">DATE</option>
+          <option value="BOOLEAN">BOOLEAN</option>
+          <option value="TEXT">TEXT</option>
+        </select>
+      </div>
+
+      <!-- Status -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-2">状态</label>
+        <select
+          v-model="formData.is_available"
+          class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option :value="0">可用</option>
+          <option :value="1">不可用</option>
+        </select>
+      </div>
     </div>
-  </div>
+
+    <!-- Relation ID -->
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-2">关联ID</label>
+      <select
+        v-model="formData.relation_id"
+        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+      >
+        <option value="">请选择关联ID</option>
+        <option
+          v-for="relationId in relationIds"
+          :key="relationId"
+          :value="relationId"
+        >
+          {{ relationId }}
+        </option>
+      </select>
+    </div>
+
+    <!-- Comment -->
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-2">描述</label>
+      <textarea
+        v-model="formData.comment"
+        rows="3"
+        placeholder="输入列的描述信息"
+        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+      ></textarea>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex space-x-3">
+      <button
+        type="submit"
+        :disabled="!isFormValid || isSubmitting"
+        class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 hover:scale-105 hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+      >
+        {{ isSubmitting ? (isEditing ? '更新中...' : '添加中...') : (isEditing ? '📝 更新列' : '➕ 添加列') }}
+      </button>
+      
+      <button
+        v-if="isEditing"
+        type="button"
+        @click="cancel"
+        class="px-4 py-2 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition-colors duration-200"
+      >
+        取消
+      </button>
+      
+      <button
+        v-if="!isEditing"
+        type="button"
+        @click="resetForm"
+        class="px-4 py-2 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition-colors duration-200"
+      >
+        重置
+      </button>
+    </div>
+  </form>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
+import { ref, computed, onMounted, watch } from 'vue'
 import { apiClient } from '@/api'
-import type { MetadataTable } from '@/types'
+import type { ColumnMetadata } from '@/types'
 
+// 定义组件属性
 interface Props {
-  table: MetadataTable
+  tableName: string
+  column?: ColumnMetadata
+  isEditing?: boolean
 }
 
-interface Emits {
-  (e: 'updated'): void
-}
+const props = withDefaults(defineProps<Props>(), {
+  isEditing: false
+})
 
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+// 定义事件
+const emit = defineEmits<{
+  columnAdded: []
+  columnUpdated: []
+  cancel: []
+}>()
 
-const formRef = ref<FormInstance>()
-const selectedColumnName = ref('')
-const updating = ref(false)
-const deleting = ref(false)
-const relationIds = ref<string[]>([])
-
-const form = reactive({
+// 响应式数据
+const formData = ref({
+  name: '',
   type: '',
   business_type: '',
-  comment: '',
   is_available: 0,
-  relation_id: ''
+  relation_id: '',
+  comment: ''
 })
 
-// 可用的列
-const availableColumns = computed(() => {
-  return props.table.columns || []
+const relationIds = ref<string[]>([])
+const isSubmitting = ref(false)
+
+// 计算属性
+const isFormValid = computed(() => {
+  return formData.value.name.trim() && formData.value.type
 })
 
-// 选中的列
-const selectedColumn = computed(() => {
-  return availableColumns.value.find(col => col.name === selectedColumnName.value)
-})
-
-// 监听选中列的变化
-watch(selectedColumn, (newColumn) => {
-  if (newColumn) {
-    Object.assign(form, {
-      type: newColumn.type || '',
-      business_type: newColumn.business_type || newColumn.type || '',
-      comment: newColumn.comment || '',
-      is_available: newColumn.is_available || 0,
-      relation_id: newColumn.relation_id || ''
-    })
-  }
-}, { immediate: true })
-
-// 获取关联ID列表
-const fetchRelationIds = async () => {
-  try {
-    const response = await apiClient.relationConfig.getIds()
-    relationIds.value = ['', ...(response.data || [])]
-  } catch (error: any) {
-    console.error('获取关联ID失败:', error.message)
-  }
-}
-
-// 更新列
-const handleUpdate = async () => {
-  if (!selectedColumn.value) return
-  
-  try {
-    updating.value = true
-    
-    await apiClient.metadata.updateColumn(
-      props.table.name,
-      selectedColumn.value.name,
-      {
-        type: form.type,
-        comment: form.comment,
-        is_available: form.is_available,
-        business_type: form.business_type,
-        relation_id: form.relation_id
-      }
-    )
-    
-    ElMessage.success(`列 ${selectedColumn.value.name} 元数据已更新`)
-    emit('updated')
-  } catch (error: any) {
-    ElMessage.error(`更新失败: ${error.message}`)
-  } finally {
-    updating.value = false
-  }
-}
-
-// 删除列
-const handleDelete = async () => {
-  if (!selectedColumn.value) return
-  
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除列 "${selectedColumn.value.name}" 吗？此操作不可恢复。`,
-      '确认删除',
-      {
-        type: 'warning',
-        confirmButtonText: '确定删除',
-        cancelButtonText: '取消'
-      }
-    )
-    
-    deleting.value = true
-    
-    await apiClient.metadata.deleteColumn(
-      props.table.name,
-      selectedColumn.value.name
-    )
-    
-    ElMessage.success(`列 ${selectedColumn.value.name} 已删除`)
-    selectedColumnName.value = ''
-    emit('updated')
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(`删除失败: ${error.message}`)
+// 初始化表单数据
+const initializeForm = () => {
+  if (props.column && props.isEditing) {
+    formData.value = {
+      name: props.column.name || '',
+      type: props.column.type || '',
+      business_type: props.column.business_type || '',
+      is_available: props.column.is_available ?? 0,
+      relation_id: props.column.relation_id || '',
+      comment: props.column.comment || ''
     }
-  } finally {
-    deleting.value = false
+  } else {
+    resetForm()
   }
 }
+
+// 重置表单
+const resetForm = () => {
+  formData.value = {
+    name: '',
+    type: '',
+    business_type: '',
+    is_available: 0,
+    relation_id: '',
+    comment: ''
+  }
+}
+
+// 提交表单
+const submitForm = async () => {
+  if (!isFormValid.value || isSubmitting.value) return
+
+  isSubmitting.value = true
+  
+  try {
+    let success = false
+
+    if (props.isEditing) {
+      // 更新列
+      success = await apiClient.updateColumnMetadata(
+        props.tableName,
+        formData.value.name,
+        {
+          type: formData.value.type,
+          comment: formData.value.comment,
+          is_available: formData.value.is_available,
+          business_type: formData.value.business_type,
+          relation_id: formData.value.relation_id
+        }
+      )
+      
+      if (success) {
+        emit('columnUpdated')
+      }
+    } else {
+      // 添加列
+      success = await apiClient.addColumnMetadata(
+        props.tableName,
+        formData.value.name,
+        formData.value.type,
+        formData.value.comment,
+        formData.value.is_available,
+        formData.value.business_type,
+        formData.value.relation_id
+      )
+      
+      if (success) {
+        resetForm()
+        emit('columnAdded')
+      }
+    }
+  } catch (error) {
+    console.error('提交表单失败:', error)
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+// 取消操作
+const cancel = () => {
+  emit('cancel')
+}
+
+// 加载关联ID列表
+const loadRelationIds = async () => {
+  try {
+    relationIds.value = await apiClient.getRelationIds()
+  } catch (error) {
+    console.error('加载关联ID列表失败:', error)
+  }
+}
+
+// 监听列数据变化
+watch(() => props.column, () => {
+  initializeForm()
+}, { immediate: true, deep: true })
 
 // 初始化
-fetchRelationIds()
+onMounted(() => {
+  loadRelationIds()
+  initializeForm()
+})
 </script>
-
-<style scoped lang="scss">
-.column-editor {
-  .edit-form {
-    h4 {
-      margin: 0 0 16px 0;
-      color: #303133;
-      font-size: 14px;
-    }
-  }
-}
-</style>

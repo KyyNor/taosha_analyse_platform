@@ -15,7 +15,15 @@
       "Bash(uv remove:*)",
       "Bash(python:*)",
       "Bash(pushd:*)",
-      "Bash(popd:*)"
+      "Bash(popd:*)",
+      "Bash(npm ls:*)",
+      "Bash(node:*)",
+      "Bash(npm --version)",
+      "Bash(npm install)",
+      "Bash(npm run build:*)",
+      "Bash(del \"src\\types\\plotly.d.ts\")",
+      "Bash(npm install:*)",
+      "Bash(timeout 10 npm run dev)"
     ],
     "deny": [],
     "ask": [],
