@@ -56,7 +56,10 @@
 
         <!-- Key Metrics for Single Row -->
         <div v-if="data.length === 1" class="mt-4 bg-white rounded-lg border border-slate-200 shadow-sm p-6">
-          <h4 class="text-lg font-semibold text-slate-800 mb-4">🎯 关键指标</h4>
+          <div class="flex items-center space-x-2 mb-4">
+            <FlagIcon class="w-5 h-5 text-blue-600" aria-label="关键指标图标" />
+            <h4 class="text-lg font-semibold text-slate-800">关键指标</h4>
+          </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div 
               v-for="[key, value] in Object.entries(data[0])"
@@ -103,7 +106,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { CheckCircleIcon, InformationCircleIcon } from '@heroicons/vue/24/outline'
+import { CheckCircleIcon, InformationCircleIcon, FlagIcon } from '@heroicons/vue/24/outline'
 import type { Column } from '@/types'
 import DataTable from './DataTable.vue'
 import DataChart from './DataChart.vue'

@@ -65,7 +65,9 @@
         :disabled="!isFormValid || isSubmitting"
         class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 hover:scale-105 hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
       >
-        {{ isSubmitting ? (isEditing ? '更新中...' : '添加中...') : (isEditing ? '📝 更新配置' : '➕ 添加配置') }}
+        <PencilIcon v-if="isEditing" class="w-4 h-4 mr-1" aria-label="编辑图标" />
+        <PlusIcon v-else class="w-4 h-4 mr-1" aria-label="添加图标" />
+        <span>{{ isSubmitting ? (isEditing ? '更新中...' : '添加中...') : (isEditing ? '更新配置' : '添加配置') }}</span>
       </button>
       
       <button
@@ -89,7 +91,10 @@
 
     <!-- Form Tips -->
     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-      <h4 class="text-sm font-medium text-blue-800 mb-2">💡 配置说明</h4>
+      <div class="flex items-center space-x-2 mb-2">
+        <LightBulbIcon class="w-4 h-4 text-blue-600" aria-label="配置说明图标" />
+        <h4 class="text-sm font-medium text-blue-800">配置说明</h4>
+      </div>
       <ul class="text-sm text-blue-700 space-y-1">
         <li>• <strong>关联族：</strong>表示同一类业务字段的标识，如 customer_no、cust_id 都可归为 cust_no 族</li>
         <li>• <strong>关联子族：</strong>同一族中的不同变体编号，如不同系统中的客户编号格式</li>
@@ -102,7 +107,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
+import { ExclamationTriangleIcon, LightBulbIcon, PencilIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { apiClient } from '@/api'
 import type { RelationConfig } from '@/types'
 

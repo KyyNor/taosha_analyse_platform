@@ -46,8 +46,9 @@
         placeholder="输入相关的SQL表达式（可选）"
         class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
       ></textarea>
-      <div class="text-xs text-slate-500 mt-1">
-        💡 提示：可以输入与此术语相关的SQL查询示例
+      <div class="flex items-center space-x-1 text-xs text-slate-500 mt-1">
+        <LightBulbIcon class="w-3 h-3 text-amber-500" aria-label="提示图标" />
+        <span>提示：可以输入与此术语相关的SQL查询示例</span>
       </div>
     </div>
 
@@ -86,7 +87,9 @@
         :disabled="!isFormValid || isSubmitting"
         class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 hover:scale-105 hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
       >
-        {{ isSubmitting ? (isEditing ? '更新中...' : '添加中...') : (isEditing ? '📝 更新术语' : '➕ 添加术语') }}
+        <PencilIcon v-if="isEditing" class="w-4 h-4 mr-1" aria-label="编辑图标" />
+        <PlusIcon v-else class="w-4 h-4 mr-1" aria-label="添加图标" />
+        <span>{{ isSubmitting ? (isEditing ? '更新中...' : '添加中...') : (isEditing ? '更新术语' : '添加术语') }}</span>
       </button>
       
       <button
@@ -110,7 +113,10 @@
 
     <!-- Form Tips -->
     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-      <h4 class="text-sm font-medium text-blue-800 mb-2">💡 填写建议</h4>
+      <div class="flex items-center space-x-2 mb-2">
+        <LightBulbIcon class="w-4 h-4 text-blue-600" aria-label="建议图标" />
+        <h4 class="text-sm font-medium text-blue-800">填写建议</h4>
+      </div>
       <ul class="text-sm text-blue-700 space-y-1">
         <li>• 术语定义应该清晰、准确，便于理解</li>
         <li>• SQL表达式可以帮助技术人员理解术语的计算逻辑</li>
@@ -123,6 +129,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { LightBulbIcon, PencilIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { apiClient } from '@/api'
 import type { Term } from '@/types'
 

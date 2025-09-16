@@ -4,9 +4,12 @@
     <section class="bg-white border-b border-slate-200 py-8">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center">
-          <h1 class="text-3xl font-bold text-slate-800 mb-4">
-            🛠️ 元数据管理
-          </h1>
+          <div class="flex items-center justify-center space-x-3 mb-4">
+            <WrenchScrewdriverIcon class="w-8 h-8 text-blue-600" aria-label="工具图标" />
+            <h1 class="text-3xl font-bold text-slate-800">
+              元数据管理
+            </h1>
+          </div>
           <p class="text-xl text-slate-600 max-w-3xl mx-auto">
             管理数据表和列的元数据信息、业务术语表以及关联字段配置
           </p>
@@ -79,7 +82,10 @@
     <section class="py-8 bg-slate-100">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
-          <h3 class="text-lg font-semibold text-slate-800 mb-4 text-center">📊 数据概览</h3>
+          <div class="flex items-center justify-center space-x-2 mb-4">
+            <ChartBarIcon class="w-6 h-6 text-blue-600" aria-label="图表图标" />
+            <h3 class="text-lg font-semibold text-slate-800">数据概览</h3>
+          </div>
           
           <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div class="text-center">
@@ -121,7 +127,9 @@ import { ref, onMounted } from 'vue'
 import { 
   TableCellsIcon, 
   BookOpenIcon, 
-  LinkIcon
+  LinkIcon,
+  WrenchScrewdriverIcon,
+  ChartBarIcon
 } from '@heroicons/vue/24/outline'
 import { apiClient } from '@/api'
 import TableMetadata from '@/components/metadata/TableMetadata.vue'

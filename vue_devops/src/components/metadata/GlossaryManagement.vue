@@ -2,7 +2,10 @@
   <div class="space-y-6">
     <!-- Add Term Section -->
     <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
-      <h3 class="text-lg font-semibold text-slate-800 mb-4">➕ 添加新术语</h3>
+      <div class="flex items-center space-x-2 mb-4">
+        <PlusIcon class="w-5 h-5 text-blue-600" aria-label="添加图标" />
+        <h3 class="text-lg font-semibold text-slate-800">添加新术语</h3>
+      </div>
       
       <form @submit.prevent="addTerm" class="space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -72,13 +75,17 @@
     <!-- Terms List -->
     <div class="bg-white rounded-lg border border-slate-200 shadow-sm">
       <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-        <h3 class="text-lg font-semibold text-slate-800">📖 术语表管理</h3>
+        <div class="flex items-center space-x-2">
+          <BookOpenIcon class="w-5 h-5 text-blue-600" aria-label="书本图标" />
+          <h3 class="text-lg font-semibold text-slate-800">术语表管理</h3>
+        </div>
         <button
           @click="refreshTerms"
           :disabled="isRefreshing"
           class="px-3 py-1 text-sm bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors duration-200 disabled:opacity-50"
         >
-          {{ isRefreshing ? '刷新中...' : '🔄 刷新' }}
+          <ArrowPathIcon class="w-4 h-4 mr-1" aria-label="刷新图标" />
+          <span>{{ isRefreshing ? '刷新中...' : '刷新' }}</span>
         </button>
       </div>
 
@@ -101,7 +108,10 @@
             <!-- Term Header -->
             <div class="bg-slate-50 px-4 py-3 flex items-center justify-between">
               <div class="flex items-center space-x-3">
-                <h4 class="font-medium text-slate-800">📝 {{ term.term }}</h4>
+                <div class="flex items-center space-x-2">
+                  <PencilIcon class="w-4 h-4 text-blue-600" aria-label="编辑图标" />
+                  <h4 class="font-medium text-slate-800">{{ term.term }}</h4>
+                </div>
                 <span v-if="term.category" class="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
                   {{ term.category }}
                 </span>
@@ -152,13 +162,15 @@
                     @click="startEditTerm(term)"
                     class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-200"
                   >
-                    📝 编辑
+                    <PencilIcon class="w-4 h-4 mr-1" aria-label="编辑图标" />
+                    <span>编辑</span>
                   </button>
                   <button
                     @click="confirmDeleteTerm(term.id!, term.term)"
                     class="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors duration-200"
                   >
-                    🗑️ 删除
+                    <TrashIcon class="w-4 h-4 mr-1" aria-label="删除图标" />
+                    <span>删除</span>
                   </button>
                 </div>
               </div>
@@ -182,7 +194,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ChevronDownIcon } from '@heroicons/vue/24/outline'
+import { ChevronDownIcon, PlusIcon, BookOpenIcon, ArrowPathIcon, PencilIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import { apiClient } from '@/api'
 import type { Term } from '@/types'
 import TermForm from './TermForm.vue'

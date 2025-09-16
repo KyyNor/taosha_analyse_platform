@@ -2,7 +2,10 @@
   <div class="space-y-6">
     <!-- Add Table Section -->
     <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
-      <h3 class="text-lg font-semibold text-slate-800 mb-4">➕ 添加新表</h3>
+      <div class="flex items-center space-x-2 mb-4">
+        <PlusIcon class="w-5 h-5 text-blue-600" aria-label="添加图标" />
+        <h3 class="text-lg font-semibold text-slate-800">添加新表</h3>
+      </div>
       
       <form @submit.prevent="addTable" class="space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -52,13 +55,17 @@
     <!-- Tables List -->
     <div class="bg-white rounded-lg border border-slate-200 shadow-sm">
       <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-        <h3 class="text-lg font-semibold text-slate-800">📋 表元数据管理</h3>
+        <div class="flex items-center space-x-2">
+          <ClipboardDocumentListIcon class="w-5 h-5 text-blue-600" aria-label="表管理图标" />
+          <h3 class="text-lg font-semibold text-slate-800">表元数据管理</h3>
+        </div>
         <button
           @click="refreshTables"
           :disabled="isRefreshing"
           class="px-3 py-1 text-sm bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors duration-200 disabled:opacity-50"
         >
-          {{ isRefreshing ? '刷新中...' : '🔄 刷新' }}
+          <ArrowPathIcon class="w-4 h-4 mr-1" aria-label="刷新图标" />
+          <span>{{ isRefreshing ? '刷新中...' : '刷新' }}</span>
         </button>
       </div>
 
@@ -82,7 +89,10 @@
             <div class="bg-slate-50 px-4 py-3 flex items-center justify-between">
               <div class="flex items-center space-x-3">
                 <div :class="['w-3 h-3 rounded-full', table.is_available === 0 ? 'bg-green-500' : 'bg-red-500']"></div>
-                <h4 class="font-medium text-slate-800">📊 {{ table.name }}</h4>
+                <div class="flex items-center space-x-2">
+                  <TableCellsIcon class="w-4 h-4 text-blue-600" aria-label="表格图标" />
+                  <h4 class="font-medium text-slate-800">{{ table.name }}</h4>
+                </div>
                 <span :class="['px-2 py-1 text-xs rounded', table.is_available === 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800']">
                   {{ table.is_available === 0 ? '可用' : '不可用' }}
                 </span>
@@ -132,13 +142,15 @@
                   @click="updateTable(table)"
                   class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-200"
                 >
-                  📝 更新
+                  <PencilIcon class="w-4 h-4 mr-1" aria-label="编辑图标" />
+                  <span>更新</span>
                 </button>
                 <button
                   @click="confirmDeleteTable(table.name)"
                   class="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors duration-200"
                 >
-                  🗑️ 删除
+                  <TrashIcon class="w-4 h-4 mr-1" aria-label="删除图标" />
+                  <span>删除</span>
                 </button>
               </div>
 
@@ -216,7 +228,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ChevronDownIcon } from '@heroicons/vue/24/outline'
+import { ChevronDownIcon, PlusIcon, ClipboardDocumentListIcon, ArrowPathIcon, TableCellsIcon, PencilIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import type { TableMetadata, ColumnMetadata, Column } from '@/types'
 import { apiClient } from '@/api'
 import DataTable from '@/components/DataTable.vue'

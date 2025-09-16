@@ -2,7 +2,10 @@
   <div class="space-y-6">
     <!-- Add Relation Config Section -->
     <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
-      <h3 class="text-lg font-semibold text-slate-800 mb-4">➕ 添加关联配置</h3>
+      <div class="flex items-center space-x-2 mb-4">
+        <PlusIcon class="w-5 h-5 text-blue-600" aria-label="添加图标" />
+        <h3 class="text-lg font-semibold text-slate-800">添加关联配置</h3>
+      </div>
       <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
         <div class="flex items-start space-x-2">
           <InformationCircleIcon class="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
@@ -69,13 +72,17 @@
     <!-- Relation Configs List -->
     <div class="bg-white rounded-lg border border-slate-200 shadow-sm">
       <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-        <h3 class="text-lg font-semibold text-slate-800">🔗 关联配置管理</h3>
+        <div class="flex items-center space-x-2">
+          <LinkIcon class="w-5 h-5 text-blue-600" aria-label="链接图标" />
+          <h3 class="text-lg font-semibold text-slate-800">关联配置管理</h3>
+        </div>
         <button
           @click="refreshConfigs"
           :disabled="isRefreshing"
           class="px-3 py-1 text-sm bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors duration-200 disabled:opacity-50"
         >
-          {{ isRefreshing ? '刷新中...' : '🔄 刷新' }}
+          <ArrowPathIcon class="w-4 h-4 mr-1" aria-label="刷新图标" />
+          <span>{{ isRefreshing ? '刷新中...' : '刷新' }}</span>
         </button>
       </div>
 
@@ -98,7 +105,10 @@
             <!-- Config Header -->
             <div class="bg-slate-50 px-4 py-3 flex items-center justify-between">
               <div class="flex items-center space-x-3">
-                <h4 class="font-medium text-slate-800 font-mono">🔗 {{ config.relation_id }}</h4>
+                <div class="flex items-center space-x-2">
+                  <LinkIcon class="w-4 h-4 text-blue-600" aria-label="链接图标" />
+                  <h4 class="font-medium text-slate-800 font-mono">{{ config.relation_id }}</h4>
+                </div>
               </div>
               
               <div class="flex items-center space-x-2">
@@ -145,13 +155,15 @@
                     @click="startEditConfig(config)"
                     class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-200"
                   >
-                    📝 编辑
+                    <PencilIcon class="w-4 h-4 mr-1" aria-label="编辑图标" />
+                    <span>编辑</span>
                   </button>
                   <button
                     @click="confirmDeleteConfig(config.relation_id)"
                     class="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors duration-200"
                   >
-                    🗑️ 删除
+                    <TrashIcon class="w-4 h-4 mr-1" aria-label="删除图标" />
+                    <span>删除</span>
                   </button>
                 </div>
               </div>
@@ -173,7 +185,10 @@
 
     <!-- Usage Statistics -->
     <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
-      <h3 class="text-lg font-semibold text-slate-800 mb-4">📊 使用统计</h3>
+      <div class="flex items-center space-x-2 mb-4">
+        <ChartBarIcon class="w-5 h-5 text-blue-600" aria-label="图表图标" />
+        <h3 class="text-lg font-semibold text-slate-800">使用统计</h3>
+      </div>
       
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="bg-blue-50 rounded-lg p-4">
@@ -212,7 +227,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ChevronDownIcon, InformationCircleIcon } from '@heroicons/vue/24/outline'
+import { ChevronDownIcon, InformationCircleIcon, PlusIcon, LinkIcon, ArrowPathIcon, ChartBarIcon, PencilIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import { apiClient } from '@/api'
 import type { RelationConfig } from '@/types'
 import RelationConfigForm from './RelationConfigForm.vue'

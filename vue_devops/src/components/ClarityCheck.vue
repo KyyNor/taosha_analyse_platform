@@ -14,7 +14,10 @@
         </div>
 
         <div v-if="clarity.suggestions && clarity.suggestions.length > 0">
-          <h4 class="text-amber-800 font-medium mb-3">💡 改进建议</h4>
+          <div class="flex items-center space-x-2 mb-3">
+            <LightBulbIcon class="w-5 h-5 text-amber-600" aria-label="建议图标" />
+            <h4 class="text-amber-800 font-medium">改进建议</h4>
+          </div>
           <p class="text-amber-700 text-sm mb-3">请选择以下建议之一来完善您的查询：</p>
           
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
@@ -34,8 +37,9 @@
           </div>
 
           <details class="mt-4">
-            <summary class="cursor-pointer text-sm text-amber-700 hover:text-amber-800">
-              📋 查看所有建议文本
+            <summary class="cursor-pointer text-sm text-amber-700 hover:text-amber-800 flex items-center space-x-2">
+              <ClipboardDocumentListIcon class="w-4 h-4" aria-label="文档列表图标" />
+              <span>查看所有建议文本</span>
             </summary>
             <div class="mt-2 space-y-2">
               <div 
@@ -54,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
+import { ExclamationTriangleIcon, LightBulbIcon, ClipboardDocumentListIcon } from '@heroicons/vue/24/outline'
 import type { ClarityCheck } from '@/types'
 
 // 定义组件属性

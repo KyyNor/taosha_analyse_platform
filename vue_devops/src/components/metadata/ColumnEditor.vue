@@ -98,7 +98,9 @@
         :disabled="!isFormValid || isSubmitting"
         class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 hover:scale-105 hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
       >
-        {{ isSubmitting ? (isEditing ? '更新中...' : '添加中...') : (isEditing ? '📝 更新列' : '➕ 添加列') }}
+        <PencilIcon v-if="isEditing" class="w-4 h-4 mr-1" aria-label="编辑图标" />
+        <PlusIcon v-else class="w-4 h-4 mr-1" aria-label="添加图标" />
+        <span>{{ isSubmitting ? (isEditing ? '更新中...' : '添加中...') : (isEditing ? '更新列' : '添加列') }}</span>
       </button>
       
       <button
@@ -124,6 +126,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { PencilIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { apiClient } from '@/api'
 import type { ColumnMetadata } from '@/types'
 

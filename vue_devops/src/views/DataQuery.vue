@@ -57,8 +57,9 @@
                 </div>
               </div>
 
-              <div class="mt-4 text-sm text-slate-500">
-                💡 提示：尽量明确时间范围、统计指标和筛选条件，这样能得到更准确的结果
+              <div class="mt-4 flex items-center space-x-2 text-sm text-slate-500">
+                <LightBulbIcon class="w-4 h-4 text-amber-500" aria-label="提示图标" />
+                <span>提示：尽量明确时间范围、统计指标和筛选条件，这样能得到更准确的结果</span>
               </div>
             </div>
           </div>
@@ -111,7 +112,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { 
   MagnifyingGlassIcon, 
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  LightBulbIcon
 } from '@heroicons/vue/24/outline'
 import { apiClient } from '@/api'
 import type { QueryResponse, SystemStatus } from '@/types'
