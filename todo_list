@@ -1,0 +1,18 @@
+
+  1. generate_sql(question)
+
+  2. submit_prompt(prompt)
+
+  generate_explanation(sql, df)
+  # 为查询结果生成自然语言解释
+  explanation = vanna.generate_explanation(sql_query, result_dataframe)
+
+  generate_followup_questions(question, sql, df)
+  # 基于当前查询生成后续问题建议
+  followups = vanna.generate_followup_questions(question, sql, result_df)
+
+  generate_plotly_code(question, sql, df)
+  # 生成数据可视化代码
+  plot_code = vanna.generate_plotly_code(question, sql_query, result_df)
+
+todo:异步的可视化

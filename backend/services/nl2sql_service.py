@@ -282,17 +282,44 @@ class NL2SQLService:
             return state
         
         def generate_sql(state: GraphState) -> GraphState:
-            """生成SQL查询"""
+            """生成SQL查询（包含错误重试逻辑）"""
             user_input = state['user_input']
             logs = state.get('logs', [])
+            error_message = state.get('error_message')
+            previous_sql = state.get('sql_query', '')
+            retry_count = state.get('retry_count', 0)
+            
+            # 构建输入内容：如果有错误信息，则包含错误反馈
+            enhanced_input = user_input
+            step_name = "sql_generation"
+            
+            if error_message and previous_sql:
+                # 这是重试情况，增强输入信息
+                current_date = datetime.now().strftime("%Y-%m-%d")
+                enhanced_input = f"""原始用户查询: {user_input}
+
+之前生成的SQL执行失败:
+SQL: {previous_sql}
+错误信息: {error_message}
+
+当前日期: {current_date}
+
+重要提示:
+1. 字段的存储类型和业务类型可能不同，数值比较时请使用CAST转换为业务类型
+2. 关联不同表的字段时，请根据关联配置进行适当转换
+3. 所有表都需要使用别名，从t1开始，t1、t2、t3依次递增
+4. 所有字段都需要使用完整引用，例如t1.cust_no，不允许只写字段名
+
+请生成一个新的SQL查询，避免之前的错误。"""
+                step_name = "sql_retry"
             
             try:
-                # 使用Vanna生成SQL
-                sql_query = self.vanna.generate_sql(user_input)
+                # 使用Vanna生成SQL（会自动检索向量数据库上下文）
+                sql_query = self.vanna.generate_sql(enhanced_input)
                 
                 log_entry = self.vanna.log_interaction(
-                    step="sql_generation",
-                    input_data=user_input,
+                    step=step_name,
+                    input_data=enhanced_input,
                     prompt="vanna.generate_sql",
                     model_output=sql_query,
                     success=True
@@ -300,19 +327,24 @@ class NL2SQLService:
                 logs.append(log_entry)
                 
                 state['sql_query'] = sql_query
+                state['error_message'] = None  # 清除错误信息
                 state['logs'] = logs
                 
             except Exception as e:
                 log_entry = self.vanna.log_interaction(
-                    step="sql_generation",
-                    input_data=user_input,
+                    step=step_name,
+                    input_data=enhanced_input,
                     prompt="vanna.generate_sql",
                     model_output="",
                     success=False,
                     error=str(e)
                 )
                 logs.append(log_entry)
-                state['error_message'] = f"SQL生成失败: {str(e)}"
+                
+                if retry_count > 0:
+                    state['error_message'] = f"SQL重试失败: {str(e)}"
+                else:
+                    state['error_message'] = f"SQL生成失败: {str(e)}"
                 state['logs'] = logs
             
             return state
@@ -374,76 +406,6 @@ class NL2SQLService:
             else:
                 return "failed"
         
-        def retry_with_error_feedback(state: GraphState) -> GraphState:
-            """使用错误反馈重新生成SQL"""
-            user_input = state['user_input']
-            error_message = state.get('error_message', '')
-            previous_sql = state.get('sql_query', '')
-            logs = state.get('logs', [])
-            
-            # 构建包含错误信息的提示词
-            current_date = datetime.now().strftime("%Y-%m-%d")
-            retry_prompt = f"""
-之前的SQL查询执行失败，请根据错误信息重新生成SQL：
-
-当前日期: {current_date}
-
-原始用户查询: {user_input}
-之前生成的SQL: {previous_sql}
-错误信息: {error_message}
-
-表结构信息:
-{self._get_table_info_text()}
-
-术语表:
-{self._get_glossary_text()}
-
-字段关联配置:
-{self._get_relation_config_text()}
-
-重要提示:
-1. 字段的存储类型和业务类型可能不同，数值比较时请使用CAST转换为业务类型
-2. 关联不同表的字段时，请根据关联配置进行适当转换
-3. 所有表都需要使用别名，从t1开始，t1、t2、t3依次递增
-4. 所有字段都需要使用完整引用，例如t1.cust_no，不允许只写字段名
-
-请生成一个新的SQL查询，避免之前的错误：
-"""
-            
-            try:
-                # 使用正确的消息格式  
-                messages = [{"role": "user", "content": retry_prompt}]
-                response = self.vanna.submit_prompt(messages)
-                # 提取SQL（简单实现，实际可能需要更复杂的解析）
-                sql_query = self._extract_sql_from_response(response)
-                
-                log_entry = self.vanna.log_interaction(
-                    step="sql_retry",
-                    input_data=f"{user_input} | Error: {error_message}",
-                    prompt=retry_prompt,
-                    model_output=response,
-                    success=True
-                )
-                logs.append(log_entry)
-                
-                state['sql_query'] = sql_query
-                state['error_message'] = None  # 清除错误信息
-                state['logs'] = logs
-                
-            except Exception as e:
-                log_entry = self.vanna.log_interaction(
-                    step="sql_retry",
-                    input_data=f"{user_input} | Error: {error_message}",
-                    prompt=retry_prompt,
-                    model_output="",
-                    success=False,
-                    error=str(e)
-                )
-                logs.append(log_entry)
-                state['error_message'] = f"重试失败: {str(e)}"
-                state['logs'] = logs
-            
-            return state
         
         # 构建工作流图
         workflow = StateGraph(GraphState)
@@ -453,7 +415,6 @@ class NL2SQLService:
         workflow.add_node("validate_input", validate_input_clarity)
         workflow.add_node("generate_sql", generate_sql)
         workflow.add_node("execute_sql", execute_sql)
-        workflow.add_node("retry_sql", retry_with_error_feedback)
         
         # 添加边
         workflow.set_entry_point("check_training")
@@ -467,17 +428,16 @@ class NL2SQLService:
         
         workflow.add_edge("generate_sql", "execute_sql")
         
+        # 简化的重试逻辑：如果失败且可以重试，回到generate_sql
         workflow.add_conditional_edges(
             "execute_sql",
             should_retry,
             {
                 "success": END,
                 "failed": END,
-                "retry": "retry_sql"
+                "retry": "generate_sql"  # 直接回到generate_sql，它会处理错误重试
             }
         )
-        
-        workflow.add_edge("retry_sql", "execute_sql")
         
         return workflow.compile()
     
