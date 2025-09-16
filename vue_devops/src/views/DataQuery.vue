@@ -63,23 +63,6 @@
             </div>
           </div>
 
-          <!-- Right: Code Snippet Preview -->
-          <div class="hidden lg:block">
-            <div class="bg-slate-900 rounded-xl p-6 shadow-xl">
-              <div class="flex items-center space-x-2 mb-4">
-                <div class="w-3 h-3 bg-red-500 rounded-full"></div>
-                <div class="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                <div class="w-3 h-3 bg-green-500 rounded-full"></div>
-                <div class="ml-4 text-slate-400 text-sm">SQL 查询示例</div>
-              </div>
-              <pre class="text-green-400 text-sm font-mono leading-relaxed"><code>SELECT region, SUM(sales_amount) as total_sales
-FROM sales_data 
-WHERE date >= '2024-01-01'
-  AND product_category = '电子产品'
-GROUP BY region
-ORDER BY total_sales DESC;</code></pre>
-            </div>
-          </div>
         </div>
       </div>
     </section>
@@ -120,33 +103,6 @@ ORDER BY total_sales DESC;</code></pre>
       </div>
     </section>
 
-    <!-- Features Section -->
-    <section class="py-16 bg-slate-50">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="text-center mb-12">
-          <h2 class="text-3xl font-bold text-slate-800 mb-4">
-            强大的数据分析能力
-          </h2>
-          <p class="text-xl text-slate-600 max-w-3xl mx-auto">
-            基于先进的自然语言处理技术，为您提供智能、准确、高效的数据查询体验
-          </p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div 
-            v-for="feature in features"
-            :key="feature.title"
-            class="bg-white rounded-xl p-8 shadow-sm border border-slate-200 hover:-translate-y-1 transition-all duration-300 hover:shadow-md"
-          >
-            <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-6">
-              <component :is="feature.icon" class="w-6 h-6 text-blue-600" />
-            </div>
-            <h3 class="text-xl font-semibold text-slate-800 mb-3">{{ feature.title }}</h3>
-            <p class="text-slate-600 leading-relaxed">{{ feature.description }}</p>
-          </div>
-        </div>
-      </div>
-    </section>
 
   </div>
 </template>
@@ -155,10 +111,7 @@ ORDER BY total_sales DESC;</code></pre>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { 
   MagnifyingGlassIcon, 
-  ExclamationTriangleIcon,
-  ChatBubbleLeftRightIcon,
-  ChartBarIcon,
-  CpuChipIcon
+  ExclamationTriangleIcon
 } from '@heroicons/vue/24/outline'
 import { apiClient } from '@/api'
 import type { QueryResponse, SystemStatus } from '@/types'
@@ -174,24 +127,6 @@ const queryResult = ref<QueryResponse | null>(null)
 const executionTime = ref(0)
 const isHealthy = ref(true)
 const systemStatus = ref<SystemStatus | null>(null)
-// 功能特性
-const features = [
-  {
-    title: '自然语言查询',
-    description: '使用日常语言描述您的需求，无需学习复杂的SQL语法',
-    icon: ChatBubbleLeftRightIcon
-  },
-  {
-    title: '智能数据可视化',
-    description: '自动生成合适的图表，直观展示查询结果和数据趋势',
-    icon: ChartBarIcon
-  },
-  {
-    title: '高性能分析引擎',
-    description: '基于DuckDB的轻量级OLAP引擎，提供秒级查询响应',
-    icon: CpuChipIcon
-  }
-]
 
 
 // 提交查询

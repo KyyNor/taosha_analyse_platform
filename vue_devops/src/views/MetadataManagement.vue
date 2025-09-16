@@ -74,39 +74,6 @@
       </div>
     </section>
 
-    <!-- Features Overview -->
-    <section class="py-16 bg-white">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="text-center mb-12">
-          <h2 class="text-3xl font-bold text-slate-800 mb-4">
-            元数据管理功能
-          </h2>
-          <p class="text-xl text-slate-600 max-w-3xl mx-auto">
-            完善的元数据管理体系，为数据分析和查询提供强大支撑
-          </p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div 
-            v-for="feature in features"
-            :key="feature.title"
-            class="bg-slate-50 rounded-xl p-8 border border-slate-200 hover:-translate-y-1 transition-all duration-300 hover:shadow-md"
-          >
-            <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-6">
-              <component :is="feature.icon" class="w-6 h-6 text-blue-600" />
-            </div>
-            <h3 class="text-xl font-semibold text-slate-800 mb-3">{{ feature.title }}</h3>
-            <p class="text-slate-600 leading-relaxed mb-4">{{ feature.description }}</p>
-            <ul class="text-sm text-slate-500 space-y-1">
-              <li v-for="item in feature.items" :key="item" class="flex items-start space-x-2">
-                <CheckIcon class="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                <span>{{ item }}</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- Quick Stats -->
     <section class="py-8 bg-slate-100">
@@ -154,11 +121,7 @@ import { ref, onMounted } from 'vue'
 import { 
   TableCellsIcon, 
   BookOpenIcon, 
-  LinkIcon,
-  CheckIcon,
-  CubeIcon,
-  DocumentTextIcon,
-  CogIcon
+  LinkIcon
 } from '@heroicons/vue/24/outline'
 import { apiClient } from '@/api'
 import TableMetadata from '@/components/metadata/TableMetadata.vue'
@@ -196,42 +159,6 @@ const tabs = [
   }
 ]
 
-// 功能特性
-const features = [
-  {
-    title: '表结构管理',
-    description: '完整的数据表和字段元数据管理，支持业务类型和关联关系配置',
-    icon: CubeIcon,
-    items: [
-      '表和列的基本信息维护',
-      '业务类型字段分类',
-      '字段可用性状态管理',
-      '关联ID配置支持'
-    ]
-  },
-  {
-    title: '术语字典',
-    description: '统一的业务术语定义和管理，建立标准化的数据语言',
-    icon: DocumentTextIcon,
-    items: [
-      '术语定义和分类',
-      'SQL表达式关联',
-      '别名和同义词支持',
-      '术语搜索和检索'
-    ]
-  },
-  {
-    title: '关联配置',
-    description: '灵活的字段关联配置，支持复杂的数据关系映射',
-    icon: CogIcon,
-    items: [
-      '关联族和子族管理',
-      '关联ID自动生成',
-      '配置使用统计',
-      '关联关系可视化'
-    ]
-  }
-]
 
 // 加载统计数据
 const loadStats = async () => {
