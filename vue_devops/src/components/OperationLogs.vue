@@ -360,15 +360,28 @@ const getStatusText = (status: string) => {
 const loadSessions = async () => {
   loading.value = true
   try {
+    console.log('正在加载会话数据...', {
+      page: currentPage.value,
+      pageSize: pageSize.value,
+      search: searchQuery.value
+    })
+    
     const result = await apiClient.getOperationSessions(
       currentPage.value,
       pageSize.value,
       searchQuery.value || undefined
     )
+    
+    console.log('会话数据加载成功:', result)
     sessions.value = result.sessions
     totalCount.value = result.total
   } catch (error) {
     console.error('加载会话失败:', error)
+    console.error('错误堆栈:', error.stack)
+    
+    // 显示用户友好的错误信息
+    sessions.value = []
+    totalCount.value = 0
   } finally {
     loading.value = false
   }
@@ -376,9 +389,13 @@ const loadSessions = async () => {
 
 const loadStats = async () => {
   try {
+    console.log('正在加载统计信息...')
     stats.value = await apiClient.getOperationStats()
+    console.log('统计信息加载成功:', stats.value)
   } catch (error) {
     console.error('加载统计信息失败:', error)
+    console.error('错误堆栈:', error.stack)
+    stats.value = null
   }
 }
 

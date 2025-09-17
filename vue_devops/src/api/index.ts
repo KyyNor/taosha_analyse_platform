@@ -309,13 +309,34 @@ export class TaoshaAPIClient {
   // 获取会话列表
   async getOperationSessions(page: number = 1, limit: number = 20, search?: string): Promise<{sessions: OperationSession[], total: number}> {
     try {
-      const params: any = { page, limit }
+      // 后端不支持分页参数，只支持limit参数
+      // 计算要获取的数据量来模拟分页
+      const offset = (page - 1) * limit
+      const fetchLimit = page * limit  // 获取前N页的所有数据
+      
+      const params: any = { limit: Math.min(fetchLimit, 200) }  // 后端限制最大200条
       if (search) params.q = search
       
-      const response = await api.get<ApiResponse<{sessions: OperationSession[], total: number}>>('/tracking/sessions', { params })
-      return response.data.data || { sessions: [], total: 0 }
+      // 后端直接返回数组格式，不包装在ApiResponse中
+      const response = await api.get<OperationSession[]>('/tracking/sessions', { params })
+      const allSessions = response.data || []
+      
+      // 转换成功率格式：后端返回百分比(83.33)，转换为小数(0.8333)
+      const convertedSessions = allSessions.map(session => ({
+        ...session,
+        success_rate: session.success_rate / 100  // 转换百分比为小数
+      }))
+      
+      // 客户端分页处理
+      const paginatedSessions = convertedSessions.slice(offset, offset + limit)
+      
+      return {
+        sessions: paginatedSessions,
+        total: convertedSessions.length
+      }
     } catch (error) {
       console.error('获取操作会话失败:', error)
+      console.error('详细错误信息:', error)
       return { sessions: [], total: 0 }
     }
   }
@@ -323,8 +344,19 @@ export class TaoshaAPIClient {
   // 获取会话详情
   async getOperationSession(sessionId: string): Promise<OperationSession | null> {
     try {
-      const response = await api.get<ApiResponse<OperationSession>>(`/tracking/sessions/${sessionId}`)
-      return response.data.data || null
+      // 后端直接返回单个对象，不包装在ApiResponse中
+      const response = await api.get<OperationSession>(`/tracking/sessions/${sessionId}`)
+      const session = response.data
+      
+      if (session) {
+        // 转换成功率格式
+        return {
+          ...session,
+          success_rate: session.success_rate / 100
+        }
+      }
+      
+      return null
     } catch (error) {
       console.error('获取会话详情失败:', error)
       return null
@@ -334,8 +366,9 @@ export class TaoshaAPIClient {
   // 获取会话步骤
   async getOperationSteps(sessionId: string): Promise<OperationStep[]> {
     try {
-      const response = await api.get<ApiResponse<OperationStep[]>>(`/tracking/sessions/${sessionId}/steps`)
-      return response.data.data || []
+      // 后端直接返回数组格式，不包装在ApiResponse中
+      const response = await api.get<OperationStep[]>(`/tracking/sessions/${sessionId}/steps`)
+      return response.data || []
     } catch (error) {
       console.error('获取会话步骤失败:', error)
       return []
@@ -345,8 +378,25 @@ export class TaoshaAPIClient {
   // 获取统计信息
   async getOperationStats(): Promise<OperationStats | null> {
     try {
-      const response = await api.get<ApiResponse<OperationStats>>('/tracking/stats')
-      return response.data.data || null
+      // 后端返回的格式更复杂，包含overall、by_operation_type等字段
+      const response = await api.get('/tracking/stats')
+      const data = response.data
+      
+      if (data && data.overall) {
+        const overall = data.overall
+        
+        // 转换为前端期望的格式
+        return {
+          total_sessions: overall.total_sessions || 0,
+          running_sessions: 0,  // 后端暂未提供此字段
+          completed_sessions: overall.completed_sessions || 0,
+          failed_sessions: overall.failed_sessions || 0,
+          avg_duration: overall.avg_duration || 0,
+          success_rate: (overall.success_rate || 0) / 100  // 转换百分比为小数
+        }
+      }
+      
+      return null
     } catch (error) {
       console.error('获取统计信息失败:', error)
       return null
@@ -356,10 +406,17 @@ export class TaoshaAPIClient {
   // 搜索会话
   async searchOperationSessions(query: string): Promise<OperationSession[]> {
     try {
-      const response = await api.get<ApiResponse<OperationSession[]>>('/tracking/search', {
+      // 后端直接返回数组格式，不包装在ApiResponse中
+      const response = await api.get<OperationSession[]>('/tracking/search', {
         params: { q: query }
       })
-      return response.data.data || []
+      const sessions = response.data || []
+      
+      // 转换成功率格式
+      return sessions.map(session => ({
+        ...session,
+        success_rate: session.success_rate / 100
+      }))
     } catch (error) {
       console.error('搜索会话失败:', error)
       return []

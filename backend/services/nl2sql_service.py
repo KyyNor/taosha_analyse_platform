@@ -312,36 +312,39 @@ class NL2SQLService:
             retry_count = state.get('retry_count', 0)
             
             # 构建输入内容：如果有错误信息，则包含错误反馈
-            enhanced_input = user_input
             step_name = "sql_generation"
             
+            
+            # 这是重试情况，增强输入信息
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            
+            tips = ""
+            error_info = ""
             if error_message and previous_sql:
-                # 这是重试情况，增强输入信息
-                current_date = datetime.now().strftime("%Y-%m-%d")
-                enhanced_input = f"""原始用户查询: {user_input}
-
-之前生成的SQL执行失败:
-SQL: {previous_sql}
-错误信息: {error_message}
-
+                step_name = "sql_retry"
+                error_info = f"之前生成的SQL执行失败，SQL: {previous_sql}，错误信息: {error_message}"
+                tips = "请生成一个新的SQL查询，避免之前的错误。"
+            
+            query_input = f"""原始用户查询: {user_input}
 当前日期: {current_date}
+
+{error_info}
 
 重要提示:
 1. 字段的存储类型和业务类型可能不同，数值比较时请使用CAST转换为业务类型
 2. 关联不同表的字段时，请根据关联配置进行适当转换
 3. 所有表都需要使用别名，从t1开始，t1、t2、t3依次递增
 4. 所有字段都需要使用完整引用，例如t1.cust_no，不允许只写字段名
+{tips}"""
 
-请生成一个新的SQL查询，避免之前的错误。"""
-                step_name = "sql_retry"
             
             try:
                 # 使用Vanna生成SQL（会自动检索向量数据库上下文）
-                sql_query = self.vanna.generate_sql(enhanced_input)
+                sql_query = self.vanna.generate_sql(query_input)
                 
                 log_entry = self.vanna.log_interaction(
                     step=step_name,
-                    input_data=enhanced_input,
+                    input_data=query_input,
                     prompt="vanna.generate_sql",
                     model_output=sql_query,
                     success=True
@@ -355,7 +358,7 @@ SQL: {previous_sql}
             except Exception as e:
                 log_entry = self.vanna.log_interaction(
                     step=step_name,
-                    input_data=enhanced_input,
+                    input_data=query_input,
                     prompt="vanna.generate_sql",
                     model_output="",
                     success=False,
