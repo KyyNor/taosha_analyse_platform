@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from loguru import logger
 from pathlib import Path
 
-from config import settings
+from config.settings import settings
 
 
 class DatabaseConnectionManager:
@@ -128,6 +128,9 @@ class DatabaseConnectionManager:
     def _drop_mysql_tables(self, cursor):
         """删除MySQL中的所有元数据表"""
         tables_to_drop = [
+            'user_feedback',
+            'operation_steps',
+            'operation_sessions',
             'glossary_aliases',
             'glossary_terms', 
             'metadata_columns',
@@ -215,6 +218,9 @@ class DatabaseConnectionManager:
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # 操作追踪表
+        self._create_sqlite_tracking_tables(cursor)
     
     def _create_mysql_metadata_tables(self, cursor):
         """创建MySQL元数据表"""
@@ -282,6 +288,134 @@ class DatabaseConnectionManager:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         """)
+        
+        # 操作追踪表
+        self._create_mysql_tracking_tables(cursor)
+    
+    def _create_sqlite_tracking_tables(self, cursor):
+        """创建SQLite追踪表"""
+        # 操作会话记录表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS operation_sessions (
+                session_id TEXT PRIMARY KEY,
+                operation_type TEXT NOT NULL,
+                operator TEXT,
+                start_time DATETIME NOT NULL,
+                end_time DATETIME,
+                total_duration INTEGER,
+                max_step_sequence INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'running',
+                error_message TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # 操作步骤详情表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS operation_steps (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                step_sequence INTEGER NOT NULL,
+                step_name TEXT NOT NULL,
+                input_data TEXT,
+                call_method TEXT,
+                output_data TEXT,
+                generated_sql TEXT,
+                error_message TEXT,
+                success INTEGER DEFAULT 1,
+                duration INTEGER,
+                token_usage TEXT,
+                metadata TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES operation_sessions(session_id)
+            )
+        """)
+        
+        # 用户反馈表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                feedback_type TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                step_sequence INTEGER,
+                feedback_sentiment TEXT NOT NULL,
+                feedback_content TEXT NOT NULL,
+                feedback_user TEXT,
+                feedback_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES operation_sessions(session_id)
+            )
+        """)
+        
+        # 创建索引
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_operation_sessions_operator ON operation_sessions(operator)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_operation_sessions_operation_type ON operation_sessions(operation_type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_operation_sessions_start_time ON operation_sessions(start_time)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_operation_steps_session_id ON operation_steps(session_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_operation_steps_step_sequence ON operation_steps(session_id, step_sequence)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_feedback_session_id ON user_feedback(session_id)")
+    
+    def _create_mysql_tracking_tables(self, cursor):
+        """创建MySQL追踪表"""
+        # 操作会话记录表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS operation_sessions (
+                session_id VARCHAR(36) PRIMARY KEY,
+                operation_type VARCHAR(100) NOT NULL,
+                operator VARCHAR(100),
+                start_time TIMESTAMP NOT NULL,
+                end_time TIMESTAMP NULL,
+                total_duration INT,
+                max_step_sequence INT DEFAULT 0,
+                status VARCHAR(20) DEFAULT 'running',
+                error_message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # 操作步骤详情表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS operation_steps (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                session_id VARCHAR(36) NOT NULL,
+                step_sequence INT NOT NULL,
+                step_name VARCHAR(200) NOT NULL,
+                input_data TEXT,
+                call_method VARCHAR(100),
+                output_data TEXT,
+                generated_sql TEXT,
+                error_message TEXT,
+                success BOOLEAN DEFAULT TRUE,
+                duration INT,
+                token_usage JSON,
+                metadata JSON,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES operation_sessions(session_id)
+            )
+        """)
+        
+        # 用户反馈表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_feedback (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                feedback_type VARCHAR(50) NOT NULL,
+                session_id VARCHAR(36) NOT NULL,
+                step_sequence INT,
+                feedback_sentiment VARCHAR(20) NOT NULL,
+                feedback_content TEXT NOT NULL,
+                feedback_user VARCHAR(100),
+                feedback_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES operation_sessions(session_id)
+            )
+        """)
+        
+        # 创建索引
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_operation_sessions_operator ON operation_sessions(operator)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_operation_sessions_operation_type ON operation_sessions(operation_type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_operation_sessions_start_time ON operation_sessions(start_time)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_operation_steps_session_id ON operation_steps(session_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_feedback_session_id ON user_feedback(session_id)")
     
     def get_sql_placeholder(self, db_type: str) -> str:
         """获取SQL占位符"""

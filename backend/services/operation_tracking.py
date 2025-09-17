@@ -11,11 +11,9 @@ from typing import Dict, Any, Optional, List
 from contextlib import contextmanager
 from functools import wraps
 from dataclasses import dataclass, asdict
-import sqlite3
-from pathlib import Path
 from loguru import logger
 
-from config.settings import settings
+from utils.database_connection import get_database_manager
 
 
 @dataclass
@@ -68,23 +66,8 @@ class OperationTracker:
     
     def __init__(self):
         if not hasattr(self, 'initialized'):
-            self.db_path = Path(settings.data_dir) / "tracking.db"
-            self.db_path.parent.mkdir(parents=True, exist_ok=True)
-            self._init_database()
+            self.db_manager = get_database_manager()
             self.initialized = True
-    
-    def _init_database(self):
-        """初始化数据库表"""
-        # 读取SQL文件并执行
-        sql_file = Path(__file__).parent.parent / "database" / "tracking_tables.sql"
-        if sql_file.exists():
-            with open(sql_file, 'r', encoding='utf-8') as f:
-                sql_content = f.read()
-            
-            with sqlite3.connect(self.db_path) as conn:
-                conn.executescript(sql_content)
-        else:
-            logger.warning(f"Tracking tables SQL file not found: {sql_file}")
     
     @property
     def current_session(self) -> Optional[str]:
@@ -112,12 +95,11 @@ class OperationTracker:
         self.current_session = session_id
         self.current_step_sequence = 0
         
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                INSERT INTO operation_sessions 
-                (session_id, operation_type, operator, start_time, status)
-                VALUES (?, ?, ?, ?, 'running')
-            """, (session_id, operation_type, operator, datetime.now()))
+        self.db_manager.execute_query("""
+            INSERT INTO operation_sessions 
+            (session_id, operation_type, operator, start_time, status)
+            VALUES (?, ?, ?, ?, ?)
+        """, (session_id, operation_type, operator, datetime.now().isoformat(), 'running'))
         
         logger.info(f"Started tracking session: {session_id} for {operation_type}")
         return session_id
@@ -133,24 +115,22 @@ class OperationTracker:
         status = 'failed' if error_message else 'completed'
         end_time = datetime.now()
         
-        with sqlite3.connect(self.db_path) as conn:
-            # 获取开始时间计算总耗时
-            cursor = conn.execute(
-                "SELECT start_time, max_step_sequence FROM operation_sessions WHERE session_id = ?",
-                (session_id,)
-            )
-            row = cursor.fetchone()
+        # 获取开始时间计算总耗时
+        row = self.db_manager.execute_query(
+            "SELECT start_time, max_step_sequence FROM operation_sessions WHERE session_id = ?",
+            (session_id,), fetch="one"
+        )
+        
+        if row:
+            start_time_str, max_sequence = row
+            start_time = datetime.fromisoformat(start_time_str)
+            total_duration = int((end_time - start_time).total_seconds() * 1000)
             
-            if row:
-                start_time_str, max_sequence = row
-                start_time = datetime.fromisoformat(start_time_str)
-                total_duration = int((end_time - start_time).total_seconds() * 1000)
-                
-                conn.execute("""
-                    UPDATE operation_sessions 
-                    SET end_time = ?, total_duration = ?, status = ?, error_message = ?, updated_at = ?
-                    WHERE session_id = ?
-                """, (end_time, total_duration, status, error_message, end_time, session_id))
+            self.db_manager.execute_query("""
+                UPDATE operation_sessions 
+                SET end_time = ?, total_duration = ?, status = ?, error_message = ?, updated_at = ?
+                WHERE session_id = ?
+            """, (end_time.isoformat(), total_duration, status, error_message, end_time.isoformat(), session_id))
         
         logger.info(f"Ended tracking session: {session_id} with status: {status}")
         
@@ -173,27 +153,26 @@ class OperationTracker:
             self.current_step_sequence += 1
             step.step_sequence = self.current_step_sequence
         
-        with sqlite3.connect(self.db_path) as conn:
-            # 插入步骤记录
-            conn.execute("""
-                INSERT INTO operation_steps 
-                (session_id, step_sequence, step_name, input_data, call_method, 
-                 output_data, generated_sql, error_message, success, duration, 
-                 token_usage, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                step.session_id, step.step_sequence, step.step_name, step.input_data,
-                step.call_method, step.output_data, step.generated_sql, step.error_message,
-                step.success, step.duration, json.dumps(step.token_usage.to_dict()),
-                json.dumps(step.metadata)
-            ))
-            
-            # 更新会话的最大步骤序号
-            conn.execute("""
-                UPDATE operation_sessions 
-                SET max_step_sequence = MAX(max_step_sequence, ?), updated_at = ?
-                WHERE session_id = ?
-            """, (step.step_sequence, datetime.now(), step.session_id))
+        # 插入步骤记录
+        self.db_manager.execute_query("""
+            INSERT INTO operation_steps 
+            (session_id, step_sequence, step_name, input_data, call_method, 
+             output_data, generated_sql, error_message, success, duration, 
+             token_usage, metadata)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            step.session_id, step.step_sequence, step.step_name, step.input_data,
+            step.call_method, step.output_data, step.generated_sql, step.error_message,
+            step.success, step.duration, json.dumps(step.token_usage.to_dict()),
+            json.dumps(step.metadata)
+        ))
+        
+        # 更新会话的最大步骤序号
+        self.db_manager.execute_query("""
+            UPDATE operation_sessions 
+            SET max_step_sequence = MAX(max_step_sequence, ?), updated_at = ?
+            WHERE session_id = ?
+        """, (step.step_sequence, datetime.now().isoformat(), step.session_id))
         
         logger.debug(f"Logged step {step.step_sequence}: {step.step_name}")
     
@@ -208,14 +187,13 @@ class OperationTracker:
             logger.warning("No session for feedback")
             return
         
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                INSERT INTO user_feedback 
-                (feedback_type, session_id, step_sequence, feedback_sentiment, 
-                 feedback_content, feedback_user)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (feedback_type, session_id, step_sequence, feedback_sentiment,
-                  feedback_content, feedback_user))
+        self.db_manager.execute_query("""
+            INSERT INTO user_feedback 
+            (feedback_type, session_id, step_sequence, feedback_sentiment, 
+             feedback_content, feedback_user)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (feedback_type, session_id, step_sequence, feedback_sentiment,
+              feedback_content, feedback_user))
         
         logger.info(f"Added {feedback_sentiment} feedback for session {session_id}")
 
