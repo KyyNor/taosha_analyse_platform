@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     
     # 数据库配置
     database_dir: Path = Path(__file__).parent.parent / "database"
+    data_dir: Path = database_dir  # 数据存储目录
     duckdb_path: str = str(database_dir / "taosha.duckdb")
     chromadb_path: str = str(database_dir / "chromadb")
     

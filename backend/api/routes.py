@@ -37,9 +37,11 @@ async def process_natural_language_query(request: QueryRequest):
         # 获取NL2SQL服务
         nl2sql_service = get_nl2sql_service()
         
-        # 处理查询
+        # 处理查询（添加操作人信息，这里可以从请求头或认证信息中获取）
+        operator = "api_user"  # 实际应用中应该从认证信息中获取
         result = nl2sql_service.process_query(
-            user_input=request.query
+            user_input=request.query,
+            operator=operator
         )
         
         # 计算执行时间
