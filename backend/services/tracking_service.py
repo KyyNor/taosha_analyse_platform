@@ -83,58 +83,159 @@ class TrackingService:
     def get_session_steps(self, session_id: str) -> List[StepSummary]:
         """获取会话的所有步骤"""
         rows = self.db_manager.execute_query("""
-            SELECT step_sequence, step_name, call_method, success, duration,
-                   error_message, generated_sql
-            FROM operation_steps 
-            WHERE session_id = ?
-            ORDER BY step_sequence
+            SELECT s.step_sequence, s.step_name, s.call_method, s.success,
+                   s.error_message, s.generated_sql, s.created_at, sess.start_time
+            FROM operation_steps s
+            JOIN operation_sessions sess ON s.session_id = sess.session_id
+            WHERE s.session_id = ?
+            ORDER BY s.step_sequence
         """, (session_id,), fetch="all")
         
+        from datetime import datetime
         steps = []
+        prev_timestamp = None
+        session_start_time = None
+        
         for row in rows:
+            step_sequence = row[0]
+            step_name = row[1]
+            call_method = row[2]
+            success = bool(row[3])
+            error_message = row[4]
+            generated_sql = row[5]
+            created_at_str = row[6]
+            start_time_str = row[7]
+            
+            # 解析时间戳并计算耗时 - 处理不同的时间格式
+            step_timestamp = None
+            if created_at_str:
+                try:
+                    if 'T' in created_at_str:
+                        step_timestamp = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                    else:
+                        step_timestamp = datetime.strptime(created_at_str, '%Y-%m-%d %H:%M:%S')
+                except (ValueError, TypeError) as e:
+                    print(f"解析步骤时间失败: {created_at_str}, 错误: {e}")
+                    
+            if session_start_time is None and start_time_str:
+                try:
+                    if 'T' in start_time_str:
+                        session_start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+                    else:
+                        session_start_time = datetime.strptime(start_time_str, '%Y-%m-%d %H:%M:%S')
+                except (ValueError, TypeError) as e:
+                    print(f"解析会话开始时间失败: {start_time_str}, 错误: {e}")
+            
+            duration = 0
+            if step_timestamp:
+                if step_sequence == 1 and session_start_time:
+                    time_diff = (step_timestamp - session_start_time).total_seconds()
+                    duration = max(0, int(time_diff * 1000))  # 确保不为负数
+                elif prev_timestamp:
+                    time_diff = (step_timestamp - prev_timestamp).total_seconds()
+                    duration = max(0, int(time_diff * 1000))  # 确保不为负数
+                prev_timestamp = step_timestamp
+            
             steps.append(StepSummary(
-                step_sequence=row[0],
-                step_name=row[1],
-                call_method=row[2],
-                success=bool(row[3]),
-                duration=row[4],
-                error_message=row[5],
-                has_sql=bool(row[6])
+                step_sequence=step_sequence,
+                step_name=step_name,
+                call_method=call_method,
+                success=success,
+                duration=duration,
+                error_message=error_message,
+                has_sql=bool(generated_sql)
             ))
         
         return steps
     
     def get_session_steps_detailed(self, session_id: str) -> List[Dict[str, Any]]:
         """获取会话的所有步骤详细信息"""
+        # 获取步骤数据和会话开始时间
         rows = self.db_manager.execute_query("""
-            SELECT step_sequence, step_name, input_data, call_method, output_data, 
-                   generated_sql, error_message, success, duration, token_usage, metadata
-            FROM operation_steps 
-            WHERE session_id = ?
-            ORDER BY step_sequence
+            SELECT s.step_sequence, s.step_name, s.input_data, s.call_method, s.output_data, 
+                   s.generated_sql, s.error_message, s.success, s.token_usage, s.metadata,
+                   s.created_at, sess.start_time
+            FROM operation_steps s
+            JOIN operation_sessions sess ON s.session_id = sess.session_id
+            WHERE s.session_id = ?
+            ORDER BY s.step_sequence
         """, (session_id,), fetch="all")
         
         import json
+        from datetime import datetime
         steps = []
-        for row in rows:
+        prev_timestamp = None
+        session_start_time = None
+        
+        for i, row in enumerate(rows):
+            step_sequence = row[0]
+            step_name = row[1]
+            input_data = row[2]
+            call_method = row[3]
+            output_data = row[4]
+            generated_sql = row[5]
+            error_message = row[6]
+            success = bool(row[7])
+            token_usage_json = row[8]
+            metadata_json = row[9]
+            created_at_str = row[10]
+            start_time_str = row[11]
+            
+            # 解析时间戳 - 处理不同的时间格式
+            step_timestamp = None
+            if created_at_str:
+                try:
+                    # 尝试不同的时间格式
+                    if 'T' in created_at_str:
+                        step_timestamp = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                    else:
+                        # SQLite DATETIME格式: YYYY-MM-DD HH:MM:SS
+                        step_timestamp = datetime.strptime(created_at_str, '%Y-%m-%d %H:%M:%S')
+                except (ValueError, TypeError) as e:
+                    print(f"解析步骤时间失败: {created_at_str}, 错误: {e}")
+                    
+            if session_start_time is None and start_time_str:
+                try:
+                    if 'T' in start_time_str:
+                        session_start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+                    else:
+                        session_start_time = datetime.strptime(start_time_str, '%Y-%m-%d %H:%M:%S')
+                except (ValueError, TypeError) as e:
+                    print(f"解析会话开始时间失败: {start_time_str}, 错误: {e}")
+            
+            # 计算耗时（毫秒）
+            duration = 0
+            if step_timestamp:
+                if step_sequence == 1 and session_start_time:
+                    # 第一个步骤：与会话开始时间的差值
+                    time_diff = (step_timestamp - session_start_time).total_seconds()
+                    duration = max(0, int(time_diff * 1000))  # 确保不为负数
+                    print(f"步骤{step_sequence}: {step_timestamp} - {session_start_time} = {duration}ms")
+                elif prev_timestamp:
+                    # 其他步骤：与上一个步骤的时间差
+                    time_diff = (step_timestamp - prev_timestamp).total_seconds() 
+                    duration = max(0, int(time_diff * 1000))  # 确保不为负数
+                    print(f"步骤{step_sequence}: {step_timestamp} - {prev_timestamp} = {duration}ms")
+                prev_timestamp = step_timestamp
+            
             step_data = {
-                'step_sequence': row[0],
-                'step_name': row[1],
-                'input_data': row[2],
-                'call_method': row[3],
-                'output_data': row[4],
-                'generated_sql': row[5],
-                'error_message': row[6],
-                'success': bool(row[7]),
-                'duration': row[8] or 0,
+                'step_sequence': step_sequence,
+                'step_name': step_name,
+                'input_data': input_data,
+                'call_method': call_method,
+                'output_data': output_data,
+                'generated_sql': generated_sql,
+                'error_message': error_message,
+                'success': success,
+                'duration': duration,
                 'token_usage': {},
                 'metadata': {}
             }
             
             # 解析JSON字段
             try:
-                step_data['token_usage'] = json.loads(row[9]) if row[9] else {}
-                step_data['metadata'] = json.loads(row[10]) if row[10] else {}
+                step_data['token_usage'] = json.loads(token_usage_json) if token_usage_json else {}
+                step_data['metadata'] = json.loads(metadata_json) if metadata_json else {}
             except (json.JSONDecodeError, TypeError):
                 pass
                 

@@ -153,17 +153,17 @@ class OperationTracker:
             self.current_step_sequence += 1
             step.step_sequence = self.current_step_sequence
         
-        # 插入步骤记录
+        # 插入步骤记录，不设置duration，让数据库自动设置created_at时间戳
         self.db_manager.execute_query("""
             INSERT INTO operation_steps 
             (session_id, step_sequence, step_name, input_data, call_method, 
-             output_data, generated_sql, error_message, success, duration, 
+             output_data, generated_sql, error_message, success, 
              token_usage, metadata)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             step.session_id, step.step_sequence, step.step_name, step.input_data,
             step.call_method, step.output_data, step.generated_sql, step.error_message,
-            step.success, step.duration, json.dumps(step.token_usage.to_dict()),
+            step.success, json.dumps(step.token_usage.to_dict()),
             json.dumps(step.metadata)
         ))
         
