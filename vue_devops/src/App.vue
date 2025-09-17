@@ -81,7 +81,6 @@
     <!-- Footer -->
     <footer class="bg-slate-100 border-t border-slate-200">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <!-- 页脚内容已移除 -->
       </div>
     </footer>
   </div>
@@ -128,7 +127,7 @@ onMounted(() => {
   checkHealth()
   
   // 每30秒检查一次
-  healthCheckInterval = window.setInterval(checkHealth, 30000)
+  healthCheckInterval = window.setInterval(checkHealth, 3600000)
 })
 
 onUnmounted(() => {

@@ -9,7 +9,6 @@ from datetime import datetime
 class QueryRequest(BaseModel):
     """查询请求模型"""
     query: str = Field(..., description="自然语言查询", min_length=1)
-    max_retries: int = Field(2, description="最大重试次数", ge=0, le=5)
 
 class QueryResponse(BaseModel):
     """查询响应模型"""

@@ -39,8 +39,7 @@ async def process_natural_language_query(request: QueryRequest):
         
         # 处理查询
         result = nl2sql_service.process_query(
-            user_input=request.query,
-            max_retries=request.max_retries
+            user_input=request.query
         )
         
         # 计算执行时间

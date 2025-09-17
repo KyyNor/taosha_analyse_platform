@@ -27,19 +27,6 @@
                 
                 <!-- 控制区域 -->
                 <div class="lg:flex-[1] flex items-center gap-4">
-                  <div class="flex items-center space-x-2">
-                    <label class="text-sm text-slate-600">重试:</label>
-                    <select 
-                      v-model="maxRetries"
-                      class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                    >
-                      <option :value="0">0</option>
-                      <option :value="1">1</option>
-                      <option :value="2">2</option>
-                      <option :value="3">3</option>
-                    </select>
-                  </div>
-                  
                   <button
                     @click="submitQuery"
                     :disabled="!queryInput.trim() || isQuerying"
@@ -88,19 +75,6 @@
             
             <!-- 控制区域 -->
             <div class="sm:flex-[1] flex items-center gap-3">
-              <div class="flex items-center space-x-2">
-                <label class="text-sm text-slate-600">重试:</label>
-                <select 
-                  v-model="maxRetries"
-                  class="px-2 py-1 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                >
-                  <option :value="0">0</option>
-                  <option :value="1">1</option>
-                  <option :value="2">2</option>
-                  <option :value="3">3</option>
-                </select>
-              </div>
-              
               <button
                 @click="submitQuery"
                 :disabled="!queryInput.trim() || isQuerying"
@@ -176,7 +150,6 @@ import QueryLogs from '@/components/QueryLogs.vue'
 
 // 响应式数据
 const queryInput = ref('')
-const maxRetries = ref(2)
 const isQuerying = ref(false)
 const queryResult = ref<QueryResponse | null>(null)
 const executionTime = ref(0)
@@ -196,7 +169,7 @@ const submitQuery = async () => {
 
   try {
     const startTime = Date.now()
-    const result = await apiClient.query(queryInput.value.trim(), maxRetries.value)
+    const result = await apiClient.query(queryInput.value.trim())
     const endTime = Date.now()
     
     executionTime.value = (endTime - startTime) / 1000

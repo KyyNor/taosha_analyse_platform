@@ -620,7 +620,7 @@ SQL: {previous_sql}
         
         return ' '.join(sql_lines)
     
-    def process_query(self, user_input: str, max_retries: int = 2) -> Dict[str, Any]:
+    def process_query(self, user_input: str, max_retries: int = 5) -> Dict[str, Any]:
         """处理用户查询"""
         initial_state = GraphState(
             user_input=user_input,
