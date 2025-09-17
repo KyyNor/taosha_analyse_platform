@@ -56,6 +56,7 @@ async def get_recent_sessions(
     operator: Optional[str] = Query(None)
 ):
     """获取最近的会话列表"""
+    operator="api_user"
     tracking_service = get_tracking_service()
     sessions = tracking_service.get_recent_sessions(limit=limit, operator=operator)
     

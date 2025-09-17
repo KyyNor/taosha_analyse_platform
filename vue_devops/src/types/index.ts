@@ -103,3 +103,36 @@ export interface Column {
   title: string
   type?: 'text' | 'number' | 'date' | 'boolean' | 'status'
 }
+
+// 操作追踪相关类型
+export interface OperationSession {
+  session_id: string
+  operation_type: string
+  operator: string
+  start_time: string
+  end_time: string
+  total_duration: number
+  step_count: number
+  success_rate: number
+  status: 'running' | 'completed' | 'failed'
+  error_message?: string
+}
+
+export interface OperationStep {
+  step_sequence: number
+  step_name: string
+  call_method: string
+  success: boolean
+  duration: number
+  error_message?: string
+  has_sql: boolean
+}
+
+export interface OperationStats {
+  total_sessions: number
+  running_sessions: number
+  completed_sessions: number
+  failed_sessions: number
+  avg_duration: number
+  success_rate: number
+}

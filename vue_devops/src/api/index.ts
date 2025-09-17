@@ -9,7 +9,10 @@ import type {
   Term,
   RelationConfig,
   SystemStatus,
-  DataTable
+  DataTable,
+  OperationSession,
+  OperationStep,
+  OperationStats
 } from '@/types'
 
 // 创建axios实例
@@ -298,6 +301,68 @@ export class TaoshaAPIClient {
     } catch (error) {
       console.error('删除关联配置失败:', error)
       return false
+    }
+  }
+
+  // ===== 操作追踪管理 =====
+
+  // 获取会话列表
+  async getOperationSessions(page: number = 1, limit: number = 20, search?: string): Promise<{sessions: OperationSession[], total: number}> {
+    try {
+      const params: any = { page, limit }
+      if (search) params.q = search
+      
+      const response = await api.get<ApiResponse<{sessions: OperationSession[], total: number}>>('/tracking/sessions', { params })
+      return response.data.data || { sessions: [], total: 0 }
+    } catch (error) {
+      console.error('获取操作会话失败:', error)
+      return { sessions: [], total: 0 }
+    }
+  }
+
+  // 获取会话详情
+  async getOperationSession(sessionId: string): Promise<OperationSession | null> {
+    try {
+      const response = await api.get<ApiResponse<OperationSession>>(`/tracking/sessions/${sessionId}`)
+      return response.data.data || null
+    } catch (error) {
+      console.error('获取会话详情失败:', error)
+      return null
+    }
+  }
+
+  // 获取会话步骤
+  async getOperationSteps(sessionId: string): Promise<OperationStep[]> {
+    try {
+      const response = await api.get<ApiResponse<OperationStep[]>>(`/tracking/sessions/${sessionId}/steps`)
+      return response.data.data || []
+    } catch (error) {
+      console.error('获取会话步骤失败:', error)
+      return []
+    }
+  }
+
+  // 获取统计信息
+  async getOperationStats(): Promise<OperationStats | null> {
+    try {
+      const response = await api.get<ApiResponse<OperationStats>>('/tracking/stats')
+      return response.data.data || null
+    } catch (error) {
+      console.error('获取统计信息失败:', error)
+      return null
+    }
+  }
+
+  // 搜索会话
+  async searchOperationSessions(query: string): Promise<OperationSession[]> {
+    try {
+      const response = await api.get<ApiResponse<OperationSession[]>>('/tracking/search', {
+        params: { q: query }
+      })
+      return response.data.data || []
+    } catch (error) {
+      console.error('搜索会话失败:', error)
+      return []
     }
   }
 }

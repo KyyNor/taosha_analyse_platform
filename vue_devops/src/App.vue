@@ -100,6 +100,7 @@ const isHealthy = ref(true)
 const navRoutes = [
   { name: 'DataQuery', title: '数据查询' },
   { name: 'MetadataManagement', title: '元数据管理' },
+  { name: 'OperationLogs', title: '操作日志' },
 ]
 
 // 获取当前路由
