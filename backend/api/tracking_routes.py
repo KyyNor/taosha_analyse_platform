@@ -38,6 +38,11 @@ class StepSummaryResponse(BaseModel):
     duration: int
     error_message: Optional[str]
     has_sql: bool
+    input_data: Optional[str] = None
+    output_data: Optional[str] = None
+    generated_sql: Optional[str] = None
+    token_usage: Optional[dict] = None
+    metadata: Optional[dict] = None
 
 
 class FeedbackRequest(BaseModel):
@@ -104,17 +109,22 @@ async def get_session_summary(session_id: str):
 async def get_session_steps(session_id: str):
     """获取指定会话的所有步骤"""
     tracking_service = get_tracking_service()
-    steps = tracking_service.get_session_steps(session_id)
+    steps = tracking_service.get_session_steps_detailed(session_id)
     
     return [
         StepSummaryResponse(
-            step_sequence=step.step_sequence,
-            step_name=step.step_name,
-            call_method=step.call_method,
-            success=step.success,
-            duration=step.duration,
-            error_message=step.error_message,
-            has_sql=step.has_sql
+            step_sequence=step.get('step_sequence'),
+            step_name=step.get('step_name'),
+            call_method=step.get('call_method'),
+            success=step.get('success'),
+            duration=step.get('duration'),
+            error_message=step.get('error_message'),
+            has_sql=bool(step.get('generated_sql')),
+            input_data=step.get('input_data'),
+            output_data=step.get('output_data'),
+            generated_sql=step.get('generated_sql'),
+            token_usage=step.get('token_usage'),
+            metadata=step.get('metadata')
         )
         for step in steps
     ]

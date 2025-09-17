@@ -194,33 +194,88 @@
                       </div>
 
                       <!-- 步骤列表 -->
-                      <div v-else-if="sessionSteps[session.session_id]?.length" class="space-y-3">
+                      <div v-else-if="sessionSteps[session.session_id]?.length" class="space-y-4">
                         <div
                           v-for="step in sessionSteps[session.session_id]"
                           :key="step.step_sequence"
-                          class="border border-slate-200 rounded-lg p-3"
+                          class="border border-slate-200 rounded-lg p-4 bg-slate-50"
                         >
-                          <div class="flex items-start justify-between">
-                            <div class="flex-1">
-                              <div class="flex items-center space-x-2">
-                                <span class="text-sm font-medium text-slate-900">
-                                  步骤 {{ step.step_sequence }}: {{ step.step_name }}
-                                </span>
-                                <span :class="step.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'" 
-                                      class="inline-flex px-2 py-1 text-xs font-semibold rounded-full">
-                                  {{ step.success ? '成功' : '失败' }}
-                                </span>
-                                <span v-if="step.has_sql" class="bg-blue-100 text-blue-800 inline-flex px-2 py-1 text-xs font-semibold rounded-full">
-                                  SQL
-                                </span>
+                          <!-- 步骤标题行 -->
+                          <div class="flex items-center space-x-2 mb-3">
+                            <span class="text-sm font-medium text-slate-900">
+                              步骤 {{ step.step_sequence }}: {{ step.step_name }}
+                            </span>
+                            <span :class="step.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'" 
+                                  class="inline-flex px-2 py-1 text-xs font-semibold rounded-full">
+                              {{ step.success ? '成功' : '失败' }}
+                            </span>
+                            <span v-if="step.has_sql" class="bg-blue-100 text-blue-800 inline-flex px-2 py-1 text-xs font-semibold rounded-full">
+                              SQL
+                            </span>
+                            <span v-if="step.token_usage?.total_tokens" class="bg-purple-100 text-purple-800 inline-flex px-2 py-1 text-xs font-semibold rounded-full">
+                              {{ step.token_usage.total_tokens }} tokens
+                            </span>
+                          </div>
+                          
+                          <!-- 基本信息 -->
+                          <div class="grid grid-cols-2 gap-4 text-sm mb-3">
+                            <div>
+                              <span class="text-slate-500">调用方法:</span>
+                              <span class="text-slate-900 ml-1">{{ step.call_method }}</span>
+                            </div>
+                            <div>
+                              <span class="text-slate-500">耗时:</span>
+                              <span class="text-slate-900 ml-1">{{ formatDuration(step.duration) }}</span>
+                            </div>
+                          </div>
+
+                          <!-- 输入数据 -->
+                          <div v-if="step.input_data" class="mb-3">
+                            <div class="text-xs font-medium text-slate-500 mb-1">输入数据:</div>
+                            <div class="bg-white border border-slate-200 rounded p-2 text-xs text-slate-700 max-h-32 overflow-y-auto">
+                              <pre class="whitespace-pre-wrap">{{ formatJsonData(step.input_data) }}</pre>
+                            </div>
+                          </div>
+
+                          <!-- 输出数据 -->
+                          <div v-if="step.output_data" class="mb-3">
+                            <div class="text-xs font-medium text-slate-500 mb-1">输出数据:</div>
+                            <div class="bg-white border border-slate-200 rounded p-2 text-xs text-slate-700 max-h-32 overflow-y-auto">
+                              <pre class="whitespace-pre-wrap">{{ step.output_data.substring(0, 500) }}{{ step.output_data.length > 500 ? '...' : '' }}</pre>
+                            </div>
+                          </div>
+
+                          <!-- 生成的SQL -->
+                          <div v-if="step.generated_sql" class="mb-3">
+                            <div class="text-xs font-medium text-slate-500 mb-1">生成的SQL:</div>
+                            <div class="bg-slate-800 text-green-400 rounded p-2 text-xs max-h-32 overflow-y-auto">
+                              <pre class="whitespace-pre-wrap">{{ step.generated_sql }}</pre>
+                            </div>
+                          </div>
+
+                          <!-- Token使用情况 -->
+                          <div v-if="step.token_usage && step.token_usage.total_tokens > 0" class="mb-3">
+                            <div class="text-xs font-medium text-slate-500 mb-1">Token使用:</div>
+                            <div class="grid grid-cols-3 gap-2 text-xs">
+                              <div class="bg-white border border-slate-200 rounded p-2 text-center">
+                                <div class="text-slate-500">输入</div>
+                                <div class="font-medium text-slate-900">{{ step.token_usage.prompt_tokens || 0 }}</div>
                               </div>
-                              <div class="mt-1 text-sm text-slate-600">
-                                调用方法: {{ step.call_method }} | 耗时: {{ formatDuration(step.duration) }}
+                              <div class="bg-white border border-slate-200 rounded p-2 text-center">
+                                <div class="text-slate-500">输出</div>
+                                <div class="font-medium text-slate-900">{{ step.token_usage.completion_tokens || 0 }}</div>
                               </div>
-                              <div v-if="step.error_message" class="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
-                                {{ step.error_message }}
+                              <div class="bg-white border border-slate-200 rounded p-2 text-center">
+                                <div class="text-slate-500">总计</div>
+                                <div class="font-medium text-slate-900">{{ step.token_usage.total_tokens || 0 }}</div>
                               </div>
                             </div>
+                          </div>
+
+                          <!-- 错误信息 -->
+                          <div v-if="step.error_message" class="text-sm text-red-600 bg-red-50 p-2 rounded">
+                            <div class="text-xs font-medium text-red-700 mb-1">错误信息:</div>
+                            {{ step.error_message }}
                           </div>
                         </div>
                       </div>
@@ -329,6 +384,16 @@ const formatDuration = (duration: number) => {
 
 const formatPercent = (value: number) => {
   return `${(value * 100).toFixed(1)}%`
+}
+
+const formatJsonData = (data: string) => {
+  if (!data) return ''
+  try {
+    const parsed = JSON.parse(data)
+    return JSON.stringify(parsed, null, 2)
+  } catch {
+    return data
+  }
 }
 
 const getStatusClass = (status: string) => {

@@ -104,6 +104,44 @@ class TrackingService:
         
         return steps
     
+    def get_session_steps_detailed(self, session_id: str) -> List[Dict[str, Any]]:
+        """获取会话的所有步骤详细信息"""
+        rows = self.db_manager.execute_query("""
+            SELECT step_sequence, step_name, input_data, call_method, output_data, 
+                   generated_sql, error_message, success, duration, token_usage, metadata
+            FROM operation_steps 
+            WHERE session_id = ?
+            ORDER BY step_sequence
+        """, (session_id,), fetch="all")
+        
+        import json
+        steps = []
+        for row in rows:
+            step_data = {
+                'step_sequence': row[0],
+                'step_name': row[1],
+                'input_data': row[2],
+                'call_method': row[3],
+                'output_data': row[4],
+                'generated_sql': row[5],
+                'error_message': row[6],
+                'success': bool(row[7]),
+                'duration': row[8] or 0,
+                'token_usage': {},
+                'metadata': {}
+            }
+            
+            # 解析JSON字段
+            try:
+                step_data['token_usage'] = json.loads(row[9]) if row[9] else {}
+                step_data['metadata'] = json.loads(row[10]) if row[10] else {}
+            except (json.JSONDecodeError, TypeError):
+                pass
+                
+            steps.append(step_data)
+        
+        return steps
+    
     def get_recent_sessions(self, limit: int = 50, operator: str = None) -> List[SessionSummary]:
         """获取最近的会话列表"""
         query = """

@@ -126,6 +126,15 @@ export interface OperationStep {
   duration: number
   error_message?: string
   has_sql: boolean
+  input_data?: string
+  output_data?: string
+  generated_sql?: string
+  token_usage?: {
+    prompt_tokens?: number
+    completion_tokens?: number
+    total_tokens?: number
+  }
+  metadata?: Record<string, any>
 }
 
 export interface OperationStats {
