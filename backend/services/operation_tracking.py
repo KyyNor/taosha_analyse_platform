@@ -214,57 +214,6 @@ def track_operation(operation_type: str, operator: str = None):
         raise
 
 
-def track_step(step_name: str, call_method: str = "", auto_extract_sql: bool = True):
-    """步骤追踪装饰器"""
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            if not tracker.current_session:
-                # 如果没有活跃会话，直接执行原函数
-                return func(*args, **kwargs)
-            
-            step = OperationStep(
-                session_id=tracker.current_session,
-                step_sequence=0,  # 自动分配
-                step_name=step_name,
-                call_method=call_method or f"{func.__module__}.{func.__name__}"
-            )
-            
-            # 记录输入参数
-            input_data = {
-                'args': [str(arg)[:200] for arg in args],  # 限制长度
-                'kwargs': {k: str(v)[:200] for k, v in kwargs.items()}
-            }
-            step.input_data = json.dumps(input_data, ensure_ascii=False)
-            
-            start_time = time.time()
-            
-            try:
-                result = func(*args, **kwargs)
-                step.duration = int((time.time() - start_time) * 1000)
-                step.success = True
-                
-                # 记录输出结果
-                if result is not None:
-                    result_str = str(result)
-                    step.output_data = result_str[:1000]  # 限制长度
-                    
-                    # 自动提取SQL
-                    if auto_extract_sql and isinstance(result, str):
-                        step.generated_sql = extract_sql_from_text(result)
-                
-                tracker.log_step(step)
-                return result
-                
-            except Exception as e:
-                step.duration = int((time.time() - start_time) * 1000)
-                step.success = False
-                step.error_message = str(e)
-                tracker.log_step(step)
-                raise
-        
-        return wrapper
-    return decorator
 
 
 def extract_sql_from_text(text: str) -> str:
@@ -302,47 +251,3 @@ def extract_sql_from_text(text: str) -> str:
     return ""
 
 
-def get_session_logs(session_id: str) -> Dict[str, Any]:
-    """获取会话的完整日志"""
-    with sqlite3.connect(tracker.db_path) as conn:
-        # 获取会话信息
-        cursor = conn.execute("""
-            SELECT * FROM operation_sessions WHERE session_id = ?
-        """, (session_id,))
-        session_row = cursor.fetchone()
-        
-        if not session_row:
-            return {}
-        
-        # 获取步骤信息
-        cursor = conn.execute("""
-            SELECT * FROM operation_steps WHERE session_id = ? ORDER BY step_sequence
-        """, (session_id,))
-        step_rows = cursor.fetchall()
-        
-        # 获取反馈信息
-        cursor = conn.execute("""
-            SELECT * FROM user_feedback WHERE session_id = ? ORDER BY feedback_time
-        """, (session_id,))
-        feedback_rows = cursor.fetchall()
-        
-        return {
-            'session': dict(zip([col[0] for col in cursor.description], session_row)) if session_row else {},
-            'steps': [dict(zip([col[0] for col in cursor.description], row)) for row in step_rows],
-            'feedback': [dict(zip([col[0] for col in cursor.description], row)) for row in feedback_rows]
-        }
-
-
-def get_recent_sessions(limit: int = 50) -> List[Dict[str, Any]]:
-    """获取最近的会话列表"""
-    with sqlite3.connect(tracker.db_path) as conn:
-        cursor = conn.execute("""
-            SELECT session_id, operation_type, operator, start_time, end_time, 
-                   total_duration, max_step_sequence, status, error_message
-            FROM operation_sessions 
-            ORDER BY start_time DESC 
-            LIMIT ?
-        """, (limit,))
-        
-        columns = [col[0] for col in cursor.description]
-        return [dict(zip(columns, row)) for row in cursor.fetchall()]

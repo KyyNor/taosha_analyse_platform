@@ -26,7 +26,7 @@ from vanna.chromadb import ChromaDB_VectorStore
 from config import settings
 from services.database_service import get_database_service
 from services.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service
-from services.operation_tracking import track_operation, track_step, tracker, OperationStep
+from services.operation_tracking import track_operation, tracker, OperationStep
 
 
 # 状态定义
