@@ -113,6 +113,58 @@
           :execution-time="executionTime"
         />
 
+        <!-- SQL Explanation -->
+        <div v-if="queryResult.success && queryResult.sql_explanation" class="mt-6">
+          <div class="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
+            <h3 class="text-lg font-semibold text-slate-800 mb-2">SQL 含义解释</h3>
+            <p class="text-slate-700 whitespace-pre-line">{{ queryResult.sql_explanation }}</p>
+          </div>
+        </div>
+
+        <!-- Natural Language Diff Analysis -->
+        <div v-if="queryResult.success && queryResult.nl_diff_analysis" class="mt-6">
+          <div class="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
+            <h3 class="text-lg font-semibold text-slate-800 mb-3">自然语言差异分析与固化知识</h3>
+
+            <!-- 结构化结果 -->
+            <div v-if="queryResult.nl_diff_analysis && queryResult.nl_diff_analysis.differences">
+              <div class="grid md:grid-cols-2 gap-6">
+                <div>
+                  <h4 class="text-sm font-medium text-slate-600 mb-2">差异点</h4>
+                  <ul class="list-disc list-inside text-slate-700 space-y-1">
+                    <li v-for="(d, i) in queryResult.nl_diff_analysis.differences" :key="'diff-'+i">
+                      {{ d }}
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 class="text-sm font-medium text-slate-600 mb-2">对齐建议</h4>
+                  <ul class="list-disc list-inside text-slate-700 space-y-1">
+                    <li v-for="(s, i) in queryResult.nl_diff_analysis.suggest_alignment || []" :key="'sug-'+i">
+                      {{ s }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div v-if="queryResult.nl_diff_analysis.knowledge_candidates && queryResult.nl_diff_analysis.knowledge_candidates.length" class="mt-4">
+                <h4 class="text-sm font-medium text-slate-600 mb-2">固化知识候选</h4>
+                <div class="space-y-2">
+                  <div v-for="(k, i) in queryResult.nl_diff_analysis.knowledge_candidates" :key="'kc-'+i" class="border border-slate-200 rounded-md p-3">
+                    <div class="text-slate-800 font-medium">{{ k.title || ('知识点 ' + (i+1)) }}</div>
+                    <div class="text-slate-700 text-sm mt-1 whitespace-pre-line">{{ k.description }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 非结构化/原始结果回退显示 -->
+            <div v-else>
+              <pre class="text-slate-700 text-sm whitespace-pre-wrap">{{ typeof queryResult.nl_diff_analysis === 'string' ? queryResult.nl_diff_analysis : JSON.stringify(queryResult.nl_diff_analysis, null, 2) }}</pre>
+            </div>
+          </div>
+        </div>
+
         <!-- Error Result -->
         <div v-else class="bg-red-50 border border-red-200 rounded-lg p-6">
           <div class="flex items-start space-x-3">

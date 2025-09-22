@@ -435,7 +435,7 @@ class NL2SQLService:
                 return state
 
             prompt = f"""
-请用中文简明解释下面的SQL在查询什么（2-4句话），并列出关键点：
+请用中文严谨的说明下面的SQL在查询什么（2-4句话），并列出关键点：
 
 SQL：
 {sql_query}
@@ -566,6 +566,8 @@ SQL：
         workflow.add_node("validate_input", validate_input_clarity)
         workflow.add_node("generate_sql", generate_sql)
         workflow.add_node("execute_sql", execute_sql)
+        workflow.add_node("explain_sql", explain_sql)
+        workflow.add_node("analyze_nl_diff", analyze_nl_diff)
         
         # 添加边
         workflow.set_entry_point("check_training")

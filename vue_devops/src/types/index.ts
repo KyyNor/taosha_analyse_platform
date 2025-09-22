@@ -19,6 +19,8 @@ export interface QueryResponse {
   error?: string
   logs?: QueryLog[]
   clear_check_details?: ClarityCheck
+  sql_explanation?: string
+  nl_diff_analysis?: Record<string, any>
 }
 
 export interface QueryLog {
