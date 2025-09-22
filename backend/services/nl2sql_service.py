@@ -37,6 +37,8 @@ class GraphState(TypedDict):
     is_clear: bool
     sql_query: str
     execution_result: Optional[pd.DataFrame]
+    sql_explanation: Optional[str]
+    nl_diff_analysis: Optional[Dict[str, Any]]
     error_message: Optional[str]
     retry_count: int
     max_retries: int
@@ -417,6 +419,130 @@ class NL2SQLService:
                 state['logs'] = logs
             
             return state
+
+        def explain_sql(state: GraphState) -> GraphState:
+            """在SQL执行成功后，用自然语言解释SQL在做什么"""
+            logs = state.get('logs', [])
+            sql_query = state.get('sql_query', '')
+
+            if not sql_query:
+                state['sql_explanation'] = ''
+                return state
+
+            if not settings.openai_api_key:
+                logger.warning("OpenAI API key not configured, skipping sql explanation")
+                state['sql_explanation'] = ''
+                return state
+
+            prompt = f"""
+请用中文简明解释下面的SQL在查询什么（2-4句话），并列出关键点：
+
+SQL：
+{sql_query}
+
+要求：
+1) 简述查询目标（查询对象、度量、时间/维度限制）
+2) 说明主要筛选条件、分组、排序或聚合
+3) 给出可能的业务含义或注意事项（如果有）
+"""
+
+            try:
+                messages = [{"role": "user", "content": prompt}]
+                explanation = self.vanna.submit_prompt(messages)
+                if not isinstance(explanation, str):
+                    explanation = str(explanation) if explanation is not None else ''
+
+                log_entry = self.vanna.log_interaction(
+                    step="sql_explanation",
+                    input_data=sql_query,
+                    prompt=prompt,
+                    model_output=explanation,
+                    success=True
+                )
+                logs.append(log_entry)
+
+                state['sql_explanation'] = explanation
+                state['logs'] = logs
+            except Exception as e:
+                log_entry = self.vanna.log_interaction(
+                    step="sql_explanation",
+                    input_data=sql_query,
+                    prompt=prompt,
+                    model_output="",
+                    success=False,
+                    error=str(e)
+                )
+                logs.append(log_entry)
+                state['sql_explanation'] = ''
+                state['logs'] = logs
+
+            return state
+
+        def analyze_nl_diff(state: GraphState) -> GraphState:
+            """对比用户自然语言与SQL解释，分析差异与固化知识点"""
+            logs = state.get('logs', [])
+            user_input = state.get('user_input', '')
+            sql_explanation = state.get('sql_explanation', '')
+
+            if not settings.openai_api_key:
+                logger.warning("OpenAI API key not configured, skipping nl diff analysis")
+                state['nl_diff_analysis'] = None
+                return state
+
+            prompt = f"""
+你将看到两段中文描述：
+1) 用户原始需求：\n{user_input}
+2) SQL含义解释：\n{sql_explanation}
+
+请分析二者之间的差异与偏差，并判断是否需要沉淀为“固化知识”（便于之后统一口径）。
+请务必返回严格JSON（不要额外文字）：
+{{
+  "is_mismatch": true/false,
+  "differences": ["关键差异1", "关键差异2"],
+  "suggest_alignment": ["建议如何对齐口径或补充字段"],
+  "knowledge_candidates": [
+    {{"title": "知识点简短标题", "description": "口径/转换规则/字段映射等"}}
+  ]
+}}
+"""
+
+            try:
+                messages = [{"role": "user", "content": prompt}]
+                response = self.vanna.submit_prompt(messages)
+                if not isinstance(response, str):
+                    response = str(response) if response is not None else ''
+
+                parsed: Optional[Dict[str, Any]] = None
+                try:
+                    parsed = json.loads(response.strip()) if response else None
+                except Exception:
+                    parsed = None
+
+                log_entry = self.vanna.log_interaction(
+                    step="nl_diff_analysis",
+                    input_data=f"user:{user_input}\nsql_exp:{sql_explanation}",
+                    prompt=prompt,
+                    model_output=response,
+                    success=True
+                )
+                logs.append(log_entry)
+
+                state['nl_diff_analysis'] = parsed if parsed is not None else {"raw": response}
+                state['logs'] = logs
+            except Exception as e:
+                log_entry = self.vanna.log_interaction(
+                    step="nl_diff_analysis",
+                    input_data=f"user:{user_input}\nsql_exp:{sql_explanation}",
+                    prompt=prompt,
+                    model_output="",
+                    success=False,
+                    error=str(e)
+                )
+                logs.append(log_entry)
+                state['nl_diff_analysis'] = None
+                state['logs'] = logs
+
+            return state
         
         def should_retry(state: GraphState) -> str:
             """判断是否应该重试"""
@@ -458,12 +584,16 @@ class NL2SQLService:
             "execute_sql",
             should_retry,
             {
-                "success": END,
+                "success": "explain_sql",
                 "failed": END,
                 "retry": "generate_sql"  # 直接回到generate_sql，它会处理错误重试
             }
         )
         
+        # 执行成功后解释SQL，并进行自然语言差异分析
+        workflow.add_edge("explain_sql", "analyze_nl_diff")
+        workflow.add_edge("analyze_nl_diff", END)
+
         return workflow.compile()
     
     def _train_vanna(self):
@@ -658,6 +788,8 @@ class NL2SQLService:
                 is_clear=False,
                 sql_query="",
                 execution_result=None,
+                sql_explanation=None,
+                nl_diff_analysis=None,
                 error_message=None,
                 retry_count=0,
                 max_retries=max_retries,
@@ -678,6 +810,8 @@ class NL2SQLService:
                 'data': final_state.get('execution_result'),
                 'error': final_state.get('error_message'),
                 'retry_count': final_state.get('retry_count', 0),
+                'sql_explanation': final_state.get('sql_explanation'),
+                'nl_diff_analysis': final_state.get('nl_diff_analysis'),
                 'logs': final_state.get('logs', [])
             }
             
