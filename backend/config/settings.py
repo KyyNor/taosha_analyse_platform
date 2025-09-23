@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
     openai_base_url: Optional[str] = os.getenv("OPENAI_BASE_URL")
     openai_model: str = "qwen/qwen3-8b:free"
+    openai_temperature: float = 0.0
     
     # 缓存配置
     cache_ttl: int = 3600  # 1小时

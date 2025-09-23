@@ -166,7 +166,7 @@
         </div>
 
         <!-- Error Result -->
-        <div v-else class="bg-red-50 border border-red-200 rounded-lg p-6">
+        <div v-if="!queryResult.success" class="bg-red-50 border border-red-200 rounded-lg p-6">
           <div class="flex items-start space-x-3">
             <ExclamationTriangleIcon class="w-6 h-6 text-red-600 mt-0.5 flex-shrink-0" />
             <div>

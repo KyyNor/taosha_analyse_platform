@@ -17,6 +17,8 @@ class QueryResponse(BaseModel):
     is_clear: bool = Field(..., description="输入是否清晰")
     sql_query: str = Field("", description="生成的SQL查询")
     clear_check_details: Optional[Dict[str, Any]] = Field(None, description="输入清晰度验证结果")
+    sql_explanation: Optional[str] = Field(None, description="SQL含义解释")
+    nl_diff_analysis: Optional[Dict[str, Any]] = Field(None, description="自然语言差异分析")
     data: Optional[List[Dict[str, Any]]] = Field(None, description="查询结果数据")
     row_count: Optional[int] = Field(None, description="结果行数")
     error: Optional[str] = Field(None, description="错误信息")

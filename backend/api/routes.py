@@ -55,6 +55,8 @@ async def process_natural_language_query(request: QueryRequest):
             sql_query=result['sql_query'],
             data=result['data'],
             clear_check_details=result['clear_check_details'],
+            sql_explanation=result.get('sql_explanation'),
+            nl_diff_analysis=result.get('nl_diff_analysis'),
             row_count=result.get('row_count'),
             error=result['error'],
             retry_count=result['retry_count'],

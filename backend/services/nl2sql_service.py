@@ -67,7 +67,9 @@ class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
         
         # 创建 OpenAI 客户端配置
         openai_config = {
-            'model': settings.openai_model
+            'model': settings.openai_model,
+            'temperature': settings.openai_temperature,
+
         }
         client = None
         
