@@ -41,7 +41,9 @@ async def process_natural_language_query(request: QueryRequest):
         operator = "api_user"  # 实际应用中应该从认证信息中获取
         result = nl2sql_service.process_query(
             user_input=request.query,
-            operator=operator
+            operator=operator,
+            flow_type=request.flow_type,
+            max_retries=request.max_retries
         )
         
         # 计算执行时间
@@ -69,9 +71,8 @@ async def process_natural_language_query(request: QueryRequest):
         
     except Exception as e:
         execution_time = time.time() - start_time
-        logger.info(result)
         error_message = f"查询处理失败: {str(e)}"
-        
+
         logger.error(error_message, exc_info=True)
         
         # 返回错误响应

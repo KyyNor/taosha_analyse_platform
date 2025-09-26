@@ -9,6 +9,8 @@ from datetime import datetime
 class QueryRequest(BaseModel):
     """查询请求模型"""
     query: str = Field(..., description="自然语言查询", min_length=1)
+    flow_type: str = Field("fast", description="流程类型: fast=先验证后生成SQL, thorough=先生成SQL后验证")
+    max_retries: int = Field(2, description="最大重试次数", ge=0, le=5)
 
 class QueryResponse(BaseModel):
     """查询响应模型"""

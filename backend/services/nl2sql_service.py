@@ -33,6 +33,7 @@ from services.operation_tracking import track_operation, tracker, OperationStep
 class GraphState(TypedDict):
     """LangGraph状态定义"""
     user_input: str
+    flow_type: str  # 新增：流程类型 ("fast" 或 "thorough")
     clear_check_details: Dict[str, Any]
     is_clear: bool
     sql_query: str
@@ -163,14 +164,14 @@ class NL2SQLService:
         self.glossary_service = get_glossary_service()
         self.relation_config_service = get_relation_field_config_service()
         self.db_service = get_database_service()
-        
-        # 构建LangGraph工作流
+
+        # 构建统一的LangGraph工作流
         self.workflow = self._build_workflow()
-        
+
         logger.info("NL2SQL Service initialized")
     
     def _build_workflow(self) -> StateGraph:
-        """构建LangGraph工作流"""
+        """构建统一的LangGraph工作流，支持多种流程类型"""
         
         def check_training_needed(state: GraphState) -> GraphState:
             """检查是否需要重新训练Vanna"""
@@ -201,10 +202,12 @@ class NL2SQLService:
             return state
         
         def validate_input_clarity(state: GraphState) -> GraphState:
-            """验证输入是否清晰"""
+            """验证输入是否清晰，支持两种模式：纯输入验证 和 SQL+输入匹配验证"""
             user_input = state['user_input']
+            sql_query = state.get('sql_query', '')  # 可能存在也可能不存在
+            flow_type = state.get('flow_type', 'fast')
             logs = state.get('logs', [])
-            
+
             # 检查API配置
             if not settings.openai_api_key:
                 logger.warning("OpenAI API key not configured, skipping input validation")
@@ -212,10 +215,45 @@ class NL2SQLService:
                 state['processed_input'] = user_input
                 state['logs'] = logs
                 return state
-            
-            # 构建验证提示词，要求返回JSON格式
-            current_date = datetime.now().strftime("%Y-%m-%d")
-            validation_prompt = f"""
+
+            # 根据是否有SQL选择验证模式
+            if sql_query and flow_type == 'thorough':
+                # 深度流程：验证用户输入+SQL匹配度
+                current_date = datetime.now().strftime("%Y-%m-%d")
+                validation_prompt = f"""
+请结合生成的SQL查询，判断用户原始查询是否足够清晰，SQL是否准确反映了用户需求。
+
+用户原始查询: {user_input}
+
+生成的SQL查询: {sql_query}
+
+可用的表结构:
+{self._get_table_info_text()}
+
+可用的术语:
+{self._get_glossary_text()}
+
+字段关联配置:
+{self._get_relation_config_text()}
+
+请严格按照以下JSON格式返回结果，不要添加任何其他文字：
+{{
+    "is_clear": true/false,
+    "reason": "判断的详细原因，结合SQL生成质量来评估",
+    "sql_match": true/false,
+    "suggestions": ["如果不够清晰，请提供3个具体的可查询示例"]
+}}
+
+注意：
+1. 不仅要评估用户输入的清晰度，还要评估SQL是否准确反映了用户需求
+2. 如果SQL很好地满足了用户需求，即使输入不够完美也应该认为is_clear=true
+3. 如果SQL与用户需求有偏差，应该给出具体建议
+"""
+                step_name = "sql_based_validation"
+            else:
+                # 快速流程：只验证用户输入清晰度
+                current_date = datetime.now().strftime("%Y-%m-%d")
+                validation_prompt = f"""
 请判断以下用户查询是否足够清晰，可以转换为SQL查询。
 
 当前日期: {current_date}
@@ -240,6 +278,7 @@ class NL2SQLService:
 
 注意：suggestions中应该是完整的、可以直接查询的问题示例，而不是修改建议。基于用户的模糊查询，结合可用的表结构，生成具体可执行的查询示例。
 """
+                step_name = "input_validation"
             
             try:
                 # 使用正确的消息格式
@@ -258,24 +297,32 @@ class NL2SQLService:
                     is_clear = validation_result.get('is_clear', True)
                     reason = validation_result.get('reason', '')
                     suggestions = validation_result.get('suggestions', [])
-                    
+
                     # 构建更详细的处理输入
                     clear_check_details = {
                         'is_clear': is_clear,
                         'reason': reason,
                         'suggestions': suggestions
                     }
-                    
+
+                    # 如果是SQL验证模式，添加额外的字段
+                    if sql_query and flow_type == 'thorough':
+                        clear_check_details['sql_match'] = validation_result.get('sql_match', True)
+                        clear_check_details['validation_type'] = 'sql_based'
+                    else:
+                        clear_check_details['validation_type'] = 'input_only'
+
                 except json.JSONDecodeError as json_error:
                     clear_check_details = {
                         'is_clear': False,
                         'reason': f"无法解析模型响应为JSON: {str(json_error)}",
-                        'suggestions': []
+                        'suggestions': [],
+                        'validation_type': step_name
                     }
-                
+
                 log_entry = self.vanna.log_interaction(
-                    step="input_validation",
-                    input_data=user_input,
+                    step=step_name,
+                    input_data=user_input if not sql_query else f"user:{user_input}\nsql:{sql_query}",
                     prompt=validation_prompt,
                     model_output=response,
                     success=True
@@ -293,8 +340,8 @@ class NL2SQLService:
                 logger.error(f"Input validation failed with traceback:\n{error_traceback}")
                 
                 log_entry = self.vanna.log_interaction(
-                    step="input_validation",
-                    input_data=user_input,
+                    step=step_name,
+                    input_data=user_input if not sql_query else f"user:{user_input}\nsql:{sql_query}",
                     prompt=validation_prompt,
                     model_output="",
                     success=False,
@@ -551,7 +598,7 @@ SQL：
             retry_count = state.get('retry_count', 0)
             max_retries = state.get('max_retries', 2)
             has_error = state.get('error_message') is not None
-            
+
             if has_error and retry_count < max_retries:
                 return "retry"
             elif state.get('execution_result') is not None:
@@ -573,27 +620,80 @@ SQL：
         
         # 添加边
         workflow.set_entry_point("check_training")
-        workflow.add_edge("check_training", "validate_input")
-        
-        # 条件边
+
+        # 根据流程类型路由到不同的验证/生成路径
+        def route_by_flow_type(state: GraphState) -> str:
+            """根据流程类型决定下一步"""
+            flow_type = state.get('flow_type', 'fast')
+            return flow_type
+
+        workflow.add_conditional_edges(
+            "check_training",
+            route_by_flow_type,
+            {
+                "fast": "validate_input",        # 快速流程：先验证后生成
+                "thorough": "generate_sql"      # 深度流程：先生成后验证
+            }
+        )
+
+        # 验证节点的路由逻辑
+        def route_after_validation(state: GraphState) -> str:
+            """验证后的路由逻辑"""
+            if not state.get('is_clear'):
+                return "failed"
+
+            flow_type = state.get('flow_type', 'fast')
+            sql_query = state.get('sql_query', '')
+
+            if flow_type == 'fast' or not sql_query:
+                # 快速流程：验证通过后生成SQL
+                # 或者深度流程的第一次验证（此时还没有SQL）
+                return "generate_sql"
+            else:
+                # 深度流程：已经有SQL，验证通过后执行
+                return "execute_sql"
+
         workflow.add_conditional_edges(
             "validate_input",
-            lambda state: "generate_sql" if state.get('is_clear') else END
+            route_after_validation,
+            {
+                "generate_sql": "generate_sql",
+                "execute_sql": "execute_sql",
+                "failed": END
+            }
         )
-        
-        workflow.add_edge("generate_sql", "execute_sql")
-        
-        # 简化的重试逻辑：如果失败且可以重试，回到generate_sql
+
+        # 生成SQL后的路由逻辑
+        def route_after_generate_sql(state: GraphState) -> str:
+            """生成SQL后的路由逻辑"""
+            flow_type = state.get('flow_type', 'fast')
+            if flow_type == 'thorough':
+                # 深度流程：生成SQL后需要验证
+                return "validate_input"
+            else:
+                # 快速流程：直接执行SQL
+                return "execute_sql"
+
+        workflow.add_conditional_edges(
+            "generate_sql",
+            route_after_generate_sql,
+            {
+                "validate_input": "validate_input",
+                "execute_sql": "execute_sql"
+            }
+        )
+
+        # 重试逻辑：如果失败且可以重试，回到generate_sql
         workflow.add_conditional_edges(
             "execute_sql",
             should_retry,
             {
                 "success": "explain_sql",
                 "failed": END,
-                "retry": "generate_sql"  # 直接回到generate_sql，它会处理错误重试
+                "retry": "generate_sql"  # 回到generate_sql节点进行重试
             }
         )
-        
+
         # 执行成功后解释SQL，并进行自然语言差异分析
         workflow.add_edge("explain_sql", "analyze_nl_diff")
         workflow.add_edge("analyze_nl_diff", END)
@@ -779,14 +879,18 @@ SQL：
         
         return ' '.join(sql_lines)
     
-    def process_query(self, user_input: str, max_retries: int = 5, operator: str = None) -> Dict[str, Any]:
-        """处理用户查询"""
+    def process_query(self, user_input: str, max_retries: int = 5, operator: str = None, flow_type: str = "fast") -> Dict[str, Any]:
+        """
+        处理用户查询
+        :param flow_type: 流程类型，"fast"=先验证后生成SQL，"thorough"=先生成SQL后验证
+        """
         # 使用追踪上下文管理器
         with track_operation("nl2sql_query", operator):
             session_id = tracker.current_session
-            
+
             initial_state = GraphState(
                 user_input=user_input,
+                flow_type=flow_type,
                 processed_input="",
                 clear_check_details={},
                 is_clear=False,

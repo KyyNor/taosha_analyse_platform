@@ -53,11 +53,12 @@ export class TaoshaAPIClient {
   }
 
   // 数据查询
-  async query(queryText: string, maxRetries: number = 2): Promise<QueryResponse> {
+  async query(queryText: string, maxRetries: number = 2, flowType: string = 'fast'): Promise<QueryResponse> {
     try {
       const response = await api.post<QueryResponse>('/query', {
         query: queryText,
-        max_retries: maxRetries
+        max_retries: maxRetries,
+        flow_type: flowType
       })
       return response.data
     } catch (error: any) {
