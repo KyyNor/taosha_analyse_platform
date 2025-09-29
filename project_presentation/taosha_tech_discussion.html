@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>淘沙分析平台 - 技术方案讨论</title>
+    <link href="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/mermaid/10.6.1/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: #fff;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid #2c3e50;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .header .subtitle {
+            font-size: 1.2em;
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+
+        .tech-stack {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .tech-tag {
+            background: #34495e;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+
+        .section {
+            background: #fff;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid #3498db;
+        }
+
+        .section h2 {
+            color: #2c3e50;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 10px;
+        }
+
+        .section h3 {
+            color: #34495e;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            margin-top: 20px;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 25px;
+            margin-top: 20px;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .feature-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 30px;
+            border: 1px solid #e9ecef;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .feature-card:hover {
+            border-color: #3498db;
+            box-shadow: 0 4px 16px rgba(52, 152, 219, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .feature-card h4 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .feature-card ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .feature-card li {
+            padding: 4px 0;
+            position: relative;
+            padding-left: 18px;
+            font-size: 0.9em;
+        }
+
+        .feature-card li::before {
+            content: '▸';
+            position: absolute;
+            left: 0;
+            color: #3498db;
+        }
+
+        .mermaid-container {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            overflow-x: auto;
+            border: 1px solid #e9ecef;
+        }
+
+        .process-flow {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin: 25px 0;
+        }
+
+        .flow-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            border-left: 4px solid #3498db;
+        }
+
+        .flow-card h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+        }
+
+        .tech-highlight {
+            background: #e8f5e8;
+            border: 1px solid #c3e6c3;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .tech-highlight h4 {
+            color: #27ae60;
+            margin-bottom: 10px;
+        }
+
+        .implementation-note {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .implementation-note h4 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        .data-flow {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid #e9ecef;
+        }
+
+        .data-flow h4 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .process-flow {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .tech-stack {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 项目头部 -->
+        <div class="header">
+            <h1>淘沙分析平台</h1>
+            <p class="subtitle">自然语言转SQL技术方案讨论</p>
+            <div class="tech-stack">
+                <span class="tech-tag"><i class="fab fa-python"></i> Python 3.11</span>
+                <span class="tech-tag"><i class="fas fa-brain"></i> LangGraph</span>
+                <span class="tech-tag"><i class="fas fa-database"></i> Vanna</span>
+                <span class="tech-tag"><i class="fas fa-feather"></i> FastAPI</span>
+                <span class="tech-tag"><i class="fas fa-fire"></i> Spark</span>
+                <span class="tech-tag"><i class="fas fa-search"></i> ChromaDB</span>
+            </div>
+        </div>
+
+        <!-- 业务需求（界面功能） -->
+        <div class="section">
+            <h2><i class="fas fa-desktop"></i> 业务需求（界面功能）</h2>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4><i class="fas fa-search"></i> 查询页面</h4>
+                    <ul>
+                        <li>用户输入自然语言查询：提供智能查询输入框，支持复杂业务场景的自然语言描述</li>
+                        <li>可选择查询的主题组或目标表：根据用户权限动态展示可查询的数据表和主题分类</li>
+                        <li>支持查询模式选择：提供先校验后生成和先生成后校验两种查询模式供用户选择</li>
+                        <li>查询后展示查询结果图表：自动生成多种类型的数据可视化图表，支持交互式操作</li>
+                        <li>展示查询运行过程：实时显示查询执行的各个步骤和进度，提供透明的用户体验</li>
+                        <li>用户反馈功能：支持对查询结果进行评分和评论，帮助系统持续改进查询质量</li>
+                        <li>查询收藏功能：用户可以收藏高质量的查询，方便后续快速访问和重复使用</li>
+                        <li>支持从历史查询继续操作：提供查询历史记录，支持基于历史结果进行深度分析和二次查询</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-table"></i> 元数据管理</h4>
+                    <ul>
+                        <li>表信息管理：维护数据库表的完整元数据，包括表名、描述、业务含义和使用场景</li>
+                        <li>字段信息管理：管理每个字段的详细属性，包括数据类型、业务含义、计算逻辑和格式要求</li>
+                        <li>字段关联信息管理：建立表间和字段间的关联关系，支持复杂查询的自动关联和推荐</li>
+                        <li>综合提示词管理：提供SQL编写技巧和最佳实践的智能提示，帮助提升查询质量</li>
+                        <li>SQL编写规则：强制执行分区名、表别名、字段完整引用等规范，确保查询的安全性和可维护性</li>
+                        <li>业务查询SQL管理：维护高质量的业务查询模板，支持问答对和纯SQL两种形式的存储</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-users-cog"></i> 权限维护</h4>
+                    <ul>
+                        <li>维护元数据表的主题组：按照业务逻辑和数据敏感性对数据表进行分组管理，便于权限分配</li>
+                        <li>每个主题组可包含N张表：支持灵活的主题组结构，一张表可以属于多个主题组</li>
+                        <li>维护用户对元数据表的权限：精细化控制用户对不同数据表的访问权限，确保数据安全</li>
+                        <li>权限细粒度控制：支持字段级别的权限控制，可以限制用户对敏感字段的访问和查询</li>
+                        <li>权限继承机制：支持基于角色和组织的权限继承，简化权限管理和维护复杂度</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-clipboard-list"></i> 日志与用户反馈</h4>
+                    <ul>
+                        <li>用户反馈维护：建立完整的用户反馈收集和处理机制，包括评分、评论和改进建议</li>
+                        <li>查询日志记录：详细记录每次查询的完整信息，包括查询内容、生成SQL、执行结果和性能指标</li>
+                        <li>优质查询沉淀：对用户反馈较好的查询对，可由管理员审核后添加到业务查询SQL库中</li>
+                        <li>查询历史追踪：提供完整的查询历史记录和追溯能力，支持查询结果的审计和分析</li>
+                        <li>性能监控统计：实时监控查询性能指标，包括响应时间、成功率和资源使用情况</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 后台功能 -->
+        <div class="section">
+            <h2><i class="fas fa-server"></i> 后台功能</h2>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4><i class="fas fa-user-shield"></i> 权限控制</h4>
+                    <ul>
+                        <li>基于主题组的权限控制：根据用户选择的主题组或目标表进行精确的访问权限控制</li>
+                        <li>元数据ID关联验证：在查询过程中关联查询元数据ID，确保查询在授权范围内进行</li>
+                        <li>向量信息权限过滤：仅允许用户查询其有权限访问的元数据向量信息，保护敏感数据</li>
+                        <li>实时权限验证：在每次查询执行前进行动态权限验证，确保权限变更的即时生效</li>
+                        <li>权限缓存优化：通过智能缓存机制提升权限验证性能，减少权限检查的开销</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-play-circle"></i> 查询执行</h4>
+                    <ul>
+                        <li>智能查询执行引擎：根据用户输入的自然语言内容，通过NL2SQL转换后执行精确的数据查询</li>
+                        <li>完整的查询日志记录：自动记录查询执行的完整过程，包括SQL生成、执行计划和结果分析</li>
+                        <li>多格式结果返回：支持表格、图表等多种格式的查询结果展示，满足不同业务场景需求</li>
+                        <li>实时性能监控：监控查询执行的各项性能指标，包括响应时间、资源消耗和查询效率</li>
+                        <li>智能错误处理和重试：当查询失败时，自动分析错误原因并触发智能重试机制</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-database"></i> 元数据管理</h4>
+                    <ul>
+                        <li>元数据ID存储机制：采用统一的元数据ID进行结构化存储，确保数据的唯一性和可追溯性</li>
+                        <li>时间戳记录管理：详细记录元数据的变动时间和训练时间，为数据一致性提供依据</li>
+                        <li>智能向量清理：当检测到元数据变动时间与训练时间不一致时，自动删除对应的向量信息</li>
+                        <li>增量重新训练：支持基于变更数据的增量重新训练机制，提升元数据更新的效率</li>
+                        <li>版本控制管理：提供完整的元数据版本控制功能，支持版本回滚和变更历史追溯</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-chart-line"></i> 监控与分析</h4>
+                    <ul>
+                        <li>查询成功率统计分析：提供多维度的查询成功率统计，帮助识别系统问题和改进方向</li>
+                        <li>响应时间性能分析：详细分析查询响应时间分布，识别性能瓶颈和优化机会</li>
+                        <li>错误日志深度分析：自动分析错误日志模式，提供根本原因分析和解决方案建议</li>
+                        <li>用户行为模式分析：分析用户查询习惯和偏好，为系统优化和用户体验改进提供依据</li>
+                        <li>系统资源使用监控：实时监控系统CPU、内存、存储等资源使用情况，确保系统稳定运行</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- NL2SQL流转流程 -->
+        <div class="section">
+            <h2><i class="fas fa-project-diagram"></i> NL2SQL流转流程</h2>
+
+            <div class="process-flow">
+                <div class="flow-card">
+                    <h3><i class="fas fa-route"></i> 流程1：先校验后生成</h3>
+                    <p>适用于需要明确用户意图的场景，减少无效查询</p>
+                    <div class="mermaid-container">
+                        <div class="mermaid">
+                            flowchart TD
+                                A[接收用户查询] --> B[大模型分析用户输入是否清晰]
+                                B --> C{是否清晰}
+                                C -->|不清晰| D[要求用户重新输入并给出提示]
+                                C -->|清晰| E[生成SQL查询]
+                                E --> F[从向量数据库检索相关上下文]
+                                F --> G[执行SQL查询]
+                                G --> H{查询是否成功}
+                                H -->|成功| I[组织查询结果]
+                                H -->|失败| J[带错误信息重试SQL生成]
+                                I --> K[大模型根据SQL反向翻译为自然语言]
+                                K --> L[比对用户输入与翻译内容]
+                                L --> M[判断是否有知识需要沉淀]
+                                M --> N[返回结果给用户]
+                                D --> A
+                                J --> E
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flow-card">
+                    <h3><i class="fas fa-bolt"></i> 流程2：先生成后校验</h3>
+                    <p>适用于快速查询场景，通过后续校验保证质量</p>
+                    <div class="mermaid-container">
+                        <div class="mermaid">
+                            flowchart TD
+                                A[接收用户查询] --> B[生成SQL查询]
+                                B --> C[从向量数据库检索相关上下文]
+                                C --> D[大模型分析用户输入+SQL是否清晰]
+                                D --> E{是否清晰}
+                                E -->|不清晰| F[要求用户重新输入并给出提示]
+                                E -->|清晰| G[执行SQL查询]
+                                G --> H{查询是否成功}
+                                H -->|成功| I[组织查询结果]
+                                H -->|失败| J[带错误信息重试SQL生成]
+                                I --> K[大模型根据SQL反向翻译为自然语言]
+                                K --> L[比对用户输入与翻译内容]
+                                L --> M[判断是否有知识需要沉淀]
+                                M --> N[返回结果给用户]
+                                F --> A
+                                J --> B
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="implementation-note">
+                <h4><i class="fas fa-info-circle"></i> 实现要点</h4>
+                <ul>
+                    <li><strong>反思机制</strong>：通过SQL反向翻译验证查询准确性</li>
+                    <li><strong>知识沉淀</strong>：将高质量查询对添加到业务查询SQL库</li>
+                    <li><strong>智能重试</strong>：查询失败时携带错误信息重新生成</li>
+                    <li><strong>上下文检索</strong>：从向量数据库获取相关元数据信息</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 技术栈详解 -->
+        <div class="section">
+            <h2><i class="fas fa-cogs"></i> 技术栈详解</h2>
+
+            <div class="tech-highlight">
+                <h4><i class="fas fa-brain"></i> LangGraph - 对话管理与工作流编排</h4>
+                <p><strong>核心作用：</strong></p>
+                <ul>
+                    <li><strong>多轮对话管理</strong>：维护对话状态和上下文信息</li>
+                    <li><strong>工作流编排</strong>：实现复杂的查询流程控制</li>
+                    <li><strong>交互记录</strong>：记录每次交互的详细信息</li>
+                    <li><strong>智能重试</strong>：自动识别问题并重新生成SQL</li>
+                    <li><strong>意图识别</strong>：智能判断用户查询意图</li>
+                </ul>
+                <div class="code-block">
+# LangGraph 工作流示例
+workflow = StateGraph(ConversationState)
+workflow.add_node("input_analysis", analyze_user_input)
+workflow.add_node("sql_generation", generate_sql)
+workflow.add_node("execution", execute_query)
+workflow.add_node("reflection", reflect_on_result)
+workflow.add_edge(START, "input_analysis")
+workflow.add_edge("input_analysis", "sql_generation")
+workflow.add_edge("sql_generation", "execution")
+workflow.add_edge("execution", "reflection")
+                </div>
+            </div>
+
+            <div class="tech-highlight">
+                <h4><i class="fas fa-database"></i> Vanna - 专业NL2SQL转换</h4>
+                <p><strong>核心作用：</strong></p>
+                <ul>
+                    <li><strong>专业NL2SQL转换</strong>：将自然语言准确转换为SQL</li>
+                    <li><strong>数据库schema管理</strong>：自动管理数据库结构信息</li>
+                    <li><strong>ChromaDB向量存储</strong>：存储和检索相关上下文</li>
+                    <li><strong>SQL优化和验证</strong>：自动优化生成的SQL查询</li>
+                    <li><strong>训练数据管理</strong>：管理和维护训练数据集</li>
+                </ul>
+                <div class="code-block">
+# Vanna 初始化配置
+vn = Vanna(config={'model': 'chatgpt'})
+vn.connect_to_mytpt(sql_url)
+vn.train(ddl=table_schema)
+vn.add_training_data(question="查询用户订单", sql="SELECT * FROM orders")
+                </div>
+            </div>
+
+            <div class="tech-highlight">
+                <h4><i class="fas fa-fire"></i> Spark - 大数据处理引擎</h4>
+                <p><strong>核心作用：</strong></p>
+                <ul>
+                    <li><strong>大规模数据处理</strong>：处理TB级别数据集</li>
+                    <li><strong>SQL查询执行</strong>：执行复杂的数据分析查询</li>
+                    <li><strong>ETL处理</strong>：数据清洗和转换</li>
+                    <li><strong>分布式计算</strong>：利用集群资源并行处理</li>
+                    <li><strong>内存计算</strong>：通过内存缓存提升性能</li>
+                </ul>
+            </div>
+
+            <div class="tech-highlight">
+                <h4><i class="fas fa-search"></i> ChromaDB - 向量数据库</h4>
+                <p><strong>核心作用：</strong></p>
+                <ul>
+                    <li><strong>元数据向量存储</strong>：存储数据库schema的向量表示</li>
+                    <li><strong>语义检索</strong>：根据用户查询检索相关元数据</li>
+                    <li><strong>上下文管理</strong>：为SQL生成提供相关上下文</li>
+                    <li><strong>相似性搜索</strong>：找到最相关的历史查询和schema</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 数据流转架构 -->
+        <div class="section">
+            <h2><i class="fas fa-exchange-alt"></i> 数据流转架构</h2>
+
+            <div class="data-flow">
+                <h4>数据流转模式</h4>
+                <div class="mermaid-container">
+                    <div class="mermaid">
+                        flowchart LR
+                            A[Hadoop 原始数据] --> B[Spark SQL ETL+复杂查询]
+                            B --> C[前端界面展示]
+
+                            D[用户自然语言查询] --> E[LangGraph + Vanna处理]
+                            E --> F[生成SQL查询]
+                            F --> G[Spark SQL执行]
+                            G --> H[返回查询结果]
+                            H --> I[前端可视化展示]
+
+                            J[元数据管理] --> K[ChromaDB向量存储]
+                            K --> E
+
+                            L[权限控制系统] --> M[用户权限验证]
+                            M --> F
+
+                            N[日志系统] --> O[查询记录]
+                            O --> P[性能分析]
+                    </div>
+                </div>
+            </div>
+
+            <div class="implementation-note">
+                <h4><i class="fas fa-architecture"></i> 架构设计要点</h4>
+                <ul>
+                    <li><strong>查询路由策略</strong>：所有复杂查询都通过Spark SQL执行</li>
+                    <li><strong>元数据管理</strong>：通过ChromaDB实现智能向量检索</li>
+                    <li><strong>权限控制</strong>：在SQL生成前进行权限验证</li>
+                    <li><strong>操作追踪</strong>：完整的查询日志和性能监控</li>
+                    <li><strong>扩展性设计</strong>：支持多种数据源和前端接入</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 实现计划 -->
+        <div class="section">
+            <h2><i class="fas fa-tasks"></i> 实现计划</h2>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4><i class="fas fa-layer-group"></i> 后端架构</h4>
+                    <ul>
+                        <li>FastAPI + Pydantic 框架</li>
+                        <li>LangGraph + Vanna NL2SQL转换</li>
+                        <li>Spark SQL 查询执行</li>
+                        <li>ChromaDB 向量存储</li>
+                        <li>Loguru 日志系统</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-desktop"></i> 前端接入</h4>
+                    <ul>
+                        <li>支持多种前端框架接入</li>
+                        <li>RESTful API接口</li>
+                        <li>WebSocket实时通信</li>
+                        <li>数据可视化组件</li>
+                        <li>用户权限管理界面</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-database"></i> 数据源适配</h4>
+                    <ul>
+                        <li>Hadoop + Spark SQL</li>
+                        <li>MySQL 关系型数据库</li>
+                        <li>可扩展其他数据源</li>
+                        <li>统一查询接口</li>
+                        <li>数据源配置管理</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <h4><i class="fas fa-shield-alt"></i> 系统保障</h4>
+                    <ul>
+                        <li>SQL注入防护</li>
+                        <li>权限控制机制</li>
+                        <li>查询性能优化</li>
+                        <li>错误处理和重试</li>
+                        <li>系统监控和告警</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 关键技术挑战 -->
+        <div class="section">
+            <h2><i class="fas fa-exclamation-triangle"></i> 关键技术挑战</h2>
+
+            <div class="implementation-note">
+                <h4><i class="fas fa-puzzle-piece"></i> 需要解决的技术问题</h4>
+                <ul>
+                    <li><strong>查询准确性</strong>：如何保证自然语言到SQL的转换准确性</li>
+                    <li><strong>性能优化</strong>：如何优化Spark查询性能，减少响应时间</li>
+                    <li><strong>权限控制</strong>：如何在元数据层面实现细粒度权限控制</li>
+                    <li><strong>元数据管理</strong>：如何有效管理和更新大量的元数据信息</li>
+                    <li><strong>错误处理</strong>：如何优雅地处理各种查询异常情况</li>
+                    <li><strong>知识沉淀</strong>：如何有效地从用户反馈中学习和改进</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化Mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#3498db',
+                primaryTextColor: '#2c3e50',
+                primaryBorderColor: '#2980b9',
+                lineColor: '#95a5a6',
+                secondaryColor: '#ecf0f1',
+                tertiaryColor: '#ffffff',
+                background: '#f8f9fa',
+                clusterBkg: '#ffffff',
+                clusterBorder: '#e9ecef',
+                nodeTextColor: '#2c3e50',
+                edgeLabelBackground: '#ffffff'
+            },
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            sequence: {
+                diagramMarginX: 50,
+                diagramMarginY: 10,
+                actorMargin: 50,
+                width: 150,
+                height: 65,
+                boxMargin: 10,
+                boxTextMargin: 5,
+                noteMargin: 10,
+                messageMargin: 35,
+                mirrorActors: true,
+                bottomMarginAdj: 1,
+                useMaxWidth: true,
+                rightAngles: false,
+                showSequenceNumbers: false
+            }
+        });
+
+        // 添加页面加载动画
+        document.addEventListener('DOMContentLoaded', function() {
+            const cards = document.querySelectorAll('.feature-card, .section');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(10px)';
+                setTimeout(() => {
+                    card.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 50);
+            });
+        });
+
+        // Mermaid渲染错误处理
+        mermaid.initialize({ startOnLoad: false }).then(() => {
+            mermaid.run().catch(err => {
+                console.error('Mermaid rendering error:', err);
+                // 显示友好的错误提示
+                const mermaidContainers = document.querySelectorAll('.mermaid');
+                mermaidContainers.forEach(container => {
+                    container.innerHTML = '<div style="color: #e74c3c; padding: 20px; text-align: center;">流程图加载失败，请刷新页面重试</div>';
+                });
+            });
+        });
+    </script>
+</body>
+</html>

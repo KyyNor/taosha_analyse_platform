@@ -49,7 +49,9 @@
         .page:nth-child(7) { background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); }
         .page:nth-child(8) { background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); }
         .page:nth-child(9) { background: linear-gradient(135deg, #fad0c4 0%, #ffd1ff 100%); }
-        .page:nth-child(10) { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .page:nth-child(10) { background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%); }
+        .page:nth-child(11) { background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); }
+        .page:nth-child(12) { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
 
         /* 内容容器 */
         .content {
@@ -184,6 +186,25 @@
             margin: 2rem 0;
         }
 
+        /* 单列卡片样式 */
+        .single-column-card {
+            background: rgba(255,255,255,0.15);
+            padding: 2.5rem;
+            border-radius: 20px;
+            backdrop-filter: blur(15px);
+            border: 2px solid rgba(255,255,255,0.3);
+            transition: all 0.4s ease;
+            margin-bottom: 2.5rem;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        .single-column-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            background: rgba(255,255,255,0.25);
+        }
+
         .feature-card {
             background: rgba(255,255,255,0.1);
             padding: 2rem;
@@ -200,6 +221,23 @@
         .feature-icon {
             font-size: 3rem;
             margin-bottom: 1rem;
+        }
+
+        /* 标签样式 */
+        .feature-tag {
+            background: rgba(255,255,255,0.25);
+            padding: 0.7rem 1.2rem;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.3);
+            transition: all 0.3s ease;
+        }
+
+        .feature-tag:hover {
+            background: rgba(255,255,255,0.4);
+            transform: translateY(-2px);
         }
 
         /* 缓存层级样式 */
@@ -352,6 +390,23 @@
             }
         }
     </style>
+
+    <!-- Mermaid流程图支持 -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'base',
+            themeVariables: {
+                primaryColor: '#667eea',
+                primaryTextColor: '#fff',
+                primaryBorderColor: '#764ba2',
+                lineColor: '#ffd700',
+                secondaryColor: '#f093fb',
+                tertiaryColor: '#4facfe'
+            }
+        });
+    </script>
 </head>
 <body>
     <div class="page-container">
@@ -432,32 +487,61 @@
         <div class="page">
             <div class="content">
                 <h2>技术架构</h2>
-                <div class="architecture">
-                    <div class="arch-row">
-                        <div class="arch-box">
-                            <h3>前端界面</h3>
-                            <p>Vue/React<br>Streamlit原型</p>
-                        </div>
-                        <div class="arch-arrow">↔</div>
-                        <div class="arch-box">
-                            <h3>后端服务</h3>
-                            <p>FastAPI<br>LangGraph<br>Vanna引擎</p>
-                        </div>
-                        <div class="arch-arrow">↔</div>
-                        <div class="arch-box">
-                            <h3>数据层</h3>
-                            <p>Hadoop/Spark<br>DuckDB缓存<br>元数据库</p>
-                        </div>
+                <div style="background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 15px; backdrop-filter: blur(10px); margin: 2rem 0;">
+                    <div class="mermaid">
+                        flowchart LR
+                            A[前端界面] --> B[后端服务]
+                            B --> C[数据层]
+
+                            subgraph "前端层"
+                                A1[Vue.js/React]
+                                A2[Streamlit原型]
+                                A --> A1
+                                A --> A2
+                            end
+
+                            subgraph "服务层"
+                                B1[FastAPI]
+                                B2[LangGraph]
+                                B3[Vanna引擎]
+                                B --> B1
+                                B --> B2
+                                B --> B3
+                            end
+
+                            subgraph "数据层"
+                                C1[Hadoop/Spark]
+                                C2[DuckDB缓存]
+                                C3[元数据库]
+                                C --> C1
+                                C --> C2
+                                C --> C3
+                            end
+
+                            subgraph "AI引擎"
+                                D1[OpenAI API]
+                                D2[ChromaDB向量库]
+                                D3[智能缓存]
+                                B2 --> D1
+                                B2 --> D2
+                                B3 --> D3
+                            end
+
+                            style A fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
+                            style B fill:#f093fb,stroke:#333,stroke-width:2px,color:#fff
+                            style C fill:#4facfe,stroke:#333,stroke-width:2px,color:#fff
+                            style A1 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                            style A2 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                            style B1 fill:#fa709a,stroke:#333,stroke-width:2px,color:#fff
+                            style B2 fill:#fa709a,stroke:#333,stroke-width:2px,color:#fff
+                            style B3 fill:#fa709a,stroke:#333,stroke-width:2px,color:#fff
+                            style C1 fill:#a8edea,stroke:#333,stroke-width:2px,color:#333
+                            style C2 fill:#a8edea,stroke:#333,stroke-width:2px,color:#333
+                            style C3 fill:#a8edea,stroke:#333,stroke-width:2px,color:#333
+                            style D1 fill:#ff9a9e,stroke:#333,stroke-width:2px,color:#fff
+                            style D2 fill:#ff9a9e,stroke:#333,stroke-width:2px,color:#fff
+                            style D3 fill:#ff9a9e,stroke:#333,stroke-width:2px,color:#fff
                     </div>
-                </div>
-                <div class="flow-chart">
-                    <div class="flow-step">原始数据(Hadoop)</div>
-                    <div class="flow-arrow">↓</div>
-                    <div class="flow-step">ETL处理(Spark)</div>
-                    <div class="flow-arrow">↓</div>
-                    <div class="flow-step">热点缓存(DuckDB)</div>
-                    <div class="flow-arrow">↓</div>
-                    <div class="flow-step">查询结果 + 内存缓存</div>
                 </div>
             </div>
         </div>
@@ -530,20 +614,32 @@
         <div class="page">
             <div class="content">
                 <h2>查询处理流程</h2>
-                <div class="flow-chart" style="max-width: 600px; margin: 0 auto;">
-                    <div class="flow-step">用户输入自然语言</div>
-                    <div class="flow-arrow">↓</div>
-                    <div class="flow-step">输入清晰度验证</div>
-                    <div class="flow-arrow">↓</div>
-                    <div class="flow-step" style="background: rgba(255,193,7,0.3);">不清晰 → 提供建议示例</div>
-                    <div class="flow-arrow">↓</div>
-                    <div class="flow-step">清晰 → Vanna生成SQL</div>
-                    <div class="flow-arrow">↓</div>
-                    <div class="flow-step">SQL执行(三层缓存)</div>
-                    <div class="flow-arrow">↓</div>
-                    <div class="flow-step" style="background: rgba(220,53,69,0.3);">失败 → 错误分析重试</div>
-                    <div class="flow-arrow">↓</div>
-                    <div class="flow-step" style="background: rgba(40,167,69,0.3);">成功 → 返回结果和可视化</div>
+                <div style="background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 15px; backdrop-filter: blur(10px); margin: 2rem 0;">
+                    <div class="mermaid">
+                        flowchart TD
+                            A[用户输入自然语言] --> B{输入清晰度验证}
+                            B -->|不清晰| C[提供建议示例]
+                            B -->|清晰| D[Vanna生成SQL]
+                            C --> B
+                            D --> E{SQL执行检查}
+                            E --> F[三层缓存策略]
+                            F --> G{执行结果}
+                            G -->|失败| H[错误分析重试]
+                            G -->|成功| I[返回结果和可视化]
+                            H --> D
+                            I --> J[查询历史记录]
+
+                            style A fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
+                            style B fill:#f093fb,stroke:#333,stroke-width:2px,color:#fff
+                            style C fill:#ffd700,stroke:#333,stroke-width:2px,color:#333
+                            style D fill:#4facfe,stroke:#333,stroke-width:2px,color:#fff
+                            style E fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                            style F fill:#fa709a,stroke:#333,stroke-width:2px,color:#fff
+                            style G fill:#a8edea,stroke:#333,stroke-width:2px,color:#333
+                            style H fill:#ff9a9e,stroke:#333,stroke-width:2px,color:#fff
+                            style I fill:#28a745,stroke:#333,stroke-width:2px,color:#fff
+                            style J fill:#a18cd1,stroke:#333,stroke-width:2px,color:#fff
+                    </div>
                 </div>
             </div>
         </div>
@@ -587,7 +683,151 @@
             </div>
         </div>
 
-        <!-- 第9页：项目价值 -->
+        <!-- 第9页：界面功能 -->
+        <div class="page">
+            <div class="content">
+                <h2>界面功能</h2>
+                <div style="max-width: 900px; margin: 0 auto;">
+                    <!-- 查询页面功能 -->
+                    <div class="single-column-card" style="text-align: left;">
+                        <div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
+                            <div class="feature-icon" style="margin-right: 1.5rem; font-size: 3.5rem;">🔍</div>
+                            <h3 style="margin: 0; font-size: 1.8rem;">查询页面功能</h3>
+                        </div>
+                        <p style="font-size: 1.2rem; line-height: 1.8; margin-bottom: 1.5rem; color: rgba(255,255,255,0.95);">
+                            提供直观的自然语言查询界面，支持复杂的业务查询需求。用户可以通过简单的对话方式表达数据分析需求，系统会自动转换为SQL查询并返回可视化结果。
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
+                            <span class="feature-tag">自然语言输入</span>
+                            <span class="feature-tag">实时查询反馈</span>
+                            <span class="feature-tag">结果可视化</span>
+                        </div>
+                    </div>
+
+                    <!-- 元数据管理功能 -->
+                    <div class="single-column-card" style="text-align: left;">
+                        <div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
+                            <div class="feature-icon" style="margin-right: 1.5rem; font-size: 3.5rem;">📋</div>
+                            <h3 style="margin: 0; font-size: 1.8rem;">元数据管理功能</h3>
+                        </div>
+                        <p style="font-size: 1.2rem; line-height: 1.8; margin-bottom: 1.5rem; color: rgba(255,255,255,0.95);">
+                            强大的元数据管理系统，支持数据库表结构自动提取、业务术语映射和关系字段配置。管理员可以轻松维护数据字典，确保AI模型准确理解业务逻辑。
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
+                            <span class="feature-tag">表结构管理</span>
+                            <span class="feature-tag">业务术语映射</span>
+                            <span class="feature-tag">关系字段配置</span>
+                        </div>
+                    </div>
+
+                    <!-- 权限维护功能 -->
+                    <div class="single-column-card" style="text-align: left;">
+                        <div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
+                            <div class="feature-icon" style="margin-right: 1.5rem; font-size: 3.5rem;">🔐</div>
+                            <h3 style="margin: 0; font-size: 1.8rem;">权限维护功能</h3>
+                        </div>
+                        <p style="font-size: 1.2rem; line-height: 1.8; margin-bottom: 1.5rem; color: rgba(255,255,255,0.95);">
+                            完善的权限控制系统，支持用户角色管理、数据访问权限控制和功能权限配置。确保企业数据安全，不同角色的用户只能访问授权的数据和功能。
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
+                            <span class="feature-tag">用户角色管理</span>
+                            <span class="feature-tag">数据权限控制</span>
+                            <span class="feature-tag">功能权限配置</span>
+                        </div>
+                    </div>
+
+                    <!-- 日志与用户反馈功能 -->
+                    <div class="single-column-card" style="text-align: left;">
+                        <div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
+                            <div class="feature-icon" style="margin-right: 1.5rem; font-size: 3.5rem;">📊</div>
+                            <h3 style="margin: 0; font-size: 1.8rem;">日志与用户反馈功能</h3>
+                        </div>
+                        <p style="font-size: 1.2rem; line-height: 1.8; margin-bottom: 1.5rem; color: rgba(255,255,255,0.95);">
+                            全面的操作日志记录和用户反馈系统，支持查询历史追溯、性能监控分析。系统管理员可以查看详细的操作记录，分析用户使用模式，持续优化系统性能。
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
+                            <span class="feature-tag">查询历史管理</span>
+                            <span class="feature-tag">性能监控</span>
+                            <span class="feature-tag">用户反馈分析</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 第10页：后台功能 -->
+        <div class="page">
+            <div class="content">
+                <h2>后台功能</h2>
+                <div style="max-width: 900px; margin: 0 auto;">
+                    <!-- 后台权限控制功能 -->
+                    <div class="single-column-card" style="text-align: left;">
+                        <div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
+                            <div class="feature-icon" style="margin-right: 1.5rem; font-size: 3.5rem;">🔑</div>
+                            <h3 style="margin: 0; font-size: 1.8rem;">后台权限控制功能</h3>
+                        </div>
+                        <p style="font-size: 1.2rem; line-height: 1.8; margin-bottom: 1.5rem; color: rgba(255,255,255,0.95);">
+                            企业级的后台权限管理系统，支持细粒度的权限控制策略。管理员可以配置用户组、角色权限、数据访问范围和安全策略，确保系统安全稳定运行。
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
+                            <span class="feature-tag">用户组管理</span>
+                            <span class="feature-tag">角色权限配置</span>
+                            <span class="feature-tag">安全策略设置</span>
+                        </div>
+                    </div>
+
+                    <!-- 查询执行功能 -->
+                    <div class="single-column-card" style="text-align: left;">
+                        <div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
+                            <div class="feature-icon" style="margin-right: 1.5rem; font-size: 3.5rem;">⚡</div>
+                            <h3 style="margin: 0; font-size: 1.8rem;">查询执行功能</h3>
+                        </div>
+                        <p style="font-size: 1.2rem; line-height: 1.8; margin-bottom: 1.5rem; color: rgba(255,255,255,0.95);">
+                            高效的查询执行引擎，支持多数据源查询、智能缓存策略和性能优化。系统根据查询复杂度自动选择最优执行引擎，确保查询效率和用户体验。
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
+                            <span class="feature-tag">多数据源支持</span>
+                            <span class="feature-tag">智能缓存策略</span>
+                            <span class="feature-tag">查询性能优化</span>
+                        </div>
+                    </div>
+
+                    <!-- 元数据管理功能 -->
+                    <div class="single-column-card" style="text-align: left;">
+                        <div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
+                            <div class="feature-icon" style="margin-right: 1.5rem; font-size: 3.5rem;">🗃️</div>
+                            <h3 style="margin: 0; font-size: 1.8rem;">元数据管理功能</h3>
+                        </div>
+                        <p style="font-size: 1.2rem; line-height: 1.8; margin-bottom: 1.5rem; color: rgba(255,255,255,0.95);">
+                            后台元数据管理工具，支持数据库连接配置、表结构同步和业务术语维护。系统管理员可以通过可视化界面管理数据源，确保元数据的准确性和完整性。
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
+                            <span class="feature-tag">数据源配置</span>
+                            <span class="feature-tag">表结构同步</span>
+                            <span class="feature-tag">业务术语维护</span>
+                        </div>
+                    </div>
+
+                    <!-- 监控与分析功能 -->
+                    <div class="single-column-card" style="text-align: left;">
+                        <div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
+                            <div class="feature-icon" style="margin-right: 1.5rem; font-size: 3.5rem;">📈</div>
+                            <h3 style="margin: 0; font-size: 1.8rem;">监控与分析功能</h3>
+                        </div>
+                        <p style="font-size: 1.2rem; line-height: 1.8; margin-bottom: 1.5rem; color: rgba(255,255,255,0.95);">
+                            全面的系统监控和分析功能，实时监控系统运行状态、查询性能指标和用户行为分析。管理员可以通过仪表板了解系统健康状况，及时发现和解决潜在问题。
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
+                            <span class="feature-tag">系统监控</span>
+                            <span class="feature-tag">性能分析</span>
+                            <span class="feature-tag">用户行为分析</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 第11页：项目价值 -->
         <div class="page">
             <div class="content">
                 <h2>项目价值</h2>
@@ -622,7 +862,7 @@
             </div>
         </div>
 
-        <!-- 第10页：总结 -->
+        <!-- 第12页：总结 -->
         <div class="page">
             <div class="content">
                 <h1>感谢观看</h1>
@@ -654,6 +894,8 @@
         <div class="nav-dot" data-page="7"></div>
         <div class="nav-dot" data-page="8"></div>
         <div class="nav-dot" data-page="9"></div>
+        <div class="nav-dot" data-page="10"></div>
+        <div class="nav-dot" data-page="11"></div>
     </div>
 
     <script>
