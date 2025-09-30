@@ -15,7 +15,8 @@ from utils.config import settings
 from api.routes import router
 from api.dev_routes import router as dev_router
 from api.tracking_routes import router as tracking_router
-from services import get_database_service, get_nl2sql_service
+from services.database import get_database_service
+from services.nl2sql_service import get_nl2sql_service
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

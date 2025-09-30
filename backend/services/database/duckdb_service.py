@@ -1,58 +1,35 @@
 """
-数据库服务层 - 支持可插拔设计
+DuckDB数据库服务实现
 """
 
-from abc import ABC, abstractmethod
-from utils.logger import logger
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 import pandas as pd
 import duckdb
 
+from utils.logger import LoggerMixin
 from utils.config import settings
+from .base import DatabaseService
 
 
-class DatabaseService(ABC):
-    """数据库服务抽象基类"""
-    
-    @abstractmethod
-    def execute_query(self, sql: str) -> pd.DataFrame:
-        """执行SQL查询"""
-        pass
-    
-    @abstractmethod
-    def get_tables(self) -> List[str]:
-        """获取所有表名"""
-        pass
-    
-    @abstractmethod
-    def get_table_schema(self, table_name: str) -> Dict[str, Any]:
-        """获取表结构"""
-        pass
-    
-    @abstractmethod
-    def close(self):
-        """关闭数据库连接"""
-        pass
-
-class DuckDBService(DatabaseService):
+class DuckDBService(DatabaseService, LoggerMixin):
     """DuckDB数据库服务实现"""
-    
+
     def __init__(self, db_path: str = None):
         self.db_path = db_path or settings.duckdb_path
         self.conn = None
         self._connect()
         self._initialize_sample_data()
-        logger.info(f"DuckDB initialized at {self.db_path}")
-    
+        self.logger.info(f"DuckDB initialized at {self.db_path}")
+
     def _connect(self):
         """建立数据库连接"""
         try:
             self.conn = duckdb.connect(self.db_path)
-            logger.debug(f"Connected to DuckDB: {self.db_path}")
+            self.logger.debug(f"Connected to DuckDB: {self.db_path}")
         except Exception as e:
-            logger.error(f"Failed to connect to DuckDB: {e}")
+            self.logger.error(f"Failed to connect to DuckDB: {e}")
             raise
-    
+
     def _initialize_sample_data(self):
         """初始化示例数据"""
         try:
@@ -89,8 +66,8 @@ class DuckDBService(DatabaseService):
                 self._insert_sample_data()
 
         except Exception as e:
-            logger.error(f"Failed to initialize sample data: {e}")
-    
+            self.logger.error(f"Failed to initialize sample data: {e}")
+
     def _insert_sample_data(self):
         """插入示例数据"""
         # 销售数据
@@ -104,12 +81,12 @@ class DuckDBService(DatabaseService):
             (7, '耳机', '电子产品', 599.00, 1, '2024-01-21', 5, '杭州'),
             (8, '充电器', '电子产品', 99.00, 4, '2024-01-22', 3, '广州'),
         ]
-        
+
         for sale in sales_data:
             self.conn.execute("""
                 INSERT INTO sales VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, sale)
-        
+
         # 客户数据
         customers_data = [
             (1, '张三', 28, '男', '北京', '2023-05-10'),
@@ -118,41 +95,41 @@ class DuckDBService(DatabaseService):
             (4, '赵六', 25, '女', '深圳', '2023-08-12'),
             (5, '钱七', 31, '男', '杭州', '2023-09-05'),
         ]
-        
+
         for customer in customers_data:
             self.conn.execute("""
                 INSERT INTO customers VALUES (?, ?, ?, ?, ?, ?)
             """, customer)
-        
-        logger.info("Sample data inserted successfully")
-    
+
+        self.logger.info("Sample data inserted successfully")
+
     def execute_query(self, sql: str) -> pd.DataFrame:
         """执行SQL查询"""
         try:
-            logger.debug(f"Executing SQL: {sql}")
+            self.logger.debug(f"Executing SQL: {sql}")
             result = self.conn.execute(sql).fetchdf()
-            logger.debug(f"Query returned {len(result)} rows")
+            self.logger.debug(f"Query returned {len(result)} rows")
             return result
         except Exception as e:
-            logger.error(f"SQL execution failed: {e}")
-            logger.error(f"Failed SQL: {sql}")
+            self.logger.error(f"SQL execution failed: {e}")
+            self.logger.error(f"Failed SQL: {sql}")
             raise
-    
+
     def get_tables(self) -> List[str]:
         """获取所有表名"""
         try:
             result = self.conn.execute("""
-                SELECT table_name 
-                FROM information_schema.tables 
+                SELECT table_name
+                FROM information_schema.tables
                 WHERE table_schema = 'main'
             """).fetchall()
             tables = [row[0] for row in result]
-            logger.debug(f"Found tables: {tables}")
+            self.logger.debug(f"Found tables: {tables}")
             return tables
         except Exception as e:
-            logger.error(f"Failed to get tables: {e}")
+            self.logger.error(f"Failed to get tables: {e}")
             return []
-    
+
     def get_table_schema(self, table_name: str) -> Dict[str, Any]:
         """获取表结构"""
         try:
@@ -163,12 +140,12 @@ class DuckDBService(DatabaseService):
                 WHERE table_name = '{table_name}'
                 ORDER BY ordinal_position
             """).fetchall()
-            
+
             # 获取行数
             count_result = self.conn.execute(f"""
                 SELECT COUNT(*) FROM {table_name}
             """).fetchone()
-            
+
             schema = {
                 'table_name': table_name,
                 'row_count': count_result[0],
@@ -181,91 +158,16 @@ class DuckDBService(DatabaseService):
                     for col in columns_result
                 ]
             }
-            
-            logger.debug(f"Table schema for {table_name}: {schema}")
+
+            self.logger.debug(f"Table schema for {table_name}: {schema}")
             return schema
-            
+
         except Exception as e:
-            logger.error(f"Failed to get schema for table {table_name}: {e}")
+            self.logger.error(f"Failed to get schema for table {table_name}: {e}")
             return {'error': str(e)}
-    
+
     def close(self):
         """关闭数据库连接"""
         if self.conn:
             self.conn.close()
-            logger.info("DuckDB connection closed")
-
-class SparkSQLService(DatabaseService):
-    """Spark SQL服务实现 (占位符，后续实现)"""
-    
-    def __init__(self, spark_session=None):
-        self.spark = spark_session
-        logger.info("SparkSQL service initialized (placeholder)")
-    
-    def execute_query(self, sql: str) -> pd.DataFrame:
-        """执行Spark SQL查询"""
-        if not self.spark:
-            raise NotImplementedError("Spark session not initialized")
-        
-        # 这里是占位符实现
-        result = self.spark.sql(sql).toPandas()
-        return result
-    
-    def get_tables(self) -> List[str]:
-        """获取Spark中的所有表"""
-        if not self.spark:
-            return []
-        
-        tables = self.spark.sql("SHOW TABLES").collect()
-        return [row.tableName for row in tables]
-    
-    def get_table_schema(self, table_name: str) -> Dict[str, Any]:
-        """获取Spark表结构"""
-        if not self.spark:
-            return {'error': 'Spark session not available'}
-        
-        # 占位符实现
-        schema = self.spark.table(table_name).schema
-        return {
-            'table_name': table_name,
-            'columns': [
-                {'name': field.name, 'type': str(field.dataType)}
-                for field in schema.fields
-            ]
-        }
-    
-    def close(self):
-        """关闭Spark连接"""
-        if self.spark:
-            self.spark.stop()
-
-# 数据库服务工厂
-class DatabaseServiceFactory:
-    """数据库服务工厂"""
-    
-    @staticmethod
-    def create_service(service_type: str = "duckdb", **kwargs) -> DatabaseService:
-        """创建数据库服务实例"""
-        if service_type.lower() == "duckdb":
-            return DuckDBService(**kwargs)
-        elif service_type.lower() == "spark":
-            return SparkSQLService(**kwargs)
-        else:
-            raise ValueError(f"Unknown database service type: {service_type}")
-
-# 全局数据库服务实例
-_db_service: Optional[DatabaseService] = None
-
-def get_database_service() -> DatabaseService:
-    """获取数据库服务实例"""
-    global _db_service
-    if _db_service is None:
-        _db_service = DatabaseServiceFactory.create_service("duckdb")
-    return _db_service
-
-def set_database_service(service: DatabaseService):
-    """设置数据库服务实例"""
-    global _db_service
-    if _db_service:
-        _db_service.close()
-    _db_service = service
+            self.logger.info("DuckDB connection closed")

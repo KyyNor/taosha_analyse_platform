@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
-from utils.database_connection import get_database_manager
+from utils.db_utils import get_database_manager
 
 
 @dataclass

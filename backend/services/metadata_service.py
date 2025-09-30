@@ -9,7 +9,7 @@ from datetime import datetime
 import hashlib
 
 from utils.config import settings
-from utils.database_connection import get_database_manager
+from utils.db_utils import get_database_manager
 
 
 class MetadataService:

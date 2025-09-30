@@ -9,6 +9,7 @@ app:
 # 数据库配置
 database:
   dir: "./database"
+  service_type: "duckdb"  # duckdb 或 spark
   duckdb_path: "./database/taosha.duckdb"
   chromadb_path: "./database/chromadb"
 

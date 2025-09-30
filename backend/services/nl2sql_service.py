@@ -21,7 +21,7 @@ from vanna.chromadb import ChromaDB_VectorStore
 
 # Local imports
 from utils.config import settings
-from services.database_service import get_database_service
+from services.database import get_database_service
 from services.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service
 from services.operation_tracking import track_operation, tracker, OperationStep
 
