@@ -15,14 +15,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **核心框架**: LangGraph + Vanna
   - LangGraph: 多轮对话管理、工作流编排、交互记录和智能重试机制
   - Vanna: 专业NL2SQL转换、数据库schema管理、ChromaDB向量存储
-- **OLAP引擎**: DuckDB + cachetools
-  - DuckDB: 嵌入式OLAP数据库，高性能分析查询
-  - cachetools: Python内存缓存，支持TTL和LRU策略
+- **查询引擎**: 支持多种OLAP引擎的统一接口
+  - DuckDB: 嵌入式分析数据库，高性能分析查询（默认）
+  - Spark SQL: 分布式计算引擎（可扩展）
+- **元数据存储**: SQLite/MySQL双支持
+  - SQLite: 默认轻量级元数据存储
+  - MySQL: 生产环境元数据存储
 - **数据源**: 支持MySQL、DuckDB、可扩展至Hadoop + Spark SQL
 - **API框架**: FastAPI + Pydantic
 - **AI模型**: OpenAI API (可配置为VLLM内网本地部署)
-- **日志系统**: Loguru
+- **日志系统**: Loguru统一日志管理
 - **向量存储**: ChromaDB
+- **配置管理**: YAML配置文件 + Pydantic设置管理
 
 ### 前端架构
 - **技术原型**: Streamlit (快速验证，已实现完整功能)
@@ -34,6 +38,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **环境**: 纯内网部署，无外部依赖
 - **包管理**: UV (Python包管理器)
 - **容器化**: Docker支持
+- **数据库驱动**: 支持多种数据库（pymysql、sqlite3等）
 
 ## 项目结构
 
@@ -47,14 +52,26 @@ taosha_analyse_platform/
 │   │   └── models.py          # 数据模型
 │   ├── services/              # 核心服务层
 │   │   ├── nl2sql_service.py   # LangGraph + Vanna NL2SQL服务
-│   │   ├── database_service.py # 数据库服务
+│   │   ├── query_engine/      # 查询引擎服务（统一接口）
+│   │   │   ├── __init__.py    # 查询引擎工厂
+│   │   │   ├── base.py        # 抽象基类
+│   │   │   ├── duckdb_service.py # DuckDB实现
+│   │   │   └── spark_service.py # Spark SQL实现
 │   │   ├── metadata_service.py # 元数据服务
 │   │   ├── operation_tracking.py # 操作追踪服务
-│   │   └── tracking_service.py  # 追踪服务
+│   │   └── tracking_service.py  # 追踪数据查询服务
 │   ├── config/                # 配置管理
-│   │   └── settings.py        # 应用配置
+│   │   ├── config.yaml        # YAML配置文件
+│   │   └── settings.py        # Pydantic设置（已移除）
 │   ├── utils/                 # 工具类
-│   │   └── database_connection.py # 数据库连接工具
+│   │   ├── logger.py          # 统一日志管理
+│   │   ├── config.py          # 配置管理工具类
+│   │   └── db_utils.py        # 数据库连接工具
+│   ├── sql/                   # SQL文件管理
+│   │   ├── create_tables.sql      # SQLite建表语句
+│   │   ├── drop_tables.sql        # SQLite删表语句
+│   │   ├── create_tables_mysql.sql # MySQL建表语句
+│   │   └── drop_tables_mysql.sql   # MySQL删表语句
 │   ├── database/              # 数据库文件和缓存
 │   ├── main.py               # FastAPI应用入口
 │   └── README.md             # 后端说明

@@ -18,7 +18,6 @@ class DuckDBService(QueryEngineService, LoggerMixin):
         self.db_path = db_path or settings.duckdb_path
         self.conn = None
         self._connect()
-        self._initialize_sample_data()
         self.logger.info(f"DuckDB初始化完成，数据库路径: {self.db_path}")
 
     def _connect(self):
@@ -29,7 +28,6 @@ class DuckDBService(QueryEngineService, LoggerMixin):
         except Exception as e:
             self.logger.error(f"DuckDB连接失败: {e}")
             raise
-        
         
     def execute_query(self, sql: str) -> pd.DataFrame:
         """执行SQL查询"""
