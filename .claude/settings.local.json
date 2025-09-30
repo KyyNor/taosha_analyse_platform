@@ -24,7 +24,8 @@
       "Bash(del \"src\\types\\plotly.d.ts\")",
       "Bash(npm install:*)",
       "Bash(timeout 10 npm run dev)",
-      "Bash(sqlite3:*)"
+      "Bash(sqlite3:*)",
+      "Bash(start:*)"
     ],
     "deny": [],
     "ask": [],
