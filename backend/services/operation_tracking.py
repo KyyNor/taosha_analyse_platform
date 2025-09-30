@@ -143,7 +143,7 @@ class OperationTracker:
             step.session_id = self.current_session
         
         if not step.session_id:
-            logger.warning("No active session for step logging")
+            logger.warning("没有活跃的会话用于步骤日志记录")
             return
         
         # 自动递增步骤序号
@@ -182,7 +182,7 @@ class OperationTracker:
             session_id = self.current_session
         
         if not session_id:
-            logger.warning("No session for feedback")
+            logger.warning("没有会话用于反馈记录")
             return
         
         self.db_manager.execute_query("""

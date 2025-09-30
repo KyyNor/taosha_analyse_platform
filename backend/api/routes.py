@@ -32,11 +32,11 @@ async def process_natural_language_query(request: QueryRequest):
     start_time = time.time()
     
     try:
-        logger.info(f"Processing query: {request.query}")
-        
+        logger.info(f"开始处理查询: {request.query}")
+
         # 获取NL2SQL服务
         nl2sql_service = get_nl2sql_service()
-        
+
         # 处理查询（添加操作人信息，这里可以从请求头或认证信息中获取）
         operator = "api_user"  # 实际应用中应该从认证信息中获取
         result = nl2sql_service.process_query(
@@ -45,10 +45,10 @@ async def process_natural_language_query(request: QueryRequest):
             flow_type=request.flow_type,
             max_retries=request.max_retries
         )
-        
+
         # 计算执行时间
         execution_time = time.time() - start_time
-        
+
         # 构建响应
         response = QueryResponse(
             success=result['success'],
@@ -65,8 +65,8 @@ async def process_natural_language_query(request: QueryRequest):
             execution_time=execution_time,
             logs=result['logs']
         )
-        
-        logger.info(f"Query processed successfully in {execution_time:.2f}s")
+
+        logger.info(f"查询处理成功，耗时 {execution_time:.2f}秒")
         return response
         
     except Exception as e:
@@ -118,11 +118,11 @@ async def get_tables():
             )
             tables_info.append(table_info)
         
-        logger.info(f"Retrieved {len(tables_info)} tables")
+        logger.info(f"成功获取 {len(tables_info)} 个表信息")
         return tables_info
-        
+
     except Exception as e:
-        logger.error(f"Failed to get tables: {e}", exc_info=True)
+        logger.error(f"获取表信息失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取表信息失败: {str(e)}")
 
 @router.get("/table/{table_name}", response_model=TableInfo)
@@ -153,11 +153,11 @@ async def get_table_info(table_name: str):
             columns=schema.get('columns', [])
         )
         
-        logger.info(f"Retrieved info for table: {table_name}")
+        logger.info(f"成功获取表 {table_name} 的详细信息")
         return table_info
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get table info for {table_name}: {e}", exc_info=True)
+        logger.error(f"获取表 {table_name} 信息失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取表信息失败: {str(e)}")

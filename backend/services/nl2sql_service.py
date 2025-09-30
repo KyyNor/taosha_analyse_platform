@@ -84,12 +84,12 @@ class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
                     base_url=settings.openai_base_url
                 )
             except ImportError:
-                logger.warning("OpenAI package not available, using default configuration")
+                logger.warning("OpenAI包不可用，使用默认配置")
         
         OpenAI_Chat.__init__(self, client=client, config=openai_config)
         
         self.training_hash = None
-        logger.info("TaoshaVanna initialized")
+        logger.info("TaoshaVanna初始化完成")
     
     def log_interaction(self, step: str, input_data: str, prompt: str, 
                        model_output: str, success: bool, error: str = None):
@@ -165,7 +165,7 @@ class NL2SQLService:
         # 构建统一的LangGraph工作流
         self.workflow = self._build_workflow()
 
-        logger.info("NL2SQL Service initialized")
+        logger.info("NL2SQL服务初始化完成")
     
     def _build_workflow(self) -> StateGraph:
         """构建统一的LangGraph工作流，支持多种流程类型"""
@@ -197,7 +197,7 @@ class NL2SQLService:
 
             # 检查API配置
             if not settings.openai_api_key:
-                logger.warning("OpenAI API key not configured, skipping input validation")
+                logger.warning("OpenAI API密钥未配置，跳过输入验证")
                 state['is_clear'] = True
                 state['processed_input'] = user_input
                 state['logs'] = logs
@@ -466,7 +466,7 @@ class NL2SQLService:
                 return state
 
             if not settings.openai_api_key:
-                logger.warning("OpenAI API key not configured, skipping sql explanation")
+                logger.warning("OpenAI API密钥未配置，跳过SQL解释")
                 state['sql_explanation'] = ''
                 return state
 
@@ -521,7 +521,7 @@ SQL：
             sql_explanation = state.get('sql_explanation', '')
 
             if not settings.openai_api_key:
-                logger.warning("OpenAI API key not configured, skipping nl diff analysis")
+                logger.warning("OpenAI API密钥未配置，跳过自然语言差异分析")
                 state['nl_diff_analysis'] = None
                 return state
 
@@ -689,7 +689,7 @@ SQL：
     
     def _train_vanna(self):
         """训练Vanna模型（使用文档描述方式）"""
-        logger.info("Training Vanna with available metadata, glossary and relation configs...")
+        logger.info("开始使用可用元数据、词汇表和关系配置训练Vanna模型...")
         
         # 1. 训练表结构描述（只使用可用的表和列）
         available_tables = self.metadata_service.get_available_tables()
@@ -781,7 +781,7 @@ SQL：
         combined_str = metadata_str + glossary_str + relation_str
         self.vanna.training_hash = hashlib.md5(combined_str.encode()).hexdigest()
         
-        logger.info("Vanna training completed")
+        logger.info("Vanna模型训练完成")
     
     def _get_table_info_text(self) -> str:
         """获取可用表信息的文本描述（只包含 is_available = 0 的表和列）"""

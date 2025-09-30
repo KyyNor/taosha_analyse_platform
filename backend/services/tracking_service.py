@@ -7,6 +7,9 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 
 from utils.db_utils import get_database_manager
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -41,9 +44,11 @@ class TrackingService:
     
     def __init__(self):
         self.db_manager = get_database_manager()
+        logger.debug("追踪服务初始化完成")
     
     def get_session_summary(self, session_id: str) -> Optional[SessionSummary]:
         """获取会话摘要"""
+        logger.debug(f"开始获取会话摘要: {session_id}")
         # 获取会话基本信息
         row = self.db_manager.execute_query("""
             SELECT session_id, operation_type, operator, start_time, end_time,
@@ -51,8 +56,9 @@ class TrackingService:
             FROM operation_sessions 
             WHERE session_id = ?
         """, (session_id,), fetch="one")
-        
+
         if not row:
+            logger.warning(f"未找到会话: {session_id}")
             return None
         
         # 获取步骤统计信息
@@ -291,6 +297,7 @@ class TrackingService:
     
     def get_operation_stats(self, days: int = 7) -> Dict[str, Any]:
         """获取操作统计信息"""
+        logger.debug(f"开始获取操作统计信息，时间范围: {days}天")
         since_date = datetime.now() - timedelta(days=days)
         
         # 总体统计

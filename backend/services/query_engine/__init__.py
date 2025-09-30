@@ -9,6 +9,9 @@
 from .base import QueryEngineService, QueryEngineFactory
 from .duckdb_service import DuckDBService
 from .spark_service import SparkSQLService
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # 全局查询引擎实例
 _engine_service = None
@@ -27,13 +30,17 @@ def get_query_engine(service_type: str = None) -> QueryEngineService:
     global _engine_service
 
     if _engine_service is None:
+        logger.debug("开始初始化查询引擎服务")
         # 如果没有指定类型，从配置文件读取
         if service_type is None:
             from utils.config import get_config
             config = get_config()
             service_type = config.get('query_engine.service_type', 'duckdb')
+            logger.debug(f"从配置文件读取查询引擎类型: {service_type}")
 
+        logger.info(f"创建查询引擎服务实例，类型: {service_type}")
         _engine_service = QueryEngineFactory.create_service(service_type)
+        logger.info("查询引擎服务初始化完成")
 
     return _engine_service
 
@@ -41,9 +48,12 @@ def get_query_engine(service_type: str = None) -> QueryEngineService:
 def set_query_engine(service: QueryEngineService):
     """设置查询引擎实例"""
     global _engine_service
+    logger.debug("设置查询引擎实例")
     if _engine_service:
+        logger.info("关闭现有查询引擎实例")
         _engine_service.close()
     _engine_service = service
+    logger.info("查询引擎实例设置完成")
 
 
 # 向后兼容的别名
