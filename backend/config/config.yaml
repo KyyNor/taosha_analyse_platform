@@ -6,8 +6,8 @@ app:
   version: "0.1.0"
   debug: true
 
-# 数据库配置
-database:
+# 查询引擎配置
+query_engine:
   dir: "./database"
   service_type: "duckdb"  # duckdb 或 spark
   duckdb_path: "./database/taosha.duckdb"

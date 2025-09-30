@@ -1,5 +1,5 @@
 """
-DuckDB数据库服务实现
+DuckDB查询引擎服务实现
 """
 
 from typing import Dict, List, Any
@@ -8,11 +8,11 @@ import duckdb
 
 from utils.logger import LoggerMixin
 from utils.config import settings
-from .base import DatabaseService
+from .base import QueryEngineService
 
 
-class DuckDBService(DatabaseService, LoggerMixin):
-    """DuckDB数据库服务实现"""
+class DuckDBService(QueryEngineService, LoggerMixin):
+    """DuckDB查询引擎服务实现"""
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or settings.duckdb_path

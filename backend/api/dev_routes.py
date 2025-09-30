@@ -287,9 +287,9 @@ async def search_term(query: str):
 async def sync_metadata_from_database():
     """从实际数据库同步元数据结构"""
     try:
-        from services import get_database_service
+        from services import get_query_engine
         
-        db_service = get_database_service()
+        db_service = get_query_engine()
         metadata_service = get_metadata_service()
         
         # 获取数据库中的表

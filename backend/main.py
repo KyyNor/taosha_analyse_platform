@@ -15,7 +15,7 @@ from utils.config import settings
 from api.routes import router
 from api.dev_routes import router as dev_router
 from api.tracking_routes import router as tracking_router
-from services.database import get_database_service
+from services.query_engine import get_query_engine
 from services.nl2sql_service import get_nl2sql_service
 
 @asynccontextmanager
@@ -25,10 +25,10 @@ async def lifespan(app: FastAPI):
     logger.info("=== 淘沙分析平台启动中 ===")
     
     try:
-        # 初始化数据库服务
-        db_service = get_database_service()
-        tables = db_service.get_tables()
-        logger.info(f"数据库初始化完成，发现 {len(tables)} 个表: {tables}")
+        # 初始化查询引擎服务
+        query_engine = get_query_engine()
+        tables = query_engine.get_tables()
+        logger.info(f"查询引擎初始化完成，发现 {len(tables)} 个表: {tables}")
         
         # 初始化NL2SQL服务（这会触发Vanna训练）
         nl2sql_service = get_nl2sql_service()
@@ -41,14 +41,14 @@ async def lifespan(app: FastAPI):
         raise
     
     yield
-    
+
     # 关闭时的清理
     logger.info("=== 淘沙分析平台关闭中 ===")
     try:
-        # 关闭数据库连接
-        db_service = get_database_service()
-        db_service.close()
-        logger.info("数据库连接已关闭")
+        # 关闭查询引擎连接
+        query_engine = get_query_engine()
+        query_engine.close()
+        logger.info("查询引擎连接已关闭")
         
         logger.info("=== 淘沙分析平台已关闭 ===")
     except Exception as e:

@@ -1,16 +1,16 @@
 """
-Spark SQL服务实现 (占位符，后续实现)
+Spark SQL查询引擎服务实现 (占位符，后续实现)
 """
 
 from typing import Dict, List, Any
 import pandas as pd
 
 from utils.logger import LoggerMixin
-from .base import DatabaseService
+from .base import QueryEngineService
 
 
-class SparkSQLService(DatabaseService, LoggerMixin):
-    """Spark SQL服务实现"""
+class SparkSQLService(QueryEngineService, LoggerMixin):
+    """Spark SQL查询引擎服务实现"""
 
     def __init__(self, spark_session=None):
         self.spark = spark_session

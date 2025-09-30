@@ -21,7 +21,7 @@ from vanna.chromadb import ChromaDB_VectorStore
 
 # Local imports
 from utils.config import settings
-from services.database import get_database_service
+from services.query_engine import get_query_engine
 from services.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service
 from services.operation_tracking import track_operation, tracker, OperationStep
 
@@ -160,7 +160,7 @@ class NL2SQLService:
         self.metadata_service = get_metadata_service()
         self.glossary_service = get_glossary_service()
         self.relation_config_service = get_relation_field_config_service()
-        self.db_service = get_database_service()
+        self.db_service = get_query_engine()
 
         # 构建统一的LangGraph工作流
         self.workflow = self._build_workflow()
