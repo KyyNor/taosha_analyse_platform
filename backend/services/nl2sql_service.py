@@ -41,6 +41,7 @@ class GraphState(TypedDict):
     retry_count: int
     max_retries: int
     logs: List[Dict[str, Any]]
+    progress_callback: Optional[callable]  # 进度回调函数
 
 @dataclass
 class NL2SQLLog:
@@ -173,7 +174,11 @@ class NL2SQLService:
         def check_training_needed(state: GraphState) -> GraphState:
             """检查是否需要重新训练Vanna"""
             logs = state.get('logs', [])
-            
+            progress_callback = state.get('progress_callback')
+
+            if progress_callback:
+                progress_callback("训练检查", "检查Vanna模型训练状态", 20)
+
             # 需要重新训练
             self._train_vanna()
             log_entry = self.vanna.log_interaction(
@@ -184,7 +189,7 @@ class NL2SQLService:
                 success=True
             )
             logs.append(log_entry)
-            
+
             state['logs'] = logs
             return state
         
@@ -194,6 +199,10 @@ class NL2SQLService:
             sql_query = state.get('sql_query', '')  # 可能存在也可能不存在
             flow_type = state.get('flow_type', 'fast')
             logs = state.get('logs', [])
+            progress_callback = state.get('progress_callback')
+
+            if progress_callback:
+                progress_callback("输入验证", "验证查询输入清晰度", 40)
 
             # 检查API配置
             if not settings.openai_api_key:
@@ -347,6 +356,10 @@ class NL2SQLService:
             logs = state.get('logs', [])
             error_message = state.get('error_message')
             previous_sql = state.get('sql_query', '')
+            progress_callback = state.get('progress_callback')
+
+            if progress_callback:
+                progress_callback("SQL生成", "正在生成SQL查询语句", 60)
             retry_count = state.get('retry_count', 0)
             
             # 构建输入内容：如果有错误信息，则包含错误反馈
@@ -414,6 +427,10 @@ class NL2SQLService:
         
         def execute_sql(state: GraphState) -> GraphState:
             """执行SQL查询"""
+            progress_callback = state.get('progress_callback')
+
+            if progress_callback:
+                progress_callback("SQL执行", "正在执行SQL查询", 80)
             sql_query = state.get('sql_query', '')
             logs = state.get('logs', [])
             
@@ -460,6 +477,10 @@ class NL2SQLService:
             """在SQL执行成功后，用自然语言解释SQL在做什么"""
             logs = state.get('logs', [])
             sql_query = state.get('sql_query', '')
+            progress_callback = state.get('progress_callback')
+
+            if progress_callback:
+                progress_callback("SQL解释", "正在解释SQL查询语句", 90)
 
             if not sql_query:
                 state['sql_explanation'] = ''
@@ -519,6 +540,10 @@ SQL：
             logs = state.get('logs', [])
             user_input = state.get('user_input', '')
             sql_explanation = state.get('sql_explanation', '')
+            progress_callback = state.get('progress_callback')
+
+            if progress_callback:
+                progress_callback("结果分析", "分析查询结果与自然语言差异", 95)
 
             if not settings.openai_api_key:
                 logger.warning("OpenAI API密钥未配置，跳过自然语言差异分析")
@@ -866,10 +891,11 @@ SQL：
         
         return ' '.join(sql_lines)
     
-    def process_query(self, user_input: str, max_retries: int = 5, operator: str = None, flow_type: str = "fast") -> Dict[str, Any]:
+    def process_query(self, user_input: str, max_retries: int = 5, operator: str = None, flow_type: str = "fast", progress_callback=None) -> Dict[str, Any]:
         """
         处理用户查询
         :param flow_type: 流程类型，"fast"=先验证后生成SQL，"thorough"=先生成SQL后验证
+        :param progress_callback: 进度回调函数，格式: progress_callback(step_name, message, progress)
         """
         # 使用追踪上下文管理器
         with track_operation("nl2sql_query", operator):
@@ -888,9 +914,10 @@ SQL：
                 error_message=None,
                 retry_count=0,
                 max_retries=max_retries,
-                logs=[]
+                logs=[],
+                progress_callback=progress_callback  # 将回调函数传递给状态
             )
-            
+
             # 执行工作流
             final_state = self.workflow.invoke(initial_state)
             

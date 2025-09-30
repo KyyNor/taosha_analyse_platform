@@ -15,6 +15,7 @@ from api.dev_routes import router as dev_router
 from api.tracking_routes import router as tracking_router
 from services.query_engine import get_query_engine
 from services.nl2sql_service import get_nl2sql_service
+from services.async_query_service import get_async_query_service
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -27,6 +28,10 @@ async def lifespan(app: FastAPI):
         query_engine = get_query_engine()
         tables = query_engine.get_tables()
         logger.info(f"查询引擎初始化完成，发现 {len(tables)} 个表: {tables}")
+
+        # 初始化异步查询服务
+        async_query_service = get_async_query_service()
+        logger.info("异步查询服务初始化完成")
         
         # 初始化NL2SQL服务（这会触发Vanna训练）
         nl2sql_service = get_nl2sql_service()

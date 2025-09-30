@@ -28,7 +28,46 @@ api.interceptors.response.use(
 )
 
 export class TaoshaAPIClient {
-  // 数据查询
+  // 异步查询 - 提交查询任务
+  async submitQuery(queryText: string, maxRetries: number = 2, flowType: string = 'fast'): Promise<{success: boolean, task_id?: string, message?: string, error?: string}> {
+    try {
+      const response = await api.post('/query', {
+        query: queryText,
+        max_retries: maxRetries,
+        flow_type: flowType
+      })
+      return response.data
+    } catch (error: any) {
+      return {
+        success: false,
+        error: `提交查询失败: ${error.message || error}`
+      }
+    }
+  }
+
+  // 获取任务结果
+  async getTaskResult(taskId: string): Promise<any> {
+    try {
+      const response = await api.get(`/query/${taskId}`)
+      return response.data
+    } catch (error: any) {
+      console.error('获取任务结果失败:', error)
+      throw error
+    }
+  }
+
+  // 获取所有任务
+  async getAllTasks(): Promise<any[]> {
+    try {
+      const response = await api.get('/query')
+      return response.data
+    } catch (error: any) {
+      console.error('获取任务列表失败:', error)
+      return []
+    }
+  }
+
+  // 数据查询 (保留原有方法作为备用)
   async query(queryText: string, maxRetries: number = 2, flowType: string = 'fast'): Promise<QueryResponse> {
     try {
       const response = await api.post<QueryResponse>('/query', {

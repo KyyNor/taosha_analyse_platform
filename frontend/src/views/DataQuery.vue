@@ -1,356 +1,453 @@
 <template>
-  <div class="min-h-screen bg-white">
-    <!-- Hero Section -->
-    <section class="bg-gradient-to-br from-blue-50 to-indigo-50 py-16">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="text-center mb-8">
-          <h1 class="text-4xl lg:text-5xl font-bold text-slate-800 leading-tight tracking-tight mb-8">
-            淘沙数据分析助手
-          </h1>
-          
-          <!-- Query Input Section -->
-          <div ref="querySection" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 max-w-5xl mx-auto">
-              <div class="flex flex-col lg:flex-row lg:items-center gap-4">
-                <!-- 查询输入 -->
-                <div class="lg:flex-[3]">
-                  <label class="block text-sm font-medium text-slate-700 mb-2">
-                    请输入您的问题：
-                  </label>
-                  <input
-                    v-model="queryInput"
-                    type="text"
-                    placeholder="例如：显示北京地区本月的销售额，最近一周电子产品销量统计"
-                    class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                    @keydown.enter.ctrl="submitQuery"
-                  />
-                </div>
-                
-                <!-- 控制区域 -->
-                <div class="lg:flex-[1] flex flex-col items-start gap-3">
-                  <!-- 流程选择 -->
-                  <div class="w-full flex items-center gap-2">
-                    <div class="flex bg-slate-100 rounded-lg p-1">
-                      <button
-                        @click="flowType = 'fast'"
-                        :class="[
-                          'px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                          flowType === 'fast'
-                            ? 'bg-white text-blue-600 shadow-sm'
-                            : 'text-slate-600 hover:text-slate-800'
-                        ]"
-                      >
-                        <div class="flex items-center space-x-2">
-                          <BoltIcon class="w-4 h-4" />
-                          <span>快速查询</span>
-                        </div>
-                      </button>
-                      <button
-                        @click="flowType = 'thorough'"
-                        :class="[
-                          'px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                          flowType === 'thorough'
-                            ? 'bg-white text-blue-600 shadow-sm'
-                            : 'text-slate-600 hover:text-slate-800'
-                        ]"
-                      >
-                        <div class="flex items-center space-x-2">
-                          <AcademicCapIcon class="w-4 h-4" />
-                          <span>深度分析</span>
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- 查询按钮 -->
-                  <button
-                    @click="submitQuery"
-                    :disabled="!queryInput.trim() || isQuerying"
-                    class="w-full px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 hover:scale-105 hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none whitespace-nowrap"
-                  >
-                    <span v-if="!isQuerying" class="flex items-center space-x-2">
-                      <MagnifyingGlassIcon class="w-5 h-5" />
-                      <span>{{ flowType === 'fast' ? '开始查询' : '深度分析' }}</span>
-                    </span>
-                    <span v-else class="flex items-center space-x-2">
-                      <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>{{ flowType === 'fast' ? '查询中...' : '分析中...' }}</span>
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-            <div class="mt-4 space-y-2">
-              <div class="flex items-center space-x-2 text-sm text-slate-500">
-                <LightBulbIcon class="w-4 h-4 text-amber-500" aria-label="提示图标" />
-                <span>提示：尽量明确时间范围、统计指标和筛选条件，这样能得到更准确的结果</span>
-              </div>
-
-              <div class="text-xs text-slate-400">
-                <span v-if="flowType === 'fast'">
-                  <BoltIcon class="w-3 h-3 inline mr-1" />
-                  快速模式：先验证查询清晰度，再生成SQL，适合简单明确的查询
-                </span>
-                <span v-else>
-                  <AcademicCapIcon class="w-3 h-3 inline mr-1" />
-                  深度模式：先生成SQL，再验证匹配度，适合复杂或模糊的查询分析
-                </span>
-              </div>
-            </div>
+  <div class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">淘沙数据分析助手</h1>
+            <p class="mt-1 text-sm text-gray-500">基于AI的自然语言查询分析平台</p>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Floating Query Bar -->
-    <div 
-      v-show="showFloatingBar" 
-      class="fixed top-20 left-0 right-0 z-40 transition-all duration-300 transform"
-      :class="showFloatingBar ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'"
-    >
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="bg-white rounded-xl shadow-lg border border-slate-200 p-4">
-          <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-            <!-- 查询输入 -->
-            <div class="sm:flex-[3]">
-              <input
-                v-model="queryInput"
-                type="text"
-                placeholder="例如：显示北京地区本月的销售额，最近一周电子产品销量统计"
-                class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
-                @keydown.enter.ctrl="submitQuery"
-              />
-            </div>
-            
-            <!-- 控制区域 -->
-            <div class="sm:flex-[1] flex items-center gap-3">
-              <button
-                @click="submitQuery"
-                :disabled="!queryInput.trim() || isQuerying"
-                class="px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 hover:scale-105 hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none whitespace-nowrap text-sm"
-              >
-                <span v-if="!isQuerying" class="flex items-center space-x-1">
-                  <MagnifyingGlassIcon class="w-4 h-4" />
-                  <span>查询</span>
-                </span>
-                <span v-else class="flex items-center space-x-1">
-                  <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                  <span>分析中</span>
-                </span>
-              </button>
-            </div>
-          </div>
+          <button
+            @click="refreshTasks"
+            :disabled="isRefreshing"
+            class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center space-x-2"
+          >
+            <ArrowPathIcon :class="['w-4 h-4', isRefreshing ? 'animate-spin' : '']" />
+            <span>刷新</span>
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- Results Section -->
-    <section v-if="queryResult" class="py-8">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <!-- Clarity Check -->
-        <ClarityCheck
-          v-if="queryResult.clear_check_details"
-          :clarity="queryResult.clear_check_details"
-          @select-suggestion="selectSuggestion"
-        />
+    <!-- Query Input Section -->
+    <div class="bg-white border-b border-gray-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex flex-col lg:flex-row gap-4">
+          <!-- 查询输入 -->
+          <div class="flex-1">
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              请输入您的问题：
+            </label>
+            <input
+              v-model="queryInput"
+              type="text"
+              placeholder="例如：显示北京地区本月的销售额，最近一周电子产品销量统计"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              @keydown.enter.ctrl="submitQuery"
+            />
+          </div>
 
-        <!-- Success Result -->
-        <ResultDisplay
-          v-if="queryResult.success"
-          :sql-query="queryResult.sql_query"
-          :data="queryResult.data"
-          :execution-time="executionTime"
-        />
+          <!-- 控制区域 -->
+          <div class="lg:w-48 flex flex-col gap-3">
+            <!-- 流程选择 -->
+            <div class="flex bg-gray-100 rounded-lg p-1">
+              <button
+                @click="flowType = 'fast'"
+                :class="[
+                  'flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                  flowType === 'fast'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-800'
+                ]"
+              >
+                快速
+              </button>
+              <button
+                @click="flowType = 'thorough'"
+                :class="[
+                  'flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                  flowType === 'thorough'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-800'
+                ]"
+              >
+                深度
+              </button>
+            </div>
 
-        <!-- SQL Explanation -->
-        <div v-if="queryResult.success && queryResult.sql_explanation" class="mt-6">
-          <div class="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
-            <h3 class="text-lg font-semibold text-slate-800 mb-2">SQL 含义解释</h3>
-            <p class="text-slate-700 whitespace-pre-line">{{ queryResult.sql_explanation }}</p>
+            <!-- 查询按钮 -->
+            <button
+              @click="submitQuery"
+              :disabled="!queryInput.trim() || isSubmitting"
+              class="w-full px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span v-if="!isSubmitting" class="flex items-center justify-center space-x-2">
+                <MagnifyingGlassIcon class="w-5 h-5" />
+                <span>开始查询</span>
+              </span>
+              <span v-else class="flex items-center justify-center space-x-2">
+                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>提交中...</span>
+              </span>
+            </button>
           </div>
         </div>
 
-        <!-- Natural Language Diff Analysis -->
-        <div v-if="queryResult.success && queryResult.nl_diff_analysis" class="mt-6">
-          <div class="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
-            <h3 class="text-lg font-semibold text-slate-800 mb-3">自然语言差异分析与固化知识</h3>
+        <div class="mt-3 text-sm text-gray-500">
+          <LightBulbIcon class="w-4 h-4 inline text-amber-500 mr-1" />
+          提示：尽量明确时间范围、统计指标和筛选条件，这样能得到更准确的结果
+        </div>
+      </div>
+    </div>
 
-            <!-- 结构化结果 -->
-            <div v-if="queryResult.nl_diff_analysis && queryResult.nl_diff_analysis.differences">
-              <div class="grid md:grid-cols-2 gap-6">
-                <div>
-                  <h4 class="text-sm font-medium text-slate-600 mb-2">差异点</h4>
-                  <ul class="list-disc list-inside text-slate-700 space-y-1">
-                    <li v-for="(d, i) in queryResult.nl_diff_analysis.differences" :key="'diff-'+i">
-                      {{ d }}
-                    </li>
-                  </ul>
+    <!-- Tasks Section -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div class="mb-4">
+        <h2 class="text-lg font-semibold text-gray-900">查询记录</h2>
+        <p class="text-sm text-gray-500">点击查询记录查看详细结果</p>
+      </div>
+
+      <!-- Tasks Container -->
+      <div class="space-y-4">
+        <!-- 查询任务卡片 -->
+        <div
+          v-for="task in tasks"
+          :key="task.task_id"
+          class="bg-white rounded-lg border border-gray-200 overflow-hidden transition-all duration-200 hover:shadow-lg"
+        >
+          <!-- Task Header -->
+          <div
+            class="p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50"
+            @click="toggleTask(task.task_id)"
+          >
+            <div class="flex items-center justify-between">
+              <div class="flex-1">
+                <div class="flex items-center space-x-3">
+                  <!-- 状态图标 -->
+                  <div class="flex-shrink-0">
+                    <div v-if="task.status === 'running'" class="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                    <div v-else-if="task.status === 'success'" class="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <div v-else-if="task.status === 'failed'" class="w-3 h-3 bg-red-500 rounded-full"></div>
+                    <div v-else class="w-3 h-3 bg-gray-400 rounded-full"></div>
+                  </div>
+
+                  <!-- 查询内容 -->
+                  <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-900 truncate">
+                      {{ task.user_input }}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">
+                      {{ formatTime(task.created_at) }}
+                    </p>
+                  </div>
+
+                  <!-- 状态标签 -->
+                  <div class="flex-shrink-0">
+                    <span
+                      :class="[
+                        'px-2 py-1 text-xs font-medium rounded-full',
+                        task.status === 'running' ? 'bg-blue-100 text-blue-800' :
+                        task.status === 'success' ? 'bg-green-100 text-green-800' :
+                        task.status === 'failed' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      ]"
+                    >
+                      {{ getStatusText(task.status) }}
+                    </span>
+                  </div>
+
+                  <!-- 展开图标 -->
+                  <ChevronDownIcon
+                    :class="[
+                      'w-5 h-5 text-gray-400 transition-transform duration-200',
+                      expandedTasks.includes(task.task_id) ? 'transform rotate-180' : ''
+                    ]"
+                  />
                 </div>
-                <div>
-                  <h4 class="text-sm font-medium text-slate-600 mb-2">对齐建议</h4>
-                  <ul class="list-disc list-inside text-slate-700 space-y-1">
-                    <li v-for="(s, i) in queryResult.nl_diff_analysis.suggest_alignment || []" :key="'sug-'+i">
-                      {{ s }}
-                    </li>
-                  </ul>
+
+                <!-- 进度条 (运行中的任务) -->
+                <div v-if="task.status === 'running'" class="mt-3">
+                  <div class="flex items-center justify-between text-xs text-gray-600 mb-1">
+                    <span>{{ task.current_step }}</span>
+                    <span>{{ task.progress }}%</span>
+                  </div>
+                  <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      class="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                      :style="{ width: `${task.progress}%` }"
+                    ></div>
+                  </div>
                 </div>
               </div>
+            </div>
+          </div>
 
-              <div v-if="queryResult.nl_diff_analysis.knowledge_candidates && queryResult.nl_diff_analysis.knowledge_candidates.length" class="mt-4">
-                <h4 class="text-sm font-medium text-slate-600 mb-2">固化知识候选</h4>
-                <div class="space-y-2">
-                  <div v-for="(k, i) in queryResult.nl_diff_analysis.knowledge_candidates" :key="'kc-'+i" class="border border-slate-200 rounded-md p-3">
-                    <div class="text-slate-800 font-medium">{{ k.title || ('知识点 ' + (i+1)) }}</div>
-                    <div class="text-slate-700 text-sm mt-1 whitespace-pre-line">{{ k.description }}</div>
+          <!-- Task Details -->
+          <div
+            v-show="expandedTasks.includes(task.task_id)"
+            class="border-t border-gray-200"
+          >
+            <div v-if="task.status === 'running'" class="p-4">
+              <!-- 运行中的状态 -->
+              <div class="text-center text-gray-500">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-3"></div>
+                <p class="text-sm">{{ task.current_step }}</p>
+                <p class="text-xs text-gray-400 mt-1">请稍候，正在处理您的查询...</p>
+              </div>
+            </div>
+
+            <div v-else-if="task.status === 'success' && task.result" class="p-4">
+              <!-- 成功的结果展示 -->
+              <div class="space-y-4">
+                <!-- SQL 查询区域 (可收缩) -->
+                <div>
+                  <button
+                    @click="toggleSql(task.task_id)"
+                    class="flex items-center space-x-2 text-sm font-medium text-gray-700 hover:text-gray-900 mb-2"
+                  >
+                    <ChevronRightIcon
+                      :class="[
+                        'w-4 h-4 transition-transform duration-200',
+                        expandedSql.includes(task.task_id) ? 'transform rotate-90' : ''
+                      ]"
+                    />
+                    <span>SQL 查询语句</span>
+                  </button>
+
+                  <div v-show="expandedSql.includes(task.task_id)" class="bg-gray-50 p-3 rounded-lg">
+                    <pre class="text-sm text-gray-800 font-mono overflow-x-auto">{{ task.result.sql_query }}</pre>
+                  </div>
+                </div>
+
+                <!-- 查询结果数据 -->
+                <div>
+                  <h4 class="text-sm font-medium text-gray-700 mb-2">查询结果</h4>
+                  <div class="bg-gray-50 p-3 rounded-lg max-h-96 overflow-auto">
+                    <QueryResultTable
+                      v-if="task.result.data && task.result.data.length > 0"
+                      :data="task.result.data"
+                    />
+                    <div v-else class="text-center text-gray-500 py-8">
+                      <div class="text-gray-400 mb-2">
+                        <DocumentIcon class="w-12 h-12 mx-auto" />
+                      </div>
+                      <p class="text-sm">查询结果为空</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 执行信息 -->
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span class="text-gray-500">行数：</span>
+                    <span class="font-medium">{{ task.result.row_count || 0 }}</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-500">执行时间：</span>
+                    <span class="font-medium">{{ task.result.execution_time?.toFixed(2) || 0 }}s</span>
+                  </div>
+                </div>
+
+                <!-- SQL 解释 -->
+                <div v-if="task.result.sql_explanation">
+                  <h4 class="text-sm font-medium text-gray-700 mb-2">查询说明</h4>
+                  <div class="bg-blue-50 p-3 rounded-lg">
+                    <p class="text-sm text-gray-700">{{ task.result.sql_explanation }}</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- 非结构化/原始结果回退显示 -->
-            <div v-else>
-              <pre class="text-slate-700 text-sm whitespace-pre-wrap">{{ typeof queryResult.nl_diff_analysis === 'string' ? queryResult.nl_diff_analysis : JSON.stringify(queryResult.nl_diff_analysis, null, 2) }}</pre>
+            <div v-else-if="task.status === 'failed'" class="p-4">
+              <!-- 失败状态 -->
+              <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div class="flex items-start space-x-3">
+                  <ExclamationTriangleIcon class="w-5 h-5 text-red-500 mt-0.5" />
+                  <div>
+                    <h4 class="text-sm font-medium text-red-800">查询失败</h4>
+                    <p class="text-sm text-red-700 mt-1">{{ task.error || '未知错误' }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="p-4">
+              <!-- 其他状态 -->
+              <div class="text-center text-gray-500">
+                <p class="text-sm">等待处理中...</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Error Result -->
-        <div v-if="!queryResult.success" class="bg-red-50 border border-red-200 rounded-lg p-6">
-          <div class="flex items-start space-x-3">
-            <ExclamationTriangleIcon class="w-6 h-6 text-red-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <h3 class="text-lg font-semibold text-red-800 mb-2">查询失败</h3>
-              <p class="text-red-700">{{ queryResult.error || '未知错误' }}</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Query Logs -->
-        <div v-if="queryResult.logs && queryResult.logs.length > 0" class="mt-6">
-          <QueryLogs :logs="queryResult.logs" />
+        <!-- 空状态 -->
+        <div v-if="tasks.length === 0" class="text-center py-12">
+          <DocumentIcon class="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h3 class="text-lg font-medium text-gray-900 mb-2">暂无查询记录</h3>
+          <p class="text-gray-500">输入您的问题开始第一个查询</p>
         </div>
       </div>
-    </section>
-
-
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import {
-  MagnifyingGlassIcon,
-  ExclamationTriangleIcon,
-  LightBulbIcon,
-  BoltIcon,
-  AcademicCapIcon
-} from '@heroicons/vue/24/outline'
-import { apiClient } from '@/api'
-import type { QueryResponse } from '@/types'
-import ClarityCheck from '@/components/ClarityCheck.vue'
-import ResultDisplay from '@/components/ResultDisplay.vue'
-import QueryLogs from '@/components/QueryLogs.vue'
+import { MagnifyingGlassIcon, ChevronDownIcon, ChevronRightIcon, LightBulbIcon, ArrowPathIcon, DocumentIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
+import QueryResultTable from '@/components/QueryResultTable.vue'
+import { queryApi } from '@/services/api'
+
+interface Task {
+  task_id: string
+  user_input: string
+  status: 'pending' | 'running' | 'success' | 'failed'
+  current_step: string
+  progress: number
+  created_at: string
+  started_at?: string
+  completed_at?: string
+  has_result: boolean
+  has_error: boolean
+  result?: any
+  error?: string
+}
 
 // 响应式数据
 const queryInput = ref('')
-const isQuerying = ref(false)
-const queryResult = ref<QueryResponse | null>(null)
-const executionTime = ref(0)
-const querySection = ref<HTMLElement>()
-const showFloatingBar = ref(false)
-
-
-// 流程类型
 const flowType = ref<'fast' | 'thorough'>('fast')
+const isSubmitting = ref(false)
+const isRefreshing = ref(false)
+const tasks = ref<Task[]>([])
+const expandedTasks = ref<string[]>([])
+const expandedSql = ref<string[]>([])
+
+// 轮询定时器
+let pollTimer: NodeJS.Timeout | null = null
 
 // 提交查询
 const submitQuery = async () => {
-  if (!queryInput.value.trim() || isQuerying.value) return
+  if (!queryInput.value.trim() || isSubmitting.value) return
 
-  isQuerying.value = true
-  queryResult.value = null
-  executionTime.value = 0
+  isSubmitting.value = true
 
   try {
-    const startTime = Date.now()
-    const result = await apiClient.query(queryInput.value.trim(), 2, flowType.value)
-    const endTime = Date.now()
+    const response = await queryApi.submitQuery({
+      query: queryInput.value.trim(),
+      flow_type: flowType.value
+    })
 
-    executionTime.value = (endTime - startTime) / 1000
-    queryResult.value = result
+    if (response.success) {
+      // 清空输入框
+      queryInput.value = ''
 
+      // 刷新任务列表
+      await refreshTasks()
+
+      // 展开新任务
+      if (response.task_id) {
+        expandedTasks.value.push(response.task_id)
+      }
+    } else {
+      console.error('提交查询失败:', response.error)
+    }
   } catch (error) {
-    console.error('查询失败:', error)
-    queryResult.value = {
-      success: false,
-      error: '查询过程中发生错误，请稍后重试'
-    }
+    console.error('提交查询异常:', error)
   } finally {
-    isQuerying.value = false
+    isSubmitting.value = false
   }
 }
 
-// 选择建议
-const selectSuggestion = (suggestion: string) => {
-  queryInput.value = suggestion
-}
+// 刷新任务列表
+const refreshTasks = async () => {
+  isRefreshing.value = true
 
-// 滚动监听
-const handleScroll = () => {
-  if (!querySection.value) return
-  
-  const rect = querySection.value.getBoundingClientRect()
-  // 当原始搜索框滚出视窗时显示浮动搜索框
-  showFloatingBar.value = rect.bottom < 80
-}
+  try {
+    const tasksData = await queryApi.getAllTasks()
 
-onMounted(() => {
-  // 键盘事件监听
-  const handleKeyDown = (event: KeyboardEvent) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-      submitQuery()
+    // 更新任务列表
+    tasks.value = tasksData.sort((a: Task, b: Task) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+
+    // 对于运行中的任务，获取详细信息
+    for (const task of tasks.value.filter(t => t.status === 'running')) {
+      try {
+        const detail = await queryApi.getTaskResult(task.task_id)
+        if (detail) {
+          Object.assign(task, detail)
+        }
+      } catch (error) {
+        console.error(`获取任务 ${task.task_id} 详情失败:`, error)
+      }
     }
+  } catch (error) {
+    console.error('刷新任务列表失败:', error)
+  } finally {
+    isRefreshing.value = false
   }
-  
-  // 添加事件监听
-  document.addEventListener('keydown', handleKeyDown)
-  window.addEventListener('scroll', handleScroll, { passive: true })
+}
 
-  return () => {
-    document.removeEventListener('keydown', handleKeyDown)
-    window.removeEventListener('scroll', handleScroll)
+// 切换任务展开状态
+const toggleTask = (taskId: string) => {
+  const index = expandedTasks.value.indexOf(taskId)
+  if (index > -1) {
+    expandedTasks.value.splice(index, 1)
+  } else {
+    expandedTasks.value.push(taskId)
   }
+}
+
+// 切换SQL展开状态
+const toggleSql = (taskId: string) => {
+  const index = expandedSql.value.indexOf(taskId)
+  if (index > -1) {
+    expandedSql.value.splice(index, 1)
+  } else {
+    expandedSql.value.push(taskId)
+  }
+}
+
+// 获取状态文本
+const getStatusText = (status: string) => {
+  const statusMap: Record<string, string> = {
+    'pending': '等待中',
+    'running': '运行中',
+    'success': '已完成',
+    'failed': '失败'
+  }
+  return statusMap[status] || status
+}
+
+// 格式化时间
+const formatTime = (timeStr: string) => {
+  const date = new Date(timeStr)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+
+  if (diff < 60000) { // 1分钟内
+    return '刚刚'
+  } else if (diff < 3600000) { // 1小时内
+    return `${Math.floor(diff / 60000)}分钟前`
+  } else if (diff < 86400000) { // 1天内
+    return `${Math.floor(diff / 3600000)}小时前`
+  } else {
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
+  }
+}
+
+// 开始轮询
+const startPolling = () => {
+  pollTimer = setInterval(() => {
+    refreshTasks()
+  }, 2000) // 每2秒轮询一次
+}
+
+// 停止轮询
+const stopPolling = () => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+// 生命周期
+onMounted(() => {
+  refreshTasks()
+  startPolling()
 })
 
 onUnmounted(() => {
-  // 移除滚动监听
-  window.removeEventListener('scroll', handleScroll)
+  stopPolling()
 })
 </script>
-
-<style scoped>
-/* 自定义滚动条 */
-.overflow-y-auto::-webkit-scrollbar {
-  width: 4px;
-}
-
-.overflow-y-auto::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-
-.overflow-y-auto::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 2px;
-}
-
-/* 渐变动画 */
-@keyframes gradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.bg-gradient-to-br {
-  background-size: 200% 200%;
-  animation: gradient 15s ease infinite;
-}
-</style>
