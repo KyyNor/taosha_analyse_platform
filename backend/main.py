@@ -2,10 +2,8 @@
 淘沙分析平台 - FastAPI主应用
 """
 
-import sys
-from pathlib import Path
 from contextlib import asynccontextmanager
-from utils.logger import logger, get_logger
+from utils.logger import logger
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

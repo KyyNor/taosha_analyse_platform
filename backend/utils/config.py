@@ -8,10 +8,6 @@ from typing import Optional, Dict, Any
 import yaml
 from pydantic_settings import BaseSettings
 
-from .logger import get_logger
-
-logger = get_logger(__name__)
-
 
 class ConfigManager:
     """配置管理器"""
@@ -32,11 +28,8 @@ class ConfigManager:
         self._config_data = None
         self._settings = None
 
-        logger.debug(f"初始化配置管理器，配置文件路径: {self.config_path}")
-
         # 确保配置文件存在
         if not self.config_path.exists():
-            logger.error(f"配置文件不存在: {self.config_path}")
             raise FileNotFoundError(f"配置文件不存在: {self.config_path}")
 
         # 加载配置
@@ -45,17 +38,12 @@ class ConfigManager:
         # 创建Pydantic设置实例
         self._create_settings()
 
-        logger.debug("配置管理器初始化完成")
-
     def _load_config(self) -> None:
         """加载YAML配置文件"""
-        logger.debug(f"开始加载配置文件: {self.config_path}")
         try:
             with open(self.config_path, 'r', encoding='utf-8') as file:
                 self._config_data = yaml.safe_load(file)
-            logger.debug("配置文件加载成功")
         except Exception as e:
-            logger.error(f"配置文件加载失败: {e}")
             raise RuntimeError(f"加载配置文件失败: {e}")
 
     def _create_settings(self) -> None:
@@ -187,7 +175,6 @@ def get_config() -> ConfigManager:
     """获取全局配置管理器实例"""
     global _config_manager
     if _config_manager is None:
-        logger.debug("创建全局配置管理器实例")
         _config_manager = ConfigManager()
     return _config_manager
 
