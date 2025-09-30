@@ -13,7 +13,7 @@ from api.models import (
     DatabaseStatus, SystemStatus, ErrorResponse
 )
 from services import (
-    get_nl2sql_service, get_database_service, 
+    get_nl2sql_service, get_query_engine,
     get_metadata_service, get_glossary_service
 )
 from utils.config import settings
@@ -95,7 +95,7 @@ async def get_tables():
     获取所有数据表信息
     """
     try:
-        db_service = get_database_service()
+        db_service = get_query_engine()
         metadata_service = get_metadata_service()
         
         # 从数据库获取表列表
@@ -131,7 +131,7 @@ async def get_table_info(table_name: str):
     获取指定表的详细信息
     """
     try:
-        db_service = get_database_service()
+        db_service = get_query_engine()
         metadata_service = get_metadata_service()
         
         # 检查表是否存在
