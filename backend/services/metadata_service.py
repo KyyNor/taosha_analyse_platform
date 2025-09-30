@@ -3,7 +3,7 @@
 """
 
 import json
-from loguru import logger
+from utils.logger import logger
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import hashlib

@@ -41,6 +41,18 @@ logging:
   rotation: "10 MB"
   retention: "7 days"
   compression: "gz"
+  format: "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+  colorize: true
+  backtrace: true
+  diagnose: true
+  # 日志文件配置
+  files:
+    app:
+      path: "logs/app.log"
+      level: "INFO"
+    error:
+      path: "logs/error.log"
+      level: "ERROR"
 
 # 环境变量前缀
 env_prefix: "TAOSHA_"

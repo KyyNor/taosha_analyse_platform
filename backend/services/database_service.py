@@ -3,7 +3,7 @@
 """
 
 from abc import ABC, abstractmethod
-from loguru import logger
+from utils.logger import logger
 from typing import Dict, List, Any, Optional
 import pandas as pd
 import duckdb
@@ -69,7 +69,7 @@ class DuckDBService(DatabaseService):
                     region VARCHAR(50)
                 )
             """)
-            
+
             # 创建客户表
             self.conn.execute("""
                 CREATE TABLE IF NOT EXISTS customers (
@@ -81,13 +81,13 @@ class DuckDBService(DatabaseService):
                     registration_date DATE
                 )
             """)
-            
+
             # 检查是否已有数据
             result = self.conn.execute("SELECT COUNT(*) FROM sales").fetchone()
             if result[0] == 0:
                 # 插入示例数据
                 self._insert_sample_data()
-                
+
         except Exception as e:
             logger.error(f"Failed to initialize sample data: {e}")
     

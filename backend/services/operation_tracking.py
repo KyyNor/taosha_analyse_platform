@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from contextlib import contextmanager
 from dataclasses import dataclass, asdict
-from loguru import logger
+from utils.logger import logger
 
 from utils.database_connection import get_database_manager
 

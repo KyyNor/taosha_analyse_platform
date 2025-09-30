@@ -3,7 +3,7 @@
 """
 
 from typing import List, Optional
-from loguru import logger
+from utils.logger import logger, get_logger, LoggerMixin
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 

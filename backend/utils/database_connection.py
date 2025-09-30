@@ -6,7 +6,7 @@ import sqlite3
 import pymysql
 from typing import Dict, Any, Optional, Union
 from contextlib import contextmanager
-from loguru import logger
+from utils.logger import logger
 from pathlib import Path
 
 from utils.config import settings

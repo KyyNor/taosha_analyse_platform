@@ -4,7 +4,7 @@
 
 import hashlib
 import json
-from loguru import logger
+from utils.logger import logger
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime

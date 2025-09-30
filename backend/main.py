@@ -5,7 +5,7 @@
 import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
-from loguru import logger
+from utils.logger import logger, get_logger
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -115,16 +115,7 @@ async def global_exception_handler(request, exc):
 def main():
     """主函数"""
     import uvicorn
-    
-    # 配置 loguru
-    logger.remove()  # 移除默认处理器
-    logger.add(
-        sys.stdout,
-        level=settings.log_level,
-        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-        colorize=True
-    )
-    
+
     logger.info(f"启动 {settings.app_name} v{settings.app_version}")
     logger.info(f"数据库路径: {settings.duckdb_path}")
     logger.info(f"ChromaDB路径: {settings.chromadb_path}")

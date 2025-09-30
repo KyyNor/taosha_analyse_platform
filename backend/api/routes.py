@@ -4,7 +4,7 @@ API路由定义
 
 import time
 from typing import List
-from loguru import logger
+from utils.logger import logger, get_logger, LoggerMixin
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 
