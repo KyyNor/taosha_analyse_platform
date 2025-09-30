@@ -245,7 +245,7 @@ import {
   AcademicCapIcon
 } from '@heroicons/vue/24/outline'
 import { apiClient } from '@/api'
-import type { QueryResponse, SystemStatus } from '@/types'
+import type { QueryResponse } from '@/types'
 import ClarityCheck from '@/components/ClarityCheck.vue'
 import ResultDisplay from '@/components/ResultDisplay.vue'
 import QueryLogs from '@/components/QueryLogs.vue'
@@ -255,8 +255,6 @@ const queryInput = ref('')
 const isQuerying = ref(false)
 const queryResult = ref<QueryResponse | null>(null)
 const executionTime = ref(0)
-const isHealthy = ref(true)
-const systemStatus = ref<SystemStatus | null>(null)
 const querySection = ref<HTMLElement>()
 const showFloatingBar = ref(false)
 
@@ -305,26 +303,7 @@ const handleScroll = () => {
   showFloatingBar.value = rect.bottom < 80
 }
 
-
-// 健康检查
-const checkHealth = async () => {
-  try {
-    isHealthy.value = await apiClient.healthCheck()
-    if (isHealthy.value && !systemStatus.value) {
-      systemStatus.value = await apiClient.getSystemStatus()
-    }
-  } catch {
-    isHealthy.value = false
-  }
-}
-
-// 定时健康检查
-let healthCheckInterval: number
-
 onMounted(() => {
-  checkHealth()
-  healthCheckInterval = window.setInterval(checkHealth, 30000)
-
   // 键盘事件监听
   const handleKeyDown = (event: KeyboardEvent) => {
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
@@ -343,9 +322,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (healthCheckInterval) {
-    clearInterval(healthCheckInterval)
-  }
   // 移除滚动监听
   window.removeEventListener('scroll', handleScroll)
 })

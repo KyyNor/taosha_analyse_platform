@@ -5,20 +5,17 @@
 import hashlib
 import json
 from loguru import logger
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
 import pandas as pd
-import chromadb
 from pathlib import Path
 
 # LangGraph imports
 from langgraph.graph import StateGraph, END
-from langgraph.graph.message import add_messages
-from typing_extensions import Annotated, TypedDict
+from typing_extensions import TypedDict
 
 # Vanna imports
-from vanna.base import VannaBase
 from vanna.openai import OpenAI_Chat
 from vanna.chromadb import ChromaDB_VectorStore
 
@@ -177,26 +174,16 @@ class NL2SQLService:
             """检查是否需要重新训练Vanna"""
             logs = state.get('logs', [])
             
-            # 检查元数据、术语表和关联配置是否有变化
-            metadata_changed = self.metadata_service.reload_if_changed()
-            glossary_changed = self.glossary_service.reload_if_changed()
-            # 目前关联配置没有缓存机制，简单检查数据变化
-            current_relations = str(self.relation_config_service.get_all_relation_configs())
-            relations_changed = getattr(self, '_last_relations', None) != current_relations
-            if relations_changed:
-                self._last_relations = current_relations
-            
-            if metadata_changed or glossary_changed or relations_changed or not self.vanna.training_hash:
-                # 需要重新训练
-                self._train_vanna()
-                log_entry = self.vanna.log_interaction(
-                    step="training_check",
-                    input_data="metadata/glossary check",
-                    prompt="",
-                    model_output="training completed",
-                    success=True
-                )
-                logs.append(log_entry)
+            # 需要重新训练
+            self._train_vanna()
+            log_entry = self.vanna.log_interaction(
+                step="training_check",
+                input_data="metadata/glossary check",
+                prompt="",
+                model_output="training completed",
+                success=True
+            )
+            logs.append(log_entry)
             
             state['logs'] = logs
             return state

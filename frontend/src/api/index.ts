@@ -1,14 +1,11 @@
 import axios from 'axios'
 import type {
   ApiResponse,
-  QueryRequest,
   QueryResponse,
   TableMetadata,
-  ColumnMetadata,
   ColumnUpdateRequest,
   Term,
   RelationConfig,
-  SystemStatus,
   DataTable,
   OperationSession,
   OperationStep,
@@ -31,27 +28,6 @@ api.interceptors.response.use(
 )
 
 export class TaoshaAPIClient {
-  // 健康检查
-  async healthCheck(): Promise<boolean> {
-    try {
-      const response = await api.get('/health')
-      return response.status === 200
-    } catch {
-      return false
-    }
-  }
-
-  // 系统状态
-  async getSystemStatus(): Promise<SystemStatus | null> {
-    try {
-      const response = await api.get<SystemStatus>('/status')
-      return response.data
-    } catch (error) {
-      console.error('获取系统状态失败:', error)
-      return null
-    }
-  }
-
   // 数据查询
   async query(queryText: string, maxRetries: number = 2, flowType: string = 'fast'): Promise<QueryResponse> {
     try {

@@ -259,17 +259,6 @@ class MetadataService:
             logger.error(f"删除列元数据失败: {e}")
             return False
     
-    def has_changed(self) -> bool:
-        """检查元数据是否已变化"""
-        try:
-            current_metadata = self._load_metadata_from_db()
-            current_content = json.dumps(current_metadata, sort_keys=True, ensure_ascii=False)
-            current_hash = hashlib.md5(current_content.encode()).hexdigest()
-            return current_hash != self._metadata_hash
-        except Exception as e:
-            logger.error(f"检查元数据变化失败: {e}")
-            return True
-    
     def _load_metadata_from_db(self) -> Dict[str, Any]:
         """从数据库加载元数据（不更新实例状态）"""
         with self.db_manager.get_metadata_connection() as (conn, db_type):
@@ -308,14 +297,6 @@ class MetadataService:
                 })
             
             return {"tables": tables}
-    
-    def reload_if_changed(self) -> bool:
-        """如果有变化则重新加载元数据"""
-        if self.has_changed():
-            self._load_metadata()
-            logger.info("Metadata reloaded due to changes")
-            return True
-        return False
     
     def get_available_tables(self) -> List[Dict[str, Any]]:
         """获取所有可用的表信息（is_available = 0）"""
@@ -630,17 +611,6 @@ class GlossaryService:
             logger.error(f"删除术语失败: {e}")
             return False
     
-    def has_changed(self) -> bool:
-        """检查术语表是否已变化"""
-        try:
-            current_glossary = self._load_glossary_from_db()
-            current_content = json.dumps(current_glossary, sort_keys=True, ensure_ascii=False)
-            current_hash = hashlib.md5(current_content.encode()).hexdigest()
-            return current_hash != self._glossary_hash
-        except Exception as e:
-            logger.error(f"检查术语表变化失败: {e}")
-            return True
-    
     def _load_glossary_from_db(self) -> Dict[str, Any]:
         """从数据库加载术语表（不更新实例状态）"""
         with self.db_manager.get_metadata_connection() as (conn, db_type):
@@ -673,14 +643,7 @@ class GlossaryService:
                 })
             
             return {"terms": terms}
-    
-    def reload_if_changed(self) -> bool:
-        """如果有变化则重新加载术语表"""
-        if self.has_changed():
-            self._load_glossary()
-            logger.info("Glossary reloaded due to changes")
-            return True
-        return False
+
 
 # 全局服务实例
 _metadata_service: Optional[MetadataService] = None

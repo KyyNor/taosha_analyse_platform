@@ -92,7 +92,6 @@ async def add_table_metadata(request: TableMetadataRequest):
         success = metadata_service.add_table(request.name, request.comment, request.is_available)
         if success:
             # 重新加载元数据
-            metadata_service.reload_if_changed()
             return {"success": True, "message": f"表元数据已添加: {request.name}"}
         else:
             raise HTTPException(status_code=400, detail="添加表元数据失败")
@@ -109,7 +108,6 @@ async def update_table_metadata(table_name: str, request: TableMetadataUpdate):
         success = metadata_service.update_table(table_name, request.comment, request.is_available)
         if success:
             # 重新加载元数据
-            metadata_service.reload_if_changed()
             return {"success": True, "message": f"表元数据已更新: {table_name}"}
         else:
             raise HTTPException(status_code=400, detail="更新表元数据失败")
@@ -126,7 +124,6 @@ async def delete_table_metadata(table_name: str):
         success = metadata_service.delete_table(table_name)
         if success:
             # 重新加载元数据
-            metadata_service.reload_if_changed()
             return {"success": True, "message": f"表元数据已删除: {table_name}"}
         else:
             raise HTTPException(status_code=400, detail="删除表元数据失败")
@@ -152,7 +149,6 @@ async def add_column_metadata(request: ColumnMetadataRequest):
         )
         if success:
             # 重新加载元数据
-            metadata_service.reload_if_changed()
             return {"success": True, "message": f"列元数据已添加: {request.table_name}.{request.name}"}
         else:
             raise HTTPException(status_code=400, detail="添加列元数据失败")
@@ -177,7 +173,6 @@ async def update_column_metadata(table_name: str, column_name: str, request: Col
         )
         if success:
             # 重新加载元数据
-            metadata_service.reload_if_changed()
             return {"success": True, "message": f"列元数据已更新: {table_name}.{column_name}"}
         else:
             raise HTTPException(status_code=400, detail="更新列元数据失败")
@@ -194,7 +189,6 @@ async def delete_column_metadata(table_name: str, column_name: str):
         success = metadata_service.delete_column(table_name, column_name)
         if success:
             # 重新加载元数据
-            metadata_service.reload_if_changed()
             return {"success": True, "message": f"列元数据已删除: {table_name}.{column_name}"}
         else:
             raise HTTPException(status_code=400, detail="删除列元数据失败")
@@ -229,8 +223,6 @@ async def add_term(request: GlossaryTermRequest):
             request.aliases
         )
         if success:
-            # 重新加载术语表
-            glossary_service.reload_if_changed()
             return {"success": True, "message": f"术语已添加: {request.term}"}
         else:
             raise HTTPException(status_code=400, detail="添加术语失败")
@@ -252,8 +244,6 @@ async def update_term(term_id: int, request: GlossaryTermUpdate):
             request.category
         )
         if success:
-            # 重新加载术语表
-            glossary_service.reload_if_changed()
             return {"success": True, "message": f"术语已更新: ID {term_id}"}
         else:
             raise HTTPException(status_code=400, detail="更新术语失败")
@@ -269,8 +259,6 @@ async def delete_term(term_id: int):
         glossary_service = get_glossary_service()
         success = glossary_service.delete_term(term_id)
         if success:
-            # 重新加载术语表
-            glossary_service.reload_if_changed()
             return {"success": True, "message": f"术语已删除: ID {term_id}"}
         else:
             raise HTTPException(status_code=400, detail="删除术语失败")
@@ -335,9 +323,6 @@ async def sync_metadata_from_database():
                     pass
             
             synced_tables.append(table_name)
-        
-        # 重新加载元数据
-        metadata_service.reload_if_changed()
         
         return {
             "success": True, 

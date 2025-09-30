@@ -82,15 +82,6 @@ export interface RelationConfig {
   relation_desc?: string
 }
 
-// 系统状态类型
-export interface SystemStatus {
-  app_name: string
-  version: string
-  database: {
-    database_type: string
-    total_tables: number
-  }
-}
 
 // 数据表信息类型
 export interface DataTable {

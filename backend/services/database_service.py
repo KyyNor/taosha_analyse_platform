@@ -7,7 +7,6 @@ from loguru import logger
 from typing import Dict, List, Any, Optional
 import pandas as pd
 import duckdb
-from pathlib import Path
 
 from config import settings
 

@@ -96,9 +96,6 @@ async def api_info():
             "查询": "/api/v1/query",
             "表列表": "/api/v1/tables",
             "表信息": "/api/v1/table/{table_name}",
-            "系统状态": "/api/v1/status",
-            "健康检查": "/api/v1/health",
-            "重载元数据": "/api/v1/metadata/reload"
         }
     }
 

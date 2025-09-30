@@ -1,14 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { SystemStatus, TableMetadata, Term, RelationConfig } from '@/types'
+import type { TableMetadata, Term, RelationConfig } from '@/types'
 import { apiClient } from '@/api'
 
 export const useAppStore = defineStore('app', () => {
   // 状态
   const isLoading = ref(false)
   const error = ref<string | null>(null)
-  const systemStatus = ref<SystemStatus | null>(null)
-  const isHealthy = ref(true)
 
   // 元数据缓存
   const metadataTables = ref<TableMetadata[]>([])
@@ -50,42 +48,6 @@ export const useAppStore = defineStore('app', () => {
 
   const clearError = () => {
     error.value = null
-  }
-
-  // 健康检查
-  const checkHealth = async () => {
-    try {
-      isHealthy.value = await apiClient.healthCheck()
-      return isHealthy.value
-    } catch (err) {
-      isHealthy.value = false
-      return false
-    }
-  }
-
-  // 获取系统状态
-  const fetchSystemStatus = async (forceRefresh = false) => {
-    const now = Date.now()
-    const cacheTimeout = 60000 // 1分钟缓存
-
-    if (!forceRefresh && systemStatus.value && (now - lastUpdated.value.system) < cacheTimeout) {
-      return systemStatus.value
-    }
-
-    try {
-      setLoading(true)
-      clearError()
-      
-      systemStatus.value = await apiClient.getSystemStatus()
-      lastUpdated.value.system = now
-      
-      return systemStatus.value
-    } catch (err: any) {
-      setError(`获取系统状态失败: ${err.message}`)
-      return null
-    } finally {
-      setLoading(false)
-    }
   }
 
   // 获取表元数据
@@ -176,7 +138,6 @@ export const useAppStore = defineStore('app', () => {
       clearError()
       
       await Promise.all([
-        fetchSystemStatus(true),
         fetchMetadataTables(true),
         fetchTerms(true),
         fetchRelationConfigs(true)
@@ -194,7 +155,6 @@ export const useAppStore = defineStore('app', () => {
     terms.value = []
     relationConfigs.value = []
     relationIds.value = []
-    systemStatus.value = null
     lastUpdated.value = {
       tables: 0,
       terms: 0,
@@ -208,19 +168,13 @@ export const useAppStore = defineStore('app', () => {
     try {
       setLoading(true)
       clearError()
-      
-      // 先检查健康状态
-      const healthy = await checkHealth()
-      
-      if (healthy) {
-        // 并行加载基础数据
-        await Promise.all([
-          fetchSystemStatus(),
-          fetchMetadataTables(),
-          fetchTerms(),
-          fetchRelationConfigs()
-        ])
-      }
+
+      // 并行加载基础数据
+      await Promise.all([
+        fetchMetadataTables(),
+        fetchTerms(),
+        fetchRelationConfigs()
+      ])
     } catch (err: any) {
       setError(`应用初始化失败: ${err.message}`)
     } finally {
@@ -232,8 +186,6 @@ export const useAppStore = defineStore('app', () => {
     // 状态
     isLoading: readonly(isLoading),
     error: readonly(error),
-    systemStatus: readonly(systemStatus),
-    isHealthy: readonly(isHealthy),
     metadataTables: readonly(metadataTables),
     terms: readonly(terms),
     relationConfigs: readonly(relationConfigs),
@@ -248,8 +200,6 @@ export const useAppStore = defineStore('app', () => {
     setLoading,
     setError,
     clearError,
-    checkHealth,
-    fetchSystemStatus,
     fetchMetadataTables,
     fetchTerms,
     fetchRelationConfigs,

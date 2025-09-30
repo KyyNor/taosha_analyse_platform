@@ -28,18 +28,6 @@
               {{ route.title }}
             </router-link>
             
-            <!-- Health Status Indicator -->
-            <div class="ml-4 flex items-center space-x-2">
-              <div 
-                :class="[
-                  'w-2 h-2 rounded-full',
-                  isHealthy ? 'bg-green-500' : 'bg-red-500'
-                ]"
-              ></div>
-              <span class="text-xs text-slate-500">
-                {{ isHealthy ? '服务正常' : '服务异常' }}
-              </span>
-            </div>
           </div>
 
           <!-- Mobile menu button -->
@@ -94,7 +82,6 @@ import { apiClient } from '@/api'
 
 // 响应式数据
 const mobileMenuOpen = ref(false)
-const isHealthy = ref(true)
 
 // 导航路由配置
 const navRoutes = [
@@ -111,30 +98,8 @@ const isActiveRoute = (routeName: string) => {
   return route.name === routeName
 }
 
-// 健康检查
-const checkHealth = async () => {
-  try {
-    isHealthy.value = await apiClient.healthCheck()
-  } catch {
-    isHealthy.value = false
-  }
-}
-
-// 定时健康检查
-let healthCheckInterval: number
-
-onMounted(() => {
-  // 立即执行一次健康检查
-  checkHealth()
-  
-  // 每30秒检查一次
-  healthCheckInterval = window.setInterval(checkHealth, 3600000)
-})
 
 onUnmounted(() => {
-  if (healthCheckInterval) {
-    clearInterval(healthCheckInterval)
-  }
 })
 </script>
 
