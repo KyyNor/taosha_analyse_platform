@@ -55,15 +55,10 @@
                     <button class="nav-tab w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100" onclick="showSection('tech-stack')">
                         ④ 技术框架
                     </button>
+                    <button class="nav-tab w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100" onclick="showSection('future-outlook')">
+                        ⑤ 未来展望
+                    </button>
                 </nav>
-            </div>
-            
-            <!-- 待讨论问题区域 -->
-            <div class="p-6 mt-8 border-t border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">待讨论问题</h3>
-                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 min-h-32">
-                    <p class="text-sm text-gray-600">请在此处记录讨论中提出的问题...</p>
-                </div>
             </div>
         </div>
 
@@ -432,6 +427,109 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 未来展望 -->
+            <div id="future-outlook" class="content-section">
+                <div class="bg-white rounded-lg shadow-md p-8">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-8">未来展望</h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- 功能完善 -->
+                        <div class="bg-blue-50 rounded-lg p-6">
+                            <div class="flex items-center mb-4">
+                                <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
+                                    🔧
+                                </div>
+                                <h3 class="text-xl font-bold text-blue-800">功能完善</h3>
+                            </div>
+                            <div class="space-y-3">
+                                <div class="bg-white rounded-lg p-3">
+                                    <h4 class="font-semibold text-blue-700 text-sm mb-2">用户体验优化</h4>
+                                    <ul class="text-gray-700 text-sm space-y-1">
+                                        <li>• 优化查询界面交互</li>
+                                        <li>• 添加查询历史搜索</li>
+                                        <li>• 支持常用查询模板</li>
+                                    </ul>
+                                </div>
+                                <div class="bg-white rounded-lg p-3">
+                                    <h4 class="font-semibold text-blue-700 text-sm mb-2">管理系统增强</h4>
+                                    <ul class="text-gray-700 text-sm space-y-1">
+                                        <li>• 批量元数据导入</li>
+                                        <li>• 权限批量配置</li>
+                                        <li>• 操作日志查询</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 性能优化 -->
+                        <div class="bg-green-50 rounded-lg p-6">
+                            <div class="flex items-center mb-4">
+                                <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
+                                    ⚡
+                                </div>
+                                <h3 class="text-xl font-bold text-green-800">性能优化</h3>
+                            </div>
+                            <div class="space-y-3">
+                                <div class="bg-white rounded-lg p-3">
+                                    <h4 class="font-semibold text-green-700 text-sm mb-2">查询效率</h4>
+                                    <ul class="text-gray-700 text-sm space-y-1">
+                                        <li>• 提升SQL生成准确率</li>
+                                        <li>• 优化向量检索速度</li>
+                                        <li>• 利用缓存优化SQL执行效率</li>
+                                    </ul>
+                                </div>
+                                <div class="bg-white rounded-lg p-3">
+                                    <h4 class="font-semibold text-green-700 text-sm mb-2">系统稳定性</h4>
+                                    <ul class="text-gray-700 text-sm space-y-1">
+                                        <li>• 增强并发处理能力</li>
+                                        <li>• 优化内存使用</li>
+                                        <li>• 添加缓存机制</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 可移植性 -->
+                        <div class="bg-purple-50 rounded-lg p-6">
+                            <div class="flex items-center mb-4">
+                                <div class="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
+                                    📦
+                                </div>
+                                <h3 class="text-xl font-bold text-purple-800">可移植性</h3>
+                            </div>
+                            <div class="space-y-3">
+                                <div class="bg-white rounded-lg p-3">
+                                    <h4 class="font-semibold text-purple-700 text-sm mb-2">部署简化</h4>
+                                    <ul class="text-gray-700 text-sm space-y-1">
+                                        <li>• 一键安装脚本</li>
+                                        <li>• 配置文件模板化</li>
+                                    </ul>
+                                </div>
+                                <div class="bg-white rounded-lg p-3">
+                                    <h4 class="font-semibold text-purple-700 text-sm mb-2">环境适配</h4>
+                                    <ul class="text-gray-700 text-sm space-y-1">
+                                        <li>• 支持不同的目标数据库</li>
+                                        <li>• 支持多种模型驱动方式</li>
+                                        <li>• 支持多种元数据来源</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 简单总结 -->
+                    <div class="mt-8 bg-gray-50 rounded-lg p-6">
+                        <div class="text-center">
+                            <h3 class="text-lg font-bold text-gray-800 mb-3">近期目标</h3>
+                            <p class="text-gray-700">
+                                专注实用功能，提升用户体验，优化系统性能，简化部署流程<br>
+                                让NL2SQL技术真正落地，为日常工作提供便利
+                            </p>
                         </div>
                     </div>
                 </div>
