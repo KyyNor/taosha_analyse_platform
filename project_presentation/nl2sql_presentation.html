@@ -268,7 +268,7 @@
             <div id="tech-stack" class="content-section">
                 <div class="bg-white rounded-lg shadow-md p-8">
                     <h2 class="text-3xl font-bold text-gray-800 mb-8">技术框架</h2>
-                    
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div class="space-y-6">
                             <div class="bg-purple-50 rounded-lg p-6">
@@ -288,7 +288,7 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="bg-orange-50 rounded-lg p-6">
                                 <h3 class="text-xl font-semibold text-orange-800 mb-4">主要流程框架</h3>
                                 <div class="text-center">
@@ -297,7 +297,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="space-y-6">
                             <div class="bg-blue-50 rounded-lg p-6">
                                 <h3 class="text-xl font-semibold text-blue-800 mb-4">前端实现方案</h3>
@@ -312,7 +312,7 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="bg-gray-50 rounded-lg p-6">
                                 <h3 class="text-xl font-semibold text-gray-800 mb-4">架构特点</h3>
                                 <ul class="space-y-2 text-gray-600">
@@ -329,6 +329,108 @@
                                         <span>灵活的权限控制机制</span>
                                     </li>
                                 </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 核心技术介绍卡片 -->
+                    <div class="mt-12">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-6 text-center">核心技术介绍</h3>
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <!-- LangGraph 卡片 -->
+                            <div class="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-6 border border-blue-200 hover:shadow-lg transition-all duration-300">
+                                <div class="flex items-center mb-4">
+                                    <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-xl mr-4">
+                                        LG
+                                    </div>
+                                    <h4 class="text-xl font-bold text-blue-800">LangGraph</h4>
+                                </div>
+                                <div class="space-y-3">
+                                    <div>
+                                        <h5 class="font-semibold text-blue-700 text-sm">技术概述</h5>
+                                        <p class="text-gray-700 text-sm leading-relaxed">
+                                            由LangChain团队开发的智能工作流编排框架，专门用于构建复杂的AI应用程序和智能体（Agent）系统。
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <h5 class="font-semibold text-blue-700 text-sm">在本项目中的作用</h5>
+                                        <ul class="text-gray-700 text-sm space-y-1">
+                                            <li>• 多轮对话管理和状态维护</li>
+                                            <li>• NL2SQL查询流程的智能编排</li>
+                                            <li>• 智能重试机制和错误处理</li>
+                                            <li>• 交互记录和上下文管理</li>
+                                        </ul>
+                                    </div>
+                                    <div class="bg-blue-100 rounded-lg p-3">
+                                        <p class="text-blue-800 text-xs font-medium">
+                                            🚀 优势：将复杂的AI查询流程拆分为可管理的步骤，提供强大的状态管理和错误恢复能力
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Vanna 卡片 -->
+                            <div class="bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl p-6 border border-green-200 hover:shadow-lg transition-all duration-300">
+                                <div class="flex items-center mb-4">
+                                    <div class="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center text-white font-bold text-xl mr-4">
+                                        V
+                                    </div>
+                                    <h4 class="text-xl font-bold text-green-800">Vanna</h4>
+                                </div>
+                                <div class="space-y-3">
+                                    <div>
+                                        <h5 class="font-semibold text-green-700 text-sm">技术概述</h5>
+                                        <p class="text-gray-700 text-sm leading-relaxed">
+                                            专门为自然语言转SQL（NL2SQL）设计的开源框架，通过AI模型理解用户问题并生成准确的SQL查询语句。
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <h5 class="font-semibold text-green-700 text-sm">在本项目中的作用</h5>
+                                        <ul class="text-gray-700 text-sm space-y-1">
+                                            <li>• 自然语言到SQL的智能转换</li>
+                                            <li>• 数据库Schema的理解和管理</li>
+                                            <li>• 查询结果的自动验证</li>
+                                            <li>• 与ChromaDB向量存储集成</li>
+                                        </ul>
+                                    </div>
+                                    <div class="bg-green-100 rounded-lg p-3">
+                                        <p class="text-green-800 text-xs font-medium">
+                                            🎯 优势：专门针对SQL生成优化，支持多种数据库，提供准确的查询转换能力
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ChromaDB 卡片 -->
+                            <div class="bg-gradient-to-br from-purple-50 to-violet-100 rounded-xl p-6 border border-purple-200 hover:shadow-lg transition-all duration-300">
+                                <div class="flex items-center mb-4">
+                                    <div class="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center text-white font-bold text-xl mr-4">
+                                        CB
+                                    </div>
+                                    <h4 class="text-xl font-bold text-purple-800">ChromaDB</h4>
+                                </div>
+                                <div class="space-y-3">
+                                    <div>
+                                        <h5 class="font-semibold text-purple-700 text-sm">技术概述</h5>
+                                        <p class="text-gray-700 text-sm leading-relaxed">
+                                            开源的向量数据库，专门用于存储和检索高维向量数据，为AI应用提供强大的语义搜索能力。
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <h5 class="font-semibold text-purple-700 text-sm">在本项目中的作用</h5>
+                                        <ul class="text-gray-700 text-sm space-y-1">
+                                            <li>• 元数据向量化的存储和管理</li>
+                                            <li>• 相似度搜索和上下文检索</li>
+                                            <li>• 查询历史的语义检索</li>
+                                            <li>• 提升SQL生成的准确性</li>
+                                        </ul>
+                                    </div>
+                                    <div class="bg-purple-100 rounded-lg p-3">
+                                        <p class="text-purple-800 text-xs font-medium">
+                                            💡 优势：轻量级、易于部署，提供高效的向量检索能力，增强查询的语义理解
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
