@@ -8,7 +8,7 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import hashlib
 
-from config import settings
+from utils.config import settings
 from utils.database_connection import get_database_manager
 
 

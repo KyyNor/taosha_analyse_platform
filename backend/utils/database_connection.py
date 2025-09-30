@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from loguru import logger
 from pathlib import Path
 
-from config.settings import settings
+from utils.config import settings
 
 
 class DatabaseConnectionManager:

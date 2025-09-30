@@ -1,0 +1,46 @@
+# 淘沙分析平台配置文件
+
+# 应用信息
+app:
+  name: "淘沙分析平台"
+  version: "0.1.0"
+  debug: true
+
+# 数据库配置
+database:
+  dir: "./database"
+  duckdb_path: "./database/taosha.duckdb"
+  chromadb_path: "./database/chromadb"
+
+# 元数据配置
+metadata:
+  db_type: "sqlite"  # sqlite 或 mysql
+
+  # SQLite配置（默认）
+  sqlite_path: "./database/metadata.db"
+
+  # MySQL配置（当db_type为mysql时使用）
+  mysql:
+    host: "localhost"
+    port: 3306
+    database: "taosha_metadata"
+    user: "root"
+    password: ""
+    charset: "utf8mb4"
+
+# OpenAI配置
+openai:
+  api_key: ""  # 从环境变量 OPENAI_API_KEY 读取
+  base_url: ""  # 从环境变量 OPENAI_BASE_URL 读取
+  model: "qwen/qwen3-8b:free"
+  temperature: 0.0
+
+# 日志配置
+logging:
+  level: "INFO"
+  rotation: "10 MB"
+  retention: "7 days"
+  compression: "gz"
+
+# 环境变量前缀
+env_prefix: "TAOSHA_"

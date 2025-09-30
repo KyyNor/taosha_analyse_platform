@@ -16,7 +16,7 @@ from services import (
     get_nl2sql_service, get_database_service, 
     get_metadata_service, get_glossary_service
 )
-from config import settings
+from utils.config import settings
 
 
 # 创建路由器

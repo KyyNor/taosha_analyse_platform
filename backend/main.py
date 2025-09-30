@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from config import settings
+from utils.config import settings
 from api.routes import router
 from api.dev_routes import router as dev_router
 from api.tracking_routes import router as tracking_router

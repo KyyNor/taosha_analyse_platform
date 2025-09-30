@@ -8,7 +8,7 @@ from typing import Dict, List, Any, Optional
 import pandas as pd
 import duckdb
 
-from config import settings
+from utils.config import settings
 
 
 class DatabaseService(ABC):

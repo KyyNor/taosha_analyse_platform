@@ -1,3 +1,3 @@
-from .settings import settings
+from utils.config import settings
 
 __all__ = ["settings"]
