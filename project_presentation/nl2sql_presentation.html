@@ -394,14 +394,14 @@
                 <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
                     <feDropShadow dx="2" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15"/>
                 </filter>
-                <marker id="arrowhead-success" markerWidth="12" markerHeight="8" refX="12" refY="4" orient="auto">
-                    <polygon points="0 0, 12 4, 0 8" fill="#10B981" />
+                <marker id="arrowhead-success" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#10B981" />
                 </marker>
-                <marker id="arrowhead-error" markerWidth="12" markerHeight="8" refX="12" refY="4" orient="auto">
-                    <polygon points="0 0, 12 4, 0 8" fill="#EF4444" />
+                <marker id="arrowhead-error" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#EF4444" />
                 </marker>
-                <marker id="arrowhead-normal" markerWidth="12" markerHeight="8" refX="12" refY="4" orient="auto">
-                    <polygon points="0 0, 12 4, 0 8" fill="#6B7280" />
+                <marker id="arrowhead-normal" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="#6B7280" />
                 </marker>
             `;
             svg.appendChild(defs);
@@ -486,8 +486,8 @@
 
                 if (type === 'curve') {
                     // 曲线连接
-                    const controlX = midX + (x2 > x1 ? 60 : -60);
-                    const controlY = Math.min(y1, y2) - 40;
+                    const controlX = midX + (x2 > x1 ? 80 : -80);
+                    const controlY = Math.min(y1, y2) - 60;
                     path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                     path.setAttribute('d', `M ${x1} ${y1} Q ${controlX} ${controlY} ${x2} ${y2}`);
                 } else if (type === 'branch') {
@@ -545,8 +545,7 @@
             drawConnection(w1[3].x, w1[3].y + 17, w1[4].x, w1[4].y - 17, '#6B7280');
 
             // 执行结果分支
-            drawConnection(w1[4].x + 45, w1[4].y, w1[4].x + 80, w1[3].y + 17, '#EF4444', 'branch', '失败');
-            drawConnection(w1[4].x + 80, w1[3].y + 17, w1[3].x + 45, w1[3].y + 17, '#EF4444');
+            drawConnection(w1[4].x + 45, w1[4].y, w1[3].x + 45, w1[3].y + 17, '#EF4444', 'curve', '失败');
             drawConnection(w1[4].x, w1[4].y + 17, w1[5].x, w1[5].y - 17, '#10B981', 'normal', '成功');
 
             // 最终流程
@@ -564,8 +563,7 @@
             drawConnection(w2[3].x, w2[3].y + 25, w2[4].x, w2[4].y - 17, '#10B981', 'normal', '清晰');
 
             // 执行结果分支
-            drawConnection(w2[4].x + 45, w2[4].y, w2[4].x + 80, w2[1].y + 17, '#EF4444', 'branch', '失败');
-            drawConnection(w2[4].x + 80, w2[1].y + 17, w2[1].x + 45, w2[1].y + 17, '#EF4444');
+            drawConnection(w2[4].x + 45, w2[4].y, w2[1].x + 45, w2[1].y + 17, '#EF4444', 'curve', '失败');
             drawConnection(w2[4].x, w2[4].y + 17, w2[5].x, w2[5].y - 17, '#10B981', 'normal', '成功');
 
             // 最终流程
