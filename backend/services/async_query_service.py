@@ -44,18 +44,36 @@ class AsyncQueryService(LoggerMixin):
             # 创建进度回调函数
             def progress_callback(step_name: str, message: str, progress: int):
                 self.logger.info(f"进度更新: {step_name} - {message} ({progress}%)")
-                asyncio.create_task(
-                    self.task_cache.update_task_status(
-                        task_id, TaskStatus.RUNNING,
-                        current_step=f"{step_name}: {message}",
-                        progress=progress,
-                        log_message=f"{step_name}: {message}"
+                try:
+                    loop = asyncio.get_running_loop()
+                    # 如果在事件循环中，直接创建任务
+                    asyncio.create_task(
+                        self.task_cache.update_task_status(
+                            task_id, TaskStatus.RUNNING,
+                            current_step=f"{step_name}: {message}",
+                            progress=progress,
+                            log_message=f"{step_name}: {message}"
+                        )
                     )
-                )
+                except RuntimeError:
+                    # 如果没有运行的事件循环，使用asyncio.run来执行
+                    async def update_status():
+                        await self.task_cache.update_task_status(
+                            task_id, TaskStatus.RUNNING,
+                            current_step=f"{step_name}: {message}",
+                            progress=progress,
+                            log_message=f"{step_name}: {message}"
+                        )
+                    asyncio.run(update_status())
 
             # 处理查询 - 在线程池中运行同步方法以避免阻塞事件循环
             import concurrent.futures
-            loop = asyncio.get_event_loop()
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # 如果没有运行的事件循环，创建一个新的事件循环
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 result = await loop.run_in_executor(
