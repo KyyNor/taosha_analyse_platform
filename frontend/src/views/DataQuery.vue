@@ -128,7 +128,7 @@
                       {{ task.user_input }}
                     </p>
                     <p class="text-xs text-gray-500 mt-1">
-                      {{ task.created_at }}
+                      {{ formatTime(task.created_at) }}
                     </p>
                   </div>
 
@@ -213,7 +213,7 @@
                             <!-- 节点名称 -->
                             <span class="text-sm font-medium">{{ getNodeDisplayName(log.step) }}</span>
                           </div>
-                          <span class="text-xs text-gray-500">{{ log.timestamp }}</span>
+                          <span class="text-xs text-gray-500">{{ formatTime(log.timestamp) }}</span>
                         </div>
                         <!-- 展开按钮 -->
                         <button
@@ -233,19 +233,19 @@
                       <div v-show="isLogExpanded(task.task_id, index)" class="text-xs text-gray-500 space-y-2">
                         <div v-if="log.input_data">
                           <span class="font-medium">输入：</span>
-                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ log.input_data }}</div>
+                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs max-h-32 overflow-y-auto whitespace-pre-wrap">{{ formatOutputData(log.input_data) }}</div>
                         </div>
                         <div v-if="log.prompt">
                           <span class="font-medium">提示词：</span>
-                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ formatOutputData(log.prompt) }}</div>
+                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs max-h-32 overflow-y-auto whitespace-pre-wrap">{{ formatOutputData(log.prompt) }}</div>
                         </div>
                         <div v-if="log.model_output">
                           <span class="font-medium">输出：</span>
-                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ formatOutputData(log.model_output) }}</div>
+                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs max-h-32 overflow-y-auto whitespace-pre-wrap">{{ formatOutputData(log.model_output) }}</div>
                         </div>
                         <div v-if="log.error">
                           <span class="font-medium text-red-600">错误：</span>
-                          <div class="bg-red-100 p-2 rounded mt-1 text-red-700">{{ log.error }}</div>
+                          <div class="bg-red-100 p-2 rounded mt-1 text-red-700 max-h-32 overflow-y-auto whitespace-pre-wrap">{{ log.error }}</div>
                         </div>
                       </div>
                     </div>
@@ -297,7 +297,7 @@
                             <!-- 节点名称 -->
                             <span class="text-sm font-medium">{{ getNodeDisplayName(log.step) }}</span>
                           </div>
-                          <span class="text-xs text-gray-500">{{ log.timestamp }}</span>
+                          <span class="text-xs text-gray-500">{{ formatTime(log.timestamp) }}</span>
                         </div>
                         <!-- 展开按钮 -->
                         <button
@@ -320,19 +320,19 @@
                       <div v-show="isLogExpanded(task.task_id, index)" class="text-xs text-gray-500 space-y-2">
                         <div v-if="log.input_data">
                           <span class="font-medium">输入：</span>
-                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ log.input_data }}</div>
+                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs max-h-32 overflow-y-auto whitespace-pre-wrap">{{ formatOutputData(log.input_data) }}</div>
                         </div>
                         <div v-if="log.prompt">
                           <span class="font-medium">提示词：</span>
-                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ formatOutputData(log.prompt) }}</div>
+                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs max-h-32 overflow-y-auto whitespace-pre-wrap">{{ formatOutputData(log.prompt) }}</div>
                         </div>
                         <div v-if="log.model_output">
                           <span class="font-medium">输出：</span>
-                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ formatOutputData(log.model_output) }}</div>
+                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs max-h-32 overflow-y-auto whitespace-pre-wrap">{{ formatOutputData(log.model_output) }}</div>
                         </div>
                         <div v-if="log.error">
                           <span class="font-medium text-red-600">错误：</span>
-                          <div class="bg-red-100 p-2 rounded mt-1 text-red-700">{{ log.error }}</div>
+                          <div class="bg-red-100 p-2 rounded mt-1 text-red-700 max-h-32 overflow-y-auto whitespace-pre-wrap">{{ log.error }}</div>
                         </div>
                       </div>
                     </div>
@@ -618,14 +618,51 @@ const formatOutputData = (outputData: any) => {
   if (!outputData) return ''
 
   try {
+    let processedData: string
+
     if (typeof outputData === 'string') {
-      return outputData
+      processedData = outputData
     } else if (typeof outputData === 'object') {
-      return JSON.stringify(outputData, null, 2)
+      processedData = JSON.stringify(outputData, null, 2)
+    } else {
+      processedData = String(outputData)
     }
-    return String(outputData)
+
+    // 尝试解析字符串中的JSON
+    if (typeof outputData === 'string') {
+      try {
+        const parsed = JSON.parse(outputData)
+        processedData = JSON.stringify(parsed, null, 2)
+      } catch {
+        // 如果不是有效的JSON字符串，保持原样
+      }
+    }
+
+    return processedData
   } catch (error) {
     return String(outputData)
+  }
+}
+
+// 格式化时间显示
+const formatTime = (timeStr: string) => {
+  if (!timeStr) return ''
+
+  try {
+    // 处理ISO格式的时间字符串
+    const date = new Date(timeStr)
+    if (isNaN(date.getTime())) return timeStr
+
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  } catch (error) {
+    return timeStr
   }
 }
 
