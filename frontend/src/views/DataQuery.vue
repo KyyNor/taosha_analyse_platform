@@ -179,17 +179,160 @@
             class="border-t border-gray-200"
           >
             <div v-if="task.status === 'running'" class="p-4">
-              <!-- 运行中的状态 -->
-              <div class="text-center text-gray-500">
-                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-3"></div>
-                <p class="text-sm">{{ task.current_step }}</p>
-                <p class="text-xs text-gray-400 mt-1">请稍候，正在处理您的查询...</p>
+              <!-- 运行中的状态 - 显示进度日志 -->
+              <div class="space-y-4">
+                <!-- 当前状态指示器 -->
+                <div class="text-center text-gray-500 mb-4">
+                  <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-3"></div>
+                  <p class="text-sm">{{ task.current_step }}</p>
+                  <p class="text-xs text-gray-400 mt-1">请稍候，正在处理您的查询...</p>
+                </div>
+
+                <!-- 进度日志 -->
+                <div v-if="task.logs && task.logs.length > 0">
+                  <h4 class="text-sm font-medium text-gray-700 mb-3">处理进度</h4>
+                  <div class="space-y-2 max-h-64 overflow-y-auto">
+                    <div
+                      v-for="(log, index) in task.logs.slice().reverse()"
+                      :key="index"
+                      class="border rounded-lg p-3"
+                      :class="{
+                        'bg-green-50 border-green-200': log.status === 'completed',
+                        'bg-red-50 border-red-200': log.status === 'failed',
+                        'bg-blue-50 border-blue-200': log.status === 'running'
+                      }"
+                    >
+                      <!-- 日志标题 -->
+                      <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center space-x-2">
+                          <div class="flex items-center space-x-1">
+                            <!-- 状态图标 -->
+                            <div v-if="log.status === 'running'" class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                            <div v-else-if="log.status === 'completed'" class="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <div v-else-if="log.status === 'failed'" class="w-2 h-2 bg-red-500 rounded-full"></div>
+                            <!-- 节点名称 -->
+                            <span class="text-sm font-medium">{{ getNodeDisplayName(log.step) }}</span>
+                          </div>
+                          <span class="text-xs text-gray-500">{{ formatLogTime(log.timestamp) }}</span>
+                        </div>
+                        <!-- 展开按钮 -->
+                        <button
+                          @click="toggleLogDetail(task.task_id, index)"
+                          class="text-gray-400 hover:text-gray-600"
+                        >
+                          <ChevronRightIcon
+                            :class="[
+                              'w-4 h-4 transition-transform duration-200',
+                              isLogExpanded(task.task_id, index) ? 'transform rotate-90' : ''
+                            ]"
+                          />
+                        </button>
+                      </div>
+
+                      <!-- 状态消息 -->
+                      <div class="text-xs text-gray-600 mb-2">{{ log.message }}</div>
+
+                      <!-- 详细信息（可展开） -->
+                      <div v-show="isLogExpanded(task.task_id, index)" class="text-xs text-gray-500 space-y-2">
+                        <div v-if="log.input_data">
+                          <span class="font-medium">输入：</span>
+                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ log.input_data }}</div>
+                        </div>
+                        <div v-if="log.output_data">
+                          <span class="font-medium">输出：</span>
+                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ formatOutputData(log.output_data) }}</div>
+                        </div>
+                        <div v-if="log.error">
+                          <span class="font-medium text-red-600">错误：</span>
+                          <div class="bg-red-100 p-2 rounded mt-1 text-red-700">{{ log.error }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div v-else-if="task.status === 'success' && task.result" class="p-4">
+            <div v-else-if="task.status === 'success'" class="p-4">
               <!-- 成功的结果展示 -->
               <div class="space-y-4">
+                <!-- 查询结果（显示在进度条之后） -->
+                <div v-if="task.result && task.result.data" class="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <h4 class="text-sm font-medium text-green-800 mb-2">查询结果</h4>
+                  <div class="text-xs text-green-600 mb-2">
+                    共 {{ task.result.row_count || 0 }} 行数据 | 执行时间 {{ task.result.execution_time?.toFixed(2) || 0 }}s
+                  </div>
+                  <QueryResultTable
+                    v-if="task.result.data && task.result.data.length > 0"
+                    :data="task.result.data"
+                  />
+                  <div v-else class="text-center text-gray-500 py-4">
+                    <p class="text-sm">查询结果为空</p>
+                  </div>
+                </div>
+
+                <!-- 处理进度日志 -->
+                <div v-if="task.logs && task.logs.length > 0">
+                  <h4 class="text-sm font-medium text-gray-700 mb-3">处理进度</h4>
+                  <div class="space-y-2 max-h-64 overflow-y-auto">
+                    <div
+                      v-for="(log, index) in task.logs.slice().reverse()"
+                      :key="index"
+                      class="border rounded-lg p-3"
+                      :class="{
+                        'bg-green-50 border-green-200': log.status === 'completed',
+                        'bg-red-50 border-red-200': log.status === 'failed',
+                        'bg-blue-50 border-blue-200': log.status === 'running'
+                      }"
+                    >
+                      <!-- 日志标题 -->
+                      <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center space-x-2">
+                          <div class="flex items-center space-x-1">
+                            <!-- 状态图标 -->
+                            <div v-if="log.status === 'running'" class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                            <div v-else-if="log.status === 'completed'" class="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <div v-else-if="log.status === 'failed'" class="w-2 h-2 bg-red-500 rounded-full"></div>
+                            <!-- 节点名称 -->
+                            <span class="text-sm font-medium">{{ getNodeDisplayName(log.step) }}</span>
+                          </div>
+                          <span class="text-xs text-gray-500">{{ formatLogTime(log.timestamp) }}</span>
+                        </div>
+                        <!-- 展开按钮 -->
+                        <button
+                          @click="toggleLogDetail(task.task_id, index)"
+                          class="text-gray-400 hover:text-gray-600"
+                        >
+                          <ChevronRightIcon
+                            :class="[
+                              'w-4 h-4 transition-transform duration-200',
+                              isLogExpanded(task.task_id, index) ? 'transform rotate-90' : ''
+                            ]"
+                          />
+                        </button>
+                      </div>
+
+                      <!-- 状态消息 -->
+                      <div class="text-xs text-gray-600 mb-2">{{ log.message }}</div>
+
+                      <!-- 详细信息（可展开） -->
+                      <div v-show="isLogExpanded(task.task_id, index)" class="text-xs text-gray-500 space-y-2">
+                        <div v-if="log.input_data">
+                          <span class="font-medium">输入：</span>
+                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ log.input_data }}</div>
+                        </div>
+                        <div v-if="log.output_data">
+                          <span class="font-medium">输出：</span>
+                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ formatOutputData(log.output_data) }}</div>
+                        </div>
+                        <div v-if="log.error">
+                          <span class="font-medium text-red-600">错误：</span>
+                          <div class="bg-red-100 p-2 rounded mt-1 text-red-700">{{ log.error }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <!-- SQL 查询区域 (可收缩) -->
                 <div>
                   <button
@@ -311,6 +454,7 @@ const isRefreshing = ref(false)
 const tasks = ref<Task[]>([])
 const expandedTasks = ref<string[]>([])
 const expandedSql = ref<string[]>([])
+const expandedLogDetails = ref<Map<string, Set<number>>>(new Map())
 
 // 轮询定时器
 let pollTimer: NodeJS.Timeout | null = null
@@ -355,22 +499,29 @@ const refreshTasks = async () => {
   try {
     const tasksData = await queryApi.getAllTasks()
 
-    // 更新任务列表
+    // 保持现有任务的展开状态
+    const existingExpandedTasks = new Set(expandedTasks.value)
+    const existingExpandedSql = new Set(expandedSql.value)
+
+    // 更新任务列表，现在后端已经返回了完整的数据
     tasks.value = tasksData.sort((a: Task, b: Task) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )
 
-    // 对于运行中的任务，获取详细信息
-    for (const task of tasks.value.filter(t => t.status === 'running')) {
-      try {
-        const detail = await queryApi.getTaskResult(task.task_id)
-        if (detail) {
-          Object.assign(task, detail)
-        }
-      } catch (error) {
-        console.error(`获取任务 ${task.task_id} 详情失败:`, error)
-      }
-    }
+    // 恢复展开状态
+    expandedTasks.value = Array.from(existingExpandedTasks).filter(taskId =>
+      tasks.value.some(task => task.task_id === taskId)
+    )
+    expandedSql.value = Array.from(existingExpandedSql).filter(taskId =>
+      tasks.value.some(task => task.task_id === taskId)
+    )
+
+    console.log('任务列表已更新，任务数量:', tasks.value.length)
+    console.log('任务状态分布:', tasks.value.reduce((acc, task) => {
+      acc[task.status] = (acc[task.status] || 0) + 1
+      return acc
+    }, {} as Record<string, number>))
+
   } catch (error) {
     console.error('刷新任务列表失败:', error)
   } finally {
@@ -430,7 +581,7 @@ const formatTime = (timeStr: string) => {
 const startPolling = () => {
   pollTimer = setInterval(() => {
     refreshTasks()
-  }, 2000) // 每2秒轮询一次
+  }, 10000) // 每10秒轮询一次
 }
 
 // 停止轮询
@@ -438,6 +589,69 @@ const stopPolling = () => {
   if (pollTimer) {
     clearInterval(pollTimer)
     pollTimer = null
+  }
+}
+
+// 切换日志详情展开状态
+const toggleLogDetail = (taskId: string, logIndex: number) => {
+  if (!expandedLogDetails.value.has(taskId)) {
+    expandedLogDetails.value.set(taskId, new Set())
+  }
+
+  const logSet = expandedLogDetails.value.get(taskId)!
+  if (logSet.has(logIndex)) {
+    logSet.delete(logIndex)
+  } else {
+    logSet.add(logIndex)
+  }
+}
+
+// 检查日志详情是否展开
+const isLogExpanded = (taskId: string, logIndex: number) => {
+  return expandedLogDetails.value.get(taskId)?.has(logIndex) || false
+}
+
+// 获取节点显示名称
+const getNodeDisplayName = (step: string) => {
+  const nodeNames: Record<string, string> = {
+    'check_training': '训练检查',
+    'validate_input': '输入验证',
+    'generate_sql': 'SQL生成',
+    'execute_sql': 'SQL执行',
+    'explain_sql': 'SQL解释',
+    'analyze_nl_diff': '结果分析'
+  }
+  return nodeNames[step] || step
+}
+
+// 格式化日志时间
+const formatLogTime = (timestamp: string) => {
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+
+  if (diff < 60000) { // 1分钟内
+    return '刚刚'
+  } else if (diff < 3600000) { // 1小时内
+    return `${Math.floor(diff / 60000)}分钟前`
+  } else {
+    return date.toLocaleTimeString()
+  }
+}
+
+// 格式化输出数据
+const formatOutputData = (outputData: any) => {
+  if (!outputData) return ''
+
+  try {
+    if (typeof outputData === 'string') {
+      return outputData
+    } else if (typeof outputData === 'object') {
+      return JSON.stringify(outputData, null, 2)
+    }
+    return String(outputData)
+  } catch (error) {
+    return String(outputData)
   }
 }
 

@@ -24,6 +24,7 @@ from utils.config import settings
 from services.query_engine import get_query_engine
 from services.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service
 from services.operation_tracking import track_operation, tracker, OperationStep
+from utils.progress_decorator import track_node_progress
 
 
 # 状态定义
@@ -171,13 +172,10 @@ class NL2SQLService:
     def _build_workflow(self) -> StateGraph:
         """构建统一的LangGraph工作流，支持多种流程类型"""
         
+        @track_node_progress("check_training")
         def check_training_needed(state: GraphState) -> GraphState:
             """检查是否需要重新训练Vanna"""
             logs = state.get('logs', [])
-            progress_callback = state.get('progress_callback')
-
-            if progress_callback:
-                progress_callback("训练检查", "检查Vanna模型训练状态", 20)
 
             # 需要重新训练
             self._train_vanna()
@@ -193,16 +191,13 @@ class NL2SQLService:
             state['logs'] = logs
             return state
         
+        @track_node_progress("validate_input")
         def validate_input_clarity(state: GraphState) -> GraphState:
             """验证输入是否清晰，支持两种模式：纯输入验证 和 SQL+输入匹配验证"""
             user_input = state['user_input']
             sql_query = state.get('sql_query', '')  # 可能存在也可能不存在
             flow_type = state.get('flow_type', 'fast')
             logs = state.get('logs', [])
-            progress_callback = state.get('progress_callback')
-
-            if progress_callback:
-                progress_callback("输入验证", "验证查询输入清晰度", 40)
 
             # 检查API配置
             if not settings.openai_api_key:
@@ -350,16 +345,13 @@ class NL2SQLService:
             
             return state
         
+        @track_node_progress("generate_sql")
         def generate_sql(state: GraphState) -> GraphState:
             """生成SQL查询（包含错误重试逻辑）"""
             user_input = state['user_input']
             logs = state.get('logs', [])
             error_message = state.get('error_message')
             previous_sql = state.get('sql_query', '')
-            progress_callback = state.get('progress_callback')
-
-            if progress_callback:
-                progress_callback("SQL生成", "正在生成SQL查询语句", 60)
             retry_count = state.get('retry_count', 0)
             
             # 构建输入内容：如果有错误信息，则包含错误反馈
@@ -425,12 +417,9 @@ class NL2SQLService:
             
             return state
         
+        @track_node_progress("execute_sql")
         def execute_sql(state: GraphState) -> GraphState:
             """执行SQL查询"""
-            progress_callback = state.get('progress_callback')
-
-            if progress_callback:
-                progress_callback("SQL执行", "正在执行SQL查询", 80)
             sql_query = state.get('sql_query', '')
             logs = state.get('logs', [])
             
@@ -473,14 +462,11 @@ class NL2SQLService:
             
             return state
 
+        @track_node_progress("explain_sql")
         def explain_sql(state: GraphState) -> GraphState:
             """在SQL执行成功后，用自然语言解释SQL在做什么"""
             logs = state.get('logs', [])
             sql_query = state.get('sql_query', '')
-            progress_callback = state.get('progress_callback')
-
-            if progress_callback:
-                progress_callback("SQL解释", "正在解释SQL查询语句", 90)
 
             if not sql_query:
                 state['sql_explanation'] = ''
@@ -535,15 +521,12 @@ SQL：
 
             return state
 
+        @track_node_progress("analyze_nl_diff")
         def analyze_nl_diff(state: GraphState) -> GraphState:
             """对比用户自然语言与SQL解释，分析差异与固化知识点"""
             logs = state.get('logs', [])
             user_input = state.get('user_input', '')
             sql_explanation = state.get('sql_explanation', '')
-            progress_callback = state.get('progress_callback')
-
-            if progress_callback:
-                progress_callback("结果分析", "分析查询结果与自然语言差异", 95)
 
             if not settings.openai_api_key:
                 logger.warning("OpenAI API密钥未配置，跳过自然语言差异分析")

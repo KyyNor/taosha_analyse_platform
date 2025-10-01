@@ -33,8 +33,8 @@ cd backend
 # 安装依赖
 uv sync
 
-# 启动开发服务器
-python main.py
+# 启动开发服务器 (推荐使用uv run)
+uv run python main.py
 
 # 或者使用uvicorn
 uvicorn main:app --reload --host 0.0.0.0 --port 8000

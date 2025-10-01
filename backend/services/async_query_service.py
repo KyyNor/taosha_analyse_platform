@@ -140,7 +140,10 @@ class AsyncQueryService(LoggerMixin):
                 'started_at': task.started_at.isoformat() if task.started_at else None,
                 'completed_at': task.completed_at.isoformat() if task.completed_at else None,
                 'has_result': task.result is not None,
-                'has_error': task.error is not None
+                'has_error': task.error is not None,
+                'result': task.result,
+                'error': task.error,
+                'logs': task.logs
             }
             for task in tasks
         ]
