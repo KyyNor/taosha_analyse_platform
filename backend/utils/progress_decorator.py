@@ -127,7 +127,7 @@ def track_node_progress(node_name: str):
                 # 执行原函数
                 result_state = func(state)
                 current_step_log = result_state['current_step_log']
-                current_step_log['step'] = f"{current_step_log['step']}: 流程结束"
+                current_step_log['step'] = f"{node_name}: 流程结束"
                 
                 # 记录节点完成
                 if current_step_log['success'] == True:

@@ -173,7 +173,7 @@ class NL2SQLService:
     def _build_workflow(self) -> StateGraph:
         """构建统一的LangGraph工作流，支持多种流程类型"""
         
-        @track_node_progress("check_training")
+        @track_node_progress("训练数据集更新")
         def check_training_needed(state: GraphState) -> GraphState:
             """检查是否需要重新训练Vanna"""
             logs = state.get('logs', [])
@@ -193,7 +193,7 @@ class NL2SQLService:
             state['logs'] = logs
             return state
         
-        @track_node_progress("validate_input")
+        @track_node_progress("用户输入验证")
         def validate_input_clarity(state: GraphState) -> GraphState:
             """验证输入是否清晰，支持两种模式：纯输入验证 和 SQL+输入匹配验证"""
             user_input = state['user_input']
@@ -349,7 +349,7 @@ class NL2SQLService:
             
             return state
         
-        @track_node_progress("generate_sql")
+        @track_node_progress("生成查询语句")
         def generate_sql(state: GraphState) -> GraphState:
             """生成SQL查询（包含错误重试逻辑）"""
             user_input = state['user_input']
@@ -423,7 +423,7 @@ class NL2SQLService:
             
             return state
         
-        @track_node_progress("execute_sql")
+        @track_node_progress("执行查询语句")
         def execute_sql(state: GraphState) -> GraphState:
             """执行SQL查询"""
             sql_query = state.get('sql_query', '')
@@ -470,7 +470,7 @@ class NL2SQLService:
             
             return state
 
-        @track_node_progress("explain_sql")
+        @track_node_progress("解释查询语句")
         def explain_sql(state: GraphState) -> GraphState:
             """在SQL执行成功后，用自然语言解释SQL在做什么"""
             logs = state.get('logs', [])
@@ -531,7 +531,7 @@ SQL：
 
             return state
 
-        @track_node_progress("analyze_nl_diff")
+        @track_node_progress("分析语言差异")
         def analyze_nl_diff(state: GraphState) -> GraphState:
             """对比用户自然语言与SQL解释，分析差异与固化知识点"""
             logs = state.get('logs', [])

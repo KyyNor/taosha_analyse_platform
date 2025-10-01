@@ -128,7 +128,7 @@
                       {{ task.user_input }}
                     </p>
                     <p class="text-xs text-gray-500 mt-1">
-                      {{ formatTime(task.created_at) }}
+                      {{ task.created_at }}
                     </p>
                   </div>
 
@@ -213,7 +213,7 @@
                             <!-- 节点名称 -->
                             <span class="text-sm font-medium">{{ getNodeDisplayName(log.step) }}</span>
                           </div>
-                          <span class="text-xs text-gray-500">{{ formatLogTime(log.timestamp) }}</span>
+                          <span class="text-xs text-gray-500">{{ log.timestamp }}</span>
                         </div>
                         <!-- 展开按钮 -->
                         <button
@@ -297,7 +297,7 @@
                             <!-- 节点名称 -->
                             <span class="text-sm font-medium">{{ getNodeDisplayName(log.step) }}</span>
                           </div>
-                          <span class="text-xs text-gray-500">{{ formatLogTime(log.timestamp) }}</span>
+                          <span class="text-xs text-gray-500">{{ log.timestamp }}</span>
                         </div>
                         <!-- 展开按钮 -->
                         <button
@@ -322,9 +322,13 @@
                           <span class="font-medium">输入：</span>
                           <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ log.input_data }}</div>
                         </div>
-                        <div v-if="log.output_data">
+                        <div v-if="log.prompt">
+                          <span class="font-medium">提示词：</span>
+                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ formatOutputData(log.prompt) }}</div>
+                        </div>
+                        <div v-if="log.model_output">
                           <span class="font-medium">输出：</span>
-                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ formatOutputData(log.output_data) }}</div>
+                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ formatOutputData(log.model_output) }}</div>
                         </div>
                         <div v-if="log.error">
                           <span class="font-medium text-red-600">错误：</span>
@@ -561,23 +565,6 @@ const getStatusText = (status: string) => {
   return statusMap[status] || status
 }
 
-// 格式化时间
-const formatTime = (timeStr: string) => {
-  const date = new Date(timeStr)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-
-  if (diff < 60000) { // 1分钟内
-    return '刚刚'
-  } else if (diff < 3600000) { // 1小时内
-    return `${Math.floor(diff / 60000)}分钟前`
-  } else if (diff < 86400000) { // 1天内
-    return `${Math.floor(diff / 3600000)}小时前`
-  } else {
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
-  }
-}
-
 // 开始轮询
 const startPolling = () => {
   pollTimer = setInterval(() => {
@@ -625,20 +612,6 @@ const getNodeDisplayName = (step: string) => {
   return nodeNames[step] || step
 }
 
-// 格式化日志时间
-const formatLogTime = (timestamp: string) => {
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-
-  if (diff < 60000) { // 1分钟内
-    return '刚刚'
-  } else if (diff < 3600000) { // 1小时内
-    return `${Math.floor(diff / 60000)}分钟前`
-  } else {
-    return date.toLocaleTimeString()
-  }
-}
 
 // 格式化输出数据
 const formatOutputData = (outputData: any) => {
