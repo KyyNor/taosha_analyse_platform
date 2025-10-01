@@ -27,7 +27,8 @@
       "Bash(sqlite3:*)",
       "Bash(start:*)",
       "Bash(curl:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": [],
