@@ -61,7 +61,7 @@ class SimpleTaskCache(LoggerMixin):
     async def update_task_status(self, task_id: str, status: TaskStatus,
                                 current_step: str = None, progress: int = None,
                                 result: Dict[str, Any] = None, error: str = None,
-                                log_message: str = None):
+                                log_message: Dict[str, Any] = None):
         """更新任务状态"""
         async with self._lock:
             if task_id not in self.tasks:
@@ -90,9 +90,16 @@ class SimpleTaskCache(LoggerMixin):
                 task.error = error
 
             if log_message:
+                
+                self.logger.info(f"步骤的日志：{log_message}")
+                
                 task.logs.append({
                     "timestamp": datetime.now().isoformat(),
-                    "message": log_message
+                    "step": log_message["step"],
+                    "input_data": log_message['input_data'],
+                    "prompt": log_message["prompt"],
+                    "model_output": log_message["model_output"],
+                    "error": log_message["error"]
                 })
 
         self.logger.info(f"更新任务 {task_id}: {status.value} - {current_step}")

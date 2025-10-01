@@ -1,18 +1,6 @@
-
-  1. generate_sql(question)
-
-  2. submit_prompt(prompt)
-
-  generate_explanation(sql, df)
-  # 为查询结果生成自然语言解释
-  explanation = vanna.generate_explanation(sql_query, result_dataframe)
-
-  generate_followup_questions(question, sql, df)
-  # 基于当前查询生成后续问题建议
-  followups = vanna.generate_followup_questions(question, sql, result_df)
-
-  generate_plotly_code(question, sql, df)
-  # 生成数据可视化代码
-  plot_code = vanna.generate_plotly_code(question, sql_query, result_df)
-
-todo:异步的可视化
+1、流程开始和流程结束的名称不一致 Done
+2、流程开始和流程结束是不是可以合并？
+3、流程能不能展示具体的时间？
+4、校验不通过（张三的余额）的时候，不展示输出内容，不展示错误信息
+5、流程的进度目前固定为50%
+6、即便流程失败了，也是显示的成功

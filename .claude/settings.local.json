@@ -26,7 +26,8 @@
       "Bash(timeout 10 npm run dev)",
       "Bash(sqlite3:*)",
       "Bash(start:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": [],

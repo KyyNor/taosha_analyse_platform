@@ -42,27 +42,37 @@ class AsyncQueryService(LoggerMixin):
             nl2sql_service = get_nl2sql_service()
 
             # 创建进度回调函数
-            def progress_callback(step_name: str, message: str, progress: int):
+            def progress_callback(step_name: str, message: str, progress: int, task_status=TaskStatus.RUNNING, error='', log_message=None):
                 self.logger.info(f"进度更新: {step_name} - {message} ({progress}%)")
                 try:
+                    if log_message is None:
+                        log_message = {
+                            "step": f"{step_name}: {message}",
+                            "input_data": None,
+                            "prompt": None,
+                            "model_output": None,
+                            "error": None
+                        }
                     loop = asyncio.get_running_loop()
                     # 如果在事件循环中，直接创建任务
                     asyncio.create_task(
                         self.task_cache.update_task_status(
-                            task_id, TaskStatus.RUNNING,
+                            task_id, task_status,
                             current_step=f"{step_name}: {message}",
                             progress=progress,
-                            log_message=f"{step_name}: {message}"
+                            log_message=log_message,
+                            error=error
                         )
                     )
                 except RuntimeError:
                     # 如果没有运行的事件循环，使用asyncio.run来执行
                     async def update_status():
                         await self.task_cache.update_task_status(
-                            task_id, TaskStatus.RUNNING,
+                            task_id, task_status,
                             current_step=f"{step_name}: {message}",
                             progress=progress,
-                            log_message=f"{step_name}: {message}"
+                            log_message=log_message,
+                            error=error
                         )
                     asyncio.run(update_status())
 
@@ -92,7 +102,13 @@ class AsyncQueryService(LoggerMixin):
                 current_step="查询完成",
                 progress=100,
                 result=result,
-                log_message="查询执行成功"
+                log_message={
+                            "step": f"查询结束",
+                            "input_data": None,
+                            "prompt": None,
+                            "model_output": None,
+                            "error": None
+                        }
             )
 
         except Exception as e:

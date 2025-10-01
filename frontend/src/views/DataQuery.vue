@@ -229,18 +229,19 @@
                         </button>
                       </div>
 
-                      <!-- 状态消息 -->
-                      <div class="text-xs text-gray-600 mb-2">{{ log.message }}</div>
-
                       <!-- 详细信息（可展开） -->
                       <div v-show="isLogExpanded(task.task_id, index)" class="text-xs text-gray-500 space-y-2">
                         <div v-if="log.input_data">
                           <span class="font-medium">输入：</span>
                           <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ log.input_data }}</div>
                         </div>
-                        <div v-if="log.output_data">
+                        <div v-if="log.prompt">
+                          <span class="font-medium">提示词：</span>
+                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ formatOutputData(log.prompt) }}</div>
+                        </div>
+                        <div v-if="log.model_output">
                           <span class="font-medium">输出：</span>
-                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ formatOutputData(log.output_data) }}</div>
+                          <div class="bg-gray-100 p-2 rounded mt-1 font-mono text-xs">{{ formatOutputData(log.model_output) }}</div>
                         </div>
                         <div v-if="log.error">
                           <span class="font-medium text-red-600">错误：</span>

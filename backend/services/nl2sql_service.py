@@ -42,6 +42,7 @@ class GraphState(TypedDict):
     retry_count: int
     max_retries: int
     logs: List[Dict[str, Any]]
+    current_step_log: Dict[str, Any]
     progress_callback: Optional[callable]  # 进度回调函数
 
 @dataclass
@@ -188,6 +189,7 @@ class NL2SQLService:
             )
             logs.append(log_entry)
 
+            state['current_step_log'] = log_entry
             state['logs'] = logs
             return state
         
@@ -323,6 +325,7 @@ class NL2SQLService:
                 state['is_clear'] = is_clear
                 state['processed_input'] = clear_check_details
                 state['clear_check_details'] = clear_check_details
+                state['current_step_log'] = log_entry
                 state['logs'] = logs
                 
             except Exception as e:
@@ -341,6 +344,7 @@ class NL2SQLService:
                 logs.append(log_entry)
                 state['is_clear'] = False
                 state['error_message'] = f"输入验证失败: {str(e)}"
+                state['current_step_log'] = log_entry
                 state['logs'] = logs
             
             return state
@@ -396,6 +400,7 @@ class NL2SQLService:
                 
                 state['sql_query'] = sql_query
                 state['error_message'] = None  # 清除错误信息
+                state['current_step_log'] = log_entry
                 state['logs'] = logs
                 
             except Exception as e:
@@ -413,6 +418,7 @@ class NL2SQLService:
                     state['error_message'] = f"SQL重试失败: {str(e)}"
                 else:
                     state['error_message'] = f"SQL生成失败: {str(e)}"
+                state['current_step_log'] = log_entry
                 state['logs'] = logs
             
             return state
@@ -441,6 +447,7 @@ class NL2SQLService:
                 logs.append(log_entry)
                 
                 state['execution_result'] = result
+                state['current_step_log'] = log_entry
                 state['logs'] = logs
                 
             except Exception as e:
@@ -458,6 +465,7 @@ class NL2SQLService:
                 retry_count = state.get('retry_count', 0) + 1
                 state['retry_count'] = retry_count
                 state['error_message'] = f"SQL执行失败: {str(e)}"
+                state['current_step_log'] = log_entry
                 state['logs'] = logs
             
             return state
@@ -505,6 +513,7 @@ SQL：
                 logs.append(log_entry)
 
                 state['sql_explanation'] = explanation
+                state['current_step_log'] = log_entry
                 state['logs'] = logs
             except Exception as e:
                 log_entry = self.vanna.log_interaction(
@@ -517,6 +526,7 @@ SQL：
                 )
                 logs.append(log_entry)
                 state['sql_explanation'] = ''
+                state['current_step_log'] = log_entry
                 state['logs'] = logs
 
             return state
@@ -572,6 +582,7 @@ SQL：
                 logs.append(log_entry)
 
                 state['nl_diff_analysis'] = parsed if parsed is not None else {"raw": response}
+                state['current_step_log'] = log_entry
                 state['logs'] = logs
             except Exception as e:
                 log_entry = self.vanna.log_interaction(
@@ -584,6 +595,7 @@ SQL：
                 )
                 logs.append(log_entry)
                 state['nl_diff_analysis'] = None
+                state['current_step_log'] = log_entry
                 state['logs'] = logs
 
             return state
