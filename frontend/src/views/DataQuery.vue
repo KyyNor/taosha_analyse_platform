@@ -225,6 +225,7 @@
                         </div>
                         <!-- 展开按钮 -->
                         <button
+                          v-if="hasExpandableContent(log)"
                           @click="toggleLogDetail(task.task_id, index)"
                           class="text-gray-400 hover:text-gray-600"
                         >
@@ -317,6 +318,7 @@
                         </div>
                         <!-- 展开按钮 -->
                         <button
+                          v-if="hasExpandableContent(log)"
                           @click="toggleLogDetail(task.task_id, index)"
                           class="text-gray-400 hover:text-gray-600"
                         >
@@ -680,6 +682,11 @@ const formatTime = (timeStr: string) => {
   } catch (error) {
     return timeStr
   }
+}
+
+// 检查日志是否有可展开的内容
+const hasExpandableContent = (log: any) => {
+  return !!(log.input_data || log.prompt || log.model_output || log.error || log.message)
 }
 
 // 生命周期
