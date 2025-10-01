@@ -212,6 +212,14 @@
                             <div v-else-if="log.status === 'failed'" class="w-2 h-2 bg-red-500 rounded-full"></div>
                             <!-- 节点名称 -->
                             <span class="text-sm font-medium">{{ getNodeDisplayName(log.step) }}</span>
+                            <!-- 成功状态标记 -->
+                            <div v-if="log.status !== 'running'" class="flex items-center space-x-1">
+                              <CheckCircleIcon v-if="log.success !== false" class="w-4 h-4 text-green-600" />
+                              <XCircleIcon v-else class="w-4 h-4 text-red-600" />
+                              <span class="text-xs" :class="log.success !== false ? 'text-green-600' : 'text-red-600'">
+                                {{ log.success !== false ? '成功' : '失败' }}
+                              </span>
+                            </div>
                           </div>
                           <span class="text-xs text-gray-500">{{ formatTime(log.timestamp) }}</span>
                         </div>
@@ -296,6 +304,14 @@
                             <div v-else-if="log.status === 'failed'" class="w-2 h-2 bg-red-500 rounded-full"></div>
                             <!-- 节点名称 -->
                             <span class="text-sm font-medium">{{ getNodeDisplayName(log.step) }}</span>
+                            <!-- 成功状态标记 -->
+                            <div v-if="log.status !== 'running'" class="flex items-center space-x-1">
+                              <CheckCircleIcon v-if="log.success !== false" class="w-4 h-4 text-green-600" />
+                              <XCircleIcon v-else class="w-4 h-4 text-red-600" />
+                              <span class="text-xs" :class="log.success !== false ? 'text-green-600' : 'text-red-600'">
+                                {{ log.success !== false ? '成功' : '失败' }}
+                              </span>
+                            </div>
                           </div>
                           <span class="text-xs text-gray-500">{{ formatTime(log.timestamp) }}</span>
                         </div>
@@ -432,7 +448,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { MagnifyingGlassIcon, ChevronDownIcon, ChevronRightIcon, LightBulbIcon, ArrowPathIcon, DocumentIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
+import { MagnifyingGlassIcon, ChevronDownIcon, ChevronRightIcon, LightBulbIcon, ArrowPathIcon, DocumentIcon, ExclamationTriangleIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/vue/24/outline'
 import QueryResultTable from '@/components/QueryResultTable.vue'
 import { queryApi } from '@/services/api'
 

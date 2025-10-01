@@ -99,7 +99,8 @@ class SimpleTaskCache(LoggerMixin):
                     "input_data": log_message['input_data'],
                     "prompt": log_message["prompt"],
                     "model_output": log_message["model_output"],
-                    "error": log_message["error"]
+                    "error": log_message["error"],
+                    "success": log_message["success"]
                 })
 
         self.logger.info(f"更新任务 {task_id}: {status.value} - {current_step}")

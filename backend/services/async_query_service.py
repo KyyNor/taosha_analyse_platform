@@ -51,7 +51,8 @@ class AsyncQueryService(LoggerMixin):
                             "input_data": None,
                             "prompt": None,
                             "model_output": None,
-                            "error": None
+                            "error": None,
+                            "success": True
                         }
                     loop = asyncio.get_running_loop()
                     # 如果在事件循环中，直接创建任务
@@ -107,7 +108,8 @@ class AsyncQueryService(LoggerMixin):
                             "input_data": None,
                             "prompt": None,
                             "model_output": None,
-                            "error": None
+                            "error": None,
+                            "success": True
                         }
             )
 
