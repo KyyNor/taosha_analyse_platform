@@ -1,7 +1,8 @@
 """
 配置管理模块
 """
-from pydantic import BaseSettings, Field
+from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings
 from typing import List, Optional
 from functools import lru_cache
 import os

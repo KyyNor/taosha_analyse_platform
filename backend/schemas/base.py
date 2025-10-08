@@ -77,7 +77,7 @@ class PaginationParams(BaseModel):
 class SortParams(BaseModel):
     """排序参数"""
     sort_by: Optional[str] = Field(default=None, description="排序字段")
-    sort_order: Optional[str] = Field(default="asc", regex="^(asc|desc)$", description="排序方向")
+    sort_order: Optional[str] = Field(default="asc", pattern="^(asc|desc)$", description="排序方向")
 
 
 class SearchParams(BaseModel):

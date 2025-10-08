@@ -12,11 +12,11 @@ const Tables = () => import('@/views/metadata/Tables.vue')
 const Fields = () => import('@/views/metadata/Fields.vue')
 const Glossary = () => import('@/views/metadata/Glossary.vue')
 const Themes = () => import('@/views/metadata/Themes.vue')
-const System = () => import('@/views/system/SystemLayout.vue')
-const Users = () => import('@/views/system/Users.vue')
-const Roles = () => import('@/views/system/Roles.vue')
-const Logs = () => import('@/views/system/Logs.vue')
-const Settings = () => import('@/views/system/Settings.vue')
+// const System = () => import('@/views/system/SystemLayout.vue')
+// const Users = () => import('@/views/system/Users.vue')
+// const Roles = () => import('@/views/system/Roles.vue')
+// const Logs = () => import('@/views/system/Logs.vue')
+// const Settings = () => import('@/views/system/Settings.vue')
 const Login = () => import('@/views/Login.vue')
 const NotFound = () => import('@/views/NotFound.vue')
 
@@ -121,6 +121,7 @@ const routes: RouteRecordRaw[] = [
       }
     ]
   },
+  /*
   {
     path: '/system',
     component: System,
@@ -172,6 +173,7 @@ const routes: RouteRecordRaw[] = [
       }
     ]
   },
+  */
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',

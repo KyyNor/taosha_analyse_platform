@@ -8,7 +8,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 import logging
 
-from ..services.websocket.manager import connection_manager, websocket_handler
+from services.websocket.manager import connection_manager, websocket_handler
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
