@@ -1,0 +1,55 @@
+# 生产环境配置文件
+debug: false
+host: "0.0.0.0"
+port: 8000
+
+# 数据库配置
+database:
+  type: mysql
+  host: "${DB_HOST}"
+  port: 3306
+  database: taosha_metadata
+  user: "${DB_USER}"
+  password: "${DB_PASSWORD}"
+
+# 查询引擎配置
+query_engine:
+  type: mysql
+  host: "${BUSINESS_DB_HOST}"
+  port: 3306
+  database: business_data
+  user: "${BUSINESS_DB_USER}"
+  password: "${BUSINESS_DB_PASSWORD}"
+
+# LLM配置
+llm:
+  provider: openai
+  base_url: "${LLM_BASE_URL}"
+  api_key: "${LLM_API_KEY}"
+  model: gpt-4-turbo
+  temperature: 0.1
+  max_tokens: 4000
+
+# 向量数据库配置
+vector_db:
+  path: /data/vector_db
+  collection: taosha_knowledge
+
+# 查询配置
+query:
+  timeout: 60
+  max_retry_count: 3
+  max_result_rows: 5000
+
+# 日志配置
+log:
+  level: INFO
+  file: /var/log/taosha/app.log
+
+# 安全配置
+security:
+  secret_key: "${SECRET_KEY}"
+  allowed_origins:
+    - "${FRONTEND_URL}"
+  allowed_hosts:
+    - "${DOMAIN_NAME}"
