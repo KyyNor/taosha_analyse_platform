@@ -25,7 +25,7 @@ class QueryResponse(BaseModel):
 # 模拟任务存储
 MOCK_TASKS = {}
 
-@router.post("/query", response_model=QueryResponse)
+@router.post("/submit", response_model=QueryResponse)
 async def submit_query(request: QueryRequest):
     """提交查询请求"""
     try:
@@ -75,7 +75,7 @@ async def submit_query(request: QueryRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"提交查询失败: {str(e)}")
 
-@router.get("/query/{task_id}")
+@router.get("/status/{task_id}")
 async def get_query_task(task_id: str):
     """获取查询任务状态"""
     if task_id not in MOCK_TASKS:
@@ -88,7 +88,7 @@ async def get_query_task(task_id: str):
         "data": task
     }
 
-@router.delete("/query/{task_id}")
+@router.delete("/cancel/{task_id}")
 async def cancel_query_task(task_id: str):
     """取消查询任务"""
     if task_id not in MOCK_TASKS:

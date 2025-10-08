@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 
 // 路由组件懒加载
 const Dashboard = () => import('@/views/Dashboard.vue')
-const Query = () => import('@/views/Query.vue')
+const Query = () => import('@/views/QuerySimple.vue')
 const History = () => import('@/views/QueryHistory.vue')
 const Favorites = () => import('@/views/Favorites.vue')
 const Metadata = () => import('@/views/metadata/MetadataLayout.vue')

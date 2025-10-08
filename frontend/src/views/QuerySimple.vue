@@ -1,89 +1,5 @@
 <template>
-<template>
-  <div class="min-h-screen bg-base-100">
-    <!-- 导航栏 -->
-    <div class="navbar bg-base-200 shadow-lg">
-      <div class="navbar-start">
-        <div class="dropdown">
-          <label tabindex="0" class="btn btn-ghost lg:hidden">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16"></path>
-            </svg>
-          </label>
-          <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
-            <li><RouterLink to="/query">智能查询</RouterLink></li>
-            <li><RouterLink to="/history">查询历史</RouterLink></li>
-            <li><RouterLink to="/favorites">收藏查询</RouterLink></li>
-            <li v-if="authStore.hasPermission('metadata:read')">
-              <details>
-                <summary>元数据管理</summary>
-                <ul class="p-2">
-                  <li><RouterLink to="/metadata/tables">表管理</RouterLink></li>
-                  <li><RouterLink to="/metadata/fields">字段管理</RouterLink></li>
-                  <li><RouterLink to="/metadata/glossary">术语管理</RouterLink></li>
-                  <li><RouterLink to="/metadata/themes">主题管理</RouterLink></li>
-                </ul>
-              </details>
-            </li>
-          </ul>
-        </div>
-        <RouterLink to="/" class="btn btn-ghost normal-case text-xl font-bold text-primary">
-          淘沙分析平台
-        </RouterLink>
-      </div>
-      
-      <div class="navbar-center hidden lg:flex">
-        <ul class="menu menu-horizontal px-1">
-          <li><RouterLink to="/query" class="btn btn-ghost">智能查询</RouterLink></li>
-          <li><RouterLink to="/history" class="btn btn-ghost">查询历史</RouterLink></li>
-          <li><RouterLink to="/favorites" class="btn btn-ghost">收藏查询</RouterLink></li>
-          <li v-if="authStore.hasPermission('metadata:read')" class="dropdown dropdown-hover">
-            <label tabindex="0" class="btn btn-ghost">元数据管理</label>
-            <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
-              <li><RouterLink to="/metadata/tables">表管理</RouterLink></li>
-              <li><RouterLink to="/metadata/fields">字段管理</RouterLink></li>
-              <li><RouterLink to="/metadata/glossary">术语管理</RouterLink></li>
-              <li><RouterLink to="/metadata/themes">主题管理</RouterLink></li>
-            </ul>
-          </li>
-        </ul>
-      </div>
-      
-      <div class="navbar-end">
-        <!-- 主题切换 -->
-        <button 
-          @click="themeStore.toggleTheme()" 
-          class="btn btn-ghost btn-circle"
-          :title="themeStore.isDarkTheme() ? '切换到浅色主题' : '切换到深色主题'"
-        >
-          <span class="text-lg">{{ themeStore.getThemeIcon() }}</span>
-        </button>
-        
-        <!-- 用户菜单 -->
-        <div class="dropdown dropdown-end">
-          <label tabindex="0" class="btn btn-ghost btn-circle avatar">
-            <div class="w-8 rounded-full">
-              <img v-if="authStore.user?.avatar" :src="authStore.user?.avatar" :alt="authStore.user?.nickname" />
-              <div v-else class="bg-primary text-primary-content w-8 h-8 rounded-full flex items-center justify-center">
-                {{ authStore.user?.nickname?.charAt(0) || 'U' }}
-              </div>
-            </div>
-          </label>
-          <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
-            <li class="menu-title">
-              <span>{{ authStore.user?.nickname }}</span>
-            </li>
-            <li><a>个人设置</a></li>
-            <li><a>帮助文档</a></li>
-            <li><hr class="my-2"></li>
-            <li><a @click="handleLogout" class="text-error">退出登录</a></li>
-          </ul>
-        </div>
-      </div>
-    </div>
-
-    <!-- 主要内容区域 -->
-    <main class="container mx-auto px-4 py-6">
+  <div class="page-container">
     <div class="page-header">
       <h1 class="page-title">智能查询</h1>
       <p class="page-subtitle">使用自然语言描述您的数据需求，系统将自动生成SQL并执行查询</p>
@@ -180,14 +96,20 @@
             <h2 class="card-title">查询结果</h2>
             
             <!-- 查询进度 -->
-            <QueryProgress
-              v-if="isQuerying"
-              :current-step="currentTask.current_step || '准备中...'"
-              :progress-percentage="Math.round((currentTask.progress_percentage || 0) * 100)"
-              :logs="currentTask.logs || []"
-              :cancellable="true"
-              @cancel="cancelQuery"
-            />
+            <div v-if="isQuerying" class="space-y-4">
+              <div class="progress-info">
+                <p class="text-sm font-medium">{{ currentTask.current_step || '准备中...' }}</p>
+                <div class="progress progress-primary w-full mt-2">
+                  <div 
+                    class="progress-value" 
+                    :style="{ width: Math.round((currentTask.progress_percentage || 0) * 100) + '%' }"
+                  ></div>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">
+                  {{ Math.round((currentTask.progress_percentage || 0) * 100) }}%
+                </p>
+              </div>
+            </div>
             
             <!-- 生成的SQL -->
             <div v-if="currentTask.generated_sql" class="space-y-2">
@@ -206,11 +128,23 @@
             </div>
             
             <!-- 查询结果展示 -->
-            <QueryResult
-              v-if="queryResult && queryResult.rows && queryResult.rows.length > 0"
-              :result="queryResult"
-              @export="handleExportResult"
-            />
+            <div v-if="queryResult && queryResult.rows && queryResult.rows.length > 0" class="mt-4">
+              <h3 class="font-semibold mb-2">查询结果</h3>
+              <div class="overflow-x-auto">
+                <table class="table table-zebra w-full">
+                  <thead>
+                    <tr>
+                      <th v-for="column in queryResult.columns" :key="column">{{ column }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(row, index) in queryResult.rows" :key="index">
+                      <td v-for="(cell, cellIndex) in row" :key="cellIndex">{{ cell }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
             
             <!-- 空结果提示 -->
             <div v-else-if="queryResult && (!queryResult.rows || queryResult.rows.length === 0)" class="text-center py-8">
@@ -229,12 +163,6 @@
               <div>
                 <h3 class="font-bold">查询执行失败</h3>
                 <div class="text-xs">{{ currentTask.error_message }}</div>
-                <div v-if="currentTask.error_details" class="text-xs mt-2 opacity-75">
-                  <details>
-                    <summary class="cursor-pointer">查看详细错误信息</summary>
-                    <pre class="mt-2 text-xs">{{ currentTask.error_details }}</pre>
-                  </details>
-                </div>
               </div>
             </div>
           </div>
@@ -266,17 +194,6 @@
           <div class="card-body">
             <h2 class="card-title text-base">最近查询</h2>
             <div class="space-y-2">
-              <div 
-                v-for="history in recentQueries" 
-                :key="history.id"
-                @click="useHistory(history)"
-                class="p-3 bg-base-200 rounded-lg cursor-pointer hover:bg-base-300 transition-colors"
-              >
-                <p class="text-sm">{{ history.user_question }}</p>
-                <p class="text-xs text-base-content text-opacity-70 mt-1">
-                  {{ formatDate(history.created_at) }}
-                </p>
-              </div>
               <div v-if="recentQueries.length === 0" class="text-sm text-base-content text-opacity-50 text-center py-4">
                 暂无查询记录
               </div>
@@ -285,49 +202,18 @@
         </div>
       </div>
     </div>
-    </main>
-
-    <!-- 通知组件 -->
-    <div class="toast toast-end">
-      <div 
-        v-for="notification in notificationStore.notifications" 
-        :key="notification.id"
-        :class="['alert', notificationStore.getAlertClass(notification.type)]"
-        class="mb-2"
-      >
-        <span>{{ notificationStore.getIcon(notification.type) }}</span>
-        <div>
-          <h4 v-if="notification.title" class="font-bold">{{ notification.title }}</h4>
-          <div class="text-xs">{{ notification.message }}</div>
-        </div>
-        <button 
-          @click="notificationStore.removeNotification(notification.id)"
-          class="btn btn-sm btn-circle"
-        >
-          ✕
-        </button>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
 import { useNotificationStore } from '@/stores/notification'
 import { useQueryStore } from '@/stores/query'
-import { useAuthStore } from '@/stores/auth'
-import { useThemeStore } from '@/stores/theme'
 import { metadataApi } from '@/api/metadata'
-import QueryProgress from '@/components/QueryProgress.vue'
-import QueryResult from '@/components/QueryResult.vue'
 import type { Theme, Table, QueryHistory } from '@/types'
 
-const router = useRouter()
 const notificationStore = useNotificationStore()
 const queryStore = useQueryStore()
-const authStore = useAuthStore()
-const themeStore = useThemeStore()
 
 // 响应式数据
 const selectedTheme = ref<number | string>('')
@@ -396,16 +282,6 @@ const loadTablesForTheme = async (themeId: number) => {
   }
 }
 
-const loadRecentQueries = async () => {
-  try {
-    // TODO: 实现查询历史API调用
-    // const response = await queryApi.getRecentQueries()
-    // recentQueries.value = response.data
-  } catch (error) {
-    console.error('加载查询历史失败:', error)
-  }
-}
-
 const clearQuery = () => {
   queryText.value = ''
   selectedTables.value = []
@@ -451,11 +327,6 @@ const useExample = (query: string) => {
   }
 }
 
-const useHistory = (history: QueryHistory) => {
-  queryText.value = history.user_question
-  selectedTheme.value = history.theme_id || (themes.value.length > 0 ? themes.value[0].id : '')
-}
-
 const copySql = () => {
   if (currentTask.value?.generated_sql) {
     navigator.clipboard.writeText(currentTask.value.generated_sql)
@@ -463,91 +334,8 @@ const copySql = () => {
   }
 }
 
-const exportResult = (format: string) => {
-  if (!queryResult.value) {
-    notificationStore.warning('没有可导出的查询结果')
-    return
-  }
-  
-  // TODO: 实现结果导出功能
-  notificationStore.info(`导出${format.toUpperCase()}功能开发中...`)
-}
-
-const handleExportResult = (data: any) => {
-  // 处理结果导出
-  const { format, columns, rows, metadata } = data
-  
-  try {
-    switch (format) {
-      case 'csv':
-        exportToCSV(columns, rows)
-        break
-      case 'excel':
-        exportToExcel(columns, rows, metadata)
-        break
-      case 'json':
-        exportToJSON({ columns, rows, metadata })
-        break
-      default:
-        notificationStore.error('不支持的导出格式')
-    }
-  } catch (error) {
-    console.error('导出失败:', error)
-    notificationStore.error('导出失败，请重试')
-  }
-}
-
-const exportToCSV = (columns: string[], rows: any[][]) => {
-  const csvContent = [
-    columns.join(','),
-    ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-  ].join('\n')
-  
-  downloadFile(csvContent, 'query-result.csv', 'text/csv')
-  notificationStore.success('CSV文件已下载')
-}
-
-const exportToJSON = (data: any) => {
-  const jsonContent = JSON.stringify(data, null, 2)
-  downloadFile(jsonContent, 'query-result.json', 'application/json')
-  notificationStore.success('JSON文件已下载')
-}
-
-const exportToExcel = (columns: string[], rows: any[][], metadata: any) => {
-  // TODO: 实现Excel导出
-  notificationStore.info('Excel导出功能开发中...')
-}
-
-const downloadFile = (content: string, filename: string, type: string) => {
-  const blob = new Blob([content], { type })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
-}
-
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleString('zh-CN')
-}
-
-const formatTime = (timestamp: string | number) => {
-  return new Date(timestamp).toLocaleTimeString('zh-CN')
-}
-
-// 处理登出
-const handleLogout = () => {
-  authStore.logout()
-  notificationStore.success('已退出登录')
-  router.push('/login')
-}
-
 onMounted(async () => {
   await loadThemes()
-  await loadRecentQueries()
   
   // 初始化WebSocket连接
   try {
