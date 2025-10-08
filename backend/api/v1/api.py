@@ -4,7 +4,8 @@ API v1 路由配置
 from fastapi import APIRouter
 
 # 导入各个模块的路由
-from .metadata import router as metadata_router
+from .simple_metadata import router as metadata_router
+from .simple_query import router as query_router
 # from .nlquery import router as nlquery_router
 # from .websocket import router as websocket_router
 # from .query_history import router as query_history_router
@@ -20,6 +21,7 @@ api_router.include_router(auth_router, prefix="/auth", tags=["认证管理"])
 # api_router.include_router(users_router, prefix="/users", tags=["用户管理"])
 # api_router.include_router(roles_router, prefix="/roles", tags=["角色管理"])
 api_router.include_router(metadata_router, prefix="/metadata", tags=["元数据管理"])
+api_router.include_router(query_router, tags=["智能查询"])
 # api_router.include_router(nlquery_router, prefix="/nlquery", tags=["自然语言查询"])
 # api_router.include_router(websocket_router, tags=["WebSocket通信"])
 # api_router.include_router(query_history_router, prefix="/query", tags=["查询历史"])

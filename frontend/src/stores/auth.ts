@@ -198,6 +198,10 @@ async function mockLogin(credentials: LoginRequest): Promise<LoginResponse> {
         permissions: [
           'system:read', 'system:write',
           'metadata:read', 'metadata:write',
+          'metadata:table:read', 'metadata:table:write',
+          'metadata:field:read', 'metadata:field:write',
+          'metadata:glossary:read', 'metadata:glossary:write',
+          'metadata:theme:read', 'metadata:theme:write',
           'query:read', 'query:write'
         ],
         avatar: '',
