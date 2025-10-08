@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from utils.database import get_async_db
-from models.system_models import User, Role, Permission
+from models.system_models import SysUser as User, SysRole as Role, SysPermission as Permission
 from config.settings import get_settings
 from utils.logger import get_logger
 

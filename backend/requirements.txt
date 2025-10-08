@@ -5,6 +5,10 @@ uvicorn[standard]
 # Database
 sqlalchemy
 aiosqlite
+alembic
+
+# AI and ML - 简化版本
+openai
 
 # Data Processing
 pandas
@@ -20,6 +24,7 @@ python-multipart
 python-dotenv
 pydantic
 pydantic-settings
+pyyaml
 
 # Utilities
 python-dateutil
@@ -28,6 +33,7 @@ typing-extensions
 
 # Logging and Monitoring
 structlog
+loguru
 
 # Development and Testing
 pytest

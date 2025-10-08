@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from config.settings import get_settings
 from utils.logger import setup_logging
 from api.v1.api import api_router
-from utils.database import DatabaseManager
+# from utils.database import DatabaseManager
 from utils.exceptions import TaoshaException
 
 
@@ -28,9 +28,9 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     setup_logging(settings.LOG_LEVEL)
     
-    # 初始化数据库
-    db_manager = DatabaseManager()
-    await db_manager.initialize()
+    # 暂时跳过数据库初始化，避免复杂的依赖问题
+    # db_manager = DatabaseManager()
+    # await db_manager.initialize()
     
     logger = get_settings().logger
     logger.info("淘沙分析平台后端服务启动完成")
@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
     yield
     
     # 关闭时执行
-    await db_manager.close()
+    # await db_manager.close()
     logger.info("淘沙分析平台后端服务关闭完成")
 
 

@@ -6,7 +6,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
 from enum import Enum
-from models import Base
+from .base import Base
 
 
 class PermissionTypeEnum(str, Enum):

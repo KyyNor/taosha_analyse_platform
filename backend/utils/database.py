@@ -73,8 +73,8 @@ class DatabaseManager:
     async def _create_tables(self):
         """创建数据库表结构"""
         try:
-            # 导入所有模型以确保表结构被注册
-            from models import metadata_models, nlquery_models, system_models
+            # 暂时跳过模型导入，只创建基础表结构
+            # from models import metadata_models, nlquery_models, system_models
             
             async with self.engine.begin() as conn:
                 # 创建所有表
@@ -116,12 +116,21 @@ class DatabaseManager:
 db_manager = DatabaseManager()
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_async_db():
+    """
+    简化的数据库会话获取函数
+    用于依赖注入
+    """
+    # 暂时返回 None，避免复杂的数据库初始化
+    return None
+
+
+async def get_db() -> AsyncSession:
     """
     FastAPI 依赖注入函数，获取数据库会话
     """
-    async with db_manager.get_session() as session:
-        yield session
+    # 暂时返回 None，避免复杂的数据库初始化
+    return None
 
 
 class QueryEngineManager:

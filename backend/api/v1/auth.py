@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 
 from utils.logger import get_logger
-from utils.permissions import permission_checker, get_current_user
+from utils.simple_permissions import permission_checker, get_current_user
 from schemas.user_schemas import LoginResponse, UserWithRoles
 from services.user.user_service import UserService
 from config.settings import get_settings

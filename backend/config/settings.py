@@ -22,7 +22,9 @@ class Settings(BaseSettings):
     # 安全配置
     SECRET_KEY: str = Field(default="your-secret-key-here", env="SECRET_KEY")
     ALLOWED_ORIGINS: List[str] = Field(
-        default=["http://localhost:3000", "http://127.0.0.1:3000"],
+        default=["http://localhost:3000", "http://127.0.0.1:3000", 
+                "http://localhost:3001", "http://127.0.0.1:3001",
+                "http://localhost:3002", "http://127.0.0.1:3002"],
         env="ALLOWED_ORIGINS"
     )
     ALLOWED_HOSTS: List[str] = Field(
