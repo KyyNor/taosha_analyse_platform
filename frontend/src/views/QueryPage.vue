@@ -94,86 +94,12 @@
           </div>
         </div>
 
-        <!-- Query History -->
-        <div
-          v-if="showHistory"
-          class="card bg-base-100 shadow-lg"
-        >
-          <div class="card-body">
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="text-lg font-semibold">
-                查询历史
-              </h3>
-              <div class="flex gap-2">
-                <input
-                  v-model="historySearchQuery"
-                  type="text"
-                  placeholder="搜索历史..."
-                  class="input input-bordered input-sm w-48"
-                >
-                <select
-                  v-model="historyFilter"
-                  class="select select-bordered select-sm"
-                >
-                  <option value="">
-                    全部状态
-                  </option>
-                  <option value="success">
-                    成功
-                  </option>
-                  <option value="failed">
-                    失败
-                  </option>
-                  <option value="running">
-                    运行中
-                  </option>
-                </select>
-              </div>
-            </div>
-
-            <QueryHistoryList
-              :history="filteredHistory"
-              :loading="historyLoading"
-              @rerun="handleRerunQuery"
-              @view-details="handleViewHistoryDetails"
-            />
-          </div>
-        </div>
-
-        <!-- Favorites -->
-        <div
-          v-if="showFavorites"
-          class="card bg-base-100 shadow-lg"
-        >
-          <div class="card-body">
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="text-lg font-semibold">
-                我的收藏
-              </h3>
-              <input
-                v-model="favoritesSearchQuery"
-                type="text"
-                placeholder="搜索收藏..."
-                class="input input-bordered input-sm w-48"
-              >
-            </div>
-
-            <FavoritesList
-              :favorites="filteredFavorites"
-              :loading="favoritesLoading"
-              @execute="handleExecuteFavorite"
-              @edit="handleEditFavorite"
-              @delete="handleDeleteFavorite"
-            />
-          </div>
-        </div>
-
-        <!-- Welcome State (when no results and not showing history/favorites) -->
-        <div
-          v-if="!hasResults && !showHistory && !showFavorites"
-          class="card bg-base-100 shadow-lg"
-        >
-          <div class="card-body text-center py-12">
+      <!-- Welcome State (when no results) -->
+      <div
+        v-if="!hasResults"
+        class="card bg-base-100 shadow-lg"
+      >
+        <div class="card-body text-center py-12">
             <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -255,32 +181,40 @@
         <button>close</button>
       </form>
     </dialog>
+
+    <!-- 悬浮球和侧边栏 -->
+    <FloatingBall
+      :is-expanded="isSidebarVisible"
+      @toggle="toggleSidebar"
+    />
+    <SidebarPanel
+      :is-visible="isSidebarVisible"
+      @close="closeSidebar"
+      @rerun-query="handleRerunQuery"
+      @execute-favorite="handleExecuteFavorite"
+      @edit-favorite="handleEditFavorite"
+      @delete-favorite="handleDeleteFavorite"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { useQueryStore } from '@stores/query'
 import { useToast } from '@/composables/useToast'
 import QueryForm from '@/components/common/QueryForm.vue'
 import QueryProgress from '@/components/common/QueryProgress.vue'
 import QueryResultsTable from '@/components/query/QueryResultsTable.vue'
-import QueryHistoryList from '@/components/query/QueryHistoryList.vue'
-import FavoritesList from '@/components/query/FavoritesList.vue'
-import type { QueryRequest, QueryLog, Favorite } from '@types/index'
+import FloatingBall from '@/components/common/FloatingBall.vue'
+import SidebarPanel from '@/components/common/SidebarPanel.vue'
+import type { QueryRequest } from '@/types/index'
 
 const queryStore = useQueryStore()
 const { success, error, info } = useToast()
 
 // UI state
-const showHistory = ref(false)
-const showFavorites = ref(false)
 const initialQuery = ref('')
-const historySearchQuery = ref('')
-const historyFilter = ref('')
-const favoritesSearchQuery = ref('')
-const historyLoading = ref(false)
-const favoritesLoading = ref(false)
+const isSidebarVisible = ref(false)
 
 // Modal state
 const addToFavoritesModal = ref<HTMLDialogElement>()
@@ -303,67 +237,12 @@ const currentResult = computed(() => queryStore.currentResult)
 const resultData = computed(() => queryStore.resultData)
 const generatedSQL = computed(() => queryStore.generatedSQL)
 
-const queryHistory = computed(() => queryStore.queryHistory)
-const favorites = computed(() => queryStore.favorites)
-
-const filteredHistory = computed(() => {
-  let filtered = queryHistory.value
-
-  if (historySearchQuery.value) {
-    const query = historySearchQuery.value.toLowerCase()
-    filtered = filtered.filter(item =>
-      item.query.toLowerCase().includes(query) ||
-      item.generatedSql?.toLowerCase().includes(query)
-    )
-  }
-
-  if (historyFilter.value) {
-    filtered = filtered.filter(item => item.status === historyFilter.value)
-  }
-
-  return filtered
-})
-
-const filteredFavorites = computed(() => {
-  if (!favoritesSearchQuery.value) return favorites.value
-
-  const query = favoritesSearchQuery.value.toLowerCase()
-  return favorites.value.filter(item =>
-    item.favoriteTitle.toLowerCase().includes(query) ||
-    item.userQuestion.toLowerCase().includes(query)
-  )
-})
-
-// Load data
-const loadHistory = async () => {
-  try {
-    historyLoading.value = true
-    await queryStore.loadQueryHistory()
-  } catch (err) {
-    error('加载查询历史失败')
-  } finally {
-    historyLoading.value = false
-  }
-}
-
-const loadFavorites = async () => {
-  try {
-    favoritesLoading.value = true
-    await queryStore.loadFavorites()
-  } catch (err) {
-    error('加载收藏列表失败')
-  } finally {
-    favoritesLoading.value = false
-  }
-}
 
 // Handle query submission
 const handleSubmitQuery = async (request: QueryRequest) => {
   try {
     await queryStore.submitQuery(request)
     success('查询已提交，正在处理...')
-    showHistory.value = false
-    showFavorites.value = false
   } catch (err) {
     error('查询提交失败')
   }
@@ -430,12 +309,18 @@ const confirmAddToFavorites = async () => {
     await queryStore.addToFavorites(currentResult.value.taskId, favoriteTitle.value.trim())
     success('已添加到收藏')
     closeAddToFavoritesModal()
-    if (showFavorites.value) {
-      await loadFavorites()
-    }
   } catch (err) {
     error('添加到收藏失败')
   }
+}
+
+// Sidebar functions
+const toggleSidebar = () => {
+  isSidebarVisible.value = !isSidebarVisible.value
+}
+
+const closeSidebar = () => {
+  isSidebarVisible.value = false
 }
 
 // Handle history actions
@@ -443,15 +328,10 @@ const handleRerunQuery = async (taskId: string) => {
   try {
     await queryStore.rerunQuery(taskId)
     success('正在重新执行查询...')
-    showHistory.value = false
+    closeSidebar()
   } catch (err) {
     error('重新执行查询失败')
   }
-}
-
-const handleViewHistoryDetails = (log: QueryLog) => {
-  // 可以在这里显示详情模态框或导航到详情页面
-  info(`查看查询详情: ${log.query}`)
 }
 
 // Handle favorites actions
@@ -459,7 +339,7 @@ const handleExecuteFavorite = async (favoriteId: number) => {
   try {
     await queryStore.executeFavorite(favoriteId)
     success('正在执行收藏的查询...')
-    showFavorites.value = false
+    closeSidebar()
   } catch (err) {
     error('执行收藏查询失败')
   }
@@ -485,11 +365,4 @@ const handleDeleteFavorite = async (favoriteId: number) => {
   }
 }
 
-// Initialize
-onMounted(async () => {
-  await Promise.all([
-    loadHistory(),
-    loadFavorites()
-  ])
-})
 </script>

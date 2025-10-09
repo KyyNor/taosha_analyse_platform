@@ -47,11 +47,6 @@
                 {{ theme.themeName }}
               </option>
             </select>
-            <label class="label">
-              <span class="label-text-alt text-base-content/60">
-                选择相关数据主题可以提高查询准确性
-              </span>
-            </label>
           </div>
 
           <!-- 数据表选择 -->
