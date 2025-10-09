@@ -88,7 +88,7 @@ class NL2SQLService:
             # 需要重新训练
             self._train_vanna()
 
-            state.current_step_log = BaseNodeLog(
+            state['current_step_log'] = BaseNodeLog(
                 step="知识库更新",
                 input_data="metadata/glossary check",
                 prompt="",
@@ -101,16 +101,16 @@ class NL2SQLService:
         @track_node_progress("用户输入验证")
         def validate_input_clarity(state: TaskState) -> TaskState:
             """验证输入是否清晰，支持两种模式：纯输入验证 和 SQL+输入匹配验证"""
-            user_input = state.user_input
+            user_input = state['user_input']
             step_name = '用户输入验证'
-            sql_query = getattr(state, 'sql_query', '')  # 可能存在也可能不存在
-            flow_type = getattr(state, 'flow_type', 'fast')
+            sql_query = state.get('sql_query', '')  # 可能存在也可能不存在
+            flow_type = state.get('flow_type', 'fast')
 
             # 检查API配置
             if not settings.openai_api_key:
                 logger.warning("大模型API密钥未配置，跳过输入验证")
-                state.is_clear = True
-                state.current_step_log = BaseNodeLog(
+                state['is_clear'] = True
+                state['current_step_log'] = BaseNodeLog(
                     step=step_name,
                     input_data=user_input,
                     prompt="",
@@ -223,10 +223,10 @@ class NL2SQLService:
                         'validation_type': step_name
                     }
 
-                state.is_clear = is_clear
-                state.clear_check_details = clear_check_details
+                state['is_clear'] = is_clear
+                state['clear_check_details'] = clear_check_details
 
-                state.current_step_log = BaseNodeLog(
+                state['current_step_log'] = BaseNodeLog(
                     step=step_name,
                     input_data=user_input if not sql_query else f"user:{user_input}\nsql:{sql_query}",
                     prompt=validation_prompt,
@@ -237,9 +237,9 @@ class NL2SQLService:
                 error_traceback = traceback.format_exc()
                 logger.error(f"Input validation failed with traceback:\n{error_traceback}")
 
-                state.is_clear = False
-                state.error_message = f"输入验证失败: {str(e)}"
-                state.current_step_log = BaseNodeLog(
+                state['is_clear'] = False
+                state['error_message'] = f"输入验证失败: {str(e)}"
+                state['current_step_log'] = BaseNodeLog(
                     step=step_name,
                     input_data=user_input if not sql_query else f"user:{user_input}\nsql:{sql_query}",
                     prompt=validation_prompt,
@@ -253,10 +253,10 @@ class NL2SQLService:
         @track_node_progress("生成查询语句")
         def generate_sql(state: TaskState) -> TaskState:
             """生成SQL查询（包含错误重试逻辑）"""
-            user_input = state.user_input
-            error_message = getattr(state, 'error_message', None)
-            previous_sql = getattr(state, 'sql_query', '')
-            retry_count = getattr(state, 'retry_count', 0)
+            user_input = state['user_input']
+            error_message = state.get('error_message')
+            previous_sql = state.get('sql_query', '')
+            retry_count = state.get('retry_count', 0)
             
             # 构建输入内容：如果有错误信息，则包含错误反馈
             step_name = "生成查询语句"
@@ -288,9 +288,9 @@ class NL2SQLService:
                 # 使用Vanna生成SQL（会自动检索向量数据库上下文）
                 sql_query = self.vanna.generate_sql(query_input)
                 
-                state.sql_query = sql_query
-                state.error_message = None  # 清除错误信息
-                state.current_step_log = BaseNodeLog(
+                state['sql_query'] = sql_query
+                state['error_message'] = None  # 清除错误信息
+                state['current_step_log'] = BaseNodeLog(
                     step=step_name,
                     input_data=query_input,
                     prompt=query_input,
@@ -302,11 +302,11 @@ class NL2SQLService:
                 error_traceback = traceback.format_exc()
 
                 if retry_count > 0:
-                    state.error_message = f"SQL重试失败: {str(e)}"
+                    state['error_message'] = f"SQL重试失败: {str(e)}"
                 else:
-                    state.error_message = f"SQL生成失败: {str(e)}"
+                    state['error_message'] = f"SQL生成失败: {str(e)}"
 
-                state.current_step_log = BaseNodeLog(
+                state['current_step_log'] = BaseNodeLog(
                     step=step_name,
                     input_data=query_input,
                     prompt=query_input,
@@ -320,18 +320,18 @@ class NL2SQLService:
         @track_node_progress("执行查询语句")
         def execute_sql(state: TaskState) -> TaskState:
             """执行SQL查询"""
-            sql_query = getattr(state, 'sql_query', '')
+            sql_query = state.get('sql_query', '')
             step_name = "执行查询语句"
 
             if not sql_query:
-                state.error_message = "没有可执行的SQL查询"
+                state['error_message'] = "没有可执行的SQL查询"
                 return state
             
             try:
                 # 执行SQL查询
                 result = self.db_service.execute_query(sql_query)
 
-                state.current_step_log = BaseNodeLog(
+                state['current_step_log'] = BaseNodeLog(
                     step=step_name,
                     input_data=sql_query,
                     prompt="data_engine.execute_query",
@@ -339,15 +339,15 @@ class NL2SQLService:
                     success=True,
                 )
                 
-                state.execution_result = result
+                state['execution_result'] = result
 
             except Exception as e:
                 error_traceback = traceback.format_exc()
                 # 增加重试计数
-                retry_count = getattr(state, 'retry_count', 0) + 1
-                state.retry_count = retry_count
-                state.error_message = f"SQL执行失败: {str(e)}"
-                state.current_step_log = BaseNodeLog(
+                retry_count = state.get('retry_count', 0) + 1
+                state['retry_count'] = retry_count
+                state['error_message'] = f"SQL执行失败: {str(e)}"
+                state['current_step_log'] = BaseNodeLog(
                     step=step_name,
                     input_data=sql_query,
                     prompt="data_engine.execute_query",
@@ -360,13 +360,13 @@ class NL2SQLService:
 
         def should_retry(state: TaskState) -> str:
             """判断是否应该重试"""
-            retry_count = getattr(state, 'retry_count', 0)
-            max_retries = getattr(state, 'max_retries', 2)
-            has_error = getattr(state, 'error_message', None) is not None
+            retry_count = state.get('retry_count', 0)
+            max_retries = state.get('max_retries', 2)
+            has_error = state.get('error_message') is not None
 
             if has_error and retry_count < max_retries:
                 return "retry"
-            elif getattr(state, 'execution_result', None) is not None:
+            elif state.get('execution_result') is not None:
                 return "success"
             else:
                 return "failed"
@@ -387,7 +387,7 @@ class NL2SQLService:
         # 根据流程类型路由到不同的验证/生成路径
         def route_by_flow_type(state: TaskState) -> str:
             """根据流程类型决定下一步"""
-            flow_type = getattr(state, 'flow_type', 'fast')
+            flow_type = state.get('flow_type', 'fast')
             return flow_type
 
         workflow.add_conditional_edges(
@@ -402,11 +402,11 @@ class NL2SQLService:
         # 验证节点的路由逻辑
         def route_after_validation(state: TaskState) -> str:
             """验证后的路由逻辑"""
-            if not getattr(state, 'is_clear', None):
+            if not state.get('is_clear'):
                 return "failed"
 
-            flow_type = getattr(state, 'flow_type', 'fast')
-            sql_query = getattr(state, 'sql_query', '')
+            flow_type = state.get('flow_type', 'fast')
+            sql_query = state.get('sql_query', '')
 
             if flow_type == 'fast' or not sql_query:
                 # 快速流程：验证通过后生成SQL
@@ -429,7 +429,7 @@ class NL2SQLService:
         # 生成SQL后的路由逻辑
         def route_after_generate_sql(state: TaskState) -> str:
             """生成SQL后的路由逻辑"""
-            flow_type = getattr(state, 'flow_type', 'fast')
+            flow_type = state.get('flow_type', 'fast')
             if flow_type == 'thorough':
                 # 深度流程：生成SQL后需要验证
                 return "validate_input"

@@ -60,22 +60,22 @@ def track_node_progress(node_name: str):
     """
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
-        def wrapper(state: Dict[str, Any]) -> Dict[str, Any]:
+        def wrapper(state: TaskState) -> TaskState:
             # 获取现有的日志列表
-            logs = state.get('logs', [])
+            logs = state.logs
 
             # 从历史日志计算当前进度
             current_progress = calculate_progress_from_logs(logs)
             start_time = datetime.now()
-            task_id = state.get('task_id')
+            task_id = state.task_id
 
-            state['current_step_name'] = f"{node_name} 流程开始"
-            state['current_progress'] = current_progress
+            state.current_step_name = f"{node_name} 流程开始"
+            state.current_progress = current_progress
 
             try:
                 # 执行原函数
                 result_state = func(state)
-                current_step_log: BaseNodeLog = result_state['current_step_log']
+                current_step_log: BaseNodeLog = result_state.current_step_log
 
                 current_step_log.start_time = start_time
                 current_step_log.end_time = datetime.now()
@@ -117,8 +117,8 @@ def track_node_progress(node_name: str):
                         )
                     )
 
-                result_state['current_step_name'] = f"{node_name} 流程结束"
-                result_state['current_progress'] = new_progress
+                result_state.current_step_name = f"{node_name} 流程结束"
+                result_state.current_progress = new_progress
                 return result_state
 
             except Exception as e:

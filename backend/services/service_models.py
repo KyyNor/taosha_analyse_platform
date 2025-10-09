@@ -3,7 +3,6 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional, Union
 
 import pandas as pd
-from typing_extensions import TypedDict
 from utils.logger import logger
 
 
@@ -20,39 +19,55 @@ class BaseNodeLog:
     end_time: Optional[datetime] = None
 
 
-# 统一的任务状态模型 - 兼容LangGraph和API（使用TypedDict）
-class TaskState(TypedDict):
-    """统一的任务状态模型 - 兼容LangGraph TypedDict"""
+# 统一的任务状态模型 - 兼容LangGraph和API（使用dataclass）
+@dataclass
+class TaskState:
+    """统一的任务状态模型 - 兼容LangGraph和API"""
     # 基本信息
     task_id: str
     user_input: str
-    operator: Optional[str]
-    flow_type: str
+    operator: Optional[str] = None
+    flow_type: str = "fast"
 
     # 进度信息
-    status: str  # 'running', 'success', 'failed'
-    current_step: str
-    progress: int
-    created_at: Optional[str]
-    started_at: Optional[str]
-    completed_at: Optional[str]
+    status: str = "running"  # 'running', 'success', 'failed', 'completed'
+    current_step: str = "初始化"
+    progress: int = 0
+    created_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
 
     # 业务数据
-    sql_query: str
-    execution_result: Optional[pd.DataFrame]
-    clear_check_details: Dict[str, Any]
-    is_clear: bool
+    sql_query: str = ""
+    execution_result: Optional[pd.DataFrame] = None
+    clear_check_details: Dict[str, Any] = None
+    is_clear: bool = False
 
     # 错误和重试
-    error_message: Optional[str]
-    retry_count: int
-    max_retries: int
+    error_message: Optional[str] = None
+    retry_count: int = 0
+    max_retries: int = 5
 
     # 日志
-    logs: List[BaseNodeLog]
-    current_step_log: Optional[BaseNodeLog]
-    current_step_name: str
-    current_progress: int
+    logs: List[BaseNodeLog] = None
+    current_step_log: Optional[BaseNodeLog] = None
+    current_step_name: str = ""
+    current_progress: int = 0
+
+    def __post_init__(self):
+        """初始化后处理"""
+        if self.created_at is None:
+            self.created_at = datetime.now()
+        if self.started_at is None:
+            self.started_at = datetime.now()
+        if self.logs is None:
+            self.logs = []
+        if self.clear_check_details is None:
+            self.clear_check_details = {}
+
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式（用于API返回）"""
+        return TaskStateHelper.to_dict(self)
 
 
 class TaskStateHelper:
@@ -72,10 +87,10 @@ class TaskStateHelper:
             operator=operator,
             flow_type=flow_type,
             status='running',
-            current_step='',
+            current_step='初始化',
             progress=0,
-            created_at=datetime.now().isoformat(),
-            started_at=datetime.now().isoformat(),
+            created_at=datetime.now(),
+            started_at=datetime.now(),
             completed_at=None,
             sql_query='',
             execution_result=None,
@@ -91,9 +106,17 @@ class TaskStateHelper:
         )
 
     @staticmethod
-    def to_dict(state: TaskState) -> Dict[str, Any]:
+    def to_dict(state: 'TaskState') -> Dict[str, Any]:
         """转换为字典格式（用于API返回）"""
-        data = dict(state)
+        import pandas as pd
+        from dataclasses import asdict
+
+        data = asdict(state)
+
+        # 转换datetime为ISO格式字符串
+        for key, value in data.items():
+            if isinstance(value, datetime):
+                data[key] = value.isoformat()
 
         # 转换DataFrame为字典数组
         if data['execution_result'] is not None:
@@ -119,79 +142,36 @@ class TaskStateHelper:
         else:
             data['data'] = None
             data['row_count'] = 0
-            data['success'] = data['status'] in ('success', 'completed')
+            data['success'] = False
 
         return data
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> TaskState:
-        """从字典创建TaskState"""
-        # 处理execution_result - 如果是字典数组，转换为DataFrame
-        if 'execution_result' in data and data['execution_result'] is not None:
-            execution_result = data['execution_result']
-            if isinstance(execution_result, list) and execution_result:
-                # 检查是否是字典数组
-                if isinstance(execution_result[0], dict):
-                    try:
-                        # 转换为DataFrame
-                        df = pd.DataFrame(execution_result)
-                        data['execution_result'] = df
-                    except Exception as e:
-                        logger.warning(f"Failed to convert execution_result to DataFrame: {e}")
-                        # 保持原格式
-                        pass
-
-        # 处理logs
-        if 'logs' in data and data['logs'] is not None:
-            logs = data['logs']
-            if isinstance(logs, list):
-                # 确保每个log都是BaseNodeLog格式
-                formatted_logs = []
-                for log in logs:
-                    if isinstance(log, dict):
-                        # 转换为BaseNodeLog
-                        formatted_log = BaseNodeLog(
-                            step=log.get('step', ''),
-                            input_data=log.get('input_data', ''),
-                            prompt=log.get('prompt', ''),
-                            model_output=log.get('model_output', ''),
-                            success=log.get('success', True),
-                            error=log.get('error'),
-                            start_time=pd.to_datetime(log['start_time']) if log.get('start_time') else None,
-                            end_time=pd.to_datetime(log['end_time']) if log.get('end_time') else None
-                        )
-                        formatted_logs.append(formatted_log)
-                    else:
-                        formatted_logs.append(log)
-                data['logs'] = formatted_logs
-
-        return TaskState(data)
-
-    @staticmethod
     def update_status(state: TaskState, status: str, error_message: Optional[str] = None) -> TaskState:
         """更新状态"""
-        state['status'] = status
+        state.status = status
         if error_message:
-            state['error_message'] = error_message
+            state.error_message = error_message
         if status in ('success', 'failed', 'completed'):
-            state['completed_at'] = datetime.now().isoformat()
+            state.completed_at = datetime.now()
         return state
 
     @staticmethod
     def update_progress(state: TaskState, current_step: str, progress: int) -> TaskState:
         """更新进度"""
-        state['current_step'] = current_step
-        state['current_progress'] = progress
-        state['progress'] = progress
+        state.current_step = current_step
+        state.current_progress = progress
+        state.progress = progress
+        state.current_step_name = current_step
         return state
 
     @staticmethod
     def add_log(state: TaskState, log: BaseNodeLog) -> TaskState:
         """添加日志"""
-        if state['logs'] is None:
-            state['logs'] = []
-        state['logs'].append(log)
-        state['current_step_log'] = log
+        if state.logs is None:
+            state.logs = []
+        state.logs.append(log)
+        state.current_step_log = log
         return state
 
 

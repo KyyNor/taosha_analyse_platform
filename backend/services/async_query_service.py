@@ -88,8 +88,11 @@ class AsyncQueryService:
                 user_input, task_id, max_retries, operator, flow_type
             )
 
-            # 更新最终状态
-            if result.get('success'):
+            # 将结果更新到 OperationTracker 缓存中，确保后续状态更新能找到正确的 TaskState
+            await tracker.cache.set(task_id, result)
+
+            # 更新最终状态 - TaskState 对象需要转换为字典或直接访问属性
+            if result.status in ('success', 'completed'):
                 await tracker.update_task_progress(
                     task_id=task_id,
                     progress=100,
@@ -101,7 +104,7 @@ class AsyncQueryService:
                     task_id=task_id,
                     progress=0,
                     step_name="查询失败",
-                    error=result.get('error', '未知错误'),
+                    error=result.error_message or '未知错误',
                     final_status="failed"
                 )
 
