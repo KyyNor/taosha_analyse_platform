@@ -5,15 +5,19 @@ import axios, {
   type AxiosError
 } from 'axios'
 import type { ApiResponse } from '@types/index'
-
-// API configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
-const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000'
+import {
+  API_CONFIG,
+  API_ENDPOINTS,
+  WS_ENDPOINTS,
+  buildApiUrl,
+  replaceUrlParams,
+  buildWsUrl
+} from '@/config/api'
 
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000,
+  baseURL: API_CONFIG.BASE_URL,
+  timeout: API_CONFIG.TIMEOUT,
   headers: {
     'Content-Type': 'application/json'
   }
@@ -157,12 +161,12 @@ export class WebSocketManager {
   private url: string
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
-  private reconnectDelay = 1000
+  private reconnectDelay = API_CONFIG.RETRY.DELAY
   private messageHandlers: Map<string, (data: any) => void> = new Map()
   private connectionHandlers: { onOpen?: () => void; onClose?: () => void; onError?: (error: Event) => void } = {}
 
-  constructor(path: string = '/nlquery/ws/task_process') {
-    this.url = `${WS_BASE_URL.replace('http', 'ws')}${path}`
+  constructor(endpoint: string = WS_ENDPOINTS.TASK_PROGRESS) {
+    this.url = buildWsUrl(endpoint)
   }
 
   connect(): Promise<void> {
@@ -201,10 +205,10 @@ export class WebSocketManager {
           this.connectionHandlers.onClose?.()
 
           // Attempt to reconnect if not a normal closure
-          if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
+          if (event.code !== 1000 && this.reconnectAttempts < API_CONFIG.RETRY.MAX_ATTEMPTS) {
             setTimeout(() => {
               this.reconnectAttempts++
-              console.log(`[WebSocket] Reconnecting... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
+              console.log(`[WebSocket] Reconnecting... (${this.reconnectAttempts}/${API_CONFIG.RETRY.MAX_ATTEMPTS})`)
               this.connect()
             }, this.reconnectDelay * this.reconnectAttempts)
           }

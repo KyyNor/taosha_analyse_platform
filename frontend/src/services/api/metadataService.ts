@@ -1,4 +1,5 @@
 import { api } from './client'
+import { API_ENDPOINTS, buildApiUrl, replaceUrlParams } from '@/config/api'
 import type {
   TableMetadata,
   ColumnMetadata,
@@ -13,16 +14,17 @@ class MetadataService {
 
   // Get all tables
   async getTables(dataSource?: string, isActive?: boolean): Promise<TableMetadata[]> {
-    const params = new URLSearchParams()
-    if (dataSource) params.append('dataSource', dataSource)
-    if (isActive !== undefined) params.append('isAvailable', isActive ? '1' : '0')
+    const params: Record<string, any> = {}
+    if (dataSource) params.dataSource = dataSource
+    if (isActive !== undefined) params.isAvailable = isActive ? '1' : '0'
 
-    return await api.get(`/metadata/tables?${params}`)
+    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.TABLES.LIST, params))
   }
 
   // Get table by ID
   async getTable(id: number): Promise<TableMetadata> {
-    return await api.get(`/metadata/tables/${id}`)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.TABLES.DETAIL, { id })
+    return await api.get(buildApiUrl(url))
   }
 
   // Create new table
@@ -33,7 +35,7 @@ class MetadataService {
     dataSource?: string
     updateMethod?: string
   }): Promise<TableMetadata> {
-    return await api.post('/metadata/tables', data)
+    return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.TABLES.CREATE), data)
   }
 
   // Update table
@@ -43,12 +45,14 @@ class MetadataService {
     dataSource?: string
     updateMethod?: string
   }): Promise<TableMetadata> {
-    return await api.put(`/metadata/tables/${id}`, data)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.TABLES.UPDATE, { id })
+    return await api.put(buildApiUrl(url), data)
   }
 
   // Delete table
   async deleteTable(id: number): Promise<void> {
-    return await api.delete(`/metadata/tables/${id}`)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.TABLES.DELETE, { id })
+    return await api.delete(buildApiUrl(url))
   }
 
   // Get table schema information
@@ -57,19 +61,21 @@ class MetadataService {
     relationships: any[]
     sampleData: any[]
   }> {
-    return await api.get(`/metadata/tables/${tableName}/schema`)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.TABLES.SCHEMA, { tableName })
+    return await api.get(buildApiUrl(url))
   }
 
   // === Column Metadata ===
 
   // Get columns for a table
   async getColumns(tableId: number): Promise<ColumnMetadata[]> {
-    return await api.get(`/metadata/columns?tableId=${tableId}`)
+    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.COLUMNS.LIST, { tableId }))
   }
 
   // Get column by ID
   async getColumn(id: number): Promise<ColumnMetadata> {
-    return await api.get(`/metadata/columns/${id}`)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.COLUMNS.DETAIL, { id })
+    return await api.get(buildApiUrl(url))
   }
 
   // Create new column
@@ -83,7 +89,7 @@ class MetadataService {
     relationId?: string
     sampleValues?: string[]
   }): Promise<ColumnMetadata> {
-    return await api.post('/metadata/columns', data)
+    return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.COLUMNS.CREATE), data)
   }
 
   // Update column
@@ -95,30 +101,33 @@ class MetadataService {
     relationId?: string
     sampleValues?: string[]
   }): Promise<ColumnMetadata> {
-    return await api.put(`/metadata/columns/${id}`, data)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.COLUMNS.UPDATE, { id })
+    return await api.put(buildApiUrl(url), data)
   }
 
   // Delete column
   async deleteColumn(id: number): Promise<void> {
-    return await api.delete(`/metadata/columns/${id}`)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.COLUMNS.DELETE, { id })
+    return await api.delete(buildApiUrl(url))
   }
 
   // === Glossary Management ===
 
   // Get all terms
   async getTerms(category?: string): Promise<GlossaryTerm[]> {
-    const params = category ? `?category=${category}` : ''
-    return await api.get(`/metadata/glossary/terms${params}`)
+    const params = category ? { category } : {}
+    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.LIST, params))
   }
 
   // Search terms
   async searchTerms(query: string): Promise<GlossaryTerm[]> {
-    return await api.get(`/metadata/glossary/search?q=${encodeURIComponent(query)}`)
+    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.SEARCH, { q: query }))
   }
 
   // Get term by ID
   async getTerm(id: number): Promise<GlossaryTerm> {
-    return await api.get(`/metadata/glossary/terms/${id}`)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.DETAIL, { id })
+    return await api.get(buildApiUrl(url))
   }
 
   // Create new term
@@ -129,7 +138,7 @@ class MetadataService {
     category?: string
     aliases?: string[]
   }): Promise<GlossaryTerm> {
-    return await api.post('/metadata/glossary/terms', data)
+    return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.CREATE), data)
   }
 
   // Update term
@@ -140,24 +149,27 @@ class MetadataService {
     category?: string
     aliases?: string[]
   }): Promise<GlossaryTerm> {
-    return await api.put(`/metadata/glossary/terms/${id}`, data)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.UPDATE, { id })
+    return await api.put(buildApiUrl(url), data)
   }
 
   // Delete term
   async deleteTerm(id: number): Promise<void> {
-    return await api.delete(`/metadata/glossary/terms/${id}`)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.DELETE, { id })
+    return await api.delete(buildApiUrl(url))
   }
 
   // === Relation Configuration ===
 
   // Get all relation configurations
   async getRelationConfigs(): Promise<RelationConfig[]> {
-    return await api.get('/metadata/relation-configs')
+    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.RELATIONS.LIST))
   }
 
   // Get relation config by ID
   async getRelationConfig(id: string): Promise<RelationConfig> {
-    return await api.get(`/metadata/relation-configs/${id}`)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.RELATIONS.DETAIL, { id })
+    return await api.get(buildApiUrl(url))
   }
 
   // Create new relation config
@@ -166,7 +178,7 @@ class MetadataService {
     relationSubfamily: string
     relationDesc: string
   }): Promise<RelationConfig> {
-    return await api.post('/metadata/relation-configs', data)
+    return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.RELATIONS.CREATE), data)
   }
 
   // Update relation config
@@ -175,24 +187,27 @@ class MetadataService {
     relationSubfamily?: string
     relationDesc?: string
   }): Promise<RelationConfig> {
-    return await api.put(`/metadata/relation-configs/${id}`, data)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.RELATIONS.UPDATE, { id })
+    return await api.put(buildApiUrl(url), data)
   }
 
   // Delete relation config
   async deleteRelationConfig(id: string): Promise<void> {
-    return await api.delete(`/metadata/relation-configs/${id}`)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.RELATIONS.DELETE, { id })
+    return await api.delete(buildApiUrl(url))
   }
 
   // === Data Themes ===
 
   // Get all themes
   async getThemes(): Promise<DataTheme[]> {
-    return await api.get('/metadata/themes')
+    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.THEMES.LIST))
   }
 
   // Get theme by ID
   async getTheme(id: number): Promise<DataTheme> {
-    return await api.get(`/metadata/themes/${id}`)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.THEMES.DETAIL, { id })
+    return await api.get(buildApiUrl(url))
   }
 
   // Create new theme
@@ -201,7 +216,7 @@ class MetadataService {
     themeDescription: string
     themeType: 'public' | 'normal'
   }): Promise<DataTheme> {
-    return await api.post('/metadata/themes', data)
+    return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.THEMES.CREATE), data)
   }
 
   // Update theme
@@ -210,27 +225,32 @@ class MetadataService {
     themeDescription?: string
     themeType?: 'public' | 'normal'
   }): Promise<DataTheme> {
-    return await api.put(`/metadata/themes/${id}`, data)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.THEMES.UPDATE, { id })
+    return await api.put(buildApiUrl(url), data)
   }
 
   // Delete theme
   async deleteTheme(id: number): Promise<void> {
-    return await api.delete(`/metadata/themes/${id}`)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.THEMES.DELETE, { id })
+    return await api.delete(buildApiUrl(url))
   }
 
   // Get tables in a theme
   async getThemeTables(themeId: number): Promise<TableMetadata[]> {
-    return await api.get(`/metadata/themes/${themeId}/tables`)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.THEMES.TABLES, { themeId })
+    return await api.get(buildApiUrl(url))
   }
 
   // Add table to theme
   async addTableToTheme(themeId: number, tableId: number): Promise<void> {
-    return await api.post(`/metadata/themes/${themeId}/tables`, { tableId })
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.THEMES.TABLES, { themeId })
+    return await api.post(buildApiUrl(url), { tableId })
   }
 
   // Remove table from theme
   async removeTableFromTheme(themeId: number, tableId: number): Promise<void> {
-    return await api.delete(`/metadata/themes/${themeId}/tables/${tableId}`)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.THEMES.TABLES, { themeId }) + `/${tableId}`
+    return await api.delete(buildApiUrl(url))
   }
 
   // === Database Sync ===
@@ -241,7 +261,7 @@ class MetadataService {
     message: string
     syncedTables: string[]
   }> {
-    return await api.post('/metadata/sync-from-database')
+    return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.SYNC.FROM_DB))
   }
 
   // Get sync status
@@ -250,14 +270,14 @@ class MetadataService {
     pendingSyncCount: number
     syncing: boolean
   }> {
-    return await api.get('/metadata/sync-status')
+    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.SYNC.STATUS))
   }
 
   // === Import/Export ===
 
   // Export metadata
   async exportMetadata(format: 'json' | 'xlsx'): Promise<Blob> {
-    const response = await api.getRaw(`/metadata/export?format=${format}`)
+    const response = await api.getRaw(buildApiUrl(API_ENDPOINTS.METADATA.IMPORT_EXPORT.EXPORT, { format }))
     return response.data
   }
 
@@ -272,7 +292,7 @@ class MetadataService {
     formData.append('file', file)
     formData.append('type', type)
 
-    return await api.post('/metadata/import', formData, {
+    return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.IMPORT_EXPORT.IMPORT), formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
@@ -281,7 +301,8 @@ class MetadataService {
 
   // Get import template
   async getImportTemplate(type: 'tables' | 'columns' | 'glossary'): Promise<Blob> {
-    const response = await api.getRaw(`/metadata/import-template/${type}`)
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.IMPORT_EXPORT.TEMPLATE, { type })
+    const response = await api.getRaw(buildApiUrl(url))
     return response.data
   }
 
@@ -301,7 +322,7 @@ class MetadataService {
       message: string
     }>
   }> {
-    return await api.get('/metadata/validate')
+    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.VALIDATE))
   }
 
   // === Search and Filter ===
@@ -316,14 +337,14 @@ class MetadataService {
     columns: ColumnMetadata[]
     terms: GlossaryTerm[]
   }> {
-    const params = new URLSearchParams({ q: query })
+    const params: Record<string, any> = { q: query }
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
-        if (value) params.append(key, value)
+        if (value) params[key] = value
       })
     }
 
-    return await api.get(`/metadata/search?${params}`)
+    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.SEARCH, params))
   }
 
   // Get metadata statistics
@@ -335,7 +356,7 @@ class MetadataService {
     tablesByDataSource: Array<{ dataSource: string; count: number }>
     termsByCategory: Array<{ category: string; count: number }>
   }> {
-    return await api.get('/metadata/statistics')
+    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.STATISTICS))
   }
 }
 

@@ -9,7 +9,7 @@ import type {
   TaskProgress,
   QueryLog
 } from '@types/index'
-import queryService from '@services/queryService'
+import queryService from '@services/api/queryService'
 
 export const useQueryStore = defineStore('query', () => {
   // State

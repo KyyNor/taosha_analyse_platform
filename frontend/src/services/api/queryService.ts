@@ -1,4 +1,5 @@
 import { api, wsManager, type WebSocketManager } from './client'
+import { API_ENDPOINTS, buildApiUrl, replaceUrlParams } from '@/config/api'
 import type {
   QueryRequest,
   QuerySubmitResponse,
@@ -33,22 +34,25 @@ class QueryService {
 
   // Submit query
   async submitQuery(request: QueryRequest): Promise<QuerySubmitResponse> {
-    return await api.post('/query/submit', request)
+    return await api.post(buildApiUrl(API_ENDPOINTS.NL_QUERY.SUBMIT), request)
   }
 
   // Cancel query
   async cancelTask(taskId: string): Promise<void> {
-    await api.post(`/query/cancel/${taskId}`)
+    const url = replaceUrlParams(API_ENDPOINTS.NL_QUERY.CANCEL, { taskId })
+    await api.post(buildApiUrl(url))
   }
 
   // Rerun query
   async rerunQuery(taskId: string): Promise<QuerySubmitResponse> {
-    return await api.post(`/query/rerun/${taskId}`)
+    const url = replaceUrlParams(API_ENDPOINTS.NL_QUERY.RERUN, { taskId })
+    return await api.post(buildApiUrl(url))
   }
 
   // Get query progress
   async getQueryProgress(taskId: string): Promise<any> {
-    return await api.get(`/query/progress/${taskId}`)
+    const url = replaceUrlParams(API_ENDPOINTS.NL_QUERY.PROGRESS, { taskId })
+    return await api.get(buildApiUrl(url))
   }
 
   // Get query history
@@ -61,25 +65,27 @@ class QueryService {
       endTime?: string
     } = {}
   ): Promise<PaginatedResponse<QueryLog>> {
-    const params = new URLSearchParams({
+    const params = {
       page: page.toString(),
       pageSize: pageSize.toString(),
       ...filters
-    })
+    }
 
-    return await api.get(`/query/history?${params}`)
+    return await api.get(buildApiUrl(API_ENDPOINTS.NL_QUERY.HISTORY, params))
   }
 
   // Export query results
   async exportResults(taskId: string, format: 'csv' | 'xlsx'): Promise<Blob> {
-    const response = await api.getRaw(`/query/export/${taskId}?format=${format}`)
+    const url = replaceUrlParams(API_ENDPOINTS.NL_QUERY.EXPORT, { taskId })
+    const response = await api.getRaw(buildApiUrl(url, { format }))
     return response.data
   }
 
   // Submit feedback
   async submitFeedback(taskId: string, type: 'positive' | 'negative' | 'neutral', content?: string): Promise<void> {
     const request: FeedbackRequest = { type, content }
-    await api.post(`/query/feedback/${taskId}`, request)
+    const url = replaceUrlParams(API_ENDPOINTS.NL_QUERY.FEEDBACK, { taskId })
+    await api.post(buildApiUrl(url), request)
   }
 
   // Subscribe to task progress updates
@@ -95,30 +101,33 @@ class QueryService {
 
   // Favorites management
   async getFavorites(page: number = 1, pageSize: number = 20): Promise<FavoritesResponse> {
-    const params = new URLSearchParams({
+    const params = {
       page: page.toString(),
       pageSize: pageSize.toString()
-    })
+    }
 
-    return await api.get(`/favorites?${params}`)
+    return await api.get(buildApiUrl(API_ENDPOINTS.FAVORITES.LIST, params))
   }
 
   async addToFavorites(taskId: string, title: string): Promise<void> {
     const request: AddFavoriteRequest = { taskId, title }
-    await api.post('/favorites', request)
+    await api.post(buildApiUrl(API_ENDPOINTS.FAVORITES.CREATE), request)
   }
 
   async updateFavorite(favoriteId: number, title: string): Promise<void> {
     const request: UpdateFavoriteRequest = { title }
-    await api.put(`/favorites/${favoriteId}`, request)
+    const url = replaceUrlParams(API_ENDPOINTS.FAVORITES.UPDATE, { id: favoriteId })
+    await api.put(buildApiUrl(url), request)
   }
 
   async deleteFavorite(favoriteId: number): Promise<void> {
-    await api.delete(`/favorites/${favoriteId}`)
+    const url = replaceUrlParams(API_ENDPOINTS.FAVORITES.DELETE, { id: favoriteId })
+    await api.delete(buildApiUrl(url))
   }
 
   async executeFavorite(favoriteId: number): Promise<QuerySubmitResponse> {
-    return await api.post(`/favorites/${favoriteId}/execute`)
+    const url = replaceUrlParams(API_ENDPOINTS.FAVORITES.EXECUTE, { id: favoriteId })
+    return await api.post(buildApiUrl(url))
   }
 }
 
