@@ -25,7 +25,7 @@ from vanna.chromadb import ChromaDB_VectorStore
 from utils.config import settings
 from services.query_engine import get_query_engine
 from services.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service
-from services.operation_tracking import track_operation, tracker, OperationStep
+from services.operation_tracking import tracker
 from utils.progress_decorator import track_node_progress
 
 @dataclass
@@ -96,67 +96,7 @@ class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
         self.training_hash = None
         logger.info("TaoshaVanna初始化完成")
     
-    # def log_interaction(self, step: str, input_data: str, prompt: str,
-    #                    model_output: str, success: bool, error: str = None):
-    #     """记录交互日志"""
-    #     import traceback
-    #     import inspect
-    #
-    #     # 获取调用者信息
-    #     frame = inspect.currentframe()
-    #     caller_frame = frame.f_back
-    #     caller_file = caller_frame.f_code.co_filename
-    #     caller_line = caller_frame.f_lineno
-    #     caller_function = caller_frame.f_code.co_name
-    #
-    #     log_entry = {
-    #         'step': step,
-    #         'timestamp': datetime.now().isoformat(),
-    #         'input_data': input_data,
-    #         'prompt': prompt,
-    #         'model_output': model_output,
-    #         'success': success,
-    #         'error': error,
-    #         'caller_info': {
-    #             'file': caller_file,
-    #             'line': caller_line,
-    #             'function': caller_function
-    #         }
-    #     }
-    #
-    #     # 同时记录到新的追踪系统
-    #     if tracker.current_session:
-    #         operation_step = OperationStep(
-    #             session_id=tracker.current_session,
-    #             step_sequence=0,  # 自动分配
-    #             step_name=step,
-    #             input_data=input_data[:1000],  # 限制长度
-    #             call_method=f"{caller_function}",
-    #             output_data=model_output[:1000],
-    #             error_message=error,
-    #             success=success,
-    #             metadata={'caller_info': log_entry['caller_info']}
-    #         )
-    #
-    #         # 提取SQL（如果有）
-    #         if 'sql' in step.lower() and model_output:
-    #             from services.operation_tracking import extract_sql_from_text
-    #             operation_step.generated_sql = extract_sql_from_text(model_output)
-    #
-    #         tracker.log_step(operation_step)
-    #
-    #     logger.debug(f"[{step}] Input: {input_data}")
-    #     logger.debug(f"[{step}] Prompt: {prompt}...")
-    #     logger.debug(f"[{step}] Output: {model_output}")
-    #
-    #     if error:
-    #         logger.error(f"[{step}] Error in {caller_function}() at line {caller_line}: {error}")
-    #         # 如果有活跃的异常，打印完整的traceback
-    #         if hasattr(error, '__traceback__'):
-    #             logger.error(f"[{step}] Full traceback:\n{''.join(traceback.format_tb(error.__traceback__))}")
-    #
-    #     return log_entry
-
+  
 class NL2SQLService:
     """自然语言转SQL服务"""
     
@@ -715,48 +655,46 @@ class NL2SQLService:
         处理用户查询
         :param flow_type: 流程类型，"fast"=先验证后生成SQL，"thorough"=先生成SQL后验证
         """
+        initial_state = GraphState(
+            user_input=user_input,
+            flow_type=flow_type,
+            task_id=task_id,
+            clear_check_details={},
+            is_clear=False,
+            sql_query="",
+            execution_result=None,
+            error_message=None,
+            retry_count=0,
+            max_retries=max_retries,
+            logs=[],
+            current_progress=0,
+            current_step_log=None,
+            current_step_name=""
+        )
 
-        with track_operation("nl2sql_query", operator, task_id):
-            initial_state = GraphState(
-                user_input=user_input,
-                flow_type=flow_type,
-                task_id=task_id,
-                clear_check_details={},
-                is_clear=False,
-                sql_query="",
-                execution_result=None,
-                error_message=None,
-                retry_count=0,
-                max_retries=max_retries,
-                logs=[],
-                current_progress=0,
-                current_step_log=None,
-                current_step_name=""
-            )
+        # 执行工作流
+        final_state = self.workflow.invoke(initial_state)
 
-            # 执行工作流
-            final_state = self.workflow.invoke(initial_state)
+        # 准备返回结果
+        result = {
+            'task_id': task_id,
+            'user_input': user_input,
+            'is_clear': final_state.get('is_clear', False),
+            'clear_check_details': final_state.get('clear_check_details', {}),
+            'sql_query': final_state.get('sql_query', ''),
+            'success': final_state.get('execution_result') is not None,
+            'data': final_state.get('execution_result'),
+            'error': final_state.get('error_message'),
+            'retry_count': final_state.get('retry_count', 0),
+            'logs': final_state.get('logs', [])
+        }
 
-            # 准备返回结果
-            result = {
-                'task_id': task_id,  # 添加session_id到返回结果
-                'user_input': user_input,
-                'is_clear': final_state.get('is_clear', False),
-                'clear_check_details': final_state.get('clear_check_details', {}),
-                'sql_query': final_state.get('sql_query', ''),
-                'success': final_state.get('execution_result') is not None,
-                'data': final_state.get('execution_result'),
-                'error': final_state.get('error_message'),
-                'retry_count': final_state.get('retry_count', 0),
-                'logs': final_state.get('logs', [])
-            }
+        # 如果有数据结果，转换为字典格式
+        if result['data'] is not None:
+            result['data'] = result['data'].to_dict('records')
+            result['row_count'] = len(result['data'])
 
-            # 如果有数据结果，转换为字典格式
-            if result['data'] is not None:
-                result['data'] = result['data'].to_dict('records')
-                result['row_count'] = len(result['data'])
-
-            return result
+        return result
 
 # 全局服务实例
 _nl2sql_service: Optional[NL2SQLService] = None

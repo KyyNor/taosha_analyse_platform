@@ -3,11 +3,13 @@
 用于在LangGraph工作流节点中跟踪进度和详细日志
 """
 
+import asyncio
 import functools
 from datetime import datetime
 from typing import Dict, Any, Callable, List, Optional
 
 from services.nl2sql_service import BaseNodeLog
+from services.operation_tracking import tracker
 from utils.logger import get_logger
 
 
@@ -50,6 +52,7 @@ def track_node_progress(node_name: str):
             # 从历史日志计算当前进度
             current_progress = calculate_progress_from_logs(logs)
             start_time = datetime.now()
+            task_id = state.get('task_id')
 
             state.current_step_name = f"{node_name} 流程开始"
             state.current_progress = current_progress
@@ -78,11 +81,46 @@ def track_node_progress(node_name: str):
                 if node_name == '执行查询语句' and current_step_log.success == True:
                     new_progress = 100
 
+                # 构建日志条目
+                log_entry = {
+                    "step_name": node_name,
+                    "input_data": current_step_log.input_data,
+                    "output_data": current_step_log.model_output,
+                    "success": current_step_log.success,
+                    "error": current_step_log.error,
+                    "timestamp": current_step_log.end_time.isoformat() if current_step_log.end_time else datetime.now().isoformat()
+                }
+
+                # 更新追踪系统
+                if task_id:
+                    # 异步更新任务状态，不阻塞主流程
+                    asyncio.create_task(
+                        tracker.update_task_progress(
+                            task_id=task_id,
+                            progress=new_progress,
+                            step_name=f"{node_name} 流程结束",
+                            logs=[log_entry],
+                            error=current_step_log.error if not current_step_log.success else None,
+                            final_status="success" if new_progress == 100 else None
+                        )
+                    )
+
                 result_state.current_step_name = f"{node_name} 流程结束"
                 result_state.current_progress = new_progress
                 return result_state
 
             except Exception as e:
+                # 异常时也要更新状态
+                if task_id:
+                    asyncio.create_task(
+                        tracker.update_task_progress(
+                            task_id=task_id,
+                            progress=current_progress,
+                            step_name=f"{node_name} 流程失败",
+                            error=str(e),
+                            final_status="failed"
+                        )
+                    )
                 raise
 
         return wrapper
