@@ -21,7 +21,7 @@
             返回首页
           </router-link>
           <router-link
-            to="/query"
+            to="/nlquery"
             class="btn btn-ghost"
           >
             开始查询

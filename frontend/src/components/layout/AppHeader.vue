@@ -255,49 +255,6 @@
       </div>
     </div>
   </header>
-
-  <!-- Mobile Menu Drawer -->
-  <input
-    id="mobile-menu-drawer"
-    type="checkbox"
-    class="drawer-toggle"
-  >
-  <div class="drawer-side lg:hidden">
-    <label
-      for="mobile-menu-drawer"
-      class="drawer-overlay"
-    />
-    <aside class="w-64 min-h-full bg-base-100">
-      <div class="p-4">
-        <div class="flex items-center gap-2 mb-6">
-          <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span class="text-primary-content font-bold text-lg">淘</span>
-          </div>
-          <span class="text-xl font-semibold">淘沙分析平台</span>
-        </div>
-
-        <ul class="menu menu-vertical gap-2">
-          <li
-            v-for="item in mainNavItems"
-            :key="item.name"
-          >
-            <router-link
-              :to="item.path"
-              :class="{ 'active': $route.name === item.name }"
-              class="flex items-center gap-2"
-              @click="closeMobileDrawer"
-            >
-              <component
-                :is="item.icon"
-                class="w-4 h-4"
-              />
-              {{ item.label }}
-            </router-link>
-          </li>
-        </ul>
-      </div>
-    </aside>
-  </div>
 </template>
 
 <script setup lang="ts">
@@ -394,7 +351,7 @@ const themeStore = useThemeStore()
 const mainNavItems = computed(() => [
   {
     name: 'Query',
-    path: '/query',
+    path: '/nlquery',
     label: '淘沙查询',
     icon: SearchIcon
   },
@@ -424,11 +381,4 @@ const mainNavItems = computed(() => [
   }
 ])
 
-// Close mobile drawer
-const closeMobileDrawer = () => {
-  const drawer = document.getElementById('mobile-menu-drawer') as HTMLInputElement
-  if (drawer) {
-    drawer.checked = false
-  }
-}
 </script>

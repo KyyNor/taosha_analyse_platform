@@ -23,10 +23,10 @@ const routes: RouteRecordRaw[] = [
       {
         path: '',
         name: 'Home',
-        redirect: '/query'
+        redirect: '/nlquery'
       },
       {
-        path: 'query',
+        path: 'nlquery',
         name: 'Query',
         component: QueryPage,
         meta: {

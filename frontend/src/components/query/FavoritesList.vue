@@ -23,7 +23,7 @@
         size="sm"
         :primary-action="{
           text: '开始查询',
-          handler: () => $router.push('/query')
+          handler: () => $router.push('/nlquery')
         }"
       />
     </div>
