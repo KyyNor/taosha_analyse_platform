@@ -30,7 +30,10 @@
           </div>
 
           <!-- 数据主题选择 -->
-          <div v-if="tableSelectionMode === 'theme'" class="form-control">
+          <div
+            v-if="tableSelectionMode === 'theme'"
+            class="form-control"
+          >
             <select
               v-model="formData.selectedThemeId"
               class="select select-bordered"
@@ -50,7 +53,10 @@
           </div>
 
           <!-- 数据表选择 -->
-          <div v-else class="form-control">
+          <div
+            v-else
+            class="form-control"
+          >
             <div class="dropdown dropdown-top">
               <label
                 tabindex="0"
@@ -63,8 +69,18 @@
                     : '选择数据表（可选）'
                   }}
                 </span>
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 9l-7 7-7-7"
+                  />
                 </svg>
               </label>
               <ul
@@ -77,7 +93,7 @@
                     type="text"
                     placeholder="搜索表名..."
                     class="input input-bordered input-sm"
-                  />
+                  >
                 </div>
                 <li
                   v-for="table in filteredTables"
@@ -96,7 +112,10 @@
                     <span class="badge badge-outline badge-xs">{{ table.dataSource }}</span>
                   </label>
                 </li>
-                <li v-if="filteredTables.length === 0" class="text-center text-base-content/60 py-2">
+                <li
+                  v-if="filteredTables.length === 0"
+                  class="text-center text-base-content/60 py-2"
+                >
                   未找到匹配的表
                 </li>
               </ul>

@@ -34,9 +34,9 @@
         <!-- Theme Toggle -->
         <button
           class="btn btn-ghost btn-circle"
-          @click="toggleTheme"
           :title="`当前主题: ${themeStore.theme === 'light' ? '浅色' : '深色'} (点击切换)`"
           aria-label="主题切换"
+          @click="toggleTheme"
         >
           <svg
             v-if="themeStore.theme === 'light'"

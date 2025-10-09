@@ -249,7 +249,7 @@ class MetadataService {
 
   // Remove table from theme
   async removeTableFromTheme(themeId: number, tableId: number): Promise<void> {
-    const url = replaceUrlParams(API_ENDPOINTS.METADATA.THEMES.TABLES, { themeId }) + `/${tableId}`
+    const url = `${replaceUrlParams(API_ENDPOINTS.METADATA.THEMES.TABLES, { themeId })  }/${tableId}`
     return await api.delete(buildApiUrl(url))
   }
 

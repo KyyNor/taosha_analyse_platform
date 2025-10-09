@@ -6,7 +6,9 @@
     <div class="flex flex-col h-full">
       <!-- 标题栏 -->
       <div class="flex items-center justify-between p-4 border-b border-base-300">
-        <h2 class="text-lg font-semibold">查询历史与收藏</h2>
+        <h2 class="text-lg font-semibold">
+          查询历史与收藏
+        </h2>
         <button
           class="btn btn-ghost btn-sm btn-square"
           @click="$emit('close')"
@@ -60,15 +62,23 @@
               type="text"
               placeholder="搜索历史..."
               class="input input-bordered input-sm w-full"
-            />
+            >
             <select
               v-model="historyFilter"
               class="select select-bordered select-sm w-full"
             >
-              <option value="">全部状态</option>
-              <option value="success">成功</option>
-              <option value="failed">失败</option>
-              <option value="running">运行中</option>
+              <option value="">
+                全部状态
+              </option>
+              <option value="success">
+                成功
+              </option>
+              <option value="failed">
+                失败
+              </option>
+              <option value="running">
+                运行中
+              </option>
             </select>
           </div>
 
@@ -78,7 +88,7 @@
               v-if="historyLoading"
               class="flex items-center justify-center py-8"
             >
-              <span class="loading loading-spinner loading-md"></span>
+              <span class="loading loading-spinner loading-md" />
               <span class="ml-2">加载中...</span>
             </div>
             <div
@@ -101,7 +111,10 @@
               </svg>
               <p>暂无查询历史</p>
             </div>
-            <div v-else class="space-y-2">
+            <div
+              v-else
+              class="space-y-2"
+            >
               <div
                 v-for="item in filteredHistory"
                 :key="item.taskId"
@@ -145,7 +158,7 @@
               type="text"
               placeholder="搜索收藏..."
               class="input input-bordered input-sm w-full"
-            />
+            >
           </div>
 
           <!-- 收藏列表 -->
@@ -154,7 +167,7 @@
               v-if="favoritesLoading"
               class="flex items-center justify-center py-8"
             >
-              <span class="loading loading-spinner loading-md"></span>
+              <span class="loading loading-spinner loading-md" />
               <span class="ml-2">加载中...</span>
             </div>
             <div
@@ -177,7 +190,10 @@
               </svg>
               <p>暂无收藏</p>
             </div>
-            <div v-else class="space-y-2">
+            <div
+              v-else
+              class="space-y-2"
+            >
               <div
                 v-for="item in filteredFavorites"
                 :key="item.id"
@@ -254,7 +270,7 @@
     v-if="isVisible"
     class="fixed inset-0 bg-black/50 z-30"
     @click="$emit('close')"
-  ></div>
+  />
 </template>
 
 <script setup lang="ts">

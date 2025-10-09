@@ -94,12 +94,12 @@
           </div>
         </div>
 
-      <!-- Welcome State (when no results) -->
-      <div
-        v-if="!hasResults"
-        class="card bg-base-100 shadow-lg"
-      >
-        <div class="card-body text-center py-12">
+        <!-- Welcome State (when no results and no active query) -->
+        <div
+          v-if="!hasResults && !hasActiveQuery"
+          class="card bg-base-100 shadow-lg"
+        >
+          <div class="card-body text-center py-12">
             <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
