@@ -53,13 +53,10 @@
 
         <!-- Page Content -->
         <div class="p-6">
-          <slot />
+          <router-view />
         </div>
       </main>
     </div>
-
-    <!-- Footer -->
-    <AppFooter />
 
     <!-- Loading Overlay -->
     <div
@@ -127,7 +124,6 @@ import { useAppStore } from '@stores/app'
 import { useToast } from '@/composables/useToast'
 import AppHeader from './AppHeader.vue'
 import AppSidebar from './AppSidebar.vue'
-import AppFooter from './AppFooter.vue'
 
 interface Notification {
   id: string

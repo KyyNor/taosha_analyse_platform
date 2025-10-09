@@ -3,14 +3,11 @@
     <div class="navbar-start">
       <!-- Logo -->
       <div class="flex items-center gap-2">
-        <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-          <span class="text-primary-content font-bold text-lg">淘</span>
-        </div>
         <span class="text-xl font-semibold">淘沙分析平台</span>
       </div>
     </div>
 
-    <div class="navbar-center hidden lg:flex">
+    <div class="navbar-center lg:flex">
       <!-- Main Navigation -->
       <ul class="menu menu-horizontal px-1 gap-2">
         <li
@@ -226,31 +223,6 @@
               </router-link>
             </li>
           </ul>
-        </div>
-
-        <!-- Mobile Menu Toggle -->
-        <div class="lg:hidden">
-          <label
-            for="mobile-menu-drawer"
-            class="btn btn-ghost btn-circle"
-            role="button"
-            aria-label="菜单"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            </svg>
-          </label>
         </div>
       </div>
     </div>

@@ -128,14 +128,6 @@ export const useThemeStore = defineStore('theme', () => {
     }
   }
 
-  // Initialize theme on store creation
-  const init = async () => {
-    await initTheme()
-  }
-
-  // Auto-initialize
-  init()
-
   return {
     // State
     theme,

@@ -1,6 +1,6 @@
 <template>
   <div
-    id="app"
+    id="main"
     class="min-h-screen bg-base-100"
   >
     <!-- 路由视图 -->
