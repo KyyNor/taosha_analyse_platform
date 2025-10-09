@@ -3,6 +3,9 @@
 """
 
 from typing import List, Optional
+
+from api.endpoint_models import TableMetadataRequest, TableMetadataUpdate, ColumnMetadataRequest, ColumnMetadataUpdate, \
+    GlossaryTermRequest, GlossaryTermUpdate, RelationFieldConfigRequest, RelationFieldConfigUpdate
 from utils.logger import logger, get_logger, LoggerMixin
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -12,63 +15,6 @@ from services import get_metadata_service, get_glossary_service, get_relation_fi
 
 # 创建路由器
 router = APIRouter(prefix="/metadata")
-
-
-# 数据模型
-class TableMetadataRequest(BaseModel):
-    name: str
-    comment: str = ""
-    is_available: int = 0
-
-
-class TableMetadataUpdate(BaseModel):
-    comment: Optional[str] = None
-    is_available: Optional[int] = None
-
-
-class ColumnMetadataRequest(BaseModel):
-    table_name: str
-    name: str
-    type: str
-    comment: str = ""
-    is_available: int = 0
-    business_type: str = ""
-    relation_id: str = ""
-
-
-class ColumnMetadataUpdate(BaseModel):
-    type: Optional[str] = None
-    comment: Optional[str] = None
-    is_available: Optional[int] = None
-    business_type: Optional[str] = None
-    relation_id: Optional[str] = None
-
-
-class GlossaryTermRequest(BaseModel):
-    term: str
-    definition: str = ""
-    sql_expression: str = ""
-    category: str = ""
-    aliases: List[str] = []
-
-
-class GlossaryTermUpdate(BaseModel):
-    term: Optional[str] = None
-    definition: Optional[str] = None
-    sql_expression: Optional[str] = None
-    category: Optional[str] = None
-
-
-class RelationFieldConfigRequest(BaseModel):
-    relation_family: str
-    relation_subfamily: str
-    relation_desc: str = ""
-
-
-class RelationFieldConfigUpdate(BaseModel):
-    relation_family: Optional[str] = None
-    relation_subfamily: Optional[str] = None
-    relation_desc: Optional[str] = None
 
 
 # 表元数据管理

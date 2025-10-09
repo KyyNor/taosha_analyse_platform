@@ -47,26 +47,26 @@ class AsyncQueryService:
         """获取任务结果"""
         try:
             # 从追踪系统获取任务状态
-            task_status = await tracker.get_task_status(task_id)
-            if not task_status:
+            task_state = await tracker.get_task_status(task_id)
+            if not task_state:
                 return None
 
-            # 转换为API需要的格式
-            result = task_status.to_dict()
+            # 使用统一的 to_dict 方法转换为API格式
+            result = task_state.to_dict()
 
-            # 确定状态
-            if task_status.status == "running":
+            # 确定状态（保持兼容性）
+            if task_state.status == "running":
                 result["status"] = "running"
-            elif task_status.status in ("success", "completed"):
+            elif task_state.status in ("success", "completed"):
                 result["status"] = "success"
-            elif task_status.status == "failed":
+            elif task_state.status == "failed":
                 result["status"] = "failed"
             else:
-                result["status"] = task_status.status
+                result["status"] = task_state.status
 
-            # 添加一些兼容字段
-            result["current_step"] = task_status.current_step
-            result["progress"] = task_status.progress
+            # 确保有兼容字段
+            result.setdefault("current_step", task_state.current_step)
+            result.setdefault("progress", task_state.progress)
 
             return result
 
@@ -78,15 +78,9 @@ class AsyncQueryService:
                            operator: str, flow_type: str):
         """执行查询任务"""
         try:
-            # 调用NL2SQL服务处理查询
-            result = await asyncio.get_event_loop().run_in_executor(
-                None,
-                self.nl2sql_service.process_query,
-                user_input,
-                task_id,
-                max_retries,
-                operator,
-                flow_type
+            # 直接调用异步的NL2SQL服务处理查询
+            result = await self.nl2sql_service.process_query(
+                user_input, task_id, max_retries, operator, flow_type
             )
 
             # 更新最终状态
@@ -136,17 +130,3 @@ def get_async_query_service() -> AsyncQueryService:
     if _async_query_service is None:
         _async_query_service = AsyncQueryService()
     return _async_query_service
-
-
-# 兼容旧API的函数
-async def submit_query(user_input: str, operator: str = "api_user",
-                      flow_type: str = "fast", max_retries: int = 5) -> str:
-    """提交查询任务（兼容函数）"""
-    service = get_async_query_service()
-    return await service.submit_query(user_input, operator, flow_type, max_retries)
-
-
-async def get_task_result(task_id: str) -> Optional[Dict[str, Any]]:
-    """获取任务结果（兼容函数）"""
-    service = get_async_query_service()
-    return await service.get_task_result(task_id)

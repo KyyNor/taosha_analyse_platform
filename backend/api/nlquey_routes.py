@@ -4,6 +4,7 @@ API路由定义
 import asyncio
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from datetime import datetime
 
 from api.endpoint_models import QueryRequest
 from services.async_query_service import get_async_query_service
@@ -43,20 +44,27 @@ async def ws_task_process(websocket: WebSocket):
                 task_result = await async_query_service.get_task_result(current_task_id)
 
                 if task_result:
-                    # 构建响应数据
+                    # 处理日志格式转换
+                    processed_logs = task_result.get("logs", [])
+
+                    # 构建响应数据（使用统一的状态格式）
                     response = {
                         "code": 0,
                         "data": {
-                            "task_id": task_result["task_id"],
-                            "status": task_result["status"],
-                            "current_step": task_result["current_step"],
-                            "progress": task_result["progress"],
-                            "created_at": task_result["created_at"],
-                            "started_at": task_result["started_at"],
-                            "completed_at": task_result["completed_at"],
-                            "result": task_result["result"],
-                            "error": task_result["error"],
-                            "logs": task_result["logs"][-5:] if task_result["logs"] else []  # 只返回最近5条日志
+                            "task_id": task_result.get("task_id"),
+                            "status": task_result.get("status"),
+                            "current_step": task_result.get("current_step"),
+                            "progress": task_result.get("progress"),
+                            "created_at": task_result.get("created_at"),
+                            "started_at": task_result.get("started_at"),
+                            "completed_at": task_result.get("completed_at"),
+                            "user_input": task_result.get("user_input"),
+                            "sql_query": task_result.get("sql_query"),
+                            "data": task_result.get("data"),
+                            "row_count": task_result.get("row_count", 0),
+                            "success": task_result.get("success", False),
+                            "error": task_result.get("error_message"),
+                            "logs": processed_logs
                         },
                         "error_msg": ""
                     }
@@ -134,112 +142,3 @@ async def process_natural_language_query(request: QueryRequest):
             "error": error_message
         }
 
-# @router.get("/tables", response_model=List[TableInfo])
-# async def get_tables():
-#     """
-#     获取所有数据表信息
-#     """
-#     try:
-#         db_service = get_query_engine()
-#         metadata_service = get_metadata_service()
-#
-#         # 从数据库获取表列表
-#         table_names = db_service.get_tables()
-#
-#         tables_info = []
-#         for table_name in table_names:
-#             # 获取表结构信息
-#             schema = db_service.get_table_schema(table_name)
-#
-#             # 获取元数据中的表注释
-#             table_metadata = metadata_service.get_table_info(table_name)
-#             comment = table_metadata.get('comment', '') if table_metadata else ''
-#
-#             table_info = TableInfo(
-#                 table_name=table_name,
-#                 comment=comment,
-#                 row_count=schema.get('row_count', 0),
-#                 columns=schema.get('columns', [])
-#             )
-#             tables_info.append(table_info)
-#
-#         logger.info(f"成功获取 {len(tables_info)} 个表信息")
-#         return tables_info
-#
-#     except Exception as e:
-#         logger.error(f"获取表信息失败: {e}", exc_info=True)
-#         raise HTTPException(status_code=500, detail=f"获取表信息失败: {str(e)}")
-#
-# @router.get("/table/{table_name}", response_model=TableInfo)
-# async def get_table_info(table_name: str):
-#     """
-#     获取指定表的详细信息
-#     """
-#     try:
-#         db_service = get_query_engine()
-#         metadata_service = get_metadata_service()
-#
-#         # 检查表是否存在
-#         table_names = db_service.get_tables()
-#         if table_name not in table_names:
-#             raise HTTPException(status_code=404, detail=f"表 '{table_name}' 不存在")
-#
-#         # 获取表结构
-#         schema = db_service.get_table_schema(table_name)
-#
-#         # 获取元数据中的表注释
-#         table_metadata = metadata_service.get_table_info(table_name)
-#         comment = table_metadata.get('comment', '') if table_metadata else ''
-#
-#         table_info = TableInfo(
-#             table_name=table_name,
-#             comment=comment,
-#             row_count=schema.get('row_count', 0),
-#             columns=schema.get('columns', [])
-#         )
-#
-#         logger.info(f"成功获取表 {table_name} 的详细信息")
-#         return table_info
-#
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         logger.error(f"获取表 {table_name} 信息失败: {e}", exc_info=True)
-#         raise HTTPException(status_code=500, detail=f"获取表信息失败: {str(e)}")
-#
-# @router.get("/query/{task_id}")
-# async def get_query_result(task_id: str):
-#     """
-#     获取查询任务结果
-#     """
-#     try:
-#         async_query_service = get_async_query_service()
-#         result = await async_query_service.get_task_result(task_id)
-#
-#         if not result:
-#             raise HTTPException(status_code=404, detail=f"任务 '{task_id}' 不存在")
-#
-#         logger.info(f"成功获取任务 {task_id} 的结果")
-#         return result
-#
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         logger.error(f"获取任务 {task_id} 结果失败: {e}", exc_info=True)
-#         raise HTTPException(status_code=500, detail=f"获取任务结果失败: {str(e)}")
-#
-# @router.get("/query")
-# async def get_all_queries():
-#     """
-#     获取所有查询任务列表
-#     """
-#     try:
-#         async_query_service = get_async_query_service()
-#         tasks = await async_query_service.get_all_tasks()
-#
-#         logger.info(f"成功获取 {len(tasks)} 个查询任务")
-#         return tasks
-#
-#     except Exception as e:
-#         logger.error(f"获取查询任务列表失败: {e}", exc_info=True)
-#         raise HTTPException(status_code=500, detail=f"获取查询任务列表失败: {str(e)}")

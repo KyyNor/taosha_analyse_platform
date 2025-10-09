@@ -6,14 +6,13 @@
 import asyncio
 import functools
 from datetime import datetime
-from typing import Dict, Any, Callable, List, Optional
+from typing import Dict, Any, Callable, List
 
-from services.nl2sql_service import BaseNodeLog
+from services.service_models import BaseNodeLog, TaskState
 from services.operation_tracking import tracker
-from utils.logger import get_logger
 
 
-def calculate_progress_from_logs(logs: List[Dict[str, Any]]) -> int:
+def calculate_progress_from_logs(logs: List[BaseNodeLog]) -> int:
     """
     从日志列表中计算当前进度
 
@@ -26,10 +25,10 @@ def calculate_progress_from_logs(logs: List[Dict[str, Any]]) -> int:
     progress = 10
 
     for log in logs:
-        if log.get('success'):
+        if log.success:
             # 成功的节点：+10进度，最多到90
             progress = min(progress + 10, 90)
-        elif log.get('success') is False:
+        else:
             # 失败的节点：+5进度，最多到90
             progress = min(progress + 5, 90)
 
@@ -54,8 +53,8 @@ def track_node_progress(node_name: str):
             start_time = datetime.now()
             task_id = state.get('task_id')
 
-            state.current_step_name = f"{node_name} 流程开始"
-            state.current_progress = current_progress
+            state['current_step_name'] = f"{node_name} 流程开始"
+            state['current_progress'] = current_progress
 
             try:
                 # 执行原函数
@@ -81,16 +80,6 @@ def track_node_progress(node_name: str):
                 if node_name == '执行查询语句' and current_step_log.success == True:
                     new_progress = 100
 
-                # 构建日志条目
-                log_entry = {
-                    "step_name": node_name,
-                    "input_data": current_step_log.input_data,
-                    "output_data": current_step_log.model_output,
-                    "success": current_step_log.success,
-                    "error": current_step_log.error,
-                    "timestamp": current_step_log.end_time.isoformat() if current_step_log.end_time else datetime.now().isoformat()
-                }
-
                 # 更新追踪系统
                 if task_id:
                     # 异步更新任务状态，不阻塞主流程
@@ -99,14 +88,21 @@ def track_node_progress(node_name: str):
                             task_id=task_id,
                             progress=new_progress,
                             step_name=f"{node_name} 流程结束",
-                            logs=[log_entry],
+                            logs=[{
+                                "step_name": node_name,
+                                "input_data": current_step_log.input_data,
+                                "output_data": current_step_log.model_output,
+                                "success": current_step_log.success,
+                                "error": current_step_log.error,
+                                "timestamp": current_step_log.end_time.isoformat() if current_step_log.end_time else datetime.now().isoformat()
+                            }],
                             error=current_step_log.error if not current_step_log.success else None,
                             final_status="success" if new_progress == 100 else None
                         )
                     )
 
-                result_state.current_step_name = f"{node_name} 流程结束"
-                result_state.current_progress = new_progress
+                result_state['current_step_name'] = f"{node_name} 流程结束"
+                result_state['current_progress'] = new_progress
                 return result_state
 
             except Exception as e:

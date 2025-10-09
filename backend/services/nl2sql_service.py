@@ -5,58 +5,24 @@
 import hashlib
 import json
 import traceback
-
-from utils.logger import logger
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass
 from datetime import datetime
-import pandas as pd
 from pathlib import Path
+from typing import Dict, Any, Optional
 
 # LangGraph imports
 from langgraph.graph import StateGraph, END
-from typing_extensions import TypedDict
-
+from vanna.chromadb import ChromaDB_VectorStore
 # Vanna imports
 from vanna.openai import OpenAI_Chat
-from vanna.chromadb import ChromaDB_VectorStore
 
+from services.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service
+from services.query_engine import get_query_engine
+from services.service_models import BaseNodeLog, GraphState, TaskState
 # Local imports
 from utils.config import settings
-from services.query_engine import get_query_engine
-from services.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service
-from services.operation_tracking import tracker
+from utils.logger import logger
 from utils.progress_decorator import track_node_progress
 
-@dataclass
-class BaseNodeLog:
-    """日志记录结构"""
-    step: str
-    input_data: str
-    prompt: str
-    model_output: str
-    success: bool
-    error: Optional[str] = None
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-
-# 状态定义
-class GraphState(TypedDict):
-    """LangGraph状态定义"""
-    user_input: str
-    task_id: str
-    flow_type: str  # 新增：流程类型 ("fast" 或 "thorough")
-    clear_check_details: Dict[str, Any]
-    is_clear: bool
-    sql_query: str
-    execution_result: Optional[pd.DataFrame]
-    error_message: Optional[str]
-    retry_count: int
-    max_retries: int
-    logs: List[BaseNodeLog]
-    current_step_log: BaseNodeLog | None
-    current_step_name: str
-    current_progress: int
 
 class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
     """自定义Vanna实现"""
@@ -655,46 +621,26 @@ class NL2SQLService:
         处理用户查询
         :param flow_type: 流程类型，"fast"=先验证后生成SQL，"thorough"=先生成SQL后验证
         """
-        initial_state = GraphState(
-            user_input=user_input,
-            flow_type=flow_type,
+        # 创建统一的任务状态
+        task_state = TaskState(
             task_id=task_id,
-            clear_check_details={},
-            is_clear=False,
-            sql_query="",
-            execution_result=None,
-            error_message=None,
-            retry_count=0,
-            max_retries=max_retries,
-            logs=[],
-            current_progress=0,
-            current_step_log=None,
-            current_step_name=""
+            user_input=user_input,
+            operator=operator,
+            flow_type=flow_type,
+            max_retries=max_retries
         )
+
+        # 转换为GraphState执行工作流
+        initial_state = task_state.to_graph_state()
 
         # 执行工作流
         final_state = self.workflow.invoke(initial_state)
 
-        # 准备返回结果
-        result = {
-            'task_id': task_id,
-            'user_input': user_input,
-            'is_clear': final_state.get('is_clear', False),
-            'clear_check_details': final_state.get('clear_check_details', {}),
-            'sql_query': final_state.get('sql_query', ''),
-            'success': final_state.get('execution_result') is not None,
-            'data': final_state.get('execution_result'),
-            'error': final_state.get('error_message'),
-            'retry_count': final_state.get('retry_count', 0),
-            'logs': final_state.get('logs', [])
-        }
+        # 从结果创建新的TaskState
+        result_state = TaskState.from_graph_state(final_state)
 
-        # 如果有数据结果，转换为字典格式
-        if result['data'] is not None:
-            result['data'] = result['data'].to_dict('records')
-            result['row_count'] = len(result['data'])
-
-        return result
+        # 返回统一格式
+        return result_state.to_dict()
 
 # 全局服务实例
 _nl2sql_service: Optional[NL2SQLService] = None
