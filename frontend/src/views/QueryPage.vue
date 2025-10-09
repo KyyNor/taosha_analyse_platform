@@ -2,14 +2,6 @@
   <div class="space-y-6">
     <!-- Page Header -->
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold">
-          淘沙查询
-        </h1>
-        <p class="text-base-content/60 mt-1">
-          使用自然语言进行数据查询分析
-        </p>
-      </div>
       <div class="flex gap-2">
         <button
           class="btn btn-ghost btn-sm"

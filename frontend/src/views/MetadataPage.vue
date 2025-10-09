@@ -2,14 +2,6 @@
   <div class="space-y-6">
     <!-- Page Header -->
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold">
-          元数据配置
-        </h1>
-        <p class="text-base-content/60 mt-1">
-          管理数据表、字段、业务术语和关联配置
-        </p>
-      </div>
       <div class="flex gap-2">
         <button
           class="btn btn-primary"

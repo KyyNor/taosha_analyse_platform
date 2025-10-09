@@ -1,10 +1,6 @@
 <template>
   <div class="card bg-base-100 shadow-lg">
     <div class="card-body">
-      <h2 class="card-title text-xl mb-4">
-        自然语言查询
-      </h2>
-
       <form
         class="space-y-4"
         @submit.prevent="handleSubmit"
@@ -151,27 +147,6 @@
           </div>
         </div>
 
-        <!-- Examples -->
-        <div class="collapse collapse-arrow bg-base-200">
-          <input type="checkbox">
-          <div class="collapse-title text-sm font-medium">
-            查询示例
-          </div>
-          <div class="collapse-content">
-            <div class="space-y-2">
-              <button
-                v-for="example in queryExamples"
-                :key="example"
-                type="button"
-                class="btn btn-ghost btn-sm text-left w-full justify-start h-auto py-2"
-                @click="formData.query = example"
-              >
-                {{ example }}
-              </button>
-            </div>
-          </div>
-        </div>
-
         <!-- Action Buttons -->
         <div class="flex gap-3 pt-4">
           <button
@@ -267,15 +242,6 @@ const themesLoading = ref(false)
 const loading = computed(() => queryStore.isLoading)
 const hasActiveQuery = computed(() => queryStore.hasActiveQuery)
 
-// Query examples
-const queryExamples = [
-  '显示最近一个月的销售额',
-  '查询各个产品类别的销售占比',
-  '找出销售额最高的前10个产品',
-  '分析用户注册趋势',
-  '统计各地区的订单数量',
-  '查询库存不足的产品'
-]
 
 // Load themes
 const loadThemes = async () => {
