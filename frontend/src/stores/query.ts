@@ -345,17 +345,50 @@ export const useQueryStore = defineStore('query', () => {
       }
 
       // Update result if available
-      if (data.data && data.status === 'success') {
+      if (data.status === 'success' && (data.data || data.execution_result)) {
+        const resultData = data.data || data.execution_result
+
+        console.log('[QueryStore] Processing successful result data', {
+          data,
+          resultData,
+          dataType: Array.isArray(resultData) ? 'array' : typeof resultData,
+          rowCount: data.row_count
+        })
+
+        // Handle different data formats
+        let columns: string[] = []
+        let rows: any[][] = []
+
+        if (Array.isArray(resultData) && resultData.length > 0) {
+          // Data is array of objects (records format)
+          columns = Object.keys(resultData[0])
+          rows = resultData.map(row => columns.map(col => row[col]))
+          console.log('[QueryStore] Converted records format', {
+            columns,
+            rowCount: rows.length,
+            sampleRow: resultData[0]
+          })
+        } else if (resultData && typeof resultData === 'object') {
+          // Data might be in {columns: [], rows: []} format
+          if (resultData.columns && resultData.rows) {
+            columns = resultData.columns
+            rows = resultData.rows
+            console.log('[QueryStore] Using columns/rows format', { columns, rowCount: rows.length })
+          }
+        }
+
         currentResult.value = {
           taskId: data.task_id,
           status: data.status,
           generatedSql: data.sql_query || '',
           result: {
-            columns: data.data?.columns || [],
-            rows: data.data?.rows || [],
-            rowCount: data.row_count || 0
+            columns,
+            rows,
+            rowCount: data.row_count || rows.length || 0
           }
         }
+
+        console.log('[QueryStore] Final result set', currentResult.value)
       }
 
       // Handle completion

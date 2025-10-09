@@ -325,7 +325,8 @@ const updateStepsFromLogs = () => {
     }
   }
 
-  steps.value = newSteps
+  // Reverse the order so that completed steps are at the bottom
+  steps.value = newSteps.reverse()
 }
 
 // Format datetime string

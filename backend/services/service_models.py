@@ -4,6 +4,7 @@ from typing import Dict, List, Any, Optional, Union
 
 import pandas as pd
 from typing_extensions import TypedDict
+from utils.logger import logger
 
 
 @dataclass
@@ -79,7 +80,8 @@ class TaskState:
         # 添加额外的兼容字段
         if data['execution_result'] is not None:
             data['data'] = data['execution_result']
-            data['row_count'] = len(data['execution_result'])
+            # execution_result is now dict array after DataFrame conversion
+            data['row_count'] = len(data['execution_result']) if isinstance(data['execution_result'], list) else 0
             data['success'] = True
         else:
             data['data'] = None
