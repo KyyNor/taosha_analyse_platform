@@ -10,9 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from utils.config import settings
-from api.routes import router
-from api.dev_routes import router as dev_router
-from api.tracking_routes import router as tracking_router
+from api.nlquey_routes import router as nlquey_router
+from api.metadata_routes import router as metadata_router
+from api.user_routes import router as user_router
 from services.query_engine import get_query_engine
 from services.nl2sql_service import get_nl2sql_service
 from services.async_query_service import get_async_query_service
@@ -75,10 +75,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+api_prefix = "/api/taosha/v1"
+
 # 注册路由
-app.include_router(router, prefix="/api/v1", tags=["查询"])
-app.include_router(dev_router, prefix="/api/v1")
-app.include_router(tracking_router, prefix="/api/v1")
+app.include_router(nlquey_router, prefix=api_prefix)
+app.include_router(metadata_router, prefix=api_prefix)
+app.include_router(user_router, prefix=api_prefix)
 
 @app.get("/", tags=["根路径"])
 async def root():
@@ -86,21 +88,7 @@ async def root():
     return {
         "message": f"欢迎使用{settings.app_name}",
         "version": settings.app_version,
-        "docs": "/docs",
-        "api_prefix": "/api/v1"
-    }
-
-@app.get("/api", tags=["API信息"])
-async def api_info():
-    """API信息"""
-    return {
-        "name": settings.app_name,
-        "version": settings.app_version,
-        "endpoints": {
-            "查询": "/api/v1/query",
-            "表列表": "/api/v1/tables",
-            "表信息": "/api/v1/table/{table_name}",
-        }
+        "api_prefix": api_prefix
     }
 
 # 全局异常处理

@@ -8,7 +8,7 @@ from utils.logger import logger, get_logger, LoggerMixin
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 
-from api.models import (
+from api.endpoint_models import (
     QueryRequest, QueryResponse, TableInfo, 
     DatabaseStatus, SystemStatus, ErrorResponse
 )
