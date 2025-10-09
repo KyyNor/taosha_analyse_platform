@@ -4,6 +4,8 @@
 
 import hashlib
 import json
+import traceback
+
 from utils.logger import logger
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
@@ -26,35 +28,35 @@ from services.metadata_service import get_metadata_service, get_glossary_service
 from services.operation_tracking import track_operation, tracker, OperationStep
 from utils.progress_decorator import track_node_progress
 
-
-# 状态定义
-class GraphState(TypedDict):
-    """LangGraph状态定义"""
-    user_input: str
-    flow_type: str  # 新增：流程类型 ("fast" 或 "thorough")
-    clear_check_details: Dict[str, Any]
-    is_clear: bool
-    sql_query: str
-    execution_result: Optional[pd.DataFrame]
-    sql_explanation: Optional[str]
-    nl_diff_analysis: Optional[Dict[str, Any]]
-    error_message: Optional[str]
-    retry_count: int
-    max_retries: int
-    logs: List[Dict[str, Any]]
-    current_step_log: Dict[str, Any]
-    progress_callback: Optional[callable]  # 进度回调函数
-
 @dataclass
-class NL2SQLLog:
+class BaseNodeLog:
     """日志记录结构"""
     step: str
-    timestamp: datetime
     input_data: str
     prompt: str
     model_output: str
     success: bool
     error: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+
+# 状态定义
+class GraphState(TypedDict):
+    """LangGraph状态定义"""
+    user_input: str
+    task_id: str
+    flow_type: str  # 新增：流程类型 ("fast" 或 "thorough")
+    clear_check_details: Dict[str, Any]
+    is_clear: bool
+    sql_query: str
+    execution_result: Optional[pd.DataFrame]
+    error_message: Optional[str]
+    retry_count: int
+    max_retries: int
+    logs: List[BaseNodeLog]
+    current_step_log: BaseNodeLog | None
+    current_step_name: str
+    current_progress: int
 
 class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
     """自定义Vanna实现"""
@@ -94,66 +96,66 @@ class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
         self.training_hash = None
         logger.info("TaoshaVanna初始化完成")
     
-    def log_interaction(self, step: str, input_data: str, prompt: str, 
-                       model_output: str, success: bool, error: str = None):
-        """记录交互日志"""
-        import traceback
-        import inspect
-        
-        # 获取调用者信息
-        frame = inspect.currentframe()
-        caller_frame = frame.f_back
-        caller_file = caller_frame.f_code.co_filename
-        caller_line = caller_frame.f_lineno
-        caller_function = caller_frame.f_code.co_name
-        
-        log_entry = {
-            'step': step,
-            'timestamp': datetime.now().isoformat(),
-            'input_data': input_data,
-            'prompt': prompt,
-            'model_output': model_output,
-            'success': success,
-            'error': error,
-            'caller_info': {
-                'file': caller_file,
-                'line': caller_line,
-                'function': caller_function
-            }
-        }
-        
-        # 同时记录到新的追踪系统
-        if tracker.current_session:
-            operation_step = OperationStep(
-                session_id=tracker.current_session,
-                step_sequence=0,  # 自动分配
-                step_name=step,
-                input_data=input_data[:1000],  # 限制长度
-                call_method=f"{caller_function}",
-                output_data=model_output[:1000],
-                error_message=error,
-                success=success,
-                metadata={'caller_info': log_entry['caller_info']}
-            )
-            
-            # 提取SQL（如果有）
-            if 'sql' in step.lower() and model_output:
-                from services.operation_tracking import extract_sql_from_text
-                operation_step.generated_sql = extract_sql_from_text(model_output)
-            
-            tracker.log_step(operation_step)
-        
-        logger.debug(f"[{step}] Input: {input_data}")
-        logger.debug(f"[{step}] Prompt: {prompt}...")
-        logger.debug(f"[{step}] Output: {model_output}")
-        
-        if error:
-            logger.error(f"[{step}] Error in {caller_function}() at line {caller_line}: {error}")
-            # 如果有活跃的异常，打印完整的traceback
-            if hasattr(error, '__traceback__'):
-                logger.error(f"[{step}] Full traceback:\n{''.join(traceback.format_tb(error.__traceback__))}")
-        
-        return log_entry
+    # def log_interaction(self, step: str, input_data: str, prompt: str,
+    #                    model_output: str, success: bool, error: str = None):
+    #     """记录交互日志"""
+    #     import traceback
+    #     import inspect
+    #
+    #     # 获取调用者信息
+    #     frame = inspect.currentframe()
+    #     caller_frame = frame.f_back
+    #     caller_file = caller_frame.f_code.co_filename
+    #     caller_line = caller_frame.f_lineno
+    #     caller_function = caller_frame.f_code.co_name
+    #
+    #     log_entry = {
+    #         'step': step,
+    #         'timestamp': datetime.now().isoformat(),
+    #         'input_data': input_data,
+    #         'prompt': prompt,
+    #         'model_output': model_output,
+    #         'success': success,
+    #         'error': error,
+    #         'caller_info': {
+    #             'file': caller_file,
+    #             'line': caller_line,
+    #             'function': caller_function
+    #         }
+    #     }
+    #
+    #     # 同时记录到新的追踪系统
+    #     if tracker.current_session:
+    #         operation_step = OperationStep(
+    #             session_id=tracker.current_session,
+    #             step_sequence=0,  # 自动分配
+    #             step_name=step,
+    #             input_data=input_data[:1000],  # 限制长度
+    #             call_method=f"{caller_function}",
+    #             output_data=model_output[:1000],
+    #             error_message=error,
+    #             success=success,
+    #             metadata={'caller_info': log_entry['caller_info']}
+    #         )
+    #
+    #         # 提取SQL（如果有）
+    #         if 'sql' in step.lower() and model_output:
+    #             from services.operation_tracking import extract_sql_from_text
+    #             operation_step.generated_sql = extract_sql_from_text(model_output)
+    #
+    #         tracker.log_step(operation_step)
+    #
+    #     logger.debug(f"[{step}] Input: {input_data}")
+    #     logger.debug(f"[{step}] Prompt: {prompt}...")
+    #     logger.debug(f"[{step}] Output: {model_output}")
+    #
+    #     if error:
+    #         logger.error(f"[{step}] Error in {caller_function}() at line {caller_line}: {error}")
+    #         # 如果有活跃的异常，打印完整的traceback
+    #         if hasattr(error, '__traceback__'):
+    #             logger.error(f"[{step}] Full traceback:\n{''.join(traceback.format_tb(error.__traceback__))}")
+    #
+    #     return log_entry
 
 class NL2SQLService:
     """自然语言转SQL服务"""
@@ -173,40 +175,43 @@ class NL2SQLService:
     def _build_workflow(self) -> StateGraph:
         """构建统一的LangGraph工作流，支持多种流程类型"""
         
-        @track_node_progress("训练数据集更新")
+        @track_node_progress("知识库更新")
         def check_training_needed(state: GraphState) -> GraphState:
             """检查是否需要重新训练Vanna"""
-            logs = state.get('logs', [])
 
             # 需要重新训练
             self._train_vanna()
-            log_entry = self.vanna.log_interaction(
-                step="training_check",
+
+            state['current_step_log'] = BaseNodeLog(
+                step="知识库更新",
                 input_data="metadata/glossary check",
                 prompt="",
                 model_output="training completed",
                 success=True
             )
-            logs.append(log_entry)
 
-            state['current_step_log'] = log_entry
-            state['logs'] = logs
             return state
         
         @track_node_progress("用户输入验证")
         def validate_input_clarity(state: GraphState) -> GraphState:
             """验证输入是否清晰，支持两种模式：纯输入验证 和 SQL+输入匹配验证"""
             user_input = state['user_input']
+            step_name = '用户输入验证'
             sql_query = state.get('sql_query', '')  # 可能存在也可能不存在
             flow_type = state.get('flow_type', 'fast')
-            logs = state.get('logs', [])
 
             # 检查API配置
             if not settings.openai_api_key:
-                logger.warning("OpenAI API密钥未配置，跳过输入验证")
+                logger.warning("大模型API密钥未配置，跳过输入验证")
                 state['is_clear'] = True
-                state['processed_input'] = user_input
-                state['logs'] = logs
+                state['current_step_log'] = BaseNodeLog(
+                    step=step_name,
+                    input_data=user_input,
+                    prompt="",
+                    model_output="",
+                    success=False,
+                    error="大模型API密钥未配置，跳过输入验证"
+                )
                 return state
 
             # 根据是否有SQL选择验证模式
@@ -242,7 +247,6 @@ class NL2SQLService:
 2. 如果SQL很好地满足了用户需求，即使输入不够完美也应该认为is_clear=true
 3. 如果SQL与用户需求有偏差，应该给出具体建议
 """
-                step_name = "sql_based_validation"
             else:
                 # 快速流程：只验证用户输入清晰度
                 current_date = datetime.now().strftime("%Y-%m-%d")
@@ -271,8 +275,7 @@ class NL2SQLService:
 
 注意：suggestions中应该是完整的、可以直接查询的问题示例，而不是修改建议。基于用户的模糊查询，结合可用的表结构，生成具体可执行的查询示例。
 """
-                step_name = "input_validation"
-            
+
             try:
                 # 使用正确的消息格式
                 messages = [{"role": "user", "content": validation_prompt}]
@@ -306,34 +309,31 @@ class NL2SQLService:
                         clear_check_details['validation_type'] = 'input_only'
 
                 except json.JSONDecodeError as json_error:
+                    is_clear = False
                     clear_check_details = {
-                        'is_clear': False,
+                        'is_clear': is_clear,
                         'reason': f"无法解析模型响应为JSON: {str(json_error)}",
                         'suggestions': [],
                         'validation_type': step_name
                     }
 
-                log_entry = self.vanna.log_interaction(
+                state['is_clear'] = is_clear
+                state['clear_check_details'] = clear_check_details
+
+                state['current_step_log'] = BaseNodeLog(
                     step=step_name,
                     input_data=user_input if not sql_query else f"user:{user_input}\nsql:{sql_query}",
                     prompt=validation_prompt,
                     model_output=response,
-                    success=True
+                    success=True,
                 )
-                logs.append(log_entry)
-                
-                state['is_clear'] = is_clear
-                state['processed_input'] = clear_check_details
-                state['clear_check_details'] = clear_check_details
-                state['current_step_log'] = log_entry
-                state['logs'] = logs
-                
             except Exception as e:
-                import traceback
                 error_traceback = traceback.format_exc()
                 logger.error(f"Input validation failed with traceback:\n{error_traceback}")
-                
-                log_entry = self.vanna.log_interaction(
+
+                state['is_clear'] = False
+                state['error_message'] = f"输入验证失败: {str(e)}"
+                state['current_step_log'] = BaseNodeLog(
                     step=step_name,
                     input_data=user_input if not sql_query else f"user:{user_input}\nsql:{sql_query}",
                     prompt=validation_prompt,
@@ -341,26 +341,19 @@ class NL2SQLService:
                     success=False,
                     error=f"{str(e)}\nTraceback:\n{error_traceback}"
                 )
-                logs.append(log_entry)
-                state['is_clear'] = False
-                state['error_message'] = f"输入验证失败: {str(e)}"
-                state['current_step_log'] = log_entry
-                state['logs'] = logs
-            
+
             return state
         
         @track_node_progress("生成查询语句")
         def generate_sql(state: GraphState) -> GraphState:
             """生成SQL查询（包含错误重试逻辑）"""
             user_input = state['user_input']
-            logs = state.get('logs', [])
             error_message = state.get('error_message')
             previous_sql = state.get('sql_query', '')
             retry_count = state.get('retry_count', 0)
             
             # 构建输入内容：如果有错误信息，则包含错误反馈
-            step_name = "sql_generation"
-            
+            step_name = "生成查询语句"
             
             # 这是重试情况，增强输入信息
             current_date = datetime.now().strftime("%Y-%m-%d")
@@ -389,37 +382,32 @@ class NL2SQLService:
                 # 使用Vanna生成SQL（会自动检索向量数据库上下文）
                 sql_query = self.vanna.generate_sql(query_input)
                 
-                log_entry = self.vanna.log_interaction(
-                    step=step_name,
-                    input_data=query_input,
-                    prompt="vanna.generate_sql",
-                    model_output=sql_query,
-                    success=True
-                )
-                logs.append(log_entry)
-                
                 state['sql_query'] = sql_query
                 state['error_message'] = None  # 清除错误信息
-                state['current_step_log'] = log_entry
-                state['logs'] = logs
-                
-            except Exception as e:
-                log_entry = self.vanna.log_interaction(
+                state['current_step_log'] = BaseNodeLog(
                     step=step_name,
                     input_data=query_input,
-                    prompt="vanna.generate_sql",
-                    model_output="",
-                    success=False,
-                    error=str(e)
+                    prompt=query_input,
+                    model_output=sql_query,
+                    success=True,
                 )
-                logs.append(log_entry)
-                
+
+            except Exception as e:
+                error_traceback = traceback.format_exc()
+
                 if retry_count > 0:
                     state['error_message'] = f"SQL重试失败: {str(e)}"
                 else:
                     state['error_message'] = f"SQL生成失败: {str(e)}"
-                state['current_step_log'] = log_entry
-                state['logs'] = logs
+
+                state['current_step_log'] = BaseNodeLog(
+                    step=step_name,
+                    input_data=query_input,
+                    prompt=query_input,
+                    model_output="",
+                    success=False,
+                    error=f"{str(e)}\nTraceback:\n{error_traceback}"
+                )
             
             return state
         
@@ -427,8 +415,8 @@ class NL2SQLService:
         def execute_sql(state: GraphState) -> GraphState:
             """执行SQL查询"""
             sql_query = state.get('sql_query', '')
-            logs = state.get('logs', [])
-            
+            step_name = "执行查询语句"
+
             if not sql_query:
                 state['error_message'] = "没有可执行的SQL查询"
                 return state
@@ -436,170 +424,34 @@ class NL2SQLService:
             try:
                 # 执行SQL查询
                 result = self.db_service.execute_query(sql_query)
-                
-                log_entry = self.vanna.log_interaction(
-                    step="sql_execution",
+
+                state['current_step_log'] = BaseNodeLog(
+                    step=step_name,
                     input_data=sql_query,
-                    prompt="database.execute_query",
+                    prompt="data_engine.execute_query",
                     model_output=f"返回 {len(result)} 行数据",
-                    success=True
+                    success=True,
                 )
-                logs.append(log_entry)
                 
                 state['execution_result'] = result
-                state['current_step_log'] = log_entry
-                state['logs'] = logs
-                
+
             except Exception as e:
-                log_entry = self.vanna.log_interaction(
-                    step="sql_execution",
-                    input_data=sql_query,
-                    prompt="database.execute_query",
-                    model_output="",
-                    success=False,
-                    error=str(e)
-                )
-                logs.append(log_entry)
-                
+                error_traceback = traceback.format_exc()
                 # 增加重试计数
                 retry_count = state.get('retry_count', 0) + 1
                 state['retry_count'] = retry_count
                 state['error_message'] = f"SQL执行失败: {str(e)}"
-                state['current_step_log'] = log_entry
-                state['logs'] = logs
+                state['current_step_log'] = BaseNodeLog(
+                    step=step_name,
+                    input_data=sql_query,
+                    prompt="data_engine.execute_query",
+                    model_output="",
+                    success=False,
+                    error=f"{str(e)}\nTraceback:\n{error_traceback}"
+                )
             
             return state
 
-        @track_node_progress("解释查询语句")
-        def explain_sql(state: GraphState) -> GraphState:
-            """在SQL执行成功后，用自然语言解释SQL在做什么"""
-            logs = state.get('logs', [])
-            sql_query = state.get('sql_query', '')
-
-            if not sql_query:
-                state['sql_explanation'] = ''
-                return state
-
-            if not settings.openai_api_key:
-                logger.warning("OpenAI API密钥未配置，跳过SQL解释")
-                state['sql_explanation'] = ''
-                return state
-
-            prompt = f"""
-请用中文严谨的说明下面的SQL在查询什么（2-4句话），并列出关键点：
-
-SQL：
-{sql_query}
-
-要求：
-1) 简述查询目标（查询对象、度量、时间/维度限制）
-2) 说明主要筛选条件、分组、排序或聚合
-3) 给出可能的业务含义或注意事项（如果有）
-"""
-
-            try:
-                messages = [{"role": "user", "content": prompt}]
-                explanation = self.vanna.submit_prompt(messages)
-                if not isinstance(explanation, str):
-                    explanation = str(explanation) if explanation is not None else ''
-
-                log_entry = self.vanna.log_interaction(
-                    step="sql_explanation",
-                    input_data=sql_query,
-                    prompt=prompt,
-                    model_output=explanation,
-                    success=True
-                )
-                logs.append(log_entry)
-
-                state['sql_explanation'] = explanation
-                state['current_step_log'] = log_entry
-                state['logs'] = logs
-            except Exception as e:
-                log_entry = self.vanna.log_interaction(
-                    step="sql_explanation",
-                    input_data=sql_query,
-                    prompt=prompt,
-                    model_output="",
-                    success=False,
-                    error=str(e)
-                )
-                logs.append(log_entry)
-                state['sql_explanation'] = ''
-                state['current_step_log'] = log_entry
-                state['logs'] = logs
-
-            return state
-
-        @track_node_progress("分析语言差异")
-        def analyze_nl_diff(state: GraphState) -> GraphState:
-            """对比用户自然语言与SQL解释，分析差异与固化知识点"""
-            logs = state.get('logs', [])
-            user_input = state.get('user_input', '')
-            sql_explanation = state.get('sql_explanation', '')
-
-            if not settings.openai_api_key:
-                logger.warning("OpenAI API密钥未配置，跳过自然语言差异分析")
-                state['nl_diff_analysis'] = None
-                return state
-
-            prompt = f"""
-你将看到两段中文描述：
-1) 用户原始需求：\n{user_input}
-2) SQL含义解释：\n{sql_explanation}
-
-请分析二者之间的差异与偏差，并判断是否需要沉淀为“固化知识”（便于之后统一口径）。
-请务必返回严格JSON（不要额外文字）：
-{{
-  "is_mismatch": true/false,
-  "differences": ["关键差异1", "关键差异2"],
-  "suggest_alignment": ["建议如何对齐口径或补充字段"],
-  "knowledge_candidates": [
-    {{"title": "知识点简短标题", "description": "口径/转换规则/字段映射等"}}
-  ]
-}}
-"""
-
-            try:
-                messages = [{"role": "user", "content": prompt}]
-                response = self.vanna.submit_prompt(messages)
-                if not isinstance(response, str):
-                    response = str(response) if response is not None else ''
-
-                parsed: Optional[Dict[str, Any]] = None
-                try:
-                    parsed = json.loads(response.strip()) if response else None
-                except Exception:
-                    parsed = None
-
-                log_entry = self.vanna.log_interaction(
-                    step="nl_diff_analysis",
-                    input_data=f"user:{user_input}\nsql_exp:{sql_explanation}",
-                    prompt=prompt,
-                    model_output=response,
-                    success=True
-                )
-                logs.append(log_entry)
-
-                state['nl_diff_analysis'] = parsed if parsed is not None else {"raw": response}
-                state['current_step_log'] = log_entry
-                state['logs'] = logs
-            except Exception as e:
-                log_entry = self.vanna.log_interaction(
-                    step="nl_diff_analysis",
-                    input_data=f"user:{user_input}\nsql_exp:{sql_explanation}",
-                    prompt=prompt,
-                    model_output="",
-                    success=False,
-                    error=str(e)
-                )
-                logs.append(log_entry)
-                state['nl_diff_analysis'] = None
-                state['current_step_log'] = log_entry
-                state['logs'] = logs
-
-            return state
-        
         def should_retry(state: GraphState) -> str:
             """判断是否应该重试"""
             retry_count = state.get('retry_count', 0)
@@ -622,9 +474,7 @@ SQL：
         workflow.add_node("validate_input", validate_input_clarity)
         workflow.add_node("generate_sql", generate_sql)
         workflow.add_node("execute_sql", execute_sql)
-        workflow.add_node("explain_sql", explain_sql)
-        workflow.add_node("analyze_nl_diff", analyze_nl_diff)
-        
+
         # 添加边
         workflow.set_entry_point("check_training")
 
@@ -695,15 +545,11 @@ SQL：
             "execute_sql",
             should_retry,
             {
-                "success": "explain_sql",
+                "success": END,
                 "failed": END,
                 "retry": "generate_sql"  # 回到generate_sql节点进行重试
             }
         )
-
-        # 执行成功后解释SQL，并进行自然语言差异分析
-        workflow.add_edge("explain_sql", "analyze_nl_diff")
-        workflow.add_edge("analyze_nl_diff", END)
 
         return workflow.compile()
     
@@ -864,61 +710,36 @@ SQL：
         
         return "\n".join(config_lines)
     
-    def _extract_sql_from_response(self, response: str) -> str:
-        """从响应中提取SQL语句"""
-        # 简单实现：查找SELECT、INSERT、UPDATE、DELETE等关键词
-        lines = response.split('\n')
-        sql_lines = []
-        in_sql_block = False
-        
-        for line in lines:
-            line = line.strip()
-            if any(keyword in line.upper() for keyword in ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'WITH']):
-                in_sql_block = True
-                sql_lines.append(line)
-            elif in_sql_block:
-                if line.endswith(';') or line == '':
-                    if line.endswith(';'):
-                        sql_lines.append(line)
-                    break
-                else:
-                    sql_lines.append(line)
-        
-        return ' '.join(sql_lines)
-    
-    def process_query(self, user_input: str, max_retries: int = 5, operator: str = None, flow_type: str = "fast", progress_callback=None) -> Dict[str, Any]:
+    async def process_query(self, user_input: str, task_id, max_retries: int = 5, operator: str = None, flow_type: str = "fast") -> Dict[str, Any]:
         """
         处理用户查询
         :param flow_type: 流程类型，"fast"=先验证后生成SQL，"thorough"=先生成SQL后验证
-        :param progress_callback: 进度回调函数，格式: progress_callback(step_name, message, progress)
         """
-        # 使用追踪上下文管理器
-        with track_operation("nl2sql_query", operator):
-            session_id = tracker.current_session
 
+        with track_operation("nl2sql_query", operator, task_id):
             initial_state = GraphState(
                 user_input=user_input,
                 flow_type=flow_type,
-                processed_input="",
+                task_id=task_id,
                 clear_check_details={},
                 is_clear=False,
                 sql_query="",
                 execution_result=None,
-                sql_explanation=None,
-                nl_diff_analysis=None,
                 error_message=None,
                 retry_count=0,
                 max_retries=max_retries,
                 logs=[],
-                progress_callback=progress_callback  # 将回调函数传递给状态
+                current_progress=0,
+                current_step_log=None,
+                current_step_name=""
             )
 
             # 执行工作流
             final_state = self.workflow.invoke(initial_state)
-            
+
             # 准备返回结果
             result = {
-                'session_id': session_id,  # 添加session_id到返回结果
+                'task_id': task_id,  # 添加session_id到返回结果
                 'user_input': user_input,
                 'is_clear': final_state.get('is_clear', False),
                 'clear_check_details': final_state.get('clear_check_details', {}),
@@ -927,16 +748,14 @@ SQL：
                 'data': final_state.get('execution_result'),
                 'error': final_state.get('error_message'),
                 'retry_count': final_state.get('retry_count', 0),
-                'sql_explanation': final_state.get('sql_explanation'),
-                'nl_diff_analysis': final_state.get('nl_diff_analysis'),
                 'logs': final_state.get('logs', [])
             }
-            
+
             # 如果有数据结果，转换为字典格式
             if result['data'] is not None:
                 result['data'] = result['data'].to_dict('records')
                 result['row_count'] = len(result['data'])
-            
+
             return result
 
 # 全局服务实例
