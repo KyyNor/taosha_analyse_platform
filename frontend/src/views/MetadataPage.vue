@@ -1,217 +1,215 @@
 <template>
-  <MainLayout>
-    <div class="space-y-6">
-      <!-- Page Header -->
-      <div class="flex items-center justify-between">
-        <div>
-          <h1 class="text-2xl font-bold">
-            元数据配置
-          </h1>
-          <p class="text-base-content/60 mt-1">
-            管理数据表、字段、业务术语和关联配置
-          </p>
-        </div>
-        <div class="flex gap-2">
-          <button
-            class="btn btn-primary"
-            :disabled="syncLoading"
-            @click="handleSyncFromDatabase"
-          >
-            <span
-              v-if="syncLoading"
-              class="loading loading-spinner loading-sm"
-            />
-            {{ syncLoading ? '同步中...' : '从数据库同步' }}
-          </button>
-          <div class="dropdown dropdown-end">
-            <label
-              tabindex="0"
-              class="btn btn-ghost"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              导入/导出
-            </label>
-            <ul
-              tabindex="0"
-              class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-48"
-            >
-              <li><a @click="handleExport('json')">导出 JSON</a></li>
-              <li><a @click="handleExport('xlsx')">导出 Excel</a></li>
-              <li><a @click="showImportModal = true">导入元数据</a></li>
-              <li><a @click="downloadTemplate('tables')">表配置模板</a></li>
-              <li><a @click="downloadTemplate('columns')">字段配置模板</a></li>
-              <li><a @click="downloadTemplate('glossary')">术语表模板</a></li>
-            </ul>
-          </div>
-        </div>
+  <div class="space-y-6">
+    <!-- Page Header -->
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold">
+          元数据配置
+        </h1>
+        <p class="text-base-content/60 mt-1">
+          管理数据表、字段、业务术语和关联配置
+        </p>
       </div>
-
-      <!-- Statistics Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="stat bg-base-100 rounded-lg shadow">
-          <div class="stat-figure text-primary">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-8 w-8"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
-              />
-            </svg>
-          </div>
-          <div class="stat-title">
-            数据表
-          </div>
-          <div class="stat-value text-primary">
-            {{ statistics.totalTables || 0 }}
-          </div>
-          <div class="stat-desc">
-            个活跃表
-          </div>
-        </div>
-
-        <div class="stat bg-base-100 rounded-lg shadow">
-          <div class="stat-figure text-secondary">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-8 w-8"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-              />
-            </svg>
-          </div>
-          <div class="stat-title">
-            字段
-          </div>
-          <div class="stat-value text-secondary">
-            {{ statistics.totalColumns || 0 }}
-          </div>
-          <div class="stat-desc">
-            个字段
-          </div>
-        </div>
-
-        <div class="stat bg-base-100 rounded-lg shadow">
-          <div class="stat-figure text-accent">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-8 w-8"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-              />
-            </svg>
-          </div>
-          <div class="stat-title">
-            业务术语
-          </div>
-          <div class="stat-value text-accent">
-            {{ statistics.totalTerms || 0 }}
-          </div>
-          <div class="stat-desc">
-            个术语
-          </div>
-        </div>
-
-        <div class="stat bg-base-100 rounded-lg shadow">
-          <div class="stat-figure text-warning">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-8 w-8"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-              />
-            </svg>
-          </div>
-          <div class="stat-title">
-            关联配置
-          </div>
-          <div class="stat-value text-warning">
-            {{ statistics.totalRelations || 0 }}
-          </div>
-          <div class="stat-desc">
-            个关联
-          </div>
-        </div>
-      </div>
-
-      <!-- Tab Navigation -->
-      <div class="tabs tabs-boxed bg-base-100">
-        <a
-          v-for="tab in tabs"
-          :key="tab.key"
-          class="tab"
-          :class="{ 'tab-active': activeTab === tab.key }"
-          @click="activeTab = tab.key"
+      <div class="flex gap-2">
+        <button
+          class="btn btn-primary"
+          :disabled="syncLoading"
+          @click="handleSyncFromDatabase"
         >
-          <component
-            :is="tab.icon"
-            class="w-4 h-4 mr-2"
-          />
-          {{ tab.label }}
           <span
-            v-if="tab.count"
-            class="badge badge-sm ml-2"
-          >{{ tab.count }}</span>
-        </a>
+            v-if="syncLoading"
+            class="loading loading-spinner loading-sm"
+          />
+          {{ syncLoading ? '同步中...' : '从数据库同步' }}
+        </button>
+        <div class="dropdown dropdown-end">
+          <label
+            tabindex="0"
+            class="btn btn-ghost"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
+            导入/导出
+          </label>
+          <ul
+            tabindex="0"
+            class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-48"
+          >
+            <li><a @click="handleExport('json')">导出 JSON</a></li>
+            <li><a @click="handleExport('xlsx')">导出 Excel</a></li>
+            <li><a @click="showImportModal = true">导入元数据</a></li>
+            <li><a @click="downloadTemplate('tables')">表配置模板</a></li>
+            <li><a @click="downloadTemplate('columns')">字段配置模板</a></li>
+            <li><a @click="downloadTemplate('glossary')">术语表模板</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="stat bg-base-100 rounded-lg shadow">
+        <div class="stat-figure text-primary">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-8 w-8"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
+            />
+          </svg>
+        </div>
+        <div class="stat-title">
+          数据表
+        </div>
+        <div class="stat-value text-primary">
+          {{ statistics.totalTables || 0 }}
+        </div>
+        <div class="stat-desc">
+          个活跃表
+        </div>
       </div>
 
-      <!-- Tab Content -->
-      <div class="bg-base-100 rounded-lg shadow p-6">
-        <!-- Tables Tab -->
-        <TablesPage v-if="activeTab === 'tables'" />
-
-        <!-- Columns Tab -->
-        <ColumnsPage v-if="activeTab === 'columns'" />
-
-        <!-- Relations Tab -->
-        <RelationsPage v-if="activeTab === 'relations'" />
-
-        <!-- Glossary Tab -->
-        <GlossaryPage v-if="activeTab === 'glossary'" />
-
-        <!-- Themes Tab -->
-        <ThemesPage v-if="activeTab === 'themes'" />
+      <div class="stat bg-base-100 rounded-lg shadow">
+        <div class="stat-figure text-secondary">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-8 w-8"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            />
+          </svg>
+        </div>
+        <div class="stat-title">
+          字段
+        </div>
+        <div class="stat-value text-secondary">
+          {{ statistics.totalColumns || 0 }}
+        </div>
+        <div class="stat-desc">
+          个字段
+        </div>
       </div>
+
+      <div class="stat bg-base-100 rounded-lg shadow">
+        <div class="stat-figure text-accent">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-8 w-8"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+            />
+          </svg>
+        </div>
+        <div class="stat-title">
+          业务术语
+        </div>
+        <div class="stat-value text-accent">
+          {{ statistics.totalTerms || 0 }}
+        </div>
+        <div class="stat-desc">
+          个术语
+        </div>
+      </div>
+
+      <div class="stat bg-base-100 rounded-lg shadow">
+        <div class="stat-figure text-warning">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-8 w-8"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+            />
+          </svg>
+        </div>
+        <div class="stat-title">
+          关联配置
+        </div>
+        <div class="stat-value text-warning">
+          {{ statistics.totalRelations || 0 }}
+        </div>
+        <div class="stat-desc">
+          个关联
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tabs tabs-boxed bg-base-100">
+      <a
+        v-for="tab in tabs"
+        :key="tab.key"
+        class="tab"
+        :class="{ 'tab-active': activeTab === tab.key }"
+        @click="activeTab = tab.key"
+      >
+        <component
+          :is="tab.icon"
+          class="w-4 h-4 mr-2"
+        />
+        {{ tab.label }}
+        <span
+          v-if="tab.count"
+          class="badge badge-sm ml-2"
+        >{{ tab.count }}</span>
+      </a>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="bg-base-100 rounded-lg shadow p-6">
+      <!-- Tables Tab -->
+      <TablesPage v-if="activeTab === 'tables'" />
+
+      <!-- Columns Tab -->
+      <ColumnsPage v-if="activeTab === 'columns'" />
+
+      <!-- Relations Tab -->
+      <RelationsPage v-if="activeTab === 'relations'" />
+
+      <!-- Glossary Tab -->
+      <GlossaryPage v-if="activeTab === 'glossary'" />
+
+      <!-- Themes Tab -->
+      <ThemesPage v-if="activeTab === 'themes'" />
     </div>
 
     <!-- Import Modal -->
@@ -283,7 +281,7 @@
         </button>
       </form>
     </dialog>
-  </MainLayout>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -291,7 +289,6 @@ import { ref, computed, onMounted, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from '@/composables/useToast'
 import { metadataService } from '@services/api'
-import MainLayout from '@/components/layout/MainLayout.vue'
 
 // Import tab components (will be created later)
 import TablesPage from '@/views/metadata/TablesPage.vue'
