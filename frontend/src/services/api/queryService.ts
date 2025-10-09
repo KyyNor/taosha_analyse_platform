@@ -90,14 +90,15 @@ class QueryService {
 
   // Subscribe to task progress updates
   subscribeToTaskProgress(taskId: string, handler: (data: any) => void): void {
+    // Register handler for task-specific messages
     this.ws.onMessage(`task_${taskId}`, handler)
+
+    // Send task_id to server to subscribe to this task's progress
+    this.ws.send(taskId)
+
+    console.log(`[WebSocket] Subscribed to task progress for task: ${taskId}`)
   }
 
-  // Unsubscribe from task progress updates
-  unsubscribeFromTaskProgress(taskId: string): void {
-    // Note: We need to implement unsubscribe method in WebSocketManager
-    // For now, we'll leave this as a placeholder
-  }
 
   // Favorites management
   async getFavorites(page: number = 1, pageSize: number = 20): Promise<FavoritesResponse> {

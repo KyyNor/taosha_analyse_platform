@@ -172,6 +172,8 @@ class OperationTracker:
                     end_time=datetime.fromisoformat(log_dict.get("timestamp", datetime.now().isoformat()))
                 )
                 state.logs.append(log)
+                # 设置当前步骤日志为最新的日志
+                state.current_step_log = log
 
         if error:
             state.error_message = error
@@ -212,6 +214,8 @@ class OperationTracker:
     async def _write_to_db(self, state: TaskState):
         """异步写入任务状态到数据库"""
         try:
+            logger.debug(f"开始写入任务 {state.task_id} 到数据库，状态: {state.status}")
+
             # 更新会话状态
             self.db_manager.execute_query("""
                 UPDATE operation_sessions
@@ -224,10 +228,23 @@ class OperationTracker:
                 datetime.now().isoformat(),
                 state.task_id
             ))
+            logger.debug(f"已更新会话状态，任务ID: {state.task_id}")
 
             # 写入步骤日志（只写入最新的一条）
             if state.logs:
+                logger.debug(f"任务 {state.task_id} 有 {len(state.logs)} 条日志")
                 latest_log = state.current_step_log
+
+                if latest_log is None:
+                    logger.warning(f"任务 {state.task_id} current_step_log 返回 None，使用最后一条日志")
+                    if state.logs:
+                        latest_log = state.logs[-1]
+                    else:
+                        logger.error(f"任务 {state.task_id} 日志列表为空，无法写入步骤日志")
+                        return
+
+                logger.debug(f"准备写入步骤日志: step={latest_log.step}, success={latest_log.success}")
+
                 self.db_manager.execute_query("""
                     INSERT INTO operation_steps
                     (session_id, step_sequence, step_name, input_data,
@@ -246,11 +263,16 @@ class OperationTracker:
                     "{}",  # token_usage
                     "{}"   # metadata
                 ))
+                logger.debug(f"已写入步骤日志，任务ID: {state.task_id}")
+            else:
+                logger.debug(f"任务 {state.task_id} 没有日志需要写入")
 
             logger.debug(f"任务 {state.task_id} 状态已写入数据库")
 
         except Exception as e:
             logger.error(f"写入任务 {state.task_id} 到数据库失败: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
 
     async def _write_session_to_db(self, task_id: str, operator: str = None):
         """异步写入会话记录到数据库"""

@@ -122,27 +122,16 @@ declare module 'axios' {
 export const api = {
   get: async <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
     const response = await apiClient.get<ApiResponse<T>>(url, config)
-    return response.data.data as T
+    // Handle both nested data format (response.data.data) and direct data format (response.data)
+    const responseData = response.data as any
+    return responseData.data || responseData as T
   },
 
   post: async <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
     const response = await apiClient.post<ApiResponse<T>>(url, data, config)
-    return response.data.data as T
-  },
-
-  put: async <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
-    const response = await apiClient.put<ApiResponse<T>>(url, data, config)
-    return response.data.data as T
-  },
-
-  delete: async <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
-    const response = await apiClient.delete<ApiResponse<T>>(url, config)
-    return response.data.data as T
-  },
-
-  patch: async <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
-    const response = await apiClient.patch<ApiResponse<T>>(url, data, config)
-    return response.data.data as T
+    // Handle both nested data format (response.data.data) and direct data format (response.data)
+    const responseData = response.data as any
+    return responseData.data || responseData as T
   },
 
   // Raw response access for special cases

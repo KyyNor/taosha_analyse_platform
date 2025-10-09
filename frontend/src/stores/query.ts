@@ -62,11 +62,26 @@ export const useQueryStore = defineStore('query', () => {
       }
 
       // Submit query
+      console.log('[QueryStore] Submitting query request:', request)
       const response = await queryService.submitQuery(request)
+      console.log('[QueryStore] Received response:', response)
+
+      // Check if response exists
+      if (!response) {
+        throw new Error('No response received from server')
+      }
+
+      // Extract task_id from response (backend returns task_id, not taskId)
+      const task_id = response.task_id || response.taskId
+
+      if (!task_id) {
+        console.error('[QueryStore] Response structure:', JSON.stringify(response, null, 2))
+        throw new Error('No task ID returned from server')
+      }
 
       // Create task object
       currentTask.value = {
-        taskId: response.taskId,
+        taskId: task_id,
         userInput: request.query,
         workflowType: request.flowType === 'fast' ? 1 : 2,
         selectedThemeId: request.selectedThemeId,
@@ -77,9 +92,9 @@ export const useQueryStore = defineStore('query', () => {
       }
 
       // Subscribe to progress updates
-      queryService.subscribeToTaskProgress(response.taskId, handleProgressUpdate)
+      queryService.subscribeToTaskProgress(task_id, handleProgressUpdate)
 
-      return response.taskId
+      return task_id
     } catch (error) {
       console.error('Failed to submit query:', error)
       throw error
@@ -105,17 +120,24 @@ export const useQueryStore = defineStore('query', () => {
       isLoading.value = true
       const response = await queryService.rerunQuery(taskId)
 
+      // Extract task_id from response (backend returns task_id, not taskId)
+      const newTaskId = response.task_id || response.taskId
+
+      if (!newTaskId) {
+        throw new Error('No task ID returned from server')
+      }
+
       // Update current task
       if (currentTask.value) {
-        currentTask.value.taskId = response.taskId
+        currentTask.value.taskId = newTaskId
         currentTask.value.taskStatus = 'running'
         currentTask.value.startTime = new Date().toISOString()
       }
 
       // Subscribe to progress updates
-      queryService.subscribeToTaskProgress(response.taskId, handleProgressUpdate)
+      queryService.subscribeToTaskProgress(newTaskId, handleProgressUpdate)
 
-      return response.taskId
+      return newTaskId
     } catch (error) {
       console.error('Failed to rerun query:', error)
       throw error
@@ -267,7 +289,14 @@ export const useQueryStore = defineStore('query', () => {
         await submitQuery(request)
       }
 
-      return response.taskId
+      // Extract task_id from response (backend returns task_id, not taskId)
+      const taskId = response.task_id || response.taskId
+
+      if (!taskId) {
+        throw new Error('No task ID returned from server')
+      }
+
+      return taskId
     } catch (error) {
       console.error('Failed to execute favorite:', error)
       throw error

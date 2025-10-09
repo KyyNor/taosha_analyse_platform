@@ -5,11 +5,6 @@
 
     <!-- Main Content -->
     <div class="flex-1 flex">
-      <!-- Sidebar (Desktop) -->
-      <aside class="hidden lg:block">
-        <AppSidebar />
-      </aside>
-
       <!-- Main Content Area -->
       <main class="flex-1 overflow-auto">
         <!-- Breadcrumb -->
@@ -123,7 +118,6 @@ import { useRoute } from 'vue-router'
 import { useAppStore } from '@stores/app'
 import { useToast } from '@/composables/useToast'
 import AppHeader from './AppHeader.vue'
-import AppSidebar from './AppSidebar.vue'
 
 interface Notification {
   id: string
