@@ -11,7 +11,7 @@ from services import get_metadata_service, get_glossary_service, get_relation_fi
 
 
 # 创建路由器
-router = APIRouter(prefix="/dev", tags=["开发工具"])
+router = APIRouter(prefix="/metadata")
 
 
 # 数据模型
