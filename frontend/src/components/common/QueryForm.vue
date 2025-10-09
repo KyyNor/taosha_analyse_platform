@@ -2,34 +2,30 @@
   <div class="card bg-base-100 shadow-lg">
     <div class="card-body">
       <form
-        class="grid grid-cols-1 lg:grid-cols-3 gap-6"
+        class="grid grid-cols-1 lg:grid-cols-10 gap-4"
         @submit.prevent="handleSubmit"
       >
         <!-- 第一列：表选择区域 -->
-        <div class="space-y-4">
+        <div class="lg:col-span-2 space-y-4">
           <div class="form-control">
             <label class="label">
               <span class="label-text font-medium">数据范围</span>
             </label>
-            <div class="btn-group w-full">
-              <button
-                type="button"
-                class="btn btn-outline flex-1"
-                :class="{ 'btn-active': tableSelectionMode === 'theme' }"
+            <div class="tabs tabs-boxed bg-base-300">
+              <a
+                class="tab flex-1"
+                :class="{ 'tab-active': tableSelectionMode === 'theme', 'pointer-events-none opacity-50': loading }"
                 @click="tableSelectionMode = 'theme'"
-                :disabled="loading"
               >
                 数据主题
-              </button>
-              <button
-                type="button"
-                class="btn btn-outline flex-1"
-                :class="{ 'btn-active': tableSelectionMode === 'table' }"
+              </a>
+              <a
+                class="tab flex-1"
+                :class="{ 'tab-active': tableSelectionMode === 'table', 'pointer-events-none opacity-50': loading }"
                 @click="tableSelectionMode = 'table'"
-                :disabled="loading"
               >
                 数据表
-              </button>
+              </a>
             </div>
           </div>
 
@@ -135,17 +131,14 @@
         </div>
 
         <!-- 第二列：查询问题输入 -->
-        <div class="space-y-2">
+        <div class="lg:col-span-6 space-y-2">
           <div class="form-control h-full">
             <label class="label">
               <span class="label-text font-medium">查询问题</span>
-              <span class="label-text-alt text-base-content/60">
-                支持自然语言描述
-              </span>
             </label>
             <textarea
               v-model="formData.query"
-              class="textarea textarea-bordered h-36 resize-none"
+              class="textarea textarea-bordered h-24 resize-none"
               placeholder="请输入您的查询问题...&#10;例如：显示最近一个月的销售额"
               required
               :disabled="loading"
@@ -159,52 +152,86 @@
         </div>
 
         <!-- 第三列：模式切换和按钮 -->
-        <div class="space-y-4">
+        <div class="lg:col-span-2 space-y-4">
           <!-- 查询模式切换 -->
           <div class="form-control">
             <label class="label">
               <span class="label-text font-medium">查询模式</span>
             </label>
 
-            <!-- 自定义切换开关 -->
-            <label class="swap swap-rotate cursor-pointer">
-              <input
-                type="checkbox"
-                v-model="useThoroughMode"
-                :disabled="loading"
-              />
-              <div class="w-32 h-10 rounded-full bg-base-300 relative flex items-center px-2">
-                <div class="swap-on swap-off absolute top-1 left-1 w-16 h-8 bg-primary rounded-full transition-all duration-300"></div>
-                <span class="swap-on absolute left-3 text-xs font-bold z-10 text-white">快速模式</span>
-                <span class="swap-off absolute right-3 text-xs font-bold z-10">详细模式</span>
+            <!-- DaisyUI Tabs 切换开关 -->
+            <div class="flex justify-center">
+              <div class="tabs tabs-boxed bg-base-300 inline-flex">
+                <a
+                  class="tab w-1/2"
+                  :class="{ 'tab-active': !useThoroughMode, 'pointer-events-none opacity-50': loading }"
+                  @click="useThoroughMode = false"
+                >
+                  优先验证
+                </a>
+                <a
+                  class="tab w-1/2"
+                  :class="{ 'tab-active': useThoroughMode, 'pointer-events-none opacity-50': loading }"
+                  @click="useThoroughMode = true"
+                >
+                  优先生成
+                </a>
               </div>
-            </label>
+            </div>
           </div>
 
           <!-- 查询按钮组 -->
-          <div class="space-y-3 pt-4">
+          <div class="pt-2">
+            <!-- 有活跃查询时显示取消按钮 -->
             <button
-              type="submit"
-              class="btn btn-primary w-full"
-              :disabled="loading || !formData.query.trim()"
+              v-if="hasActiveQuery"
+              type="button"
+              class="btn btn-error w-full h-10"
+              @click="handleCancel"
             >
-              <span
-                v-if="loading"
-                class="loading loading-spinner loading-sm"
-              />
-              {{ loading ? '查询中...' : '开始查询' }}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+              取消查询
             </button>
 
-            <div class="flex gap-2">
+            <!-- 无活跃查询时显示查询和重置按钮行 -->
+            <div
+              v-else
+              class="flex gap-2"
+            >
               <button
-                v-if="hasActiveQuery"
+                type="submit"
+                class="btn btn-primary h-10 flex-grow"
+                :disabled="loading || !formData.query.trim()"
+              >
+                <span
+                  v-if="loading"
+                  class="loading loading-spinner loading-sm"
+                />
+                {{ loading ? '查询中...' : '开始查询' }}
+              </button>
+
+              <button
                 type="button"
-                class="btn btn-error flex-1"
-                @click="handleCancel"
+                class="btn btn-outline h-10 w-10 flex-shrink-0"
+                title="重置"
+                @click="handleReset"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
+                  class="h-5 w-5"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -213,18 +240,9 @@
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="2"
-                    d="M6 18L18 6M6 6l12 12"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                   />
                 </svg>
-                取消
-              </button>
-
-              <button
-                type="button"
-                class="btn btn-ghost flex-1"
-                @click="handleReset"
-              >
-                重置
               </button>
             </div>
           </div>
@@ -249,7 +267,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   initialQuery: '',
-  initialFlowType: 'fast',
+  initialFlowType: 'thorough',
   initialThemeId: 0,
   initialTableIds: () => []
 })
@@ -372,7 +390,7 @@ const handleCancel = () => {
 const handleReset = () => {
   formData.value = {
     query: '',
-    flowType: 'fast',
+    flowType: 'thorough',
     selectedThemeId: undefined,
     selectedTableIds: []
   }

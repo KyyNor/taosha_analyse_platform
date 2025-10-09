@@ -1,56 +1,9 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <!-- Page Header -->
-    <div class="flex items-center justify-between">
-      <div class="flex gap-2">
-        <button
-          class="btn btn-ghost btn-sm"
-          :class="{ 'btn-active': showHistory }"
-          @click="showHistory = !showHistory"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          查询历史
-        </button>
-        <button
-          class="btn btn-ghost btn-sm"
-          :class="{ 'btn-active': showFavorites }"
-          @click="showFavorites = !showFavorites"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-            />
-          </svg>
-          我的收藏
-        </button>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Left Column: Query Form & Progress -->
-      <div class="lg:col-span-1 space-y-6">
+    <div class="grid grid-cols-1 gap-4">
+      <!-- Query Form & Progress -->
+      <div class="space-y-4">
         <!-- Query Form -->
         <QueryForm
           :initial-query="initialQuery"
@@ -66,8 +19,8 @@
         />
       </div>
 
-      <!-- Right Column: Results & History/Favorites -->
-      <div class="lg:col-span-2 space-y-6">
+      <!-- Results & History/Favorites -->
+      <div class="space-y-4">
         <!-- Query Results -->
         <div
           v-if="hasResults"
