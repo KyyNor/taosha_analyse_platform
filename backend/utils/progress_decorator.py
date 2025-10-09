@@ -12,6 +12,22 @@ from services.service_models import BaseNodeLog, TaskState
 from services.operation_tracking import tracker
 
 
+def safe_create_async_task(coro):
+    """安全地创建异步任务，支持同步和异步环境"""
+    try:
+        loop = asyncio.get_running_loop()
+        return loop.create_task(coro)
+    except RuntimeError:
+        # 没有运行的事件循环，创建新的
+        try:
+            return asyncio.run(coro)
+        except RuntimeError:
+            # 如果还是失败，尝试在新的事件循环中运行
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                return executor.submit(asyncio.run, coro)
+
+
 def calculate_progress_from_logs(logs: List[BaseNodeLog]) -> int:
     """
     从日志列表中计算当前进度
@@ -83,7 +99,7 @@ def track_node_progress(node_name: str):
                 # 更新追踪系统
                 if task_id:
                     # 异步更新任务状态，不阻塞主流程
-                    asyncio.create_task(
+                    safe_create_async_task(
                         tracker.update_task_progress(
                             task_id=task_id,
                             progress=new_progress,
@@ -108,7 +124,7 @@ def track_node_progress(node_name: str):
             except Exception as e:
                 # 异常时也要更新状态
                 if task_id:
-                    asyncio.create_task(
+                    safe_create_async_task(
                         tracker.update_task_progress(
                             task_id=task_id,
                             progress=current_progress,

@@ -616,7 +616,7 @@ class NL2SQLService:
         
         return "\n".join(config_lines)
     
-    async def process_query(self, user_input: str, task_id, max_retries: int = 5, operator: str = None, flow_type: str = "fast") -> Dict[str, Any]:
+    def process_query(self, user_input: str, task_id, max_retries: int = 5, operator: str = None, flow_type: str = "fast") -> Dict[str, Any]:
         """
         处理用户查询
         :param flow_type: 流程类型，"fast"=先验证后生成SQL，"thorough"=先生成SQL后验证

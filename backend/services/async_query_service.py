@@ -78,8 +78,13 @@ class AsyncQueryService:
                            operator: str, flow_type: str):
         """执行查询任务"""
         try:
-            # 直接调用异步的NL2SQL服务处理查询
-            result = await self.nl2sql_service.process_query(
+            # 获取事件循环
+            loop = asyncio.get_event_loop()
+
+            # 将同步的NL2SQL处理移到线程池执行，避免阻塞事件循环
+            result = await loop.run_in_executor(
+                None,  # 使用默认线程池
+                self.nl2sql_service.process_query,
                 user_input, task_id, max_retries, operator, flow_type
             )
 
@@ -111,6 +116,7 @@ class AsyncQueryService:
             )
             raise
 
+    
     def _log_task_result(self, t: asyncio.Task, task_id: str):
         """记录任务结果"""
         try:
