@@ -6,6 +6,8 @@ import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from datetime import datetime
 
+from fastapi.encoders import jsonable_encoder
+
 from api.endpoint_models import QueryRequest
 from services.async_query_service import get_async_query_service
 from utils.logger import logger
@@ -31,6 +33,7 @@ async def ws_task_process(websocket: WebSocket):
                 data = await asyncio.wait_for(websocket.receive_text(), timeout=1.0)
                 if data.strip():
                     current_task_id = data.strip()
+                    current_task_id = current_task_id.replace('"', '')
                     logger.info(f"WebSocket客户端切换到任务: {current_task_id}")
             except asyncio.TimeoutError:
                 # 超时继续执行，继续推送当前任务状态
@@ -69,7 +72,7 @@ async def ws_task_process(websocket: WebSocket):
                         "error_msg": ""
                     }
 
-                    await websocket.send_json(response)
+                    await websocket.send_json(jsonable_encoder(response))
 
                     # 检查任务是否完成
                     if task_result["status"] in ["success", "failed"]:

@@ -108,7 +108,7 @@ class OperationTracker:
                     prompt="",
                     model_output=step[3],
                     success=bool(step[6]),
-                    error_message=step[5],
+                    error=step[5],
                     start_time=datetime.fromisoformat(step[7]),
                     end_time=datetime.fromisoformat(step[7])
                 )
@@ -186,7 +186,9 @@ class OperationTracker:
                 state.progress = 100
 
         # 更新缓存
+        logger.info(f"{task_id} 更新任务进度，更新缓存")
         await self.cache.set(task_id, state)
+        logger.info(f"{task_id} 更新任务进度，更新缓存结束")
 
         # 写入数据库
         await self._write_to_db(state)
@@ -207,7 +209,9 @@ class OperationTracker:
         )
 
         # 更新缓存
+        logger.info(f"{task_id} 新建任务，更新缓存")
         await self.cache.set(task_id, state)
+        logger.info(f"{task_id} 新建任务，更新缓存结束")
 
         await self._write_session_to_db(task_id, operator)
 
@@ -258,7 +262,7 @@ class OperationTracker:
                     latest_log.input_data,
                     latest_log.model_output,
                     "",  # generated_sql (暂未使用)
-                    latest_log.error_message,
+                    latest_log.error,
                     latest_log.success,
                     "{}",  # token_usage
                     "{}"   # metadata
