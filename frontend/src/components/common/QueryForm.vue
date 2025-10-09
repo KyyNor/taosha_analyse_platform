@@ -282,6 +282,13 @@ const formData = ref<QueryRequest>({
   selectedTableIds: props.initialTableIds
 })
 
+// 监听 initialQuery 变化，更新表单数据
+watch(() => props.initialQuery, (newQuery) => {
+  if (newQuery) {
+    formData.value.query = newQuery
+  }
+}, { immediate: true })
+
 // UI state
 const tableSelectionMode = ref<'theme' | 'table'>('theme')
 const tableSearchQuery = ref('')

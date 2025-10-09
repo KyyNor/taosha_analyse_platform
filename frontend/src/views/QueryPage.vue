@@ -261,9 +261,10 @@ const handleCancelQuery = async () => {
 // Handle example click
 const handleExampleClick = (example: string) => {
   initialQuery.value = example
-  nextTick(() => {
+  // 给一点时间让组件更新，然后重置以便下次点击能触发
+  setTimeout(() => {
     initialQuery.value = ''
-  })
+  }, 100)
 }
 
 // Handle SQL copy
