@@ -134,6 +134,20 @@ export const api = {
     return responseData.data || responseData as T
   },
 
+  put: async <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
+    const response = await apiClient.put<ApiResponse<T>>(url, data, config)
+    // Handle both nested data format (response.data.data) and direct data format (response.data)
+    const responseData = response.data as any
+    return responseData.data || responseData as T
+  },
+
+  delete: async <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
+    const response = await apiClient.delete<ApiResponse<T>>(url, config)
+    // Handle both nested data format (response.data.data) and direct data format (response.data)
+    const responseData = response.data as any
+    return responseData.data || responseData as T
+  },
+
   // Raw response access for special cases
   getRaw: async (url: string, config?: AxiosRequestConfig): Promise<AxiosResponse> => {
     return apiClient.get(url, config)

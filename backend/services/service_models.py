@@ -20,69 +20,102 @@ class BaseNodeLog:
     end_time: Optional[datetime] = None
 
 
-# 统一的任务状态模型
-@dataclass
-class TaskState:
-    """统一的任务状态模型"""
+# 统一的任务状态模型 - 兼容LangGraph和API（使用TypedDict）
+class TaskState(TypedDict):
+    """统一的任务状态模型 - 兼容LangGraph TypedDict"""
     # 基本信息
     task_id: str
     user_input: str
-    operator: Optional[str] = None
-    flow_type: str = "fast"
+    operator: Optional[str]
+    flow_type: str
 
     # 进度信息
-    status: str = "running"  # 'running', 'success', 'failed'
-    current_step: str = "初始化"
-    progress: int = 0
-    created_at: datetime = None
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    status: str  # 'running', 'success', 'failed'
+    current_step: str
+    progress: int
+    created_at: Optional[str]
+    started_at: Optional[str]
+    completed_at: Optional[str]
 
     # 业务数据
-    sql_query: str = ""
-    execution_result: Optional[pd.DataFrame] = None
-    clear_check_details: Dict[str, Any] = None
-    is_clear: bool = False
+    sql_query: str
+    execution_result: Optional[pd.DataFrame]
+    clear_check_details: Dict[str, Any]
+    is_clear: bool
 
     # 错误和重试
-    error_message: Optional[str] = None
-    retry_count: int = 0
-    max_retries: int = 5
+    error_message: Optional[str]
+    retry_count: int
+    max_retries: int
 
     # 日志
-    logs: List[BaseNodeLog] = None
-    current_step_log: Optional[BaseNodeLog] = None
-    current_step_name: str = ""
-    current_progress: int = 0
+    logs: List[BaseNodeLog]
+    current_step_log: Optional[BaseNodeLog]
+    current_step_name: str
+    current_progress: int
 
-    def __post_init__(self):
-        if self.created_at is None:
-            self.created_at = datetime.now()
-        if self.logs is None:
-            self.logs = []
-        if self.clear_check_details is None:
-            self.clear_check_details = {}
 
-    def to_dict(self) -> Dict[str, Any]:
+class TaskStateHelper:
+    """TaskState辅助类，提供转换方法"""
+
+    @staticmethod
+    def create_default(
+        task_id: str,
+        user_input: str,
+        flow_type: str = 'fast',
+        operator: Optional[str] = None
+    ) -> TaskState:
+        """创建默认的TaskState"""
+        return TaskState(
+            task_id=task_id,
+            user_input=user_input,
+            operator=operator,
+            flow_type=flow_type,
+            status='running',
+            current_step='',
+            progress=0,
+            created_at=datetime.now().isoformat(),
+            started_at=datetime.now().isoformat(),
+            completed_at=None,
+            sql_query='',
+            execution_result=None,
+            clear_check_details={},
+            is_clear=False,
+            error_message=None,
+            retry_count=0,
+            max_retries=5,
+            logs=[],
+            current_step_log=None,
+            current_step_name='',
+            current_progress=0
+        )
+
+    @staticmethod
+    def to_dict(state: TaskState) -> Dict[str, Any]:
         """转换为字典格式（用于API返回）"""
-        import pandas as pd
-        from dataclasses import asdict
+        data = dict(state)
 
-        data = asdict(self)
-
-        # 转换datetime为ISO格式字符串
-        for key, value in data.items():
-            if isinstance(value, datetime):
-                data[key] = value.isoformat()
-            elif isinstance(value, pd.DataFrame):
-                data[key] = value.to_dict('records') if value is not None else None
-
-        # 添加额外的兼容字段
+        # 转换DataFrame为字典数组
         if data['execution_result'] is not None:
-            data['data'] = data['execution_result']
-            # execution_result is now dict array after DataFrame conversion
-            data['row_count'] = len(data['execution_result']) if isinstance(data['execution_result'], list) else 0
-            data['success'] = True
+            df = data['execution_result']
+            if isinstance(df, pd.DataFrame):
+                # 转换为字典数组，并包含列信息
+                records = df.to_dict('records')
+                data['execution_result'] = records
+                data['data'] = records
+
+                # 添加列信息
+                data['columns'] = [
+                    {"name": col, "type": str(df[col].dtype)}
+                    for col in df.columns
+                ]
+                data['row_count'] = len(records)
+                data['success'] = True
+            else:
+                # 如果已经是其他格式，保持原样
+                data['data'] = data['execution_result']
+                data['row_count'] = len(data['execution_result']) if isinstance(data['execution_result'], list) else 0
+                data['success'] = True
         else:
             data['data'] = None
             data['row_count'] = 0
@@ -90,60 +123,77 @@ class TaskState:
 
         return data
 
-    def to_graph_state(self) -> 'GraphState':
-        """转换为LangGraph工作流状态"""
-        return GraphState(
-            user_input=self.user_input,
-            task_id=self.task_id,
-            flow_type=self.flow_type,
-            clear_check_details=self.clear_check_details,
-            is_clear=self.is_clear,
-            sql_query=self.sql_query,
-            execution_result=self.execution_result,
-            error_message=self.error_message,
-            retry_count=self.retry_count,
-            max_retries=self.max_retries,
-            logs=self.logs,
-            current_step_log=self.current_step_log,
-            current_step_name=self.current_step_name,
-            current_progress=self.current_progress
-        )
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> TaskState:
+        """从字典创建TaskState"""
+        # 处理execution_result - 如果是字典数组，转换为DataFrame
+        if 'execution_result' in data and data['execution_result'] is not None:
+            execution_result = data['execution_result']
+            if isinstance(execution_result, list) and execution_result:
+                # 检查是否是字典数组
+                if isinstance(execution_result[0], dict):
+                    try:
+                        # 转换为DataFrame
+                        df = pd.DataFrame(execution_result)
+                        data['execution_result'] = df
+                    except Exception as e:
+                        logger.warning(f"Failed to convert execution_result to DataFrame: {e}")
+                        # 保持原格式
+                        pass
 
-    @classmethod
-    def from_graph_state(cls, state: 'GraphState') -> 'TaskState':
-        """从LangGraph状态创建TaskState"""
-        return cls(
-            task_id=state['task_id'],
-            user_input=state['user_input'],
-            flow_type=state.get('flow_type', 'fast'),
-            sql_query=state.get('sql_query', ''),
-            execution_result=state.get('execution_result'),
-            clear_check_details=state.get('clear_check_details', {}),
-            is_clear=state.get('is_clear', False),
-            error_message=state.get('error_message'),
-            retry_count=state.get('retry_count', 0),
-            max_retries=state.get('max_retries', 5),
-            logs=state.get('logs', []),
-            current_step_log=state.get('current_step_log'),
-            current_step_name=state.get('current_step_name', ''),
-            current_progress=state.get('current_progress', 0)
-        )
+        # 处理logs
+        if 'logs' in data and data['logs'] is not None:
+            logs = data['logs']
+            if isinstance(logs, list):
+                # 确保每个log都是BaseNodeLog格式
+                formatted_logs = []
+                for log in logs:
+                    if isinstance(log, dict):
+                        # 转换为BaseNodeLog
+                        formatted_log = BaseNodeLog(
+                            step=log.get('step', ''),
+                            input_data=log.get('input_data', ''),
+                            prompt=log.get('prompt', ''),
+                            model_output=log.get('model_output', ''),
+                            success=log.get('success', True),
+                            error=log.get('error'),
+                            start_time=pd.to_datetime(log['start_time']) if log.get('start_time') else None,
+                            end_time=pd.to_datetime(log['end_time']) if log.get('end_time') else None
+                        )
+                        formatted_logs.append(formatted_log)
+                    else:
+                        formatted_logs.append(log)
+                data['logs'] = formatted_logs
+
+        return TaskState(data)
+
+    @staticmethod
+    def update_status(state: TaskState, status: str, error_message: Optional[str] = None) -> TaskState:
+        """更新状态"""
+        state['status'] = status
+        if error_message:
+            state['error_message'] = error_message
+        if status in ('success', 'failed', 'completed'):
+            state['completed_at'] = datetime.now().isoformat()
+        return state
+
+    @staticmethod
+    def update_progress(state: TaskState, current_step: str, progress: int) -> TaskState:
+        """更新进度"""
+        state['current_step'] = current_step
+        state['current_progress'] = progress
+        state['progress'] = progress
+        return state
+
+    @staticmethod
+    def add_log(state: TaskState, log: BaseNodeLog) -> TaskState:
+        """添加日志"""
+        if state['logs'] is None:
+            state['logs'] = []
+        state['logs'].append(log)
+        state['current_step_log'] = log
+        return state
 
 
-# LangGraph工作流状态定义（保持向后兼容）
-class GraphState(TypedDict):
-    """LangGraph状态定义"""
-    user_input: str
-    task_id: str
-    flow_type: str  # 新增：流程类型 ("fast" 或 "thorough")
-    clear_check_details: Dict[str, Any]
-    is_clear: bool
-    sql_query: str
-    execution_result: Optional[pd.DataFrame]
-    error_message: Optional[str]
-    retry_count: int
-    max_retries: int
-    logs: List[BaseNodeLog]
-    current_step_log: BaseNodeLog | None
-    current_step_name: str
-    current_progress: int
+# 注意：GraphState已被移除，统一使用TaskState
+# 所有LangGraph工作流现在直接使用TaskState

@@ -5,10 +5,8 @@ import type {
   QueryTask,
   QueryResult,
   Favorite,
-  Feedback,
-  TaskProgress,
   QueryLog
-} from '@types/index'
+} from '@/types/index'
 import queryService from '@services/api/queryService'
 
 export const useQueryStore = defineStore('query', () => {
@@ -83,12 +81,13 @@ export const useQueryStore = defineStore('query', () => {
       currentTask.value = {
         taskId: task_id,
         userInput: request.query,
-        workflowType: request.flowType === 'fast' ? 1 : 2,
+        workflowType: request.flow_type === 'fast' ? 1 : 2,
         selectedThemeId: request.selectedThemeId,
         selectedTableIds: request.selectedTableIds,
         taskStatus: 'running',
         startTime: new Date().toISOString(),
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       }
 
       // Subscribe to progress updates
@@ -280,7 +279,7 @@ export const useQueryStore = defineStore('query', () => {
       if (favorite) {
         const request: QueryRequest = {
           query: favorite.userQuestion,
-          flowType: 'thorough',
+          flow_type: 'thorough',
           selectedThemeId: favorite.selectedThemeId,
           selectedTableIds: favorite.selectedTableIds ?
             JSON.parse(favorite.selectedTableIds as any) : undefined
@@ -352,29 +351,46 @@ export const useQueryStore = defineStore('query', () => {
           data,
           resultData,
           dataType: Array.isArray(resultData) ? 'array' : typeof resultData,
-          rowCount: data.row_count
+          rowCount: data.row_count,
+          backendColumns: data.columns
         })
 
         // Handle different data formats
-        let columns: string[] = []
+        let columns: any[] = []
         let rows: any[][] = []
 
-        if (Array.isArray(resultData) && resultData.length > 0) {
-          // Data is array of objects (records format)
-          columns = Object.keys(resultData[0])
-          rows = resultData.map(row => columns.map(col => row[col]))
-          console.log('[QueryStore] Converted records format', {
-            columns,
+        // First, check if backend provided column information
+        if (data.columns && Array.isArray(data.columns)) {
+          // Backend provided columns with name and type
+          columns = data.columns
+          console.log('[QueryStore] Using backend column information', { columns })
+        } else if (Array.isArray(resultData) && resultData.length > 0) {
+          // Data is array of objects (records format), extract column names
+          const columnNames = Object.keys(resultData[0])
+          columns = columnNames.map(name => ({ name, type: 'string' })) // Default type to string
+          console.log('[QueryStore] Extracted columns from records', { columns })
+        } else if (resultData && typeof resultData === 'object' && resultData.columns && resultData.rows) {
+          // Data might be in {columns: [], rows: []} format
+          if (typeof resultData.columns[0] === 'string') {
+            // Convert string array to column objects
+            columns = resultData.columns.map((name: string) => ({ name, type: 'string' }))
+          } else {
+            columns = resultData.columns
+          }
+          rows = resultData.rows
+          console.log('[QueryStore] Using columns/rows format', { columns, rowCount: rows.length })
+        }
+
+        // Extract rows if not already extracted
+        if (rows.length === 0 && Array.isArray(resultData) && resultData.length > 0) {
+          // Convert records to rows format
+          const columnNames = columns.map(col => col.name)
+          rows = resultData.map(row => columnNames.map(col => row[col]))
+          console.log('[QueryStore] Converted records to rows format', {
+            columnNames,
             rowCount: rows.length,
             sampleRow: resultData[0]
           })
-        } else if (resultData && typeof resultData === 'object') {
-          // Data might be in {columns: [], rows: []} format
-          if (resultData.columns && resultData.rows) {
-            columns = resultData.columns
-            rows = resultData.rows
-            console.log('[QueryStore] Using columns/rows format', { columns, rowCount: rows.length })
-          }
         }
 
         currentResult.value = {

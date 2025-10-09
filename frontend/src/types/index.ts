@@ -96,12 +96,17 @@ export interface TaskNode {
   output?: any
 }
 
+export interface ColumnInfo {
+  name: string
+  type: string
+}
+
 export interface QueryResult {
   taskId: string
   status: string
   generatedSql: string
   result: {
-    columns: string[]
+    columns: ColumnInfo[]
     rows: any[][]
     rowCount: number
   }

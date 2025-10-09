@@ -33,7 +33,8 @@
       "mcp__context7__get-library-docs",
       "mcp__puppeteer__puppeteer_navigate",
       "mcp__puppeteer__puppeteer_evaluate",
-      "mcp__puppeteer__puppeteer_screenshot"
+      "mcp__puppeteer__puppeteer_screenshot",
+      "Bash(npm run type-check:*)"
     ],
     "deny": [],
     "ask": [],

@@ -17,7 +17,7 @@ from vanna.openai import OpenAI_Chat
 
 from services.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service
 from services.query_engine import get_query_engine
-from services.service_models import BaseNodeLog, GraphState, TaskState
+from services.service_models import BaseNodeLog, TaskState, TaskStateHelper
 # Local imports
 from utils.config import settings
 from utils.logger import logger
@@ -82,7 +82,7 @@ class NL2SQLService:
         """构建统一的LangGraph工作流，支持多种流程类型"""
         
         @track_node_progress("知识库更新")
-        def check_training_needed(state: GraphState) -> GraphState:
+        def check_training_needed(state: TaskState) -> TaskState:
             """检查是否需要重新训练Vanna"""
 
             # 需要重新训练
@@ -99,7 +99,7 @@ class NL2SQLService:
             return state
         
         @track_node_progress("用户输入验证")
-        def validate_input_clarity(state: GraphState) -> GraphState:
+        def validate_input_clarity(state: TaskState) -> TaskState:
             """验证输入是否清晰，支持两种模式：纯输入验证 和 SQL+输入匹配验证"""
             user_input = state['user_input']
             step_name = '用户输入验证'
@@ -251,7 +251,7 @@ class NL2SQLService:
             return state
         
         @track_node_progress("生成查询语句")
-        def generate_sql(state: GraphState) -> GraphState:
+        def generate_sql(state: TaskState) -> TaskState:
             """生成SQL查询（包含错误重试逻辑）"""
             user_input = state['user_input']
             error_message = state.get('error_message')
@@ -318,7 +318,7 @@ class NL2SQLService:
             return state
         
         @track_node_progress("执行查询语句")
-        def execute_sql(state: GraphState) -> GraphState:
+        def execute_sql(state: TaskState) -> TaskState:
             """执行SQL查询"""
             sql_query = state.get('sql_query', '')
             step_name = "执行查询语句"
@@ -358,7 +358,7 @@ class NL2SQLService:
             
             return state
 
-        def should_retry(state: GraphState) -> str:
+        def should_retry(state: TaskState) -> str:
             """判断是否应该重试"""
             retry_count = state.get('retry_count', 0)
             max_retries = state.get('max_retries', 2)
@@ -373,7 +373,7 @@ class NL2SQLService:
         
         
         # 构建工作流图
-        workflow = StateGraph(GraphState)
+        workflow = StateGraph(TaskState)
         
         # 添加节点
         workflow.add_node("check_training", check_training_needed)
@@ -385,7 +385,7 @@ class NL2SQLService:
         workflow.set_entry_point("check_training")
 
         # 根据流程类型路由到不同的验证/生成路径
-        def route_by_flow_type(state: GraphState) -> str:
+        def route_by_flow_type(state: TaskState) -> str:
             """根据流程类型决定下一步"""
             flow_type = state.get('flow_type', 'fast')
             return flow_type
@@ -400,7 +400,7 @@ class NL2SQLService:
         )
 
         # 验证节点的路由逻辑
-        def route_after_validation(state: GraphState) -> str:
+        def route_after_validation(state: TaskState) -> str:
             """验证后的路由逻辑"""
             if not state.get('is_clear'):
                 return "failed"
@@ -427,7 +427,7 @@ class NL2SQLService:
         )
 
         # 生成SQL后的路由逻辑
-        def route_after_generate_sql(state: GraphState) -> str:
+        def route_after_generate_sql(state: TaskState) -> str:
             """生成SQL后的路由逻辑"""
             flow_type = state.get('flow_type', 'fast')
             if flow_type == 'thorough':
@@ -624,25 +624,19 @@ class NL2SQLService:
         logger.info(f"开始处理查询流程 用户输入：{user_input}，任务ID：{task_id}，操作人：{operator}，流程类型：{flow_type}")
         
         # 创建统一的任务状态
-        task_state = TaskState(
+        task_state = TaskStateHelper.create_default(
             task_id=task_id,
             user_input=user_input,
-            operator=operator,
             flow_type=flow_type,
-            max_retries=max_retries
+            operator=operator
         )
+        task_state['max_retries'] = max_retries
 
-        # 转换为GraphState执行工作流
-        initial_state = task_state.to_graph_state()
-
-        # 执行工作流
-        final_state = self.workflow.invoke(initial_state)
-
-        # 从结果创建新的TaskState
-        result_state = TaskState.from_graph_state(final_state)
+        # 执行工作流（直接使用TaskState）
+        final_state = self.workflow.invoke(task_state)
 
         # 返回统一格式
-        return result_state.to_dict()
+        return TaskStateHelper.to_dict(final_state)
 
 # 全局服务实例
 _nl2sql_service: Optional[NL2SQLService] = None

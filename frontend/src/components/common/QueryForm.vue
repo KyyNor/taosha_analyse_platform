@@ -270,7 +270,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useQueryStore } from '@stores/query'
 import { metadataService } from '@services/api'
-import type { QueryRequest, DataTheme, TableMetadata } from '@types/index'
+import type { QueryRequest, DataTheme, TableMetadata } from '@/types/index'
 
 interface Props {
   initialQuery?: string
@@ -296,7 +296,7 @@ const queryStore = useQueryStore()
 // Form data
 const formData = ref<QueryRequest>({
   query: props.initialQuery,
-  flowType: props.initialFlowType,
+  flow_type: props.initialFlowType,
   selectedThemeId: props.initialThemeId || undefined,
   selectedTableIds: props.initialTableIds
 })
@@ -317,9 +317,9 @@ const themesLoading = ref(false)
 
 // 模式切换的响应式绑定
 const useThoroughMode = computed({
-  get: () => formData.value.flowType === 'thorough',
+  get: () => formData.value.flow_type === 'thorough',
   set: (value: boolean) => {
-    formData.value.flowType = value ? 'thorough' : 'fast'
+    formData.value.flow_type = value ? 'thorough' : 'fast'
   }
 })
 
@@ -392,7 +392,7 @@ const handleSubmit = () => {
 
   const request: QueryRequest = {
     query: formData.value.query.trim(),
-    flow_type: formData.value.flowType,
+    flow_type: formData.value.flow_type,
     selectedThemeId: formData.value.selectedThemeId,
     selectedTableIds: formData.value.selectedTableIds?.length
       ? formData.value.selectedTableIds
@@ -411,7 +411,7 @@ const handleCancel = () => {
 const handleReset = () => {
   formData.value = {
     query: '',
-    flowType: 'thorough',
+    flow_type: 'thorough',
     selectedThemeId: undefined,
     selectedTableIds: []
   }
