@@ -39,7 +39,7 @@ export interface LoginResponse {
 // Query types
 export interface QueryRequest {
   query: string
-  flowType: 'fast' | 'thorough'
+  flow_type: 'fast' | 'thorough'
   maxRetries?: number
   selectedThemeId?: number
   selectedTableIds?: number[]

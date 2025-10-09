@@ -392,7 +392,7 @@ const handleSubmit = () => {
 
   const request: QueryRequest = {
     query: formData.value.query.trim(),
-    flowType: formData.value.flowType,
+    flow_type: formData.value.flowType,
     selectedThemeId: formData.value.selectedThemeId,
     selectedTableIds: formData.value.selectedTableIds?.length
       ? formData.value.selectedTableIds

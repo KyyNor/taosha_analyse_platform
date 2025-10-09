@@ -621,6 +621,8 @@ class NL2SQLService:
         处理用户查询
         :param flow_type: 流程类型，"fast"=先验证后生成SQL，"thorough"=先生成SQL后验证
         """
+        logger.info(f"开始处理查询流程 用户输入：{user_input}，任务ID：{task_id}，操作人：{operator}，流程类型：{flow_type}")
+        
         # 创建统一的任务状态
         task_state = TaskState(
             task_id=task_id,

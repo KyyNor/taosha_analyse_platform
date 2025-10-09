@@ -112,7 +112,7 @@ async def process_natural_language_query(request: QueryRequest):
     接收自然语言输入，返回任务ID，查询在后台异步执行
     """
     try:
-        logger.info(f"接收查询请求: {request.query}")
+        logger.info(f"接收查询请求: {request.query}，执行流程：{request.flow_type}")
 
         # 获取异步查询服务
         async_query_service = get_async_query_service()
