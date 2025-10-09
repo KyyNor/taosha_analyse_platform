@@ -338,7 +338,10 @@ export const useQueryStore = defineStore('query', () => {
         ...data,
         taskStatus: data.status || currentTask.value.taskStatus,
         progress: data.progress,
-        generatedSql: data.sql_query || currentTask.value.generatedSql
+        generatedSql: data.sql_query || currentTask.value.generatedSql,
+        current_step: data.current_step || currentTask.value.current_step,
+        logs: data.logs || currentTask.value.logs,
+        error: data.error || currentTask.value.error
       }
 
       // Update result if available

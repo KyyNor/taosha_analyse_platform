@@ -53,7 +53,7 @@
         <div
           v-for="(step, index) in steps"
           :key="index"
-          class="flex items-start gap-3"
+          class="flex items-start gap-3 step-item p-2 rounded-lg"
           :class="{
             'opacity-40': step.status === 'pending',
             'text-primary': step.status === 'active',
@@ -85,26 +85,59 @@
             <div class="font-medium text-sm">
               {{ step.title }}
             </div>
+
+            <!-- Input Section -->
             <div
               v-if="step.description"
-              class="text-xs text-base-content/60 mt-1"
+              class="mt-2 p-3 bg-base-200 rounded-lg text-xs input-output-section input-section"
             >
-              {{ step.description }}
+              <div class="font-semibold text-primary mb-2 flex items-center gap-1">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                  <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 100 4h2a2 2 0 100 4h2a1 1 0 100 2 2 2 0 01-2 2H6a2 2 0 01-2-2V5z" clip-rule="evenodd"/>
+                </svg>
+                输入数据
+              </div>
+              <div class="formatted-content text-base-content/80">{{ step.description }}</div>
             </div>
+
+            <!-- Output Section -->
             <div
               v-if="step.details"
-              class="text-xs text-base-content/40 mt-1"
+              class="mt-2 p-3 bg-base-200 rounded-lg text-xs input-output-section output-section"
             >
-              {{ step.details }}
+              <div class="font-semibold text-success mb-2 flex items-center gap-1">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                  <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 100 2H6a2 2 0 100 4h2a2 2 0 100 4h2a1 1 0 100 2 2 2 0 01-2 2H6a2 2 0 01-2-2V5z" clip-rule="evenodd"/>
+                </svg>
+                输出结果
+              </div>
+              <div class="formatted-content text-base-content/80">{{ step.details }}</div>
+            </div>
+
+            <!-- Time Info -->
+            <div
+              v-if="step.startTime || step.completedAt"
+              class="flex flex-wrap gap-2 mt-3"
+            >
+              <div v-if="step.startTime" class="time-info text-xs">
+                <span class="text-primary">⏰ 开始:</span> {{ step.startTime }}
+              </div>
+              <div v-if="step.completedAt" class="time-info text-xs">
+                <span class="text-success">✅ 完成:</span> {{ step.completedAt }}
+              </div>
             </div>
           </div>
 
           <!-- Step Duration -->
           <div
-            v-if="step.duration"
-            class="flex-shrink-0 text-xs text-base-content/60"
+            v-if="step.duration !== undefined"
+            class="flex-shrink-0 text-right"
           >
-            {{ formatDuration(step.duration) }}
+            <div class="duration-display text-xs">
+              ⏱️ {{ formatDuration(step.duration) }}
+            </div>
           </div>
         </div>
       </div>
@@ -183,6 +216,9 @@ interface QueryStep {
   status: 'pending' | 'active' | 'completed' | 'failed'
   duration?: number
   details?: string
+  completedAt?: string
+  startTime?: string
+  endTime?: string
 }
 
 const emit = defineEmits<{
@@ -192,41 +228,8 @@ const emit = defineEmits<{
 
 const queryStore = useQueryStore()
 
-// Define query steps based on the workflow
-const querySteps: QueryStep[] = [
-  {
-    title: '检查训练状态',
-    description: '检查 Vanna 模型训练状态',
-    status: 'pending'
-  },
-  {
-    title: '输入验证',
-    description: '验证查询输入的清晰度',
-    status: 'pending'
-  },
-  {
-    title: '生成 SQL',
-    description: '基于自然语言生成 SQL 查询',
-    status: 'pending'
-  },
-  {
-    title: '执行查询',
-    description: '执行生成的 SQL 查询',
-    status: 'pending'
-  },
-  {
-    title: '解释结果',
-    description: '分析并解释查询结果',
-    status: 'pending'
-  },
-  {
-    title: '差异分析',
-    description: '分析自然语言与结果的差异',
-    status: 'pending'
-  }
-]
-
-const steps = ref<QueryStep[]>(querySteps)
+// Steps derived from actual task logs
+const steps = ref<QueryStep[]>([])
 const error = ref<string>('')
 
 // Computed properties
@@ -240,75 +243,176 @@ const currentStep = computed(() => {
   return steps.value.find(step => step.status === 'active')
 })
 
-// Progress percentage
+// Progress percentage based on completed steps
 const progressPercentage = computed(() => {
-  if (!progress.value) return 0
-  return Math.round(progress.value.progress * 100)
+  if (steps.value.length === 0) return 0
+  const completedSteps = steps.value.filter(step => step.status === 'completed').length
+  const totalSteps = steps.value.length
+  return Math.round((completedSteps / totalSteps) * 100)
 })
 
-// Map progress data to steps
-const updateStepsFromProgress = () => {
-  if (!progress.value) return
-
-  // Reset all steps to pending first
-  steps.value = steps.value.map(step => ({
-    ...step,
-    status: 'pending' as const,
-    duration: undefined,
-    details: undefined
-  }))
-
-  // Update steps based on progress data
-  const progressData = progress.value
-
-  if (progressData.check_vanna_status) {
-    steps.value[0].status = progressData.check_vanna_status.success ? 'completed' : 'failed'
-    steps.value[0].details = progressData.check_vanna_status.result
+// Map task logs to dynamic steps
+const updateStepsFromLogs = () => {
+  if (!currentTask.value || !currentTask.value.logs) {
+    steps.value = []
+    return
   }
 
-  if (progressData.clarity_validation) {
-    steps.value[1].status = progressData.clarity_validation.success ? 'completed' : 'failed'
-    steps.value[1].details = progressData.clarity_validation.result
+  const logs = currentTask.value.logs
+  const taskStatus = currentTask.value.taskStatus
+
+  // Convert logs to steps
+  const newSteps: QueryStep[] = logs.map((log: any, index: number) => {
+    let status: QueryStep['status'] = 'pending'
+
+    if (log.success === true) {
+      status = 'completed'
+    } else if (log.success === false) {
+      status = 'failed'
+    } else if (log.error) {
+      status = 'failed'
+    } else if (index === logs.length - 1 && taskStatus === 'running') {
+      // Last step is active if task is still running
+      status = 'active'
+    }
+
+    // Calculate duration and format times
+    let duration: number | undefined
+    let completedAt: string | undefined
+    let startTime: string | undefined
+    let endTime: string | undefined
+
+    if (log.start_time) {
+      startTime = formatDateTime(log.start_time)
+    }
+    if (log.end_time) {
+      endTime = formatDateTime(log.end_time)
+      completedAt = endTime
+    }
+    if (log.start_time && log.end_time) {
+      const startTimeMs = new Date(log.start_time).getTime()
+      const endTimeMs = new Date(log.end_time).getTime()
+      duration = endTimeMs - startTimeMs
+    }
+
+    // Format description (input data)
+    const formattedDescription = formatInputData(log.input_data)
+
+    // Format details (model output)
+    const formattedDetails = formatModelOutput(log.model_output)
+
+    return {
+      title: log.step,
+      description: formattedDescription,
+      status,
+      duration,
+      details: formattedDetails,
+      completedAt,
+      startTime,
+      endTime
+    }
+  })
+
+  // Add current step if task is running and last step doesn't have error
+  if (taskStatus === 'running' && currentTask.value.current_step) {
+    const lastStep = newSteps[newSteps.length - 1]
+    if (!lastStep || lastStep.status === 'completed') {
+      newSteps.push({
+        title: currentTask.value.current_step,
+        description: '',
+        status: 'active'
+      })
+    }
   }
 
-  if (progressData.sql_generation) {
-    steps.value[2].status = progressData.sql_generation.success ? 'completed' : 'failed'
-    steps.value[2].details = progressData.sql_generation.result
+  steps.value = newSteps
+}
+
+// Format datetime string
+const formatDateTime = (dateString: string): string => {
+  return new Date(dateString).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
+
+// Format input data with comma separation
+const formatInputData = (inputData: string): string => {
+  if (!inputData) return ''
+
+  // If it's a simple string, just return as is
+  if (!inputData.includes(',') && !inputData.includes('{') && !inputData.includes('[')) {
+    return inputData
   }
 
-  if (progressData.sql_execution) {
-    steps.value[3].status = progressData.sql_execution.success ? 'completed' : 'failed'
-    steps.value[3].details = `执行时间: ${progressData.sql_execution.result?.execution_time}ms`
-  }
-
-  if (progressData.sql_explanation) {
-    steps.value[4].status = progressData.sql_explanation.success ? 'completed' : 'failed'
-    steps.value[4].details = progressData.sql_explanation.result
-  }
-
-  if (progressData.diff_analysis) {
-    steps.value[5].status = progressData.diff_analysis.success ? 'completed' : 'failed'
-    steps.value[5].details = progressData.diff_analysis.result
-  }
-
-  // Set active step based on current state
-  const activeStepIndex = steps.value.findIndex(step => step.status === 'completed') + 1
-  if (activeStepIndex < steps.value.length && steps.value[activeStepIndex].status === 'pending') {
-    steps.value[activeStepIndex].status = 'active'
+  // Try to parse as JSON first
+  try {
+    const parsed = JSON.parse(inputData)
+    return JSON.stringify(parsed, null, 2)
+  } catch {
+    // If not valid JSON, just split by commas
+    return inputData.split(',').map(item => item.trim()).join(', ')
   }
 }
 
-// Watch for progress changes
-watch(progress, updateStepsFromProgress, { immediate: true })
+// Format model output with syntax highlighting
+const formatModelOutput = (output: string): string => {
+  if (!output) return ''
 
-// Watch for task status changes
+  // Try to parse as JSON first
+  try {
+    const parsed = JSON.parse(output)
+    return JSON.stringify(parsed, null, 2)
+  } catch {
+    // If not valid JSON, check if it's SQL
+    if (isSQL(output)) {
+      return formatSQL(output)
+    }
+    // Otherwise return as is
+    return output
+  }
+}
+
+// Check if content is SQL
+const isSQL = (content: string): boolean => {
+  const sqlKeywords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'FROM', 'WHERE', 'JOIN']
+  const upperContent = content.toUpperCase().trim()
+  return sqlKeywords.some(keyword => upperContent.includes(keyword))
+}
+
+// Format SQL with basic indentation
+const formatSQL = (sql: string): string => {
+  return sql
+    .replace(/\bSELECT\b/gi, '\n  SELECT')
+    .replace(/\bFROM\b/gi, '\n  FROM')
+    .replace(/\bWHERE\b/gi, '\n  WHERE')
+    .replace(/\bJOIN\b/gi, '\n  JOIN')
+    .replace(/\bINNER JOIN\b/gi, '\n  INNER JOIN')
+    .replace(/\bLEFT JOIN\b/gi, '\n  LEFT JOIN')
+    .replace(/\bRIGHT JOIN\b/gi, '\n  RIGHT JOIN')
+    .replace(/\bGROUP BY\b/gi, '\n  GROUP BY')
+    .replace(/\bORDER BY\b/gi, '\n  ORDER BY')
+    .replace(/\bHAVING\b/gi, '\n  HAVING')
+    .replace(/\bAND\b/gi, '\n    AND')
+    .replace(/\bOR\b/gi, '\n    OR')
+    .trim()
+}
+
+// Watch for task changes to update steps
+watch(currentTask, updateStepsFromLogs, { immediate: true, deep: true })
+
+// Watch for task status changes to handle errors
 watch(currentTask, (newTask) => {
   if (!newTask) {
     // Reset when task is cleared
-    steps.value = querySteps.map(step => ({ ...step, status: 'pending' }))
+    steps.value = []
     error.value = ''
   } else if (newTask.taskStatus === 'failed') {
-    error.value = newTask.errorMessage || '查询执行失败'
+    error.value = newTask.error || '查询执行失败'
     // Mark current step as failed
     const activeStep = steps.value.find(step => step.status === 'active')
     if (activeStep) {
@@ -374,5 +478,118 @@ const copySQL = () => {
   font-size: 0.875rem;
   line-height: 1.25;
   color: hsl(var(--bc));
+}
+
+/* Custom styles for formatted content */
+.formatted-content {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  background-color: hsl(var(--b2));
+  border: 1px solid hsl(var(--b3));
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* JSON syntax highlighting */
+.json-key {
+  color: #0066cc;
+  font-weight: 600;
+}
+
+.json-string {
+  color: #008000;
+}
+
+.json-number {
+  color: #ff6600;
+}
+
+.json-boolean {
+  color: #cc0066;
+  font-weight: 600;
+}
+
+.json-null {
+  color: #999999;
+  font-style: italic;
+}
+
+/* SQL syntax highlighting */
+.sql-keyword {
+  color: #0066cc;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.sql-function {
+  color: #cc0066;
+  font-weight: 600;
+}
+
+.sql-string {
+  color: #008000;
+}
+
+.sql-number {
+  color: #ff6600;
+}
+
+.sql-comment {
+  color: #999999;
+  font-style: italic;
+}
+
+/* Input/Output sections */
+.input-output-section {
+  border-left: 3px solid;
+  transition: all 0.2s ease;
+}
+
+.input-section {
+  border-left-color: hsl(var(--p));
+}
+
+.output-section {
+  border-left-color: hsl(var(--su));
+}
+
+.input-output-section:hover {
+  background-color: hsl(var(--b3));
+  transform: translateX(2px);
+}
+
+/* Time display */
+.time-info {
+  font-family: monospace;
+  background-color: hsl(var(--b1));
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  display: inline-block;
+  margin: 0.125rem;
+}
+
+.duration-display {
+  background-color: hsl(var(--p));
+  color: hsl(var(--pc));
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  min-width: 60px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Step transitions */
+.step-item {
+  transition: all 0.3s ease;
+}
+
+.step-item:hover {
+  background-color: hsl(var(--b2));
+  border-radius: 0.5rem;
 }
 </style>

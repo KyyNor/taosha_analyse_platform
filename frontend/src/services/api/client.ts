@@ -175,7 +175,16 @@ export class WebSocketManager {
             const message = JSON.parse(event.data)
             console.log('[WebSocket] Message received', message)
 
-            // Call registered message handlers
+            // Handle task progress messages (backend sends {code: 0, data: {...}})
+            if (message.code === 0 && message.data && message.data.task_id) {
+              const taskId = message.data.task_id
+              // Call task-specific handler
+              if (this.messageHandlers.has(`task_${taskId}`)) {
+                this.messageHandlers.get(`task_${taskId}`)?.(message.data)
+              }
+            }
+
+            // Call registered message handlers for messages with type
             if (message.type && this.messageHandlers.has(message.type)) {
               this.messageHandlers.get(message.type)?.(message.data)
             }

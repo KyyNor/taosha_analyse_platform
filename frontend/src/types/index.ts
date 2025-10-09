@@ -45,6 +45,17 @@ export interface QueryRequest {
   selectedTableIds?: number[]
 }
 
+export interface QueryLogEntry {
+  step: string
+  input_data: string
+  prompt: string
+  model_output: string
+  start_time: string
+  end_time: string
+  error: any
+  success: boolean
+}
+
 export interface QueryTask {
   taskId: string
   userId?: number
@@ -63,6 +74,9 @@ export interface QueryTask {
   durationMs?: number
   createdAt: string
   updatedAt: string
+  current_step?: string
+  logs?: QueryLogEntry[]
+  error?: string
 }
 
 export interface TaskProgress {
