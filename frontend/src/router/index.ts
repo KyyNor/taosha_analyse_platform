@@ -1,36 +1,194 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import DataQuery from '@/views/DataQuery.vue'
-import MetadataManagement from '@/views/MetadataManagement.vue'
-import OperationLogs from '@/views/OperationLogs.vue'
+import type { RouteRecordRaw } from 'vue-router'
 
+// Import layouts
+import MainLayout from '@/components/layout/MainLayout.vue'
+
+// Import views
+import QueryPage from '@/views/QueryPage.vue'
+import MetadataPage from '@/views/MetadataPage.vue'
+import LogsPage from '@/views/LogsPage.vue'
+import FavoritesPage from '@/views/FavoritesPage.vue'
+import SettingsPage from '@/views/SettingsPage.vue'
+
+// Define routes
+const routes: RouteRecordRaw[] = [
+  {
+    path: '/',
+    component: MainLayout,
+    meta: {
+      layout: 'main',
+    },
+    children: [
+      {
+        path: '',
+        name: 'Home',
+        redirect: '/query',
+      },
+      {
+        path: 'query',
+        name: 'Query',
+        component: QueryPage,
+        meta: {
+          title: '淘沙查询 - 淘沙分析平台',
+          icon: 'search',
+          breadcrumb: [
+            { label: '淘沙查询', active: true },
+          ],
+        },
+      },
+      {
+        path: 'metadata',
+        name: 'Metadata',
+        component: MetadataPage,
+        meta: {
+          title: '元数据配置 - 淘沙分析平台',
+          icon: 'database',
+          breadcrumb: [
+            { label: '元数据配置', active: true },
+          ],
+        },
+        children: [
+          {
+            path: 'tables',
+            name: 'MetadataTables',
+            component: () => import('@/views/metadata/TablesPage.vue'),
+            meta: {
+              title: '表配置 - 淘沙分析平台',
+              parent: 'Metadata',
+            },
+          },
+          {
+            path: 'columns',
+            name: 'MetadataColumns',
+            component: () => import('@/views/metadata/ColumnsPage.vue'),
+            meta: {
+              title: '字段配置 - 淘沙分析平台',
+              parent: 'Metadata',
+            },
+          },
+          {
+            path: 'relations',
+            name: 'MetadataRelations',
+            component: () => import('@/views/metadata/RelationsPage.vue'),
+            meta: {
+              title: '关联配置 - 淘沙分析平台',
+              parent: 'Metadata',
+            },
+          },
+          {
+            path: 'glossary',
+            name: 'MetadataGlossary',
+            component: () => import('@/views/metadata/GlossaryPage.vue'),
+            meta: {
+              title: '术语管理 - 淘沙分析平台',
+              parent: 'Metadata',
+            },
+          },
+          {
+            path: 'themes',
+            name: 'MetadataThemes',
+            component: () => import('@/views/metadata/ThemesPage.vue'),
+            meta: {
+              title: '数据主题 - 淘沙分析平台',
+              parent: 'Metadata',
+            },
+          },
+        ],
+      },
+      {
+        path: 'logs',
+        name: 'Logs',
+        component: LogsPage,
+        meta: {
+          title: '日志管理 - 淘沙分析平台',
+          icon: 'document-text',
+          breadcrumb: [
+            { label: '日志管理', active: true },
+          ],
+        },
+      },
+      {
+        path: 'favorites',
+        name: 'Favorites',
+        component: FavoritesPage,
+        meta: {
+          title: '我的收藏 - 淘沙分析平台',
+          icon: 'bookmark',
+          breadcrumb: [
+            { label: '我的收藏', active: true },
+          ],
+        },
+      },
+      {
+        path: 'settings',
+        name: 'Settings',
+        component: SettingsPage,
+        meta: {
+          title: '系统设置 - 淘沙分析平台',
+          icon: 'cog',
+          breadcrumb: [
+            { label: '系统设置', active: true },
+          ],
+        },
+      },
+    ],
+  },
+  // 404 page
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    component: () => import('@/views/NotFoundPage.vue'),
+    meta: {
+      title: '页面未找到 - 淘沙分析平台',
+      layout: 'error',
+    },
+  },
+]
+
+// Create router instance
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    {
-      path: '/',
-      name: 'DataQuery',
-      component: DataQuery,
-      meta: {
-        title: '数据查询'
-      }
-    },
-    {
-      path: '/metadata',
-      name: 'MetadataManagement',
-      component: MetadataManagement,
-      meta: {
-        title: '元数据管理'
-      }
-    },
-    {
-      path: '/logs',
-      name: 'OperationLogs',
-      component: OperationLogs,
-      meta: {
-        title: '操作日志'
-      }
+  routes,
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    } else if (to.hash) {
+      return { el: to.hash, behavior: 'smooth' }
+    } else {
+      return { top: 0, behavior: 'smooth' }
     }
-  ]
+  },
+})
+
+// Navigation guards
+router.beforeEach(async (to, from, next) => {
+  // Set page title
+  if (to.meta.title) {
+    document.title = to.meta.title as string
+  }
+
+  // Show loading state
+  const appElement = document.getElementById('app')
+  if (appElement) {
+    appElement.classList.add('loading')
+  }
+
+  next()
+})
+
+router.afterEach(() => {
+  // Hide loading state
+  const appElement = document.getElementById('app')
+  if (appElement) {
+    appElement.classList.remove('loading')
+  }
+})
+
+// Error handling
+router.onError((error) => {
+  console.error('Router error:', error)
+  // You might want to redirect to an error page here
 })
 
 export default router

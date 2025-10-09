@@ -1,215 +1,109 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { TableMetadata, Term, RelationConfig } from '@/types'
-import { apiClient } from '@/api'
 
 export const useAppStore = defineStore('app', () => {
-  // 状态
+  // State
   const isLoading = ref(false)
-  const error = ref<string | null>(null)
+  const sidebarCollapsed = ref(false)
+  const notifications = ref<Array<{
+    id: string
+    type: 'success' | 'error' | 'warning' | 'info'
+    title?: string
+    message: string
+    duration?: number
+    timestamp: number
+  }>>([])
 
-  // 元数据缓存
-  const metadataTables = ref<TableMetadata[]>([])
-  const terms = ref<Term[]>([])
-  const relationConfigs = ref<RelationConfig[]>([])
-  const relationIds = ref<string[]>([])
+  // Getters
+  const hasUnreadNotifications = computed(() =>
+    notifications.value.length > 0
+  )
 
-  // 缓存时间戳
-  const lastUpdated = ref({
-    tables: 0,
-    terms: 0,
-    relations: 0,
-    system: 0
-  })
-
-  // 计算属性
-  const stats = computed(() => ({
-    tables: metadataTables.value.length,
-    columns: metadataTables.value.reduce((total, table) => {
-      return total + (table.columns?.length || 0)
-    }, 0),
-    terms: terms.value.length,
-    relations: relationConfigs.value.length
-  }))
-
-  const uniqueFamilies = computed(() => {
-    const families = new Set(relationConfigs.value.map(config => config.relation_family))
-    return Array.from(families)
-  })
+  const recentNotifications = computed(() =>
+    notifications.value.slice(0, 5)
+  )
 
   // Actions
   const setLoading = (loading: boolean) => {
     isLoading.value = loading
   }
 
-  const setError = (errorMessage: string | null) => {
-    error.value = errorMessage
+  const toggleSidebar = () => {
+    sidebarCollapsed.value = !sidebarCollapsed.value
+    // Save to localStorage
+    localStorage.setItem('sidebar_collapsed', String(sidebarCollapsed.value))
   }
 
-  const clearError = () => {
-    error.value = null
+  const setSidebarCollapsed = (collapsed: boolean) => {
+    sidebarCollapsed.value = collapsed
+    localStorage.setItem('sidebar_collapsed', String(collapsed))
   }
 
-  // 获取表元数据
-  const fetchMetadataTables = async (forceRefresh = false) => {
-    const now = Date.now()
-    const cacheTimeout = 30000 // 30秒缓存
-
-    if (!forceRefresh && metadataTables.value.length > 0 && (now - lastUpdated.value.tables) < cacheTimeout) {
-      return metadataTables.value
+  const addNotification = (notification: {
+    type: 'success' | 'error' | 'warning' | 'info'
+    title?: string
+    message: string
+    duration?: number
+  }) => {
+    const id = Date.now().toString()
+    const newNotification = {
+      id,
+      timestamp: Date.now(),
+      duration: 5000,
+      ...notification
     }
 
-    try {
-      setLoading(true)
-      clearError()
-      
-      metadataTables.value = await apiClient.getAllMetadataTables()
-      lastUpdated.value.tables = now
-      
-      return metadataTables.value
-    } catch (err: any) {
-      setError(`获取表元数据失败: ${err.message}`)
-      return []
-    } finally {
-      setLoading(false)
+    notifications.value.unshift(newNotification)
+
+    // Auto remove after duration
+    if (newNotification.duration && newNotification.duration > 0) {
+      setTimeout(() => {
+        removeNotification(id)
+      }, newNotification.duration)
     }
+
+    return id
   }
 
-  // 获取术语列表
-  const fetchTerms = async (forceRefresh = false) => {
-    const now = Date.now()
-    const cacheTimeout = 30000 // 30秒缓存
-
-    if (!forceRefresh && terms.value.length > 0 && (now - lastUpdated.value.terms) < cacheTimeout) {
-      return terms.value
-    }
-
-    try {
-      setLoading(true)
-      clearError()
-      
-      terms.value = await apiClient.getAllTerms()
-      lastUpdated.value.terms = now
-      
-      return terms.value
-    } catch (err: any) {
-      setError(`获取术语列表失败: ${err.message}`)
-      return []
-    } finally {
-      setLoading(false)
+  const removeNotification = (id: string) => {
+    const index = notifications.value.findIndex(n => n.id === id)
+    if (index > -1) {
+      notifications.value.splice(index, 1)
     }
   }
 
-  // 获取关联配置
-  const fetchRelationConfigs = async (forceRefresh = false) => {
-    const now = Date.now()
-    const cacheTimeout = 30000 // 30秒缓存
+  const clearNotifications = () => {
+    notifications.value = []
+  }
 
-    if (!forceRefresh && relationConfigs.value.length > 0 && (now - lastUpdated.value.relations) < cacheTimeout) {
-      return relationConfigs.value
-    }
-
-    try {
-      setLoading(true)
-      clearError()
-      
-      const [configs, ids] = await Promise.all([
-        apiClient.getAllRelationConfigs(),
-        apiClient.getRelationIds()
-      ])
-      
-      relationConfigs.value = configs
-      relationIds.value = ids
-      lastUpdated.value.relations = now
-      
-      return relationConfigs.value
-    } catch (err: any) {
-      setError(`获取关联配置失败: ${err.message}`)
-      return []
-    } finally {
-      setLoading(false)
+  // Initialize
+  const init = () => {
+    // Restore sidebar state
+    const savedCollapsed = localStorage.getItem('sidebar_collapsed')
+    if (savedCollapsed !== null) {
+      sidebarCollapsed.value = savedCollapsed === 'true'
     }
   }
 
-  // 刷新所有数据
-  const refreshAllData = async () => {
-    try {
-      setLoading(true)
-      clearError()
-      
-      await Promise.all([
-        fetchMetadataTables(true),
-        fetchTerms(true),
-        fetchRelationConfigs(true)
-      ])
-    } catch (err: any) {
-      setError(`刷新数据失败: ${err.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // 清除所有缓存
-  const clearCache = () => {
-    metadataTables.value = []
-    terms.value = []
-    relationConfigs.value = []
-    relationIds.value = []
-    lastUpdated.value = {
-      tables: 0,
-      terms: 0,
-      relations: 0,
-      system: 0
-    }
-  }
-
-  // 初始化应用数据
-  const initApp = async () => {
-    try {
-      setLoading(true)
-      clearError()
-
-      // 并行加载基础数据
-      await Promise.all([
-        fetchMetadataTables(),
-        fetchTerms(),
-        fetchRelationConfigs()
-      ])
-    } catch (err: any) {
-      setError(`应用初始化失败: ${err.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }
+  // Auto-initialize
+  init()
 
   return {
-    // 状态
-    isLoading: readonly(isLoading),
-    error: readonly(error),
-    metadataTables: readonly(metadataTables),
-    terms: readonly(terms),
-    relationConfigs: readonly(relationConfigs),
-    relationIds: readonly(relationIds),
-    lastUpdated: readonly(lastUpdated),
-    
-    // 计算属性
-    stats,
-    uniqueFamilies,
-    
+    // State
+    isLoading,
+    sidebarCollapsed,
+    notifications,
+
+    // Getters
+    hasUnreadNotifications,
+    recentNotifications,
+
     // Actions
     setLoading,
-    setError,
-    clearError,
-    fetchMetadataTables,
-    fetchTerms,
-    fetchRelationConfigs,
-    refreshAllData,
-    clearCache,
-    initApp
+    toggleSidebar,
+    setSidebarCollapsed,
+    addNotification,
+    removeNotification,
+    clearNotifications,
   }
 })
-
-// 只读工具函数
-function readonly<T>(ref: any): T {
-  return ref as T
-}

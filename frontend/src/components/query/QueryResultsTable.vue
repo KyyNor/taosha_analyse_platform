@@ -1,0 +1,422 @@
+<template>
+  <div class="space-y-4">
+    <!-- SQL Preview -->
+    <div v-if="generatedSQL" class="collapse collapse-arrow bg-base-200">
+      <input type="checkbox" />
+      <div class="collapse-title text-sm font-medium">
+        生成的 SQL 查询
+      </div>
+      <div class="collapse-content">
+        <div class="mockup-code">
+          <pre><code>{{ generatedSQL }}</code></pre>
+        </div>
+        <div class="flex gap-2 mt-2">
+          <button
+            @click="copySQL"
+            class="btn btn-ghost btn-xs"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            复制 SQL
+          </button>
+          <button
+            @click="explainSQL"
+            class="btn btn-ghost btn-xs"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            解释
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="loading" class="text-center py-8">
+      <LoadingSpinner text="正在执行查询..." />
+    </div>
+
+    <!-- Empty State -->
+    <div v-else-if="!data || !data.rows || data.rows.length === 0" class="text-center py-8">
+      <EmptyState
+        type="no-data"
+        title="查询结果为空"
+        description="查询执行成功，但没有返回任何数据。"
+        size="sm"
+      />
+    </div>
+
+    <!-- Results Table -->
+    <div v-else class="space-y-4">
+      <!-- Results Summary -->
+      <div class="flex items-center justify-between">
+        <div class="text-sm text-base-content/60">
+          查询结果：共 {{ data.rowCount }} 行数据
+        </div>
+        <div class="flex gap-2">
+          <button
+            @click="refreshData"
+            class="btn btn-ghost btn-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            刷新
+          </button>
+          <div class="dropdown dropdown-end">
+            <label tabindex="0" class="btn btn-ghost btn-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+              </svg>
+              视图
+            </label>
+            <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-32">
+              <li><a @click="viewMode = 'table'">表格</a></li>
+              <li><a @click="viewMode = 'chart'">图表</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table View -->
+      <div v-if="viewMode === 'table'" class="overflow-x-auto">
+        <table class="table table-zebra w-full">
+          <thead>
+            <tr>
+              <th
+                v-for="column in data.columns"
+                :key="column.name"
+                class="cursor-pointer hover:bg-base-200"
+                @click="sortByColumn(column.name)"
+              >
+                <div class="flex items-center gap-1">
+                  <span>{{ getColumnDisplayName(column.name) }}</span>
+                  <div v-if="sortColumn === column.name" class="flex flex-col">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-3 w-3"
+                      :class="{
+                        'text-primary': sortOrder === 'asc'
+                      }"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd" />
+                    </svg>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-3 w-3 -mt-1"
+                      :class="{
+                        'text-primary': sortOrder === 'desc'
+                      }"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(row, index) in paginatedRows"
+              :key="index"
+              class="hover"
+            >
+              <td
+                v-for="column in data.columns"
+                :key="column.name"
+                class="max-w-xs truncate"
+                :title="formatCellValue(row[column.name], column.type)"
+              >
+                {{ formatCellValue(row[column.name], column.type) }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Pagination -->
+        <div v-if="totalPages > 1" class="flex items-center justify-between mt-4">
+          <div class="text-sm text-base-content/60">
+            显示 {{ (currentPage - 1) * pageSize + 1 }} - {{ Math.min(currentPage * pageSize, sortedRows.length) }} 条，共 {{ sortedRows.length }} 条
+          </div>
+
+          <div class="join">
+            <button
+              class="join-item btn btn-sm"
+              :disabled="currentPage === 1"
+              @click="currentPage--"
+            >
+              上一页
+            </button>
+            <button
+              v-for="page in visiblePages"
+              :key="page"
+              class="join-item btn btn-sm"
+              :class="{ 'btn-active': page === currentPage }"
+              @click="currentPage = page"
+            >
+              {{ page }}
+            </button>
+            <button
+              class="join-item btn btn-sm"
+              :disabled="currentPage === totalPages"
+              @click="currentPage++"
+            >
+              下一页
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart View -->
+      <div v-else-if="viewMode === 'chart'" class="space-y-4">
+        <div class="flex items-center gap-4">
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">X轴</span>
+            </label>
+            <select
+              v-model="chartConfig.xAxis"
+              class="select select-bordered select-sm"
+            >
+              <option value="">选择字段</option>
+              <option
+                v-for="column in data.columns"
+                :key="column.name"
+                :value="column.name"
+              >
+                {{ getColumnDisplayName(column.name) }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">Y轴</span>
+            </label>
+            <select
+              v-model="chartConfig.yAxis"
+              class="select select-bordered select-sm"
+            >
+              <option value="">选择字段</option>
+              <option
+                v-for="column in numericColumns"
+                :key="column.name"
+                :value="column.name"
+              >
+                {{ getColumnDisplayName(column.name) }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">图表类型</span>
+            </label>
+            <select
+              v-model="chartConfig.type"
+              class="select select-bordered select-sm"
+            >
+              <option value="bar">柱状图</option>
+              <option value="line">折线图</option>
+              <option value="pie">饼图</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="bg-base-200 rounded-lg p-4 min-h-96 flex items-center justify-center">
+          <div v-if="!chartConfig.xAxis || !chartConfig.yAxis" class="text-center text-base-content/60">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <p>请选择 X轴 和 Y轴 字段来生成图表</p>
+          </div>
+          <div v-else class="w-full h-96">
+            <!-- 这里可以集成 Plotly.js 或其他图表库 -->
+            <div class="flex items-center justify-center h-full text-base-content/60">
+              图表功能开发中...
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, watch } from 'vue'
+import { useToast } from '@/composables/useToast'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
+import type { QueryResult } from '@types/index'
+
+interface Props {
+  data: QueryResult['result'] | null
+  generatedSQL: string
+  loading: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  data: null,
+  generatedSQL: '',
+  loading: false
+})
+
+const { success, error } = useToast()
+
+// State
+const viewMode = ref<'table' | 'chart'>('table')
+const sortColumn = ref<string>('')
+const sortOrder = ref<'asc' | 'desc'>('asc')
+const currentPage = ref(1)
+const pageSize = ref(50)
+
+const chartConfig = ref({
+  type: 'bar',
+  xAxis: '',
+  yAxis: ''
+})
+
+// Computed properties
+const numericColumns = computed(() => {
+  if (!props.data?.columns) return []
+  return props.data.columns.filter(col =>
+    col.type?.toLowerCase().includes('int') ||
+    col.type?.toLowerCase().includes('float') ||
+    col.type?.toLowerCase().includes('decimal') ||
+    col.type?.toLowerCase().includes('number')
+  )
+})
+
+const sortedRows = computed(() => {
+  if (!props.data?.rows || !sortColumn.value) return props.data.rows || []
+
+  return [...props.data.rows].sort((a, b) => {
+    const aValue = a[sortColumn.value]
+    const bValue = b[sortColumn.value]
+
+    if (aValue === bValue) return 0
+
+    let comparison = 0
+    if (aValue < bValue) comparison = -1
+    if (aValue > bValue) comparison = 1
+
+    return sortOrder.value === 'desc' ? -comparison : comparison
+  })
+})
+
+const totalPages = computed(() => {
+  return Math.ceil(sortedRows.value.length / pageSize.value)
+})
+
+const paginatedRows = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return sortedRows.value.slice(start, end)
+})
+
+const visiblePages = computed(() => {
+  const pages = []
+  const maxVisible = 5
+
+  if (totalPages.value <= maxVisible) {
+    for (let i = 1; i <= totalPages.value; i++) {
+      pages.push(i)
+    }
+  } else {
+    const start = Math.max(1, currentPage.value - 2)
+    const end = Math.min(totalPages.value, start + maxVisible - 1)
+
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+  }
+
+  return pages
+})
+
+// Methods
+const getColumnDisplayName = (columnName: string) => {
+  // 可以在这里实现列名的友好显示逻辑
+  return columnName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+}
+
+const formatCellValue = (value: any, columnType?: string) => {
+  if (value === null || value === undefined) return '-'
+
+  // Format based on column type
+  if (columnType) {
+    const type = columnType.toLowerCase()
+    if (type.includes('date') || type.includes('time')) {
+      try {
+        return new Date(value).toLocaleString()
+      } catch {
+        return value
+      }
+    }
+    if (type.includes('decimal') || type.includes('float') || type.includes('double')) {
+      return Number(value).toLocaleString()
+    }
+  }
+
+  return String(value)
+}
+
+const sortByColumn = (columnName: string) => {
+  if (sortColumn.value === columnName) {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortColumn.value = columnName
+    sortOrder.value = 'asc'
+  }
+  currentPage.value = 1
+}
+
+const copySQL = async () => {
+  try {
+    await navigator.clipboard.writeText(props.generatedSQL)
+    success('SQL 已复制到剪贴板')
+  } catch (err) {
+    error('复制失败')
+  }
+}
+
+const explainSQL = () => {
+  // 这里可以实现 SQL 解释功能
+  info('SQL 解释功能开发中...')
+}
+
+const refreshData = () => {
+  // 这里可以实现数据刷新功能
+  info('刷新功能开发中...')
+}
+
+// Watch for data changes
+watch(() => props.data, () => {
+  currentPage.value = 1
+  sortColumn.value = ''
+  sortOrder.value = 'asc'
+})
+</script>
+
+<style scoped>
+.mockup-code {
+  background-color: hsl(var(--b2));
+  border-radius: 0.5rem;
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+.mockup-code pre {
+  margin: 0;
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  line-height: 1.25;
+  color: hsl(var(--bc));
+}
+</style>

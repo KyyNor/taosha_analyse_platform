@@ -1,173 +1,232 @@
-# 淘沙分析平台 - Vue3前端
+# 淘沙分析平台前端
 
-这是淘沙数据分析平台的Vue3前端应用，提供现代化的用户界面用于自然语言数据查询和元数据管理。
+基于 Vue 3 + TypeScript + Tailwind CSS + DaisyUI 的现代化数据分析平台前端项目。
 
-## 功能特性
+## 项目概述
 
-### 🔍 数据查询
-- **自然语言查询**: 使用日常语言描述查询需求
-- **智能SQL生成**: 自动将自然语言转换为SQL查询
-- **实时结果展示**: 数据表格和可视化图表
-- **查询历史**: 保存和重用历史查询
-- **清晰度检查**: 智能建议优化查询表达
-
-### 🛠️ 元数据管理
-- **表元数据管理**: 完整的数据表和列信息维护
-- **业务术语表**: 统一的数据字典和术语定义
-- **关联配置**: 灵活的字段关联关系管理
-- **实时统计**: 元数据概览和使用统计
-
-### 🎨 设计特点
-- **现代化UI**: 基于Tailwind CSS + DaisyUI的设计系统
-- **响应式布局**: 适配桌面端和移动端
-- **无障碍设计**: 完整的键盘导航和屏幕阅读器支持
-- **性能优化**: 组件懒加载和数据缓存
+淘沙分析平台是一个基于 AI 的自然语言转 SQL 分析平台，用户可以通过自然语言描述查询需求，系统自动生成并执行 SQL 查询，提供数据分析和可视化功能。
 
 ## 技术栈
 
-- **核心框架**: Vue 3 + TypeScript
-- **状态管理**: Pinia
-- **路由管理**: Vue Router 4
-- **样式框架**: Tailwind CSS + DaisyUI
-- **图标库**: Heroicons
-- **图表库**: Plotly.js
-- **HTTP客户端**: Axios
-- **构建工具**: Vite
-
-## 快速开始
-
-### 环境要求
-- Node.js >= 16
-- npm >= 8
-
-### 安装依赖
-```bash
-npm install
-```
-
-### 开发服务器
-```bash
-npm run dev
-```
-
-应用将在 `http://localhost:3000` 启动
-
-### 构建生产版本
-```bash
-npm run build
-```
-
-构建文件将输出到 `dist/` 目录
-
-### 预览生产版本
-```bash
-npm run preview
-```
+- **框架**: Vue 3.3+ (Composition API)
+- **语言**: TypeScript 5.0+
+- **构建工具**: Vite 5.0+
+- **UI 框架**: Tailwind CSS 3.0+ + DaisyUI 4.0+
+- **状态管理**: Pinia 2.1+
+- **路由管理**: Vue Router 4.2+
+- **HTTP 客户端**: Axios 1.6+
+- **图表库**: Plotly.js (计划集成)
+- **代码规范**: ESLint + Prettier
+- **CSS 预处理**: PostCSS + Autoprefixer
 
 ## 项目结构
 
 ```
-vue_devops/
+frontend/
 ├── public/                 # 静态资源
 ├── src/
-│   ├── api/               # API接口封装
-│   ├── components/        # 通用组件
-│   │   ├── metadata/      # 元数据管理组件
-│   │   ├── DataTable.vue  # 数据表格组件
-│   │   ├── DataChart.vue  # 图表组件
-│   │   └── ...
+│   ├── api/               # API 接口层
+│   │   └── index.ts       # API 客户端配置
+│   ├── assets/            # 静态资源
+│   │   └── styles/        # 样式文件
+│   ├── components/        # 组件
+│   │   ├── common/        # 通用组件
+│   │   ├── layout/        # 布局组件
+│   │   └── query/         # 查询相关组件
+│   ├── composables/       # 组合式函数
 │   ├── router/            # 路由配置
-│   ├── styles/            # 样式文件
-│   ├── types/             # TypeScript类型定义
+│   ├── services/          # 服务层
+│   │   └── api/           # API 服务
+│   ├── stores/            # Pinia 状态管理
+│   ├── types/             # TypeScript 类型定义
+│   ├── utils/             # 工具函数
 │   ├── views/             # 页面组件
-│   │   ├── DataQuery.vue  # 数据查询页面
-│   │   └── MetadataManagement.vue # 元数据管理页面
+│   │   └── metadata/      # 元数据管理子页面
 │   ├── App.vue            # 根组件
 │   └── main.ts            # 应用入口
-├── index.html             # HTML模板
-├── package.json           # 项目配置
-├── vite.config.ts         # Vite配置
-├── tailwind.config.js     # Tailwind配置
-└── tsconfig.json          # TypeScript配置
+├── docs/                  # 项目文档
+├── package.json           # 项目依赖
+├── vite.config.ts         # Vite 配置
+├── tailwind.config.js     # Tailwind CSS 配置
+├── tsconfig.json          # TypeScript 配置
+└── README.md              # 项目说明
 ```
 
-## 组件说明
+## 主要功能
 
-### 核心组件
-- **DataQuery**: 主页数据查询界面，支持自然语言输入
-- **MetadataManagement**: 元数据管理界面，包含三个标签页
-- **DataTable**: 通用数据表格组件，支持排序、分页
-- **DataChart**: 智能图表组件，根据数据类型自动选择图表类型
+### 1. 自然语言查询
+- 支持自然语言输入查询需求
+- AI 自动生成 SQL 查询
+- 实时查询进度跟踪
+- 查询结果展示和导出
 
-### 元数据组件
-- **TableMetadata**: 表元数据管理，支持增删改查
-- **GlossaryManagement**: 业务术语管理
-- **RelationConfig**: 关联字段配置管理
-- **ColumnEditor**: 列信息编辑器
-- **TermForm**: 术语表单组件
+### 2. 查询管理
+- 查询历史记录
+- 收藏查询功能
+- 查询重跑和反馈
 
-## API接口
+### 3. 元数据管理
+- 数据表配置管理
+- 字段元数据配置
+- 业务术语管理
+- 数据主题分类
+- 关联关系配置
 
-前端通过HTTP代理连接后端API：
+### 4. 系统功能
+- 用户认证和权限管理
+- 主题切换 (浅色/深色)
+- 响应式设计
+- 多语言支持 (计划中)
 
-- **查询接口**: `POST /api/v1/query`
-- **元数据接口**: `/api/v1/dev/metadata/*`
-- **术语接口**: `/api/v1/dev/glossary/*`
-- **关联配置**: `/api/v1/dev/relation-configs/*`
+## 开发指南
 
-详细API文档请访问: `http://localhost:8000/docs`
+### 环境要求
+
+- Node.js 18.0+
+- npm 9.0+ 或 pnpm 8.0+
+
+### 安装依赖
+
+```bash
+npm install
+# 或
+pnpm install
+```
+
+### 开发模式
+
+```bash
+npm run dev
+# 或
+pnpm dev
+```
+
+开发服务器将在 `http://localhost:5173` 启动。
+
+### 构建生产版本
+
+```bash
+npm run build
+# 或
+pnpm build
+```
+
+构建文件将输出到 `dist/` 目录。
+
+### 代码检查
+
+```bash
+# ESLint 检查
+npm run lint
+
+# TypeScript 类型检查
+npm run type-check
+
+# Prettier 格式化
+npm run format
+```
 
 ## 开发规范
 
-### 代码风格
-- 使用TypeScript进行类型约束
-- 遵循Vue 3 Composition API最佳实践
-- 组件使用`<script setup>`语法
-- 样式使用Tailwind CSS类名
+### 1. 组件开发
 
-### 命名规范
-- 组件名使用PascalCase
-- 文件名使用PascalCase
-- 变量和函数使用camelCase
-- CSS类名使用kebab-case
+- 使用 Vue 3 Composition API
+- 遵循单一职责原则
+- 组件命名使用 PascalCase
+- Props 和 Emits 需要明确的类型定义
 
-### 提交规范
-- feat: 新功能
-- fix: 修复bug
-- docs: 文档更新
-- style: 代码格式调整
-- refactor: 代码重构
-- test: 测试相关
-- chore: 构建过程或辅助工具的变动
+### 2. 状态管理
+
+- 使用 Pinia 进行状态管理
+- 按功能模块拆分 store
+- 使用 TypeScript 严格类型检查
+
+### 3. 样式规范
+
+- 使用 Tailwind CSS 类名
+- 遵循 DaisyUI 设计规范
+- 响应式设计优先
+
+### 4. API 调用
+
+- 统一使用 services 层封装 API
+- 错误处理统一化
+- Loading 状态管理
 
 ## 部署说明
 
 ### 环境变量
-开发环境会自动代理API请求到 `http://localhost:8000`
 
-生产环境需要配置正确的API地址。
+创建 `.env.production` 文件：
 
-### 构建优化
-- 自动代码分割
-- 静态资源压缩
-- Tree-shaking优化
-- 缓存策略
+```bash
+VITE_API_BASE_URL=https://api.taosha.com/v1
+VITE_APP_TITLE=淘沙分析平台
+VITE_APP_VERSION=1.0.0
+```
+
+### Nginx 配置示例
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+    root /path/to/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://backend-server:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+## API 集成
+
+前端项目依赖后端 API 提供数据支持，详细的 API 需求请参考：
+
+📖 [API 需求文档](./API_REQUIREMENTS.md)
 
 ## 浏览器支持
 
-- Chrome >= 87
-- Firefox >= 78
-- Safari >= 14
-- Edge >= 88
+- Chrome 88+
+- Firefox 78+
+- Safari 14+
+- Edge 88+
 
 ## 贡献指南
 
-1. Fork项目
-2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'Add amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 创建Pull Request
+1. Fork 项目
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 创建 Pull Request
 
 ## 许可证
 
-本项目采用MIT许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
+本项目采用 MIT 许可证。详情请参考 [LICENSE](../LICENSE) 文件。
+
+## 联系方式
+
+如有问题或建议，请通过以下方式联系：
+
+- 项目 Issues: [GitHub Issues](https://github.com/your-repo/issues)
+- 邮箱: support@taosha.com
+
+## 更新日志
+
+### v1.0.0 (2024-01-09)
+- ✨ 初始版本发布
+- 🚀 完成基础架构搭建
+- 🎨 实现响应式 UI 设计
+- 🔧 集成开发工具链
+- 📝 完善 TypeScript 类型定义
+- 🌐 实现路由和状态管理
+- 🎯 完成核心查询功能界面
+- 📊 实现元数据管理界面
+- 🌙 支持主题切换功能

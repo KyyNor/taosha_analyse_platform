@@ -1,140 +1,339 @@
-// 通用响应类型
+// API Response types
 export interface ApiResponse<T = any> {
   success: boolean
   data?: T
   error?: string
   message?: string
+  code?: number
 }
 
-// 查询相关类型
+// User types
+export interface User {
+  id: number
+  username: string
+  realName?: string
+  roles: string[]
+  department?: string
+  departmentId?: string
+  avatar?: string
+  email?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// Auth types
+export interface LoginRequest {
+  username: string
+  password: string
+}
+
+export interface LoginResponse {
+  success: boolean
+  data?: {
+    accessToken: string
+    user: User
+  }
+  error?: string
+}
+
+// Query types
 export interface QueryRequest {
   query: string
-  max_retries?: number
+  flowType: 'fast' | 'thorough'
+  maxRetries?: number
+  selectedThemeId?: number
+  selectedTableIds?: number[]
 }
 
-export interface QueryResponse {
-  success: boolean
-  sql_query?: string
-  data?: any[]
-  error?: string
-  logs?: QueryLog[]
-  clear_check_details?: ClarityCheck
-  sql_explanation?: string
-  nl_diff_analysis?: Record<string, any>
+export interface QueryTask {
+  taskId: string
+  userId?: number
+  userInput: string
+  workflowType: number
+  selectedThemeId?: number
+  selectedTableIds?: number[]
+  taskStatus: 'running' | 'success' | 'failed' | 'cancelled'
+  progress?: TaskProgress
+  generatedSql?: string
+  sqlExecutionResult?: any
+  resultRowCount?: number
+  errorMessage?: string
+  startTime: string
+  endTime?: string
+  durationMs?: number
+  createdAt: string
+  updatedAt: string
 }
 
-export interface QueryLog {
-  step: string
-  success: boolean
-  timestamp: string
-  input_data?: string
-  model_output?: string
-  error?: string
-  prompt?: string
+export interface TaskProgress {
+  currentStep: string
+  completedNodes: TaskNode[]
+  progress: number
 }
 
-export interface ClarityCheck {
-  is_clear: boolean
-  reason?: string
-  suggestions?: string[]
+export interface TaskNode {
+  nodeName: string
+  startTime?: string
+  endTime?: string
+  durationMs?: number
+  status: 'success' | 'failed' | 'running'
+  errorMessage?: string
+  input?: any
+  output?: any
 }
 
-// 元数据相关类型
+export interface QueryResult {
+  taskId: string
+  status: string
+  generatedSql: string
+  result: {
+    columns: string[]
+    rows: any[][]
+    rowCount: number
+  }
+  chartConfig?: ChartConfig
+}
+
+export interface ChartConfig {
+  type: 'line' | 'bar' | 'pie' | 'scatter'
+  xAxis?: string
+  yAxis?: string | string[]
+  title?: string
+}
+
+// Metadata types
 export interface TableMetadata {
+  id: number
   name: string
-  comment?: string
-  is_available: number
-  columns?: ColumnMetadata[]
+  comment: string
+  isAvailable: boolean
+  dataSource?: string
+  updateMethod?: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ColumnMetadata {
+  id: number
+  tableName: string
   name: string
   type: string
-  comment?: string
-  is_available: number
-  business_type?: string
-  relation_id?: string
+  comment: string
+  isAvailable: boolean
+  businessType: string
+  relationId?: string
+  sampleValues?: string[]
+  createdAt: string
+  updatedAt: string
 }
 
-export interface ColumnUpdateRequest {
-  type?: string
-  comment?: string
-  is_available?: number
-  business_type?: string
-  relation_id?: string
-}
-
-// 术语相关类型
-export interface Term {
-  id?: number
+export interface GlossaryTerm {
+  id: number
   term: string
   definition: string
-  sql_expression: string
+  sqlExpression?: string
   category: string
   aliases: string[]
+  userId?: number
+  createdAt: string
+  updatedAt: string
 }
 
-// 关联配置类型
 export interface RelationConfig {
-  relation_id: string
-  relation_family: string
-  relation_subfamily: string
-  relation_desc?: string
+  id: string
+  relationFamily: string
+  relationSubfamily: string
+  relationDesc: string
+  createdAt: string
+  updatedAt: string
 }
 
-
-// 数据表信息类型
-export interface DataTable {
-  table_name: string
-  comment?: string
-  row_count: number
+export interface DataTheme {
+  id: number
+  themeName: string
+  themeDescription: string
+  themeType: 'public' | 'normal'
+  createdAt: string
+  updatedAt: string
 }
 
-// 表格列类型
-export interface Column {
+// Favorites types
+export interface Favorite {
+  id: number
+  userId: number
+  favoriteTitle: string
+  userQuestion: string
+  generatedSql: string
+  selectedThemeId?: number
+  selectedTableIds?: number[]
+  createdAt: string
+  updatedAt: string
+}
+
+// Feedback types
+export interface Feedback {
+  id: number
+  taskId: string
+  userId: number
+  feedbackType: 'positive' | 'negative' | 'neutral'
+  feedbackContent: string
+  createdAt: string
+}
+
+// Log types
+export interface QueryLog {
+  id: number
+  taskId: string
+  userId: number
+  userQuestion: string
+  generatedSql: string
+  status: string
+  startTime: string
+  endTime?: string
+  durationMs?: number
+  errorMessage?: string
+  nodes: TaskNode[]
+  createdAt: string
+}
+
+export interface LogFilter {
+  userId?: number
+  status?: string
+  startTime?: string
+  endTime?: string
+  page?: number
+  pageSize?: number
+}
+
+// Pagination types
+export interface PaginationParams {
+  page: number
+  pageSize: number
+}
+
+export interface PaginatedResponse<T> {
+  items: T[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+// UI State types
+export interface LoadingState {
+  [key: string]: boolean
+}
+
+export interface ErrorState {
+  [key: string]: string | null
+}
+
+// WebSocket types
+export interface WebSocketMessage {
+  type: 'progress' | 'result' | 'error'
+  data: any
+  timestamp: string
+}
+
+// Chart data types
+export interface ChartData {
+  labels: string[]
+  datasets: ChartDataset[]
+}
+
+export interface ChartDataset {
+  label: string
+  data: number[]
+  backgroundColor?: string | string[]
+  borderColor?: string | string[]
+  borderWidth?: number
+}
+
+// Export types
+export type ExportFormat = 'xlsx' | 'csv' | 'json'
+
+// Component props types
+export interface ComponentSize {
+  width: number
+  height: number
+}
+
+// Form validation types
+export interface ValidationRule {
+  required?: boolean
+  minLength?: number
+  maxLength?: number
+  pattern?: RegExp
+  validator?: (value: any) => boolean | string
+}
+
+export interface FormField {
+  name: string
+  label: string
+  type: 'text' | 'number' | 'select' | 'textarea' | 'date'
+  value: any
+  rules?: ValidationRule[]
+  placeholder?: string
+  disabled?: boolean
+  options?: { label: string; value: any }[]
+}
+
+// Menu and navigation types
+export interface MenuItem {
+  id: string
+  label: string
+  icon?: string
+  path?: string
+  children?: MenuItem[]
+  badge?: string | number
+  disabled?: boolean
+}
+
+export interface BreadcrumbItem {
+  label: string
+  path?: string
+  active?: boolean
+}
+
+// Statistics types
+export interface DashboardStats {
+  totalUsers: number
+  totalQueriesToday: number
+  successRate: number
+  avgResponseTime: number
+  totalQueries: number
+  activeUsers: number
+  errorRate: number
+  popularQueries: Array<{
+    query: string
+    count: number
+  }>
+}
+
+// Search and filter types
+export interface SearchParams {
+  keyword: string
+  filters?: Record<string, any>
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+}
+
+export interface TableColumn {
   key: string
+  label: string
+  sortable?: boolean
+  width?: string
+  align?: 'left' | 'center' | 'right'
+  render?: (value: any, record: any) => string
+}
+
+// Notification types
+export interface Notification {
+  id: string
+  type: 'success' | 'error' | 'warning' | 'info'
   title: string
-  type?: 'text' | 'number' | 'date' | 'boolean' | 'status'
-}
-
-// 操作追踪相关类型
-export interface OperationSession {
-  session_id: string
-  operation_type: string
-  operator: string
-  start_time: string
-  end_time: string
-  total_duration: number
-  step_count: number
-  success_rate: number
-  status: 'running' | 'completed' | 'failed'
-  error_message?: string
-}
-
-export interface OperationStep {
-  step_sequence: number
-  step_name: string
-  call_method: string
-  success: boolean
-  duration: number
-  error_message?: string
-  has_sql: boolean
-  input_data?: string
-  output_data?: string
-  generated_sql?: string
-  token_usage?: {
-    prompt_tokens?: number
-    completion_tokens?: number
-    total_tokens?: number
-  }
-  metadata?: Record<string, any>
-}
-
-export interface OperationStats {
-  total_sessions: number
-  running_sessions: number
-  completed_sessions: number
-  failed_sessions: number
-  avg_duration: number
-  success_rate: number
+  message: string
+  duration?: number
+  closable?: boolean
+  timestamp: string
 }

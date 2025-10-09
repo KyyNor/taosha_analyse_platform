@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-base-100 text-base-content;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-base-200;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-base-300 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-base-content/20;
+  }
+}
+
+@layer components {
+  /* Card components */
+  .card {
+    @apply bg-base-100 rounded-lg shadow-card border border-base-300;
+  }
+
+  .card-compact {
+    @apply card-body p-4;
+  }
+
+  /* Button variants */
+  .btn-primary {
+    @apply bg-primary text-primary-content hover:bg-primary-focus;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary text-secondary-content hover:bg-secondary-focus;
+  }
+
+  /* Form controls */
+  .input {
+    @apply input-bordered input-primary;
+  }
+
+  .textarea {
+    @apply textarea-bordered textarea-primary;
+  }
+
+  /* Loading states */
+  .loading-spinner {
+    @apply loading loading-spinner;
+  }
+
+  /* Animation utilities */
+  .fade-enter-active,
+  .fade-leave-active {
+    @apply transition-opacity duration-300;
+  }
+
+  .fade-enter-from,
+  .fade-leave-to {
+    @apply opacity-0;
+  }
+
+  .slide-up-enter-active {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .slide-up-leave-active {
+    @apply transition-all duration-300 ease-in;
+  }
+
+  .slide-up-enter-from {
+    @apply transform translate-y-4 opacity-0;
+  }
+
+  .slide-up-leave-to {
+    @apply transform -translate-y-4 opacity-0;
+  }
+}
+
+@layer utilities {
+  /* Text utilities */
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent;
+  }
+
+  /* Layout utilities */
+  .container-fluid {
+    @apply w-full px-4 mx-auto;
+  }
+
+  @media (min-width: 640px) {
+    .container-fluid {
+      @apply px-6;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container-fluid {
+      @apply px-8;
+    }
+  }
+
+  /* Focus utilities */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-base-100;
+  }
+
+  /* Safe area utilities */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
