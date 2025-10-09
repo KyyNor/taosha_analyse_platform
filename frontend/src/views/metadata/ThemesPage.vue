@@ -1,8 +1,12 @@
 <template>
   <div class="space-y-6">
     <div class="text-center py-12">
-      <h2 class="text-xl font-semibold mb-4">数据主题管理</h2>
-      <p class="text-base-content/60">管理数据主题分类和表的主题归属</p>
+      <h2 class="text-xl font-semibold mb-4">
+        数据主题管理
+      </h2>
+      <p class="text-base-content/60">
+        管理数据主题分类和表的主题归属
+      </p>
       <div class="mt-8">
         <EmptyState
           type="custom"

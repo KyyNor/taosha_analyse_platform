@@ -1,9 +1,14 @@
 <template>
   <div class="card bg-base-100 shadow-lg">
     <div class="card-body">
-      <h2 class="card-title text-xl mb-4">自然语言查询</h2>
+      <h2 class="card-title text-xl mb-4">
+        自然语言查询
+      </h2>
 
-      <form @submit.prevent="handleSubmit" class="space-y-4">
+      <form
+        class="space-y-4"
+        @submit.prevent="handleSubmit"
+      >
         <!-- Query Input -->
         <div class="form-control">
           <label class="label">
@@ -33,8 +38,12 @@
               class="select select-bordered"
               :disabled="loading"
             >
-              <option value="fast">快速模式（先验证后生成）</option>
-              <option value="thorough">详细模式（先生成后验证）</option>
+              <option value="fast">
+                快速模式（先验证后生成）
+              </option>
+              <option value="thorough">
+                详细模式（先生成后验证）
+              </option>
             </select>
             <label class="label">
               <span class="label-text-alt text-base-content/60">
@@ -53,7 +62,9 @@
               class="select select-bordered"
               :disabled="loading || themesLoading"
             >
-              <option value="">选择数据主题（可选）</option>
+              <option value="">
+                选择数据主题（可选）
+              </option>
               <option
                 v-for="theme in themes"
                 :key="theme.id"
@@ -85,20 +96,23 @@
             </span>
           </label>
 
-          <div v-if="showAllTables" class="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-2">
+          <div
+            v-if="showAllTables"
+            class="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-2"
+          >
             <div
               v-for="table in availableTables"
               :key="table.id"
               class="flex items-center gap-2"
             >
               <input
-                type="checkbox"
                 :id="`table-${table.id}`"
-                :value="table.id"
                 v-model="formData.selectedTableIds"
+                type="checkbox"
+                :value="table.id"
                 class="checkbox checkbox-sm"
                 :disabled="loading"
-              />
+              >
               <label
                 :for="`table-${table.id}`"
                 class="cursor-pointer text-sm flex-1 flex items-center justify-between"
@@ -109,7 +123,10 @@
             </div>
           </div>
 
-          <div v-else-if="formData.selectedTableIds.length > 0" class="flex flex-wrap gap-2">
+          <div
+            v-else-if="formData.selectedTableIds.length > 0"
+            class="flex flex-wrap gap-2"
+          >
             <span
               v-for="tableId in formData.selectedTableIds"
               :key="tableId"
@@ -118,22 +135,25 @@
               {{ getTableName(tableId) }}
               <button
                 type="button"
-                @click="removeTable(tableId)"
                 class="ml-1"
+                @click="removeTable(tableId)"
               >
                 ✕
               </button>
             </span>
           </div>
 
-          <div v-else class="text-sm text-base-content/60">
+          <div
+            v-else
+            class="text-sm text-base-content/60"
+          >
             未选择表，系统将自动选择相关表
           </div>
         </div>
 
         <!-- Examples -->
         <div class="collapse collapse-arrow bg-base-200">
-          <input type="checkbox" />
+          <input type="checkbox">
           <div class="collapse-title text-sm font-medium">
             查询示例
           </div>
@@ -159,7 +179,10 @@
             class="btn btn-primary flex-1"
             :disabled="loading || !formData.query.trim()"
           >
-            <span v-if="loading" class="loading loading-spinner loading-sm"></span>
+            <span
+              v-if="loading"
+              class="loading loading-spinner loading-sm"
+            />
             {{ loading ? '查询中...' : '开始查询' }}
           </button>
 
@@ -169,8 +192,19 @@
             class="btn btn-error"
             @click="handleCancel"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
             取消查询
           </button>

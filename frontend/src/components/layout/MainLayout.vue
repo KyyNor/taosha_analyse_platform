@@ -13,7 +13,10 @@
       <!-- Main Content Area -->
       <main class="flex-1 overflow-auto">
         <!-- Breadcrumb -->
-        <div class="bg-base-200 border-b border-base-300 px-6 py-3" v-if="showBreadcrumb">
+        <div
+          v-if="showBreadcrumb"
+          class="bg-base-200 border-b border-base-300 px-6 py-3"
+        >
           <div class="flex items-center gap-2 text-sm">
             <router-link
               to="/"
@@ -22,7 +25,10 @@
               首页
             </router-link>
             <span class="text-base-content/40">/</span>
-            <template v-for="(item, index) in breadcrumbItems" :key="index">
+            <template
+              v-for="(item, index) in breadcrumbItems"
+              :key="index"
+            >
               <router-link
                 v-if="item.to && index < breadcrumbItems.length - 1"
                 :to="item.to"
@@ -30,10 +36,17 @@
               >
                 {{ item.label }}
               </router-link>
-              <span v-else :class="{ 'text-base-content': index === breadcrumbItems.length - 1 }" class="text-base-content/60">
+              <span
+                v-else
+                :class="{ 'text-base-content': index === breadcrumbItems.length - 1 }"
+                class="text-base-content/60"
+              >
                 {{ item.label }}
               </span>
-              <span v-if="index < breadcrumbItems.length - 1" class="text-base-content/40">/</span>
+              <span
+                v-if="index < breadcrumbItems.length - 1"
+                class="text-base-content/40"
+              >/</span>
             </template>
           </div>
         </div>
@@ -49,10 +62,13 @@
     <AppFooter />
 
     <!-- Loading Overlay -->
-    <div v-if="isLoading" class="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div
+      v-if="isLoading"
+      class="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center"
+    >
       <div class="bg-base-100 p-6 rounded-lg shadow-xl">
         <div class="flex items-center gap-3">
-          <span class="loading loading-spinner loading-md text-primary"></span>
+          <span class="loading loading-spinner loading-md text-primary" />
           <span class="text-sm font-medium">加载中...</span>
         </div>
       </div>
@@ -75,14 +91,27 @@
           }
         ]"
       >
-        <component :is="getNotificationIcon(notification.type)" class="w-5 h-5" />
+        <component
+          :is="getNotificationIcon(notification.type)"
+          class="w-5 h-5"
+        />
         <div>
-          <h3 class="font-bold" v-if="notification.title">{{ notification.title }}</h3>
-          <div class="text-xs" v-if="notification.message">{{ notification.message }}</div>
+          <h3
+            v-if="notification.title"
+            class="font-bold"
+          >
+            {{ notification.title }}
+          </h3>
+          <div
+            v-if="notification.message"
+            class="text-xs"
+          >
+            {{ notification.message }}
+          </div>
         </div>
         <button
-          @click="removeNotification(notification.id)"
           class="btn btn-ghost btn-xs"
+          @click="removeNotification(notification.id)"
         >
           ✕
         </button>
@@ -249,7 +278,7 @@ onMounted(() => {
     warning: showWarning,
     info: showInfo,
     loading: showLoading,
-    hideLoading: hideLoading
+    hideLoading
   }
 })
 </script>

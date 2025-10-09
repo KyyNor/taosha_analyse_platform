@@ -40,10 +40,16 @@
         <!-- Version Info -->
         <div class="flex items-center gap-2 text-sm text-base-content/40">
           <span>v{{ version }}</span>
-          <span class="badge badge-xs badge-success" v-if="isProduction">
+          <span
+            v-if="isProduction"
+            class="badge badge-xs badge-success"
+          >
             生产环境
           </span>
-          <span class="badge badge-xs badge-warning" v-else>
+          <span
+            v-else
+            class="badge badge-xs badge-warning"
+          >
             开发环境
           </span>
         </div>

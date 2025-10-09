@@ -2,14 +2,27 @@
   <div class="card bg-base-100 shadow-lg">
     <div class="card-body">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="card-title text-lg">查询进度</h3>
+        <h3 class="card-title text-lg">
+          查询进度
+        </h3>
         <button
           v-if="canCancel"
-          @click="handleCancel"
           class="btn btn-ghost btn-sm"
+          @click="handleCancel"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
           取消
         </button>
@@ -25,9 +38,12 @@
           <div
             class="progress-bar"
             :style="{ width: `${progressPercentage}%` }"
-          ></div>
+          />
         </div>
-        <div v-if="currentStep?.description" class="text-xs text-base-content/60 mt-2">
+        <div
+          v-if="currentStep?.description"
+          class="text-xs text-base-content/60 mt-2"
+        >
           {{ currentStep.description }}
         </div>
       </div>
@@ -46,47 +62,77 @@
           }"
         >
           <!-- Step Icon -->
-          <div class="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs"
-               :class="{
-                 'border-primary bg-primary text-primary-content': step.status === 'active',
-                 'border-success bg-success text-success-content': step.status === 'completed',
-                 'border-error bg-error text-error-content': step.status === 'failed',
-                 'border-base-300 bg-base-100': step.status === 'pending'
-               }">
+          <div
+            class="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs"
+            :class="{
+              'border-primary bg-primary text-primary-content': step.status === 'active',
+              'border-success bg-success text-success-content': step.status === 'completed',
+              'border-error bg-error text-error-content': step.status === 'failed',
+              'border-base-300 bg-base-100': step.status === 'pending'
+            }"
+          >
             <span v-if="step.status === 'completed'">✓</span>
             <span v-else-if="step.status === 'failed'">✕</span>
-            <span v-else-if="step.status === 'active'" class="loading loading-spinner loading-xs"></span>
+            <span
+              v-else-if="step.status === 'active'"
+              class="loading loading-spinner loading-xs"
+            />
             <span v-else>{{ index + 1 }}</span>
           </div>
 
           <!-- Step Content -->
           <div class="flex-1 min-w-0">
-            <div class="font-medium text-sm">{{ step.title }}</div>
-            <div v-if="step.description" class="text-xs text-base-content/60 mt-1">
+            <div class="font-medium text-sm">
+              {{ step.title }}
+            </div>
+            <div
+              v-if="step.description"
+              class="text-xs text-base-content/60 mt-1"
+            >
               {{ step.description }}
             </div>
-            <div v-if="step.details" class="text-xs text-base-content/40 mt-1">
+            <div
+              v-if="step.details"
+              class="text-xs text-base-content/40 mt-1"
+            >
               {{ step.details }}
             </div>
           </div>
 
           <!-- Step Duration -->
-          <div v-if="step.duration" class="flex-shrink-0 text-xs text-base-content/60">
+          <div
+            v-if="step.duration"
+            class="flex-shrink-0 text-xs text-base-content/60"
+          >
             {{ formatDuration(step.duration) }}
           </div>
         </div>
       </div>
 
       <!-- Generated SQL Preview -->
-      <div v-if="generatedSQL" class="mt-6">
+      <div
+        v-if="generatedSQL"
+        class="mt-6"
+      >
         <div class="flex items-center justify-between mb-2">
           <span class="text-sm font-medium">生成的 SQL</span>
           <button
-            @click="copySQL"
             class="btn btn-ghost btn-xs"
+            @click="copySQL"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-3 w-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+              />
             </svg>
             复制
           </button>
@@ -97,13 +143,30 @@
       </div>
 
       <!-- Error Message -->
-      <div v-if="error" class="alert alert-error mt-4">
-        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      <div
+        v-if="error"
+        class="alert alert-error mt-4"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="stroke-current shrink-0 h-6 w-6"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
         </svg>
         <div>
-          <h3 class="font-bold">查询失败</h3>
-          <div class="text-sm">{{ error }}</div>
+          <h3 class="font-bold">
+            查询失败
+          </h3>
+          <div class="text-sm">
+            {{ error }}
+          </div>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@ import axios, {
   type AxiosInstance,
   type AxiosRequestConfig,
   type AxiosResponse,
-  type AxiosError,
+  type AxiosError
 } from 'axios'
 import type { ApiResponse } from '@types/index'
 
@@ -15,8 +15,8 @@ const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
-    'Content-Type': 'application/json',
-  },
+    'Content-Type': 'application/json'
+  }
 })
 
 // Request interceptor
@@ -33,7 +33,7 @@ apiClient.interceptors.request.use(
 
     console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, {
       params: config.params,
-      data: config.data,
+      data: config.data
     })
 
     return config
@@ -56,7 +56,7 @@ apiClient.interceptors.response.use(
       {
         status: response.status,
         duration: `${duration}ms`,
-        data: response.data,
+        data: response.data
       }
     )
 
@@ -67,7 +67,7 @@ apiClient.interceptors.response.use(
       url: error.config?.url,
       status: error.response?.status,
       message: error.message,
-      data: error.response?.data,
+      data: error.response?.data
     })
 
     // Handle common error scenarios
@@ -148,7 +148,7 @@ export const api = {
 
   postRaw: async (url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse> => {
     return apiClient.post(url, data, config)
-  },
+  }
 }
 
 // WebSocket utility

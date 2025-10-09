@@ -151,6 +151,6 @@ export const useThemeStore = defineStore('theme', () => {
     setTheme,
     toggleTheme,
     initTheme,
-    setAutoSwitch,
+    setAutoSwitch
   }
 })

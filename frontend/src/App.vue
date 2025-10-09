@@ -1,5 +1,8 @@
 <template>
-  <div id="app" class="min-h-screen bg-base-100">
+  <div
+    id="app"
+    class="min-h-screen bg-base-100"
+  >
     <!-- 路由视图 -->
     <router-view />
   </div>

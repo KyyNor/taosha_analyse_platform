@@ -73,7 +73,7 @@ export const useQueryStore = defineStore('query', () => {
         selectedTableIds: request.selectedTableIds,
         taskStatus: 'running',
         startTime: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
+        createdAt: new Date().toISOString()
       }
 
       // Subscribe to progress updates
@@ -309,7 +309,7 @@ export const useQueryStore = defineStore('query', () => {
         ...data,
         taskStatus: data.status || currentTask.value.taskStatus,
         progress: data.progress,
-        generatedSql: data.sql_query || currentTask.value.generatedSql,
+        generatedSql: data.sql_query || currentTask.value.generatedSql
       }
 
       // Update result if available
@@ -321,7 +321,7 @@ export const useQueryStore = defineStore('query', () => {
           result: {
             columns: data.data?.columns || [],
             rows: data.data?.rows || [],
-            rowCount: data.row_count || 0,
+            rowCount: data.row_count || 0
           }
         }
       }
@@ -389,6 +389,6 @@ export const useQueryStore = defineStore('query', () => {
     submitFeedback,
     initializeWebSocket,
     disconnectWebSocket,
-    cleanup,
+    cleanup
   }
 })

@@ -104,6 +104,6 @@ export const useAppStore = defineStore('app', () => {
     setSidebarCollapsed,
     addNotification,
     removeNotification,
-    clearNotifications,
+    clearNotifications
   }
 })

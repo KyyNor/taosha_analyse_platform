@@ -2,8 +2,12 @@
   <MainLayout>
     <div class="space-y-6">
       <div class="text-center py-12">
-        <h1 class="text-2xl font-bold mb-4">我的收藏</h1>
-        <p class="text-base-content/60">管理您收藏的查询</p>
+        <h1 class="text-2xl font-bold mb-4">
+          我的收藏
+        </h1>
+        <p class="text-base-content/60">
+          管理您收藏的查询
+        </p>
         <div class="mt-8">
           <EmptyState
             type="custom"

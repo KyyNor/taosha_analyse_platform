@@ -3,17 +3,17 @@ module.exports = {
   env: {
     node: true,
     browser: true,
-    es2022: true,
+    es2022: true
   },
   extends: [
     'eslint:recommended',
     '@vue/eslint-config-typescript',
     '@vue/eslint-config-prettier/skip-formatting',
-    'plugin:vue/vue3-recommended',
+    'plugin:vue/vue3-recommended'
   ],
   parserOptions: {
     ecmaVersion: 'latest',
-    sourceType: 'module',
+    sourceType: 'module'
   },
   rules: {
     // Vue 3 specific rules
@@ -25,7 +25,7 @@ module.exports = {
     'vue/component-name-in-template-casing': ['error', 'PascalCase'],
     'vue/custom-event-name-casing': ['error', 'camelCase'],
     'vue/define-macros-order': ['error', {
-      order: ['defineProps', 'defineEmits'],
+      order: ['defineProps', 'defineEmits']
     }],
     'vue/no-unused-vars': 'error',
     'vue/padding-line-between-blocks': ['error', 'always'],
@@ -52,20 +52,20 @@ module.exports = {
     'eol-last': 'error',
     'comma-dangle': ['error', 'never'],
     'semi': ['error', 'never'],
-    'quotes': ['error', 'single'],
+    'quotes': ['error', 'single']
   },
   overrides: [
     {
       files: ['*.vue'],
       parser: 'vue-eslint-parser',
       parserOptions: {
-        parser: '@typescript-eslint/parser',
-      },
-    },
+        parser: '@typescript-eslint/parser'
+      }
+    }
   ],
   ignorePatterns: [
     'dist',
     'node_modules',
-    '*.d.ts',
-  ],
+    '*.d.ts'
+  ]
 }

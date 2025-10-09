@@ -1,7 +1,17 @@
 <template>
-  <div class="flex items-center justify-center" :class="[containerClass, sizeClasses[size]]">
-    <span class="loading loading-spinner" :class="spinnerClasses"></span>
-    <span v-if="showText" class="ml-2" :class="textClasses">{{ text }}</span>
+  <div
+    class="flex items-center justify-center"
+    :class="[containerClass, sizeClasses[size]]"
+  >
+    <span
+      class="loading loading-spinner"
+      :class="spinnerClasses"
+    />
+    <span
+      v-if="showText"
+      class="ml-2"
+      :class="textClasses"
+    >{{ text }}</span>
   </div>
 </template>
 

@@ -1,34 +1,52 @@
 <template>
-  <div class="flex flex-col items-center justify-center p-8 text-center" :class="containerClass">
+  <div
+    class="flex flex-col items-center justify-center p-8 text-center"
+    :class="containerClass"
+  >
     <!-- Icon -->
-    <div class="mb-4" :class="iconContainerClass">
-      <component :is="iconComponent" class="w-12 h-12" />
+    <div
+      class="mb-4"
+      :class="iconContainerClass"
+    >
+      <component
+        :is="iconComponent"
+        class="w-12 h-12"
+      />
     </div>
 
     <!-- Title -->
-    <h3 class="text-lg font-semibold mb-2" :class="titleClass">
+    <h3
+      class="text-lg font-semibold mb-2"
+      :class="titleClass"
+    >
       {{ title }}
     </h3>
 
     <!-- Description -->
-    <p class="text-sm text-base-content/60 mb-6 max-w-md" :class="descriptionClass">
+    <p
+      class="text-sm text-base-content/60 mb-6 max-w-md"
+      :class="descriptionClass"
+    >
       {{ description }}
     </p>
 
     <!-- Action Buttons -->
-    <div v-if="$slots.action || primaryAction" class="flex gap-3 flex-wrap justify-center">
+    <div
+      v-if="$slots.action || primaryAction"
+      class="flex gap-3 flex-wrap justify-center"
+    >
       <slot name="action">
         <button
           v-if="primaryAction"
-          @click="primaryAction.handler"
           class="btn btn-primary"
+          @click="primaryAction.handler"
         >
           {{ primaryAction.text }}
         </button>
         <button
           v-if="secondaryAction"
-          @click="secondaryAction.handler"
           class="btn btn-outline"
+          @click="secondaryAction.handler"
         >
           {{ secondaryAction.text }}
         </button>
@@ -36,7 +54,10 @@
     </div>
 
     <!-- Additional Content -->
-    <div v-if="$slots.default" class="mt-6">
+    <div
+      v-if="$slots.default"
+      class="mt-6"
+    >
       <slot />
     </div>
   </div>

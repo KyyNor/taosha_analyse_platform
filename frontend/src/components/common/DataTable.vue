@@ -1,42 +1,84 @@
 <template>
   <div class="w-full">
     <!-- Table Header -->
-    <div v-if="showHeader" class="flex items-center justify-between mb-4">
+    <div
+      v-if="showHeader"
+      class="flex items-center justify-between mb-4"
+    >
       <div class="flex items-center gap-2">
-        <h3 v-if="title" class="text-lg font-semibold">{{ title }}</h3>
-        <span v-if="subtitle" class="text-sm text-base-content/60">{{ subtitle }}</span>
+        <h3
+          v-if="title"
+          class="text-lg font-semibold"
+        >
+          {{ title }}
+        </h3>
+        <span
+          v-if="subtitle"
+          class="text-sm text-base-content/60"
+        >{{ subtitle }}</span>
       </div>
 
       <div class="flex items-center gap-2">
         <!-- Search -->
-        <div v-if="searchable" class="form-control">
+        <div
+          v-if="searchable"
+          class="form-control"
+        >
           <input
             v-model="searchQuery"
             type="text"
             :placeholder="searchPlaceholder"
             class="input input-bordered input-sm w-64"
-          />
+          >
         </div>
 
         <!-- Actions -->
         <slot name="actions" />
 
         <!-- Column Settings -->
-        <div v-if="columnSettings" class="dropdown dropdown-end">
-          <label tabindex="0" class="btn btn-ghost btn-sm btn-circle">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <div
+          v-if="columnSettings"
+          class="dropdown dropdown-end"
+        >
+          <label
+            tabindex="0"
+            class="btn btn-ghost btn-sm btn-circle"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
             </svg>
           </label>
-          <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52">
-            <li v-for="col in columns" :key="col.key">
+          <ul
+            tabindex="0"
+            class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52"
+          >
+            <li
+              v-for="col in columns"
+              :key="col.key"
+            >
               <label class="flex items-center gap-2 cursor-pointer">
                 <input
-                  type="checkbox"
                   v-model="col.visible"
+                  type="checkbox"
                   class="checkbox checkbox-sm"
-                />
+                >
                 <span>{{ col.title }}</span>
               </label>
             </li>
@@ -46,19 +88,28 @@
     </div>
 
     <!-- Table Container -->
-    <div class="overflow-x-auto bg-base-100 rounded-lg shadow" :class="tableContainerClass">
-      <table class="table table-zebra w-full" :class="tableClass">
+    <div
+      class="overflow-x-auto bg-base-100 rounded-lg shadow"
+      :class="tableContainerClass"
+    >
+      <table
+        class="table table-zebra w-full"
+        :class="tableClass"
+      >
         <!-- Table Head -->
         <thead>
           <tr>
-            <th v-if="selectable" class="w-12">
+            <th
+              v-if="selectable"
+              class="w-12"
+            >
               <input
                 type="checkbox"
                 class="checkbox checkbox-sm"
                 :checked="allSelected"
                 :indeterminate="someSelected"
                 @change="toggleSelectAll"
-              />
+              >
             </th>
 
             <th
@@ -73,7 +124,10 @@
             >
               <div class="flex items-center gap-1">
                 <span>{{ column.title }}</span>
-                <div v-if="column.sortable" class="flex flex-col">
+                <div
+                  v-if="column.sortable"
+                  class="flex flex-col"
+                >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     class="h-3 w-3"
@@ -84,7 +138,11 @@
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
-                    <path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd" />
+                    <path
+                      fill-rule="evenodd"
+                      d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+                      clip-rule="evenodd"
+                    />
                   </svg>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -96,26 +154,41 @@
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
-                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    <path
+                      fill-rule="evenodd"
+                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                      clip-rule="evenodd"
+                    />
                   </svg>
                 </div>
               </div>
             </th>
 
-            <th v-if="$slots.actions" class="w-24">操作</th>
+            <th
+              v-if="$slots.actions"
+              class="w-24"
+            >
+              操作
+            </th>
           </tr>
         </thead>
 
         <!-- Table Body -->
         <tbody>
           <tr v-if="loading">
-            <td :colspan="columnCount" class="text-center py-8">
+            <td
+              :colspan="columnCount"
+              class="text-center py-8"
+            >
               <LoadingSpinner size="sm" />
             </td>
           </tr>
 
           <tr v-else-if="paginatedData.length === 0">
-            <td :colspan="columnCount" class="text-center py-8">
+            <td
+              :colspan="columnCount"
+              class="text-center py-8"
+            >
               <EmptyState
                 :type="emptyStateType"
                 :title="emptyTitle"
@@ -135,13 +208,16 @@
             ]"
           >
             <!-- Selection Column -->
-            <td v-if="selectable" class="w-12">
+            <td
+              v-if="selectable"
+              class="w-12"
+            >
               <input
                 type="checkbox"
                 class="checkbox checkbox-sm"
                 :checked="selectedRows.includes(getRowKey(item, index))"
                 @change="toggleRowSelection(getRowKey(item, index))"
-              />
+              >
             </td>
 
             <!-- Data Columns -->
@@ -166,8 +242,15 @@
             </td>
 
             <!-- Actions Column -->
-            <td v-if="$slots.actions" class="w-24">
-              <slot name="actions" :record="item" :index="index" />
+            <td
+              v-if="$slots.actions"
+              class="w-24"
+            >
+              <slot
+                name="actions"
+                :record="item"
+                :index="index"
+              />
             </td>
           </tr>
         </tbody>
@@ -175,7 +258,10 @@
     </div>
 
     <!-- Pagination -->
-    <div v-if="paginated && total > pageSize" class="flex items-center justify-between mt-4">
+    <div
+      v-if="paginated && total > pageSize"
+      class="flex items-center justify-between mt-4"
+    >
       <div class="text-sm text-base-content/60">
         显示 {{ (currentPage - 1) * pageSize + 1 }} - {{ Math.min(currentPage * pageSize, total) }} 条，共 {{ total }} 条
       </div>

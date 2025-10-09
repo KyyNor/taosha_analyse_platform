@@ -3,15 +3,30 @@
     <!-- Page Header -->
     <div class="flex items-center justify-between">
       <div>
-        <h2 class="text-xl font-semibold">表配置管理</h2>
-        <p class="text-base-content/60 mt-1">管理数据库表的元数据信息</p>
+        <h2 class="text-xl font-semibold">
+          表配置管理
+        </h2>
+        <p class="text-base-content/60 mt-1">
+          管理数据库表的元数据信息
+        </p>
       </div>
       <button
-        @click="showCreateModal = true"
         class="btn btn-primary"
+        @click="showCreateModal = true"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 4v16m8-8H4"
+          />
         </svg>
         添加表
       </button>
@@ -28,9 +43,15 @@
           class="select select-bordered select-sm"
           @change="loadTables"
         >
-          <option value="">全部数据源</option>
-          <option value="main">主数据库</option>
-          <option value="analytics">分析数据库</option>
+          <option value="">
+            全部数据源
+          </option>
+          <option value="main">
+            主数据库
+          </option>
+          <option value="analytics">
+            分析数据库
+          </option>
         </select>
       </div>
 
@@ -43,9 +64,15 @@
           class="select select-bordered select-sm"
           @change="loadTables"
         >
-          <option value="">全部状态</option>
-          <option :value="true">活跃</option>
-          <option :value="false">非活跃</option>
+          <option value="">
+            全部状态
+          </option>
+          <option :value="true">
+            活跃
+          </option>
+          <option :value="false">
+            非活跃
+          </option>
         </select>
       </div>
 
@@ -59,7 +86,7 @@
           placeholder="搜索表名或注释..."
           class="input input-bordered input-sm"
           @input="debouncedSearch"
-        />
+        >
       </div>
     </div>
 
@@ -83,18 +110,25 @@
             class="checkbox checkbox-sm"
             :checked="value"
             @change="toggleTableAvailability(record)"
-          />
+          >
         </template>
 
         <template #cell-name="{ value, record }">
           <div>
-            <div class="font-medium">{{ value }}</div>
-            <div class="text-xs text-base-content/60">{{ record.dataSource }}</div>
+            <div class="font-medium">
+              {{ value }}
+            </div>
+            <div class="text-xs text-base-content/60">
+              {{ record.dataSource }}
+            </div>
           </div>
         </template>
 
         <template #cell-comment="{ value }">
-          <div class="max-w-xs truncate" :title="value">
+          <div
+            class="max-w-xs truncate"
+            :title="value"
+          >
             {{ value || '-' }}
           </div>
         </template>
@@ -115,40 +149,89 @@
         <template #actions="{ record }">
           <div class="flex gap-1">
             <button
-              @click="viewTableDetails(record)"
               class="btn btn-ghost btn-xs"
               title="查看详情"
+              @click="viewTableDetails(record)"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                />
               </svg>
             </button>
             <button
-              @click="editTable(record)"
               class="btn btn-ghost btn-xs"
               title="编辑"
+              @click="editTable(record)"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
               </svg>
             </button>
             <button
-              @click="syncTableSchema(record)"
               class="btn btn-ghost btn-xs"
               title="同步结构"
+              @click="syncTableSchema(record)"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
               </svg>
             </button>
             <button
-              @click="confirmDeleteTable(record)"
               class="btn btn-ghost btn-xs text-error"
               title="删除"
+              @click="confirmDeleteTable(record)"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                />
               </svg>
             </button>
           </div>
@@ -157,12 +240,19 @@
     </div>
 
     <!-- Create/Edit Modal -->
-    <dialog ref="tableModal" class="modal" :open="showCreateModal || showEditModal">
+    <dialog
+      ref="tableModal"
+      class="modal"
+      :open="showCreateModal || showEditModal"
+    >
       <div class="modal-box">
         <h3 class="font-bold text-lg">
           {{ showEditModal ? '编辑表' : '添加表' }}
         </h3>
-        <form @submit.prevent="saveTable" class="space-y-4 mt-4">
+        <form
+          class="space-y-4 mt-4"
+          @submit.prevent="saveTable"
+        >
           <div class="form-control">
             <label class="label">
               <span class="label-text">表名 *</span>
@@ -174,7 +264,7 @@
               class="input input-bordered"
               :disabled="showEditModal"
               required
-            />
+            >
           </div>
 
           <div class="form-control">
@@ -186,16 +276,23 @@
               placeholder="请输入表注释"
               class="textarea textarea-bordered"
               rows="3"
-            ></textarea>
+            />
           </div>
 
           <div class="form-control">
             <label class="label">
               <span class="label-text">数据源</span>
             </label>
-            <select v-model="tableForm.dataSource" class="select select-bordered">
-              <option value="main">主数据库</option>
-              <option value="analytics">分析数据库</option>
+            <select
+              v-model="tableForm.dataSource"
+              class="select select-bordered"
+            >
+              <option value="main">
+                主数据库
+              </option>
+              <option value="analytics">
+                分析数据库
+              </option>
             </select>
           </div>
 
@@ -203,10 +300,19 @@
             <label class="label">
               <span class="label-text">更新方式</span>
             </label>
-            <select v-model="tableForm.updateMethod" class="select select-bordered">
-              <option value="auto">自动更新</option>
-              <option value="manual">手动更新</option>
-              <option value="scheduled">定时更新</option>
+            <select
+              v-model="tableForm.updateMethod"
+              class="select select-bordered"
+            >
+              <option value="auto">
+                自动更新
+              </option>
+              <option value="manual">
+                手动更新
+              </option>
+              <option value="scheduled">
+                定时更新
+              </option>
             </select>
           </div>
 
@@ -217,23 +323,39 @@
                 v-model="tableForm.isAvailable"
                 type="checkbox"
                 class="checkbox checkbox-primary"
-              />
+              >
             </label>
           </div>
 
           <div class="modal-action">
-            <button type="button" @click="closeModal" class="btn btn-ghost">
+            <button
+              type="button"
+              class="btn btn-ghost"
+              @click="closeModal"
+            >
               取消
             </button>
-            <button type="submit" class="btn btn-primary" :disabled="saving">
-              <span v-if="saving" class="loading loading-spinner loading-sm"></span>
+            <button
+              type="submit"
+              class="btn btn-primary"
+              :disabled="saving"
+            >
+              <span
+                v-if="saving"
+                class="loading loading-spinner loading-sm"
+              />
               {{ saving ? '保存中...' : '保存' }}
             </button>
           </div>
         </form>
       </div>
-      <form method="dialog" class="modal-backdrop">
-        <button @click="closeModal">close</button>
+      <form
+        method="dialog"
+        class="modal-backdrop"
+      >
+        <button @click="closeModal">
+          close
+        </button>
       </form>
     </dialog>
   </div>

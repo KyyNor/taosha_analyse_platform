@@ -41,7 +41,7 @@ class QueryService {
   async exportResults(taskId: string, format: 'xlsx' | 'csv'): Promise<Blob> {
     const response = await api.getRaw(`/nlquery/export/${taskId}`, {
       params: { format },
-      responseType: 'blob',
+      responseType: 'blob'
     })
     return response.data
   }
@@ -147,7 +147,7 @@ class QueryService {
   ): Promise<Blob> {
     const response = await api.getRaw(`/nlquery/export/${taskId}`, {
       params: { format, ...options },
-      responseType: 'blob',
+      responseType: 'blob'
     })
     return response.data
   }

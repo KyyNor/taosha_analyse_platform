@@ -62,7 +62,7 @@ class MetadataService {
 
   // Get columns for a table
   async getColumns(tableId: number): Promise<ColumnMetadata[]> {
-    return await api.get(`/metadata/metadata/columns`, {
+    return await api.get('/metadata/metadata/columns', {
       params: { table_id: tableId }
     })
   }
@@ -277,9 +277,9 @@ class MetadataService {
 
   // Export metadata
   async exportMetadata(format: 'json' | 'xlsx'): Promise<Blob> {
-    const response = await api.getRaw(`/metadata/export`, {
+    const response = await api.getRaw('/metadata/export', {
       params: { format },
-      responseType: 'blob',
+      responseType: 'blob'
     })
     return response.data
   }
@@ -297,15 +297,15 @@ class MetadataService {
 
     return await api.post('/metadata/import', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+        'Content-Type': 'multipart/form-data'
+      }
     })
   }
 
   // Get import template
   async getImportTemplate(type: 'tables' | 'columns' | 'glossary'): Promise<Blob> {
     const response = await api.getRaw(`/metadata/import-template/${type}`, {
-      responseType: 'blob',
+      responseType: 'blob'
     })
     return response.data
   }

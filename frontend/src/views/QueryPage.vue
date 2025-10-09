@@ -4,27 +4,53 @@
       <!-- Page Header -->
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-2xl font-bold">淘沙查询</h1>
-          <p class="text-base-content/60 mt-1">使用自然语言进行数据查询分析</p>
+          <h1 class="text-2xl font-bold">
+            淘沙查询
+          </h1>
+          <p class="text-base-content/60 mt-1">
+            使用自然语言进行数据查询分析
+          </p>
         </div>
         <div class="flex gap-2">
           <button
-            @click="showHistory = !showHistory"
             class="btn btn-ghost btn-sm"
             :class="{ 'btn-active': showHistory }"
+            @click="showHistory = !showHistory"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
             查询历史
           </button>
           <button
-            @click="showFavorites = !showFavorites"
             class="btn btn-ghost btn-sm"
             :class="{ 'btn-active': showFavorites }"
+            @click="showFavorites = !showFavorites"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+              />
             </svg>
             我的收藏
           </button>
@@ -45,36 +71,69 @@
           <QueryProgress
             v-if="hasActiveQuery"
             @cancel="handleCancelQuery"
-            @copySQL="handleCopySQL"
+            @copy-s-q-l="handleCopySQL"
           />
         </div>
 
         <!-- Right Column: Results & History/Favorites -->
         <div class="lg:col-span-2 space-y-6">
           <!-- Query Results -->
-          <div v-if="hasResults" class="card bg-base-100 shadow-lg">
+          <div
+            v-if="hasResults"
+            class="card bg-base-100 shadow-lg"
+          >
             <div class="card-body">
               <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold">查询结果</h3>
+                <h3 class="text-lg font-semibold">
+                  查询结果
+                </h3>
                 <div class="flex gap-2">
                   <button
-                    @click="addToFavorites"
                     class="btn btn-ghost btn-sm"
                     :disabled="!currentResult"
+                    @click="addToFavorites"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                      />
                     </svg>
                     收藏
                   </button>
                   <div class="dropdown dropdown-end">
-                    <label tabindex="0" class="btn btn-ghost btn-sm">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <label
+                      tabindex="0"
+                      class="btn btn-ghost btn-sm"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
                       </svg>
                       导出
                     </label>
-                    <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-32">
+                    <ul
+                      tabindex="0"
+                      class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-32"
+                    >
                       <li><a @click="exportResults('csv')">CSV</a></li>
                       <li><a @click="exportResults('xlsx')">Excel</a></li>
                     </ul>
@@ -92,25 +151,38 @@
           </div>
 
           <!-- Query History -->
-          <div v-if="showHistory" class="card bg-base-100 shadow-lg">
+          <div
+            v-if="showHistory"
+            class="card bg-base-100 shadow-lg"
+          >
             <div class="card-body">
               <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold">查询历史</h3>
+                <h3 class="text-lg font-semibold">
+                  查询历史
+                </h3>
                 <div class="flex gap-2">
                   <input
                     v-model="historySearchQuery"
                     type="text"
                     placeholder="搜索历史..."
                     class="input input-bordered input-sm w-48"
-                  />
+                  >
                   <select
                     v-model="historyFilter"
                     class="select select-bordered select-sm"
                   >
-                    <option value="">全部状态</option>
-                    <option value="success">成功</option>
-                    <option value="failed">失败</option>
-                    <option value="running">运行中</option>
+                    <option value="">
+                      全部状态
+                    </option>
+                    <option value="success">
+                      成功
+                    </option>
+                    <option value="failed">
+                      失败
+                    </option>
+                    <option value="running">
+                      运行中
+                    </option>
                   </select>
                 </div>
               </div>
@@ -125,16 +197,21 @@
           </div>
 
           <!-- Favorites -->
-          <div v-if="showFavorites" class="card bg-base-100 shadow-lg">
+          <div
+            v-if="showFavorites"
+            class="card bg-base-100 shadow-lg"
+          >
             <div class="card-body">
               <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold">我的收藏</h3>
+                <h3 class="text-lg font-semibold">
+                  我的收藏
+                </h3>
                 <input
                   v-model="favoritesSearchQuery"
                   type="text"
                   placeholder="搜索收藏..."
                   class="input input-bordered input-sm w-48"
-                />
+                >
               </div>
 
               <FavoritesList
@@ -148,14 +225,30 @@
           </div>
 
           <!-- Welcome State (when no results and not showing history/favorites) -->
-          <div v-if="!hasResults && !showHistory && !showFavorites" class="card bg-base-100 shadow-lg">
+          <div
+            v-if="!hasResults && !showHistory && !showFavorites"
+            class="card bg-base-100 shadow-lg"
+          >
             <div class="card-body text-center py-12">
               <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-8 w-8 text-primary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
                 </svg>
               </div>
-              <h3 class="text-lg font-semibold mb-2">开始您的数据探索之旅</h3>
+              <h3 class="text-lg font-semibold mb-2">
+                开始您的数据探索之旅
+              </h3>
               <p class="text-base-content/60 mb-6 max-w-md mx-auto">
                 使用自然语言描述您的查询需求，AI 将为您生成相应的 SQL 查询并执行分析。
               </p>
@@ -163,8 +256,8 @@
                 <button
                   v-for="example in quickExamples"
                   :key="example"
-                  @click="handleExampleClick(example)"
                   class="btn btn-outline btn-sm"
+                  @click="handleExampleClick(example)"
                 >
                   {{ example }}
                 </button>
@@ -176,29 +269,46 @@
     </div>
 
     <!-- Add to Favorites Modal -->
-    <dialog ref="addToFavoritesModal" class="modal">
+    <dialog
+      ref="addToFavoritesModal"
+      class="modal"
+    >
       <div class="modal-box">
-        <h3 class="font-bold text-lg">添加到收藏</h3>
+        <h3 class="font-bold text-lg">
+          添加到收藏
+        </h3>
         <div class="form-control mt-4">
           <label class="label">
             <span class="label-text">收藏标题</span>
           </label>
           <input
+            ref="favoriteTitleInput"
             v-model="favoriteTitle"
             type="text"
             placeholder="请输入收藏标题..."
             class="input input-bordered"
-            ref="favoriteTitleInput"
-          />
+          >
         </div>
         <div class="modal-action">
-          <button @click="closeAddToFavoritesModal" class="btn btn-ghost">取消</button>
-          <button @click="confirmAddToFavorites" class="btn btn-primary" :disabled="!favoriteTitle.trim()">
+          <button
+            class="btn btn-ghost"
+            @click="closeAddToFavoritesModal"
+          >
+            取消
+          </button>
+          <button
+            class="btn btn-primary"
+            :disabled="!favoriteTitle.trim()"
+            @click="confirmAddToFavorites"
+          >
             确认添加
           </button>
         </div>
       </div>
-      <form method="dialog" class="modal-backdrop">
+      <form
+        method="dialog"
+        class="modal-backdrop"
+      >
         <button>close</button>
       </form>
     </dialog>

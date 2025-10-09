@@ -274,8 +274,8 @@ class MetadataService {
 
     return await api.post('/metadata/import', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+        'Content-Type': 'multipart/form-data'
+      }
     })
   }
 

@@ -17,13 +17,13 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     component: MainLayout,
     meta: {
-      layout: 'main',
+      layout: 'main'
     },
     children: [
       {
         path: '',
         name: 'Home',
-        redirect: '/query',
+        redirect: '/query'
       },
       {
         path: 'query',
@@ -33,9 +33,9 @@ const routes: RouteRecordRaw[] = [
           title: '淘沙查询 - 淘沙分析平台',
           icon: 'search',
           breadcrumb: [
-            { label: '淘沙查询', active: true },
-          ],
-        },
+            { label: '淘沙查询', active: true }
+          ]
+        }
       },
       {
         path: 'metadata',
@@ -45,8 +45,8 @@ const routes: RouteRecordRaw[] = [
           title: '元数据配置 - 淘沙分析平台',
           icon: 'database',
           breadcrumb: [
-            { label: '元数据配置', active: true },
-          ],
+            { label: '元数据配置', active: true }
+          ]
         },
         children: [
           {
@@ -55,8 +55,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/metadata/TablesPage.vue'),
             meta: {
               title: '表配置 - 淘沙分析平台',
-              parent: 'Metadata',
-            },
+              parent: 'Metadata'
+            }
           },
           {
             path: 'columns',
@@ -64,8 +64,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/metadata/ColumnsPage.vue'),
             meta: {
               title: '字段配置 - 淘沙分析平台',
-              parent: 'Metadata',
-            },
+              parent: 'Metadata'
+            }
           },
           {
             path: 'relations',
@@ -73,8 +73,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/metadata/RelationsPage.vue'),
             meta: {
               title: '关联配置 - 淘沙分析平台',
-              parent: 'Metadata',
-            },
+              parent: 'Metadata'
+            }
           },
           {
             path: 'glossary',
@@ -82,8 +82,8 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/metadata/GlossaryPage.vue'),
             meta: {
               title: '术语管理 - 淘沙分析平台',
-              parent: 'Metadata',
-            },
+              parent: 'Metadata'
+            }
           },
           {
             path: 'themes',
@@ -91,10 +91,10 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/metadata/ThemesPage.vue'),
             meta: {
               title: '数据主题 - 淘沙分析平台',
-              parent: 'Metadata',
-            },
-          },
-        ],
+              parent: 'Metadata'
+            }
+          }
+        ]
       },
       {
         path: 'logs',
@@ -104,9 +104,9 @@ const routes: RouteRecordRaw[] = [
           title: '日志管理 - 淘沙分析平台',
           icon: 'document-text',
           breadcrumb: [
-            { label: '日志管理', active: true },
-          ],
-        },
+            { label: '日志管理', active: true }
+          ]
+        }
       },
       {
         path: 'favorites',
@@ -116,9 +116,9 @@ const routes: RouteRecordRaw[] = [
           title: '我的收藏 - 淘沙分析平台',
           icon: 'bookmark',
           breadcrumb: [
-            { label: '我的收藏', active: true },
-          ],
-        },
+            { label: '我的收藏', active: true }
+          ]
+        }
       },
       {
         path: 'settings',
@@ -128,11 +128,11 @@ const routes: RouteRecordRaw[] = [
           title: '系统设置 - 淘沙分析平台',
           icon: 'cog',
           breadcrumb: [
-            { label: '系统设置', active: true },
-          ],
-        },
-      },
-    ],
+            { label: '系统设置', active: true }
+          ]
+        }
+      }
+    ]
   },
   // 404 page
   {
@@ -141,9 +141,9 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/NotFoundPage.vue'),
     meta: {
       title: '页面未找到 - 淘沙分析平台',
-      layout: 'error',
-    },
-  },
+      layout: 'error'
+    }
+  }
 ]
 
 // Create router instance
@@ -158,7 +158,7 @@ const router = createRouter({
     } else {
       return { top: 0, behavior: 'smooth' }
     }
-  },
+  }
 })
 
 // Navigation guards
