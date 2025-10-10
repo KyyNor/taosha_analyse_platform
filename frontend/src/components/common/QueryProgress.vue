@@ -76,8 +76,8 @@
             复制
           </button>
         </div>
-        <div class="mockup-code">
-          <pre><code>{{ generatedSQL }}</code></pre>
+        <div class="mockup-code bg-base-300 text-base-content">
+          <pre class="text-sm"><code>{{ generatedSQL }}</code></pre>
         </div>
       </div>
 
