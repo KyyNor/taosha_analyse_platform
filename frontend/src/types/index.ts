@@ -7,34 +7,6 @@ export interface ApiResponse<T = any> {
   code?: number
 }
 
-// User types
-export interface User {
-  id: number
-  username: string
-  realName?: string
-  roles: string[]
-  department?: string
-  departmentId?: string
-  avatar?: string
-  email?: string
-  createdAt: string
-  updatedAt: string
-}
-
-// Auth types
-export interface LoginRequest {
-  username: string
-  password: string
-}
-
-export interface LoginResponse {
-  success: boolean
-  data?: {
-    accessToken: string
-    user: User
-  }
-  error?: string
-}
 
 // Query types
 export interface QueryRequest {
@@ -324,12 +296,6 @@ export interface MenuItem {
   children?: MenuItem[]
   badge?: string | number
   disabled?: boolean
-}
-
-export interface BreadcrumbItem {
-  label: string
-  path?: string
-  active?: boolean
 }
 
 // Statistics types

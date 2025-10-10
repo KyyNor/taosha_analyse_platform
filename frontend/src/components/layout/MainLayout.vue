@@ -7,45 +7,6 @@
     <div class="flex-1 flex">
       <!-- Main Content Area -->
       <main class="flex-1 overflow-auto">
-        <!-- Breadcrumb -->
-        <div
-          v-if="showBreadcrumb"
-          class="bg-base-200 border-b border-base-300 px-6 py-3"
-        >
-          <div class="flex items-center gap-2 text-sm">
-            <router-link
-              to="/"
-              class="link link-hover text-base-content/60 hover:text-primary"
-            >
-              首页
-            </router-link>
-            <span class="text-base-content/40">/</span>
-            <template
-              v-for="(item, index) in breadcrumbItems"
-              :key="index"
-            >
-              <router-link
-                v-if="item.to && index < breadcrumbItems.length - 1"
-                :to="item.to"
-                class="link link-hover text-base-content/60 hover:text-primary"
-              >
-                {{ item.label }}
-              </router-link>
-              <span
-                v-else
-                :class="{ 'text-base-content': index === breadcrumbItems.length - 1 }"
-                class="text-base-content/60"
-              >
-                {{ item.label }}
-              </span>
-              <span
-                v-if="index < breadcrumbItems.length - 1"
-                class="text-base-content/40"
-              >/</span>
-            </template>
-          </div>
-        </div>
-
         <!-- Page Content -->
         <div class="p-6">
           <router-view />
@@ -113,8 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, h } from 'vue'
-import { useRoute } from 'vue-router'
+import { onMounted, ref, h } from 'vue'
 import { useAppStore } from '@stores/app'
 import { useToast } from '@/composables/useToast'
 import AppHeader from './AppHeader.vue'
@@ -127,20 +87,11 @@ interface Notification {
   duration?: number
 }
 
-const route = useRoute()
 const appStore = useAppStore()
 
 const notifications = ref<Notification[]>([])
 const isLoading = ref(false)
 
-// Breadcrumb
-const showBreadcrumb = computed(() => {
-  return route.meta.breadcrumb && route.meta.breadcrumb.length > 0
-})
-
-const breadcrumbItems = computed(() => {
-  return route.meta.breadcrumb || []
-})
 
 // Notification icons
 const getNotificationIcon = (type: string) => {

@@ -14,7 +14,47 @@
           v-for="item in mainNavItems"
           :key="item.name"
         >
+          <!-- Metadata Dropdown Menu -->
+          <div
+            v-if="item.name === 'Metadata'"
+            class="dropdown dropdown-hover dropdown-bottom"
+          >
+            <label
+              tabindex="0"
+              :class="{ 'active': isMetadataRouteActive() }"
+              class="flex items-center gap-2 cursor-pointer"
+            >
+              <component
+                :is="item.icon"
+                class="w-4 h-4"
+              />
+              {{ item.label }}
+            </label>
+            <ul
+              tabindex="0"
+              class="dropdown-content menu p-2 shadow bg-base-100 w-max rounded-box min-w-36 z-50"
+            >
+              <li
+                v-for="subItem in metadataSubItems"
+                :key="subItem.name"
+              >
+                <router-link
+                  :to="subItem.path"
+                  :class="{ 'active': $route.name === subItem.name }"
+                  class="flex items-center gap-2"
+                >
+                  <component
+                    :is="subItem.icon"
+                    class="w-4 h-4"
+                  />
+                  {{ subItem.label }}
+                </router-link>
+              </li>
+            </ul>
+          </div>
+          <!-- Regular Navigation Items -->
           <router-link
+            v-else
             :to="item.path"
             :class="{ 'active': $route.name === item.name }"
             class="flex items-center gap-2"
@@ -262,6 +302,82 @@ const CogIcon = () => h('svg', {
   })
 ])
 
+// Metadata sub-menu icons
+const TableIcon = () => h('svg', {
+  xmlns: 'http://www.w3.org/2000/svg',
+  class: 'h-5 w-5',
+  fill: 'none',
+  viewBox: '0 0 24 24',
+  stroke: 'currentColor'
+}, [
+  h('path', {
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'stroke-width': '2',
+    d: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4'
+  })
+])
+
+const ColumnIcon = () => h('svg', {
+  xmlns: 'http://www.w3.org/2000/svg',
+  class: 'h-5 w-5',
+  fill: 'none',
+  viewBox: '0 0 24 24',
+  stroke: 'currentColor'
+}, [
+  h('path', {
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'stroke-width': '2',
+    d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'
+  })
+])
+
+const LinkIcon = () => h('svg', {
+  xmlns: 'http://www.w3.org/2000/svg',
+  class: 'h-5 w-5',
+  fill: 'none',
+  viewBox: '0 0 24 24',
+  stroke: 'currentColor'
+}, [
+  h('path', {
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'stroke-width': '2',
+    d: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1'
+  })
+])
+
+const BookIcon = () => h('svg', {
+  xmlns: 'http://www.w3.org/2000/svg',
+  class: 'h-5 w-5',
+  fill: 'none',
+  viewBox: '0 0 24 24',
+  stroke: 'currentColor'
+}, [
+  h('path', {
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'stroke-width': '2',
+    d: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253'
+  })
+])
+
+const ThemeIcon = () => h('svg', {
+  xmlns: 'http://www.w3.org/2000/svg',
+  class: 'h-5 w-5',
+  fill: 'none',
+  viewBox: '0 0 24 24',
+  stroke: 'currentColor'
+}, [
+  h('path', {
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'stroke-width': '2',
+    d: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01'
+  })
+])
+
 const router = useRouter()
 const themeStore = useThemeStore()
 
@@ -280,7 +396,7 @@ const mainNavItems = computed(() => [
   },
   {
     name: 'Metadata',
-    path: '/metadata',
+    path: '/metadata/tables',
     label: '元数据配置',
     icon: DatabaseIcon
   },
@@ -303,5 +419,46 @@ const mainNavItems = computed(() => [
     icon: CogIcon
   }
 ])
+
+// Metadata sub-menu items
+const metadataSubItems = computed(() => [
+  {
+    name: 'MetadataTables',
+    path: '/metadata/tables',
+    label: '表配置',
+    icon: TableIcon
+  },
+  {
+    name: 'MetadataColumns',
+    path: '/metadata/columns',
+    label: '字段配置',
+    icon: ColumnIcon
+  },
+  {
+    name: 'MetadataRelations',
+    path: '/metadata/relations',
+    label: '关联配置',
+    icon: LinkIcon
+  },
+  {
+    name: 'MetadataGlossary',
+    path: '/metadata/glossary',
+    label: '业务术语',
+    icon: BookIcon
+  },
+  {
+    name: 'MetadataThemes',
+    path: '/metadata/themes',
+    label: '数据主题',
+    icon: ThemeIcon
+  }
+])
+
+// Check if any metadata route is active
+const isMetadataRouteActive = () => {
+  const currentRouteName = router.currentRoute.value.name
+  return currentRouteName === 'Metadata' ||
+         (typeof currentRouteName === 'string' && currentRouteName.startsWith('Metadata'))
+}
 
 </script>

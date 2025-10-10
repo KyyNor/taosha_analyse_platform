@@ -30,23 +30,16 @@ const routes: RouteRecordRaw[] = [
         name: 'Query',
         component: QueryPage,
         meta: {
-          title: '淘沙查询 - 淘沙分析平台',
-          icon: 'search',
-          breadcrumb: [
-            { label: '淘沙查询', active: true }
-          ]
+          title: '淘沙查询 - 淘沙分析平台'
         }
       },
       {
         path: 'metadata',
         name: 'Metadata',
+        redirect: '/metadata/tables',
         component: MetadataPage,
         meta: {
-          title: '元数据配置 - 淘沙分析平台',
-          icon: 'database',
-          breadcrumb: [
-            { label: '元数据配置', active: true }
-          ]
+          title: '元数据配置 - 淘沙分析平台'
         },
         children: [
           {
@@ -54,8 +47,7 @@ const routes: RouteRecordRaw[] = [
             name: 'MetadataTables',
             component: () => import('@/views/metadata/TablesPage.vue'),
             meta: {
-              title: '表配置 - 淘沙分析平台',
-              parent: 'Metadata'
+              title: '表配置 - 淘沙分析平台'
             }
           },
           {
@@ -63,8 +55,7 @@ const routes: RouteRecordRaw[] = [
             name: 'MetadataColumns',
             component: () => import('@/views/metadata/ColumnsPage.vue'),
             meta: {
-              title: '字段配置 - 淘沙分析平台',
-              parent: 'Metadata'
+              title: '字段配置 - 淘沙分析平台'
             }
           },
           {
@@ -72,8 +63,7 @@ const routes: RouteRecordRaw[] = [
             name: 'MetadataRelations',
             component: () => import('@/views/metadata/RelationsPage.vue'),
             meta: {
-              title: '关联配置 - 淘沙分析平台',
-              parent: 'Metadata'
+              title: '关联配置 - 淘沙分析平台'
             }
           },
           {
@@ -81,8 +71,7 @@ const routes: RouteRecordRaw[] = [
             name: 'MetadataGlossary',
             component: () => import('@/views/metadata/GlossaryPage.vue'),
             meta: {
-              title: '术语管理 - 淘沙分析平台',
-              parent: 'Metadata'
+              title: '业务术语 - 淘沙分析平台'
             }
           },
           {
@@ -90,8 +79,7 @@ const routes: RouteRecordRaw[] = [
             name: 'MetadataThemes',
             component: () => import('@/views/metadata/ThemesPage.vue'),
             meta: {
-              title: '数据主题 - 淘沙分析平台',
-              parent: 'Metadata'
+              title: '数据主题 - 淘沙分析平台'
             }
           }
         ]
@@ -101,11 +89,7 @@ const routes: RouteRecordRaw[] = [
         name: 'Logs',
         component: LogsPage,
         meta: {
-          title: '日志管理 - 淘沙分析平台',
-          icon: 'document-text',
-          breadcrumb: [
-            { label: '日志管理', active: true }
-          ]
+          title: '日志管理 - 淘沙分析平台'
         }
       },
       {
@@ -113,11 +97,7 @@ const routes: RouteRecordRaw[] = [
         name: 'Favorites',
         component: FavoritesPage,
         meta: {
-          title: '我的收藏 - 淘沙分析平台',
-          icon: 'bookmark',
-          breadcrumb: [
-            { label: '我的收藏', active: true }
-          ]
+          title: '我的收藏 - 淘沙分析平台'
         }
       },
       {
@@ -125,11 +105,7 @@ const routes: RouteRecordRaw[] = [
         name: 'Settings',
         component: SettingsPage,
         meta: {
-          title: '系统设置 - 淘沙分析平台',
-          icon: 'cog',
-          breadcrumb: [
-            { label: '系统设置', active: true }
-          ]
+          title: '系统设置 - 淘沙分析平台'
         }
       }
     ]
