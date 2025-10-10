@@ -1,37 +1,5 @@
 <template>
   <div class="space-y-6">
-    <!-- Page Header -->
-    <div class="flex items-center justify-between">
-      <div>
-        <h2 class="text-xl font-semibold">
-          表配置管理
-        </h2>
-        <p class="text-base-content/60 mt-1">
-          管理数据库表的元数据信息
-        </p>
-      </div>
-      <button
-        class="btn btn-primary"
-        @click="showCreateModal = true"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M12 4v16m8-8H4"
-          />
-        </svg>
-        添加表
-      </button>
-    </div>
-
     <!-- Filters -->
     <div class="flex flex-wrap gap-4 items-center bg-base-200 p-4 rounded-lg">
       <div class="form-control">
@@ -88,6 +56,27 @@
           @input="debouncedSearch"
         >
       </div>
+
+      <button
+        class="btn btn-primary"
+        @click="showCreateModal = true"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 4v16m8-8H4"
+          />
+        </svg>
+        添加表
+      </button>
     </div>
 
     <!-- Tables Table -->
