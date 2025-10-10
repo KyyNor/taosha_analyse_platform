@@ -253,17 +253,6 @@ class MetadataService {
     return await api.delete(buildApiUrl(url))
   }
 
-  // === Database Sync ===
-
-  // Sync metadata from actual database
-  async syncFromDatabase(): Promise<{
-    success: boolean
-    message: string
-    syncedTables: string[]
-  }> {
-    return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.SYNC.FROM_DB))
-  }
-
   // Get sync status
   async getSyncStatus(): Promise<{
     lastSyncTime: string
@@ -271,39 +260,6 @@ class MetadataService {
     syncing: boolean
   }> {
     return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.SYNC.STATUS))
-  }
-
-  // === Import/Export ===
-
-  // Export metadata
-  async exportMetadata(format: 'json' | 'xlsx'): Promise<Blob> {
-    const response = await api.getRaw(buildApiUrl(API_ENDPOINTS.METADATA.IMPORT_EXPORT.EXPORT, { format }))
-    return response.data
-  }
-
-  // Import metadata
-  async importMetadata(file: File, type: 'tables' | 'columns' | 'glossary'): Promise<{
-    success: boolean
-    message: string
-    importedCount: number
-    errors: string[]
-  }> {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('type', type)
-
-    return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.IMPORT_EXPORT.IMPORT), formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
-  }
-
-  // Get import template
-  async getImportTemplate(type: 'tables' | 'columns' | 'glossary'): Promise<Blob> {
-    const url = replaceUrlParams(API_ENDPOINTS.METADATA.IMPORT_EXPORT.TEMPLATE, { type })
-    const response = await api.getRaw(buildApiUrl(url))
-    return response.data
   }
 
   // === Validation ===
@@ -345,18 +301,6 @@ class MetadataService {
     }
 
     return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.SEARCH, params))
-  }
-
-  // Get metadata statistics
-  async getStatistics(): Promise<{
-    totalTables: number
-    totalColumns: number
-    totalTerms: number
-    totalRelations: number
-    tablesByDataSource: Array<{ dataSource: string; count: number }>
-    termsByCategory: Array<{ category: string; count: number }>
-  }> {
-    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.STATISTICS))
   }
 }
 

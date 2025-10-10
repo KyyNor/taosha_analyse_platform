@@ -102,7 +102,6 @@ export const API_ENDPOINTS = {
 
     // 验证和统计
     VALIDATE: '/metadata/validate',         // 验证配置
-    STATISTICS: '/metadata/statistics',     // 获取统计信息
     SEARCH: '/metadata/search'             // 搜索元数据
   },
 
