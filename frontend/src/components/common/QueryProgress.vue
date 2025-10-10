@@ -48,6 +48,39 @@
         </div>
       </div>
 
+      <!-- Generated SQL Preview -->
+      <div
+        v-if="generatedSQL"
+        class="mt-6"
+      >
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-medium">生成的 SQL</span>
+          <button
+            class="btn btn-ghost btn-xs"
+            @click="copySQL"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-3 w-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+              />
+            </svg>
+            复制
+          </button>
+        </div>
+        <div class="mockup-code">
+          <pre><code>{{ generatedSQL }}</code></pre>
+        </div>
+      </div>
+
       <!-- Steps Timeline -->
       <div class="space-y-3">
         <div
@@ -139,39 +172,6 @@
               ⏱️ {{ formatDuration(step.duration) }}
             </div>
           </div>
-        </div>
-      </div>
-
-      <!-- Generated SQL Preview -->
-      <div
-        v-if="generatedSQL"
-        class="mt-6"
-      >
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-sm font-medium">生成的 SQL</span>
-          <button
-            class="btn btn-ghost btn-xs"
-            @click="copySQL"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-3 w-3"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-              />
-            </svg>
-            复制
-          </button>
-        </div>
-        <div class="mockup-code">
-          <pre><code>{{ generatedSQL }}</code></pre>
         </div>
       </div>
 

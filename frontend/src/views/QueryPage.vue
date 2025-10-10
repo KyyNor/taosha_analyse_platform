@@ -223,6 +223,7 @@ const favoriteTitleInput = ref<HTMLInputElement>()
 
 // Quick examples
 const quickExamples = [
+  '9月30日所有账户的余额',
   '显示最近一个月的销售数据',
   '查询各产品类别的销售占比',
   '找出注册用户最多的地区',
