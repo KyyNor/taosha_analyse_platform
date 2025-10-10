@@ -128,7 +128,7 @@ export const useQueryStore = defineStore('query', () => {
 
     try {
       await queryService.cancelTask(currentTask.value.task_id)
-      currentTask.value.status = 'cancelled'
+      ;(currentTask.value as any).status = 'cancelled'
     } catch (error) {
       console.error('Failed to cancel query:', error)
       throw error
@@ -380,7 +380,7 @@ export const useQueryStore = defineStore('query', () => {
 
         // Handle different data formats
         let columns: any[] = []
-        let rows: any[][] = []
+        let rows: any[] = [] // Keep as array of objects for direct access in template
 
         // First, check if backend provided column information
         if (data.columns && Array.isArray(data.columns)) {
@@ -404,15 +404,14 @@ export const useQueryStore = defineStore('query', () => {
           console.log('[QueryStore] Using columns/rows format', { columns, rowCount: rows.length })
         }
 
-        // Extract rows if not already extracted
-        if (rows.length === 0 && Array.isArray(resultData) && resultData.length > 0) {
-          // Convert records to rows format
-          const columnNames = columns.map(col => col.name)
-          rows = resultData.map(row => columnNames.map(col => row[col]))
-          console.log('[QueryStore] Converted records to rows format', {
-            columnNames,
+        // Use execution_result directly as rows if it's an array of objects
+        if (Array.isArray(resultData) && resultData.length > 0) {
+          // Keep as array of objects for direct access in template using row[column.name]
+          rows = resultData
+          console.log('[QueryStore] Using execution_result as rows array', {
             rowCount: rows.length,
-            sampleRow: resultData[0]
+            sampleRow: resultData[0],
+            columns
           })
         }
 

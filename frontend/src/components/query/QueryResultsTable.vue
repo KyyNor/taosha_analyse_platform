@@ -385,7 +385,9 @@ watchEffect(() => {
     rows: props.data?.rows,
     rowCount: props.data?.rowCount,
     generatedSql: props.generatedSql,
-    loading: props.loading
+    loading: props.loading,
+    sampleRow: props.data?.rows?.[0],
+    rowType: Array.isArray(props.data?.rows?.[0]) ? 'array' : typeof props.data?.rows?.[0]
   })
 })
 
