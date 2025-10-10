@@ -45,10 +45,7 @@ export const useQueryStore = defineStore('query', () => {
   )
   const hasResults = computed(() => currentResult.value !== null)
   const resultData = computed(() => {
-    // Use execution_result from currentTask if available, otherwise fall back to currentResult
-    if (currentTask.value && (currentTask.value as any).execution_result) {
-      return (currentTask.value as any).execution_result
-    }
+    // Return the processed standard structure from currentResult
     return currentResult.value?.result || null
   })
   const generatedSQL = computed(() => {
@@ -367,8 +364,8 @@ export const useQueryStore = defineStore('query', () => {
       }
 
       // Update result if available
-      if (data.status === 'success' && (data.data || data.execution_result)) {
-        const resultData = data.data || data.execution_result
+      if (data.status === 'success' && data.execution_result) {
+        const resultData = data.execution_result
 
         console.log('[QueryStore] Processing successful result data', {
           data,
@@ -392,16 +389,6 @@ export const useQueryStore = defineStore('query', () => {
           const columnNames = Object.keys(resultData[0])
           columns = columnNames.map(name => ({ name, type: 'string' })) // Default type to string
           console.log('[QueryStore] Extracted columns from records', { columns })
-        } else if (resultData && typeof resultData === 'object' && resultData.columns && resultData.rows) {
-          // Data might be in {columns: [], rows: []} format
-          if (typeof resultData.columns[0] === 'string') {
-            // Convert string array to column objects
-            columns = resultData.columns.map((name: string) => ({ name, type: 'string' }))
-          } else {
-            columns = resultData.columns
-          }
-          rows = resultData.rows
-          console.log('[QueryStore] Using columns/rows format', { columns, rowCount: rows.length })
         }
 
         // Use execution_result directly as rows if it's an array of objects
