@@ -2,7 +2,7 @@
   <div class="space-y-4">
     <!-- SQL Preview -->
     <div
-      v-if="generatedSQL"
+      v-if="generatedSql"
       class="collapse collapse-arrow bg-base-200"
     >
       <input type="checkbox">
@@ -11,7 +11,7 @@
       </div>
       <div class="collapse-content">
         <div class="mockup-code">
-          <pre><code>{{ generatedSQL }}</code></pre>
+          <pre><code>{{ generatedSql }}</code></pre>
         </div>
         <div class="flex gap-2 mt-2">
           <button
@@ -358,7 +358,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, watchEffect } from 'vue'
 import { useToast } from '@/composables/useToast'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -366,14 +366,27 @@ import type { QueryResult } from '@types/index'
 
 interface Props {
   data: QueryResult['result'] | null
-  generatedSQL: string
+  generatedSql: string
   loading: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   data: null,
-  generatedSQL: '',
+  generatedSql: '',
   loading: false
+})
+
+// Add debug logging
+watchEffect(() => {
+  console.log('[QueryResultsTable] Props changed:', {
+    data: props.data,
+    hasData: !!props.data,
+    columns: props.data?.columns,
+    rows: props.data?.rows,
+    rowCount: props.data?.rowCount,
+    generatedSql: props.generatedSql,
+    loading: props.loading
+  })
 })
 
 const { success, error } = useToast()
@@ -488,7 +501,7 @@ const sortByColumn = (columnName: string) => {
 
 const copySQL = async () => {
   try {
-    await navigator.clipboard.writeText(props.generatedSQL)
+    await navigator.clipboard.writeText(props.generatedSql)
     success('SQL 已复制到剪贴板')
   } catch (err) {
     error('复制失败')

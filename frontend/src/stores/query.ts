@@ -37,15 +37,27 @@ export const useQueryStore = defineStore('query', () => {
   // Getters
   const hasActiveQuery = computed(() => currentTask.value !== null)
   const isQueryRunning = computed(() =>
-    currentTask.value?.taskStatus === 'running'
+    (currentTask.value?.status as string) === 'running'
   )
-  const queryProgress = computed(() => currentTask.value?.progress || null)
+  const queryProgress = computed(() => (currentTask.value as any)?.progress || null)
   const canCancelQuery = computed(() =>
     isQueryRunning.value && wsConnected.value
   )
   const hasResults = computed(() => currentResult.value !== null)
-  const resultData = computed(() => currentResult.value?.result || null)
-  const generatedSQL = computed(() => currentResult.value?.generatedSql || currentTask.value?.generatedSql || '')
+  const resultData = computed(() => {
+    // Use execution_result from currentTask if available, otherwise fall back to currentResult
+    if (currentTask.value && (currentTask.value as any).execution_result) {
+      return (currentTask.value as any).execution_result
+    }
+    return currentResult.value?.result || null
+  })
+  const generatedSQL = computed(() => {
+    // Use sql_query from currentTask, then generatedSql from currentResult, then generatedSql from currentTask
+    if (currentTask.value && (currentTask.value as any).sql_query) {
+      return (currentTask.value as any).sql_query
+    }
+    return currentResult.value?.generatedSql || (currentTask.value as any)?.generatedSql || ''
+  })
 
   // Actions
   const submitQuery = async (request: QueryRequest) => {
@@ -77,17 +89,26 @@ export const useQueryStore = defineStore('query', () => {
         throw new Error('No task ID returned from server')
       }
 
-      // Create task object
+      // Create task object with new TaskState structure
       currentTask.value = {
-        taskId: task_id,
-        userInput: request.query,
-        workflowType: request.flow_type === 'fast' ? 1 : 2,
-        selectedThemeId: request.selectedThemeId,
-        selectedTableIds: request.selectedTableIds,
-        taskStatus: 'running',
-        startTime: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        task_id: task_id,
+        user_input: request.query,
+        operator: request.operator,
+        flow_type: request.flow_type || 'fast',
+        status: 'running',
+        current_step: '初始化',
+        progress: 0,
+        created_at: new Date().toISOString(),
+        sql_query: '',
+        execution_result: null,
+        clear_check_details: {},
+        is_clear: false,
+        error_message: null,
+        retry_count: 0,
+        max_retries: 5,
+        logs: [],
+        current_step_log: null,
+        current_step_name: '初始化'
       }
 
       // Subscribe to progress updates
@@ -106,8 +127,8 @@ export const useQueryStore = defineStore('query', () => {
     if (!currentTask.value || !canCancelQuery.value) return
 
     try {
-      await queryService.cancelTask(currentTask.value.taskId)
-      currentTask.value.taskStatus = 'cancelled'
+      await queryService.cancelTask(currentTask.value.task_id)
+      currentTask.value.status = 'cancelled'
     } catch (error) {
       console.error('Failed to cancel query:', error)
       throw error
@@ -128,9 +149,9 @@ export const useQueryStore = defineStore('query', () => {
 
       // Update current task
       if (currentTask.value) {
-        currentTask.value.taskId = newTaskId
-        currentTask.value.taskStatus = 'running'
-        currentTask.value.startTime = new Date().toISOString()
+        currentTask.value.task_id = newTaskId
+        currentTask.value.status = 'running'
+        currentTask.value.created_at = new Date().toISOString()
       }
 
       // Subscribe to progress updates
@@ -330,17 +351,19 @@ export const useQueryStore = defineStore('query', () => {
 
   // Progress update handler
   const handleProgressUpdate = (data: any) => {
-    if (currentTask.value && data.task_id === currentTask.value.taskId) {
-      // Update task state
+    if (currentTask.value && data.task_id === currentTask.value.task_id) {
+      // Update task state with new TaskState structure
       currentTask.value = {
         ...currentTask.value,
         ...data,
-        taskStatus: data.status || currentTask.value.taskStatus,
+        status: data.status || currentTask.value.status,
         progress: data.progress,
-        generatedSql: data.sql_query || currentTask.value.generatedSql,
+        sql_query: data.sql_query || currentTask.value.sql_query,
         current_step: data.current_step || currentTask.value.current_step,
+        current_step_name: data.current_step_name || currentTask.value.current_step_name,
         logs: data.logs || currentTask.value.logs,
-        error: data.error || currentTask.value.error
+        execution_result: data.execution_result || currentTask.value.execution_result,
+        error_message: data.error_message || currentTask.value.error_message
       }
 
       // Update result if available

@@ -83,7 +83,8 @@ class OperationTracker:
 
     async def update_task_progress(self, task_id: str, progress: int,
                                  step_name: str, current_log: BaseNodeLog = None,
-                                 error: str = None, final_status: str = None):
+                                 error: str = None, final_status: str = None,
+                                 execution_result: list[dict] = None, sql_query: str = None):
         """更新任务进度（更新缓存，异步写数据库）"""
         # 获取或创建任务状态
         state = await self.cache.get(task_id)
@@ -118,6 +119,12 @@ class OperationTracker:
             if final_status in ("success", "completed"):
                 state.completed_at = datetime.now()
                 state.progress = 100
+
+        if execution_result:
+            state.execution_result = execution_result
+
+        if sql_query:
+            state.sql_query = sql_query
 
         # 更新缓存
         logger.info(f"{task_id} 更新任务进度，更新缓存")

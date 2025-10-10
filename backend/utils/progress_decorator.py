@@ -112,7 +112,9 @@ def track_node_progress(node_name: str):
                             step_name=f"{node_name} 流程结束",
                             current_log=current_step_log,
                             error=current_step_log.error if not current_step_log.success else None,
-                            final_status="success" if new_progress == 100 else None
+                            final_status="success" if new_progress == 100 else None,
+                            execution_result=state.execution_result,
+                            sql_query=state.sql_query
                         )
                     )
 

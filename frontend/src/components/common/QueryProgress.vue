@@ -31,7 +31,7 @@
       <!-- Progress Bar -->
       <div class="mb-6">
         <div class="flex items-center justify-between mb-2">
-          <span class="text-sm font-medium">{{ currentStep?.title || '准备中...' }}</span>
+          <span class="text-sm font-medium">{{ statusTitle }}</span>
           <span class="text-sm text-base-content/60">{{ progressPercentage }}%</span>
         </div>
         <div class="progress progress-primary w-full">
@@ -243,8 +243,37 @@ const currentStep = computed(() => {
   return steps.value.find(step => step.status === 'active')
 })
 
-// Progress percentage based on completed steps
+// Status title based on task status
+const statusTitle = computed(() => {
+  if (!currentTask.value) {
+    return '准备中...'
+  }
+
+  const taskStatus = (currentTask.value as any).status
+
+  if (taskStatus === 'failed') {
+    return '查询失败'
+  } else if (taskStatus === 'success' || taskStatus === 'completed') {
+    return '查询完成'
+  } else if (taskStatus === 'cancelled') {
+    return '查询已取消'
+  } else if (currentStep.value && currentStep.value.title) {
+    return currentStep.value.title
+  } else if ((currentTask.value as any).current_step) {
+    return (currentTask.value as any).current_step
+  } else {
+    return '执行中...'
+  }
+})
+
+// Progress percentage from WebSocket progress field
 const progressPercentage = computed(() => {
+  // Use progress field from currentTask if available
+  if (currentTask.value && (currentTask.value as any).progress !== undefined) {
+    const progressValue = (currentTask.value as any).progress
+    return Math.max(0, Math.min(100, Number(progressValue)))
+  }
+  // Fallback to calculated percentage based on completed steps
   if (steps.value.length === 0) return 0
   const completedSteps = steps.value.filter(step => step.status === 'completed').length
   const totalSteps = steps.value.length
@@ -253,13 +282,23 @@ const progressPercentage = computed(() => {
 
 // Map task logs to dynamic steps
 const updateStepsFromLogs = () => {
-  if (!currentTask.value || !currentTask.value.logs) {
+  if (!currentTask.value || !(currentTask.value as any).logs) {
     steps.value = []
     return
   }
 
-  const logs = currentTask.value.logs
-  const taskStatus = currentTask.value.taskStatus
+  const logs = (currentTask.value as any).logs
+  const taskStatus = (currentTask.value as any).status
+
+  // Check for errors in logs and update error state
+  const errorLogs = logs.filter((log: any) => log.error || log.success === false)
+  if (errorLogs.length > 0) {
+    const latestErrorLog = errorLogs[errorLogs.length - 1]
+    error.value = latestErrorLog.error || latestErrorLog.model_output || '执行步骤失败'
+  } else if (taskStatus !== 'failed') {
+    // Clear error if task is not failed and no log errors exist
+    error.value = ''
+  }
 
   // Convert logs to steps
   const newSteps: QueryStep[] = logs.map((log: any, index: number) => {
@@ -298,8 +337,11 @@ const updateStepsFromLogs = () => {
     // Format description (input data)
     const formattedDescription = formatInputData(log.input_data)
 
-    // Format details (model output)
-    const formattedDetails = formatModelOutput(log.model_output)
+    // Format details (model output) - include error if present
+    let formattedDetails = formatModelOutput(log.model_output)
+    if (log.error) {
+      formattedDetails = `❌ 错误: ${log.error}\n\n${formattedDetails}`
+    }
 
     return {
       title: log.step,
@@ -314,11 +356,11 @@ const updateStepsFromLogs = () => {
   })
 
   // Add current step if task is running and last step doesn't have error
-  if (taskStatus === 'running' && currentTask.value.current_step) {
+  if (taskStatus === 'running' && (currentTask.value as any).current_step) {
     const lastStep = newSteps[newSteps.length - 1]
     if (!lastStep || lastStep.status === 'completed') {
       newSteps.push({
-        title: currentTask.value.current_step,
+        title: (currentTask.value as any).current_step,
         description: '',
         status: 'active'
       })

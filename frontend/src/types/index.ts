@@ -56,27 +56,45 @@ export interface QueryLogEntry {
   success: boolean
 }
 
-export interface QueryTask {
-  taskId: string
-  userId?: number
-  userInput: string
-  workflowType: number
-  selectedThemeId?: number
-  selectedTableIds?: number[]
-  taskStatus: 'running' | 'success' | 'failed' | 'cancelled'
-  progress?: TaskProgress
-  generatedSql?: string
-  sqlExecutionResult?: any
-  resultRowCount?: number
-  errorMessage?: string
-  startTime: string
-  endTime?: string
-  durationMs?: number
-  createdAt: string
-  updatedAt: string
-  current_step?: string
-  logs?: QueryLogEntry[]
+export interface BaseNodeLog {
+  step: string
+  input_data: string
+  prompt: string
+  model_output: string
+  success: boolean
   error?: string
+  start_time: string
+  end_time: string
+}
+
+export interface QueryTask {
+  task_id: string
+  user_input: string
+  operator?: string
+  flow_type: string
+
+  // 进度信息
+  status: 'running' | 'success' | 'failed' | 'completed'
+  current_step: string
+  progress: number
+  created_at?: string
+  completed_at?: string
+
+  // 业务数据
+  sql_query: string
+  execution_result?: any[]
+  clear_check_details?: Record<string, any>
+  is_clear: boolean
+
+  // 错误和重试
+  error_message?: string
+  retry_count: number
+  max_retries: number
+
+  // 日志
+  logs?: BaseNodeLog[]
+  current_step_log?: BaseNodeLog
+  current_step_name: string
 }
 
 export interface TaskProgress {

@@ -2,7 +2,7 @@
   <div class="space-y-4">
     <!-- Page Header -->
     <div class="grid grid-cols-1 gap-4">
-      <!-- Query Form & Progress -->
+      <!-- Query Form -->
       <div class="space-y-4">
         <!-- Query Form -->
         <QueryForm
@@ -10,16 +10,9 @@
           @submit="handleSubmitQuery"
           @cancel="handleCancelQuery"
         />
-
-        <!-- Query Progress -->
-        <QueryProgress
-          v-if="hasActiveQuery"
-          @cancel="handleCancelQuery"
-          @copy-s-q-l="handleCopySQL"
-        />
       </div>
 
-      <!-- Results & History/Favorites -->
+      <!-- Query Results -->
       <div class="space-y-4">
         <!-- Query Results -->
         <div
@@ -134,6 +127,13 @@
             </div>
           </div>
         </div>
+
+        <!-- Query Progress -->
+        <QueryProgress
+          v-if="hasActiveQuery"
+          @cancel="handleCancelQuery"
+          @copy-s-q-l="handleCopySQL"
+        />
       </div>
     </div>
 
