@@ -16,6 +16,7 @@ from vanna.chromadb import ChromaDB_VectorStore
 from vanna.openai import OpenAI_Chat
 
 from services.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service
+from services.operation_tracking import tracker
 from services.query_engine import get_query_engine
 from services.service_models import BaseNodeLog, TaskState, TaskStateHelper
 # Local imports
@@ -84,6 +85,8 @@ class NL2SQLService:
         @track_node_progress("知识库更新")
         def check_training_needed(state: TaskState) -> TaskState:
             """检查是否需要重新训练Vanna"""
+
+            logger.info(state)
 
             # 需要重新训练
             self._train_vanna()
@@ -339,7 +342,7 @@ class NL2SQLService:
                     success=True,
                 )
                 
-                state.execution_result = result
+                state.execution_result = result.to_dict(orient="records")
 
             except Exception as e:
                 error_traceback = traceback.format_exc()
@@ -628,9 +631,11 @@ class NL2SQLService:
             task_id=task_id,
             user_input=user_input,
             flow_type=flow_type,
+            max_retries=max_retries,
             operator=operator
         )
-        task_state.max_retries = max_retries
+
+        tracker.create_task(task_state)
 
         # 执行工作流（直接使用TaskState）
         final_state = self.workflow.invoke(task_state)

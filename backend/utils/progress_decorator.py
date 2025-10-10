@@ -65,12 +65,18 @@ def track_node_progress(node_name: str):
             logs = state.logs
 
             # 从历史日志计算当前进度
-            current_progress = calculate_progress_from_logs(logs)
+            progress = calculate_progress_from_logs(logs)
             start_time = datetime.now()
             task_id = state.task_id
 
             state.current_step_name = f"{node_name} 流程开始"
-            state.current_progress = current_progress
+            state.progress = progress
+
+            tracker.update_task_progress(
+                task_id=task_id,
+                progress=progress,
+                step_name=f"{node_name} 流程开始",
+            )
 
             try:
                 # 执行原函数
@@ -81,16 +87,16 @@ def track_node_progress(node_name: str):
                 current_step_log.end_time = datetime.now()
 
                 # 计算新的进度
-                new_progress = current_progress
+                new_progress = progress
 
                 # 只有在进度未达到90时才增加
-                if current_progress < 90:
+                if progress < 90:
                     if current_step_log.success:
                         # 成功：进度+10，最多到90
-                        new_progress = min(current_progress + 10, 90)
+                        new_progress = min(progress + 10, 90)
                     else:
                         # 失败：进度+5，最多到90
-                        new_progress = min(current_progress + 5, 90)
+                        new_progress = min(progress + 5, 90)
 
                 # 特殊处理最后完成节点
                 if node_name == '执行查询语句' and current_step_log.success == True:
@@ -104,21 +110,14 @@ def track_node_progress(node_name: str):
                             task_id=task_id,
                             progress=new_progress,
                             step_name=f"{node_name} 流程结束",
-                            logs=[{
-                                "step_name": node_name,
-                                "input_data": current_step_log.input_data,
-                                "output_data": current_step_log.model_output,
-                                "success": current_step_log.success,
-                                "error": current_step_log.error,
-                                "timestamp": current_step_log.end_time.isoformat() if current_step_log.end_time else datetime.now().isoformat()
-                            }],
+                            current_log=current_step_log,
                             error=current_step_log.error if not current_step_log.success else None,
                             final_status="success" if new_progress == 100 else None
                         )
                     )
 
                 result_state.current_step_name = f"{node_name} 流程结束"
-                result_state.current_progress = new_progress
+                result_state.progress = new_progress
                 return result_state
 
             except Exception as e:
@@ -127,7 +126,7 @@ def track_node_progress(node_name: str):
                     safe_create_async_task(
                         tracker.update_task_progress(
                             task_id=task_id,
-                            progress=current_progress,
+                            progress=progress,
                             step_name=f"{node_name} 流程失败",
                             error=str(e),
                             final_status="failed"

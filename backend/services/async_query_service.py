@@ -25,14 +25,6 @@ class AsyncQueryService:
         # 创建任务
         task_id = str(uuid.uuid4())
 
-        # 在追踪系统中创建任务
-        await tracker.create_task(
-            task_id=task_id,
-            user_input=user_input,
-            operator=operator,
-            flow_type=flow_type
-        )
-
         # 启动后台任务
         task = asyncio.create_task(
             self._execute_query(task_id, user_input, max_retries, operator, flow_type)
@@ -43,36 +35,22 @@ class AsyncQueryService:
 
         return task_id
 
-    async def get_task_result(self, task_id: str) -> Optional[Dict[str, Any]]:
-        """获取任务结果"""
-        try:
-            # 从追踪系统获取任务状态
-            task_state = await tracker.get_task_status(task_id)
-            if not task_state:
-                return None
-
-            # 使用统一的 to_dict 方法转换为API格式
-            result = task_state.to_dict()
-
-            # 确定状态（保持兼容性）
-            if task_state.status == "running":
-                result["status"] = "running"
-            elif task_state.status in ("success", "completed"):
-                result["status"] = "success"
-            elif task_state.status == "failed":
-                result["status"] = "failed"
-            else:
-                result["status"] = task_state.status
-
-            # 确保有兼容字段
-            result.setdefault("current_step", task_state.current_step)
-            result.setdefault("progress", task_state.progress)
-
-            return result
-
-        except Exception as e:
-            logger.error(f"获取任务结果失败: {e}")
-            return None
+    # async def get_task_result(self, task_id: str) -> Optional[Dict[str, Any]]:
+    #     """获取任务结果"""
+    #     try:
+    #         # 从追踪系统获取任务状态
+    #         task_state = await tracker.get_task_status(task_id)
+    #         if not task_state:
+    #             return None
+    #
+    #         # 使用统一的 to_dict 方法转换为API格式
+    #         result = task_state.model_dump()
+    #
+    #         return result
+    #
+    #     except Exception as e:
+    #         logger.error(f"获取任务结果失败: {e}")
+    #         return None
 
     async def _execute_query(self, task_id: str, user_input: str, max_retries: int,
                            operator: str, flow_type: str):
@@ -82,14 +60,13 @@ class AsyncQueryService:
             loop = asyncio.get_event_loop()
 
             # 将同步的NL2SQL处理移到线程池执行，避免阻塞事件循环
-            result = await loop.run_in_executor(
+            await loop.run_in_executor(
                 None,  # 使用默认线程池
                 self.nl2sql_service.process_query,
                 user_input, task_id, max_retries, operator, flow_type
             )
 
-            # 将结果更新到 OperationTracker 缓存中，确保后续状态更新能找到正确的 TaskState
-            await tracker.cache.set(task_id, result)
+            result = await tracker.cache.get(task_id)
 
             # 更新最终状态 - TaskState 对象需要转换为字典或直接访问属性
             if result.status in ('success', 'completed'):

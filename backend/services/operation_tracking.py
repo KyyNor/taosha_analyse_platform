@@ -23,31 +23,15 @@ class TaskCache:
         """获取缓存中的任务状态"""
         try:
             state = self._cache.get(task_id)
-            if state:
-                # 类型检查：确保是TaskState对象
-                if isinstance(state, TaskState):
-                    logger.debug(f"从缓存获取任务 {task_id}，类型正确: TaskState")
-                    return state
-                else:
-                    logger.warning(f"缓存中的对象类型不正确，任务ID: {task_id}，期望TaskState，实际: {type(state)}")
-                    # 清除错误的缓存项
-                    self._cache.pop(task_id, None)
-                    return None
-            return None
+            return state
         except Exception as e:
             logger.error(f"从缓存获取任务状态失败: {e}")
             return None
 
-    async def set(self, task_id: str, state: TaskState):
+    def set(self, task_id: str, state: TaskState):
         """设置任务状态到缓存"""
         try:
-            # 类型检查：确保传入的是TaskState对象
-            if isinstance(state, TaskState):
-                self._cache[task_id] = state
-                logger.debug(f"任务 {task_id} 已设置到缓存，类型: TaskState")
-            else:
-                logger.error(f"尝试设置非TaskState对象到缓存，任务ID: {task_id}，类型: {type(state)}")
-                raise ValueError(f"Expected TaskState, got {type(state)}")
+            self._cache[task_id] = state
         except Exception as e:
             logger.error(f"设置任务状态到缓存失败: {e}")
 
@@ -91,19 +75,14 @@ class OperationTracker:
         # 只查缓存，不查数据库
         cached_state = await self.cache.get(task_id)
         if cached_state:
-            # 类型检查：确保返回的是TaskState对象
-            if isinstance(cached_state, TaskState):
-                return cached_state
-            else:
-                logger.warning(f"缓存中的对象类型不正确，期望TaskState，实际: {type(cached_state)}")
-                return None
+            return cached_state
 
         # 缓存未命中，直接返回None
         logger.debug(f"任务 {task_id} 在缓存中未找到")
         return None
 
     async def update_task_progress(self, task_id: str, progress: int,
-                                 step_name: str, logs: List[Dict[str, Any]] = None,
+                                 step_name: str, current_log: BaseNodeLog = None,
                                  error: str = None, final_status: str = None):
         """更新任务进度（更新缓存，异步写数据库）"""
         # 获取或创建任务状态
@@ -118,43 +97,17 @@ class OperationTracker:
                 created_at=datetime.now()
             )
 
-        # 类型安全检查：确保state是TaskState对象
-        if not isinstance(state, TaskState):
-            logger.error(f"update_task_progress中state类型不正确，期望TaskState，实际: {type(state)}")
-            logger.error(step_name)
-            # 重新创建TaskState对象
-            state = TaskState(
-                task_id=task_id,
-                user_input="",
-                status="running",
-                current_step=step_name,
-                progress=progress,
-                created_at=datetime.now()
-            )
-
         # 更新状态
         state.progress = progress
         state.current_step = step_name
         state.current_step_name = step_name
-        state.current_progress = progress
+        state.progress = progress
         logger.debug(f"更新任务 {task_id} 进度: {progress}%, 步骤: {step_name}")
 
-        if logs:
-            # 转换字典日志为BaseNodeLog对象
-            for log_dict in logs:
-                log = BaseNodeLog(
-                    step=log_dict.get("step_name", step_name),
-                    input_data=log_dict.get("input_data", ""),
-                    prompt="",
-                    model_output=log_dict.get("output_data", ""),
-                    success=log_dict.get("success", True),
-                    error=log_dict.get("error"),
-                    start_time=datetime.fromisoformat(log_dict.get("timestamp", datetime.now().isoformat())),
-                    end_time=datetime.fromisoformat(log_dict.get("timestamp", datetime.now().isoformat()))
-                )
-                state.logs.append(log)
-                # 设置当前步骤日志为最新的日志
-                state.current_step_log = log
+        if current_log:
+            state.logs.append(current_log)
+            # 设置当前步骤日志为最新的日志
+            state.current_step_log = current_log
 
         if error:
             state.error_message = error
@@ -168,33 +121,21 @@ class OperationTracker:
 
         # 更新缓存
         logger.info(f"{task_id} 更新任务进度，更新缓存")
-        await self.cache.set(task_id, state)
+        self.cache.set(task_id, state)
         logger.info(f"{task_id} 更新任务进度，更新缓存结束")
 
         # 写入数据库
         await self._write_to_db(state)
 
-    async def create_task(self, task_id: str, user_input: str,
-                         operator: str = None, flow_type: str = None):
+    def create_task(self, state: TaskState):
         """创建新任务"""
-        state = TaskState(
-            task_id=task_id,
-            user_input=user_input,
-            status="running",
-            current_step="初始化",
-            progress=0,
-            created_at=datetime.now(),
-            started_at=datetime.now(),
-            operator=operator,
-            flow_type=flow_type or "fast"
-        )
 
         # 更新缓存
-        logger.info(f"{task_id} 新建任务，更新缓存")
-        await self.cache.set(task_id, state)
-        logger.info(f"{task_id} 新建任务，更新缓存结束")
+        logger.info(f"{state.task_id} 新建任务，更新缓存")
+        self.cache.set(state.task_id, state)
+        logger.info(f"{state.task_id} 新建任务，更新缓存结束")
 
-        await self._write_session_to_db(task_id, operator)
+        self._write_session_to_db(state.task_id, state.operator)
 
     async def _write_to_db(self, state: TaskState):
         """异步写入任务状态到数据库"""

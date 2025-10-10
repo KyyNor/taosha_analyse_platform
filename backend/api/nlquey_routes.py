@@ -10,6 +10,7 @@ from fastapi.encoders import jsonable_encoder
 
 from api.endpoint_models import QueryRequest
 from services.async_query_service import get_async_query_service
+from services.operation_tracking import tracker
 from utils.logger import logger
 
 # 创建路由器
@@ -24,6 +25,7 @@ async def ws_task_process(websocket: WebSocket):
     """
     await websocket.accept()
     current_task_id = None
+    retry_cnt = 0
     running = True
 
     try:
@@ -43,40 +45,21 @@ async def ws_task_process(websocket: WebSocket):
 
             # 如果有当前任务，推送状态
             if current_task_id:
-                async_query_service = get_async_query_service()
-                task_result = await async_query_service.get_task_result(current_task_id)
+                task_result = await tracker.get_task_status(current_task_id)
 
                 if task_result:
-                    # 处理日志格式转换
-                    processed_logs = task_result.get("logs", [])
-
                     # 构建响应数据（使用统一的状态格式）
                     response = {
                         "code": 0,
-                        "data": {
-                            "task_id": task_result.get("task_id"),
-                            "status": task_result.get("status"),
-                            "current_step": task_result.get("current_step"),
-                            "progress": task_result.get("progress"),
-                            "created_at": task_result.get("created_at"),
-                            "started_at": task_result.get("started_at"),
-                            "completed_at": task_result.get("completed_at"),
-                            "user_input": task_result.get("user_input"),
-                            "sql_query": task_result.get("sql_query"),
-                            "data": task_result.get("data"),
-                            "row_count": task_result.get("row_count", 0),
-                            "success": task_result.get("success", False),
-                            "error": task_result.get("error_message"),
-                            "logs": processed_logs
-                        },
+                        "data": task_result,
                         "error_msg": ""
                     }
 
                     await websocket.send_json(jsonable_encoder(response))
 
                     # 检查任务是否完成
-                    if task_result["status"] in ["success", "failed"]:
-                        logger.info(f"任务 {current_task_id} 已完成，状态: {task_result['status']}")
+                    if task_result.status in ["success", "failed"]:
+                        logger.info(f"任务 {current_task_id} 已完成，状态: {task_result.status}")
                         # 任务完成后，清空当前任务，但保持连接等待新任务
                         current_task_id = None
                 else:
@@ -84,9 +67,13 @@ async def ws_task_process(websocket: WebSocket):
                     await websocket.send_json({
                         "code": 404,
                         "data": None,
-                        "error_msg": f"任务 {current_task_id} 不存在"
+                        "error_msg": f"第{retry_cnt + 1}次尝试：任务 {current_task_id} 不存在"
                     })
-                    current_task_id = None
+                    if retry_cnt < 10:
+                        retry_cnt = retry_cnt + 1
+                    else:
+                        current_task_id = None
+                        retry_cnt = 0
 
             # 等待5秒再推送
             await asyncio.sleep(5)
