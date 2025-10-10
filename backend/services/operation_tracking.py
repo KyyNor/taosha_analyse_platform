@@ -22,7 +22,18 @@ class TaskCache:
     async def get(self, task_id: str) -> Optional[TaskState]:
         """获取缓存中的任务状态"""
         try:
-            return self._cache.get(task_id)
+            state = self._cache.get(task_id)
+            if state:
+                # 类型检查：确保是TaskState对象
+                if isinstance(state, TaskState):
+                    logger.debug(f"从缓存获取任务 {task_id}，类型正确: TaskState")
+                    return state
+                else:
+                    logger.warning(f"缓存中的对象类型不正确，任务ID: {task_id}，期望TaskState，实际: {type(state)}")
+                    # 清除错误的缓存项
+                    self._cache.pop(task_id, None)
+                    return None
+            return None
         except Exception as e:
             logger.error(f"从缓存获取任务状态失败: {e}")
             return None
@@ -30,7 +41,13 @@ class TaskCache:
     async def set(self, task_id: str, state: TaskState):
         """设置任务状态到缓存"""
         try:
-            self._cache[task_id] = state
+            # 类型检查：确保传入的是TaskState对象
+            if isinstance(state, TaskState):
+                self._cache[task_id] = state
+                logger.debug(f"任务 {task_id} 已设置到缓存，类型: TaskState")
+            else:
+                logger.error(f"尝试设置非TaskState对象到缓存，任务ID: {task_id}，类型: {type(state)}")
+                raise ValueError(f"Expected TaskState, got {type(state)}")
         except Exception as e:
             logger.error(f"设置任务状态到缓存失败: {e}")
 
@@ -70,71 +87,20 @@ class OperationTracker:
         self.cache = TaskCache()
 
     async def get_task_status(self, task_id: str) -> Optional[TaskState]:
-        """获取任务状态（先查缓存，再查数据库）"""
-        # 先查缓存
+        """获取任务状态（只从内存缓存获取）"""
+        # 只查缓存，不查数据库
         cached_state = await self.cache.get(task_id)
         if cached_state:
-            return cached_state
-
-        # 缓存未命中，查询数据库
-        try:
-            row = self.db_manager.execute_query("""
-                SELECT s.*,
-                       CASE WHEN s.status = 'running' THEN 'running'
-                            WHEN s.error_message IS NOT NULL THEN 'failed'
-                            ELSE 'completed' END as final_status
-                FROM operation_sessions s
-                WHERE s.session_id = ?
-            """, (task_id,), fetch="one")
-
-            if not row:
+            # 类型检查：确保返回的是TaskState对象
+            if isinstance(cached_state, TaskState):
+                return cached_state
+            else:
+                logger.warning(f"缓存中的对象类型不正确，期望TaskState，实际: {type(cached_state)}")
                 return None
 
-            # 查询步骤日志
-            steps = self.db_manager.execute_query("""
-                SELECT step_sequence, step_name, input_data, output_data,
-                       generated_sql, error_message, success, created_at
-                FROM operation_steps
-                WHERE session_id = ?
-                ORDER BY step_sequence
-            """, (task_id,))
-
-            # 构建步骤日志对象
-            logs = []
-            for step in steps:
-                log = BaseNodeLog(
-                    step=step[1],
-                    input_data=step[2],
-                    prompt="",
-                    model_output=step[3],
-                    success=bool(step[6]),
-                    error=step[5],
-                    start_time=datetime.fromisoformat(step[7]),
-                    end_time=datetime.fromisoformat(step[7])
-                )
-                logs.append(log)
-
-            # 构建任务状态
-            state = TaskState(
-                task_id=row[0],  # session_id
-                user_input="",  # 需要从步骤日志中获取
-                status=row[1] if row[1] != 'running' else 'running',
-                current_step=steps[-1][1] if steps else "完成",  # 从最新步骤获取
-                progress=100 if row[1] in ('completed', 'failed') else 90,
-                created_at=datetime.fromisoformat(row[2]),
-                started_at=datetime.fromisoformat(row[2]) if row[2] else None,
-                completed_at=datetime.fromisoformat(row[3]) if row[3] else None,
-                error_message=row[4],
-                logs=logs
-            )
-
-            # 更新缓存
-            await self.cache.set(task_id, state)
-            return state
-
-        except Exception as e:
-            logger.error(f"从数据库获取任务状态失败: {e}")
-            return None
+        # 缓存未命中，直接返回None
+        logger.debug(f"任务 {task_id} 在缓存中未找到")
+        return None
 
     async def update_task_progress(self, task_id: str, progress: int,
                                  step_name: str, logs: List[Dict[str, Any]] = None,
@@ -152,11 +118,26 @@ class OperationTracker:
                 created_at=datetime.now()
             )
 
+        # 类型安全检查：确保state是TaskState对象
+        if not isinstance(state, TaskState):
+            logger.error(f"update_task_progress中state类型不正确，期望TaskState，实际: {type(state)}")
+            logger.error(step_name)
+            # 重新创建TaskState对象
+            state = TaskState(
+                task_id=task_id,
+                user_input="",
+                status="running",
+                current_step=step_name,
+                progress=progress,
+                created_at=datetime.now()
+            )
+
         # 更新状态
         state.progress = progress
         state.current_step = step_name
         state.current_step_name = step_name
         state.current_progress = progress
+        logger.debug(f"更新任务 {task_id} 进度: {progress}%, 步骤: {step_name}")
 
         if logs:
             # 转换字典日志为BaseNodeLog对象
