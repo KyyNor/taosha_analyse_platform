@@ -220,8 +220,7 @@ class OperationTracker:
 
 
     async def get_query_history(self, page: int = 1, page_size: int = 20,
-                                status: str = None, start_time: str = None,
-                                end_time: str = None, operator: str = "api_user"):
+                                status: str = None, operator: str = "api_user"):
         """获取查询历史记录"""
         try:
             # 构建查询条件
@@ -232,20 +231,12 @@ class OperationTracker:
                 where_conditions.append("status = ?")
                 params.append(status)
 
-            if start_time:
-                where_conditions.append("start_time >= ?")
-                params.append(start_time)
-
-            if end_time:
-                where_conditions.append("start_time <= ?")
-                params.append(end_time)
-
             where_clause = " AND ".join(where_conditions)
 
             # 查询总数
             count_query = f"SELECT COUNT(*) as total FROM operation_sessions WHERE {where_clause}"
-            count_result = self.db_manager.execute_query(count_query, params)
-            total = count_result[0]['total'] if count_result else 0
+            count_result = self.db_manager.execute_query(count_query, params, fetch="one")
+            total = count_result[0] if count_result else 0
 
             # 查询分页数据
             offset = (page - 1) * page_size
@@ -266,7 +257,9 @@ class OperationTracker:
             """
             params.extend([page_size, offset])
 
-            results = self.db_manager.execute_query(query, params)
+            results = self.db_manager.execute_query(query, params, fetch="all")
+            
+            logger.info(f"操作人：{operator} 返回总条数：{total} 是否获取到分页结果：{results is None}")
 
             # 处理数据格式
             history_items = []
@@ -343,7 +336,7 @@ class OperationTracker:
                 FROM operation_sessions
                 WHERE session_id = ?
             """
-            results = self.db_manager.execute_query(query, [task_id])
+            results = self.db_manager.execute_query(query, [task_id], fetch="all")
 
             if not results:
                 return {
@@ -371,7 +364,7 @@ class OperationTracker:
                 WHERE session_id = ?
                 ORDER BY step_sequence
             """
-            steps = self.db_manager.execute_query(steps_query, [task_id])
+            steps = self.db_manager.execute_query(steps_query, [task_id], fetch="all")
 
             # 获取最新的SQL和执行结果
             sql_query = None

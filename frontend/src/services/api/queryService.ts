@@ -61,8 +61,6 @@ class QueryService {
     pageSize: number = 20,
     filters: {
       status?: string
-      start_time?: string
-      end_time?: string
     } = {}
   ): Promise<PaginatedResponse<QueryLog>> {
     const params = {

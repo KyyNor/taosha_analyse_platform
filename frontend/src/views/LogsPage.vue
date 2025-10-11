@@ -2,29 +2,6 @@
   <div class="space-y-6">
     <!-- Filters -->
     <div class="flex flex-wrap gap-4 items-center bg-base-200 p-4 rounded-lg">
-      <div class="form-control">
-        <label class="label">
-          <span class="label-text">时间范围</span>
-        </label>
-        <select
-          v-model="filters.timeRange"
-          class="select select-bordered select-sm"
-          @change="loadLogs"
-        >
-          <option value="1h">
-            最近1小时
-          </option>
-          <option value="24h">
-            最近24小时
-          </option>
-          <option value="7d">
-            最近7天
-          </option>
-          <option value="30d">
-            最近30天
-          </option>
-        </select>
-      </div>
 
       <div class="form-control">
         <label class="label">
@@ -204,7 +181,6 @@ const pagination = ref({
 
 // Filters
 const filters = reactive({
-  timeRange: '24h',
   status: '',
   user: '',
   search: ''
@@ -253,53 +229,23 @@ const debouncedSearch = () => {
   searchTimeout = setTimeout(loadLogs, 500)
 }
 
-// Convert time range to actual timestamps
-const getTimeRangeParams = () => {
-  const now = new Date()
-  let startTime = null
-
-  switch (filters.timeRange) {
-    case '1h':
-      startTime = new Date(now.getTime() - 60 * 60 * 1000)
-      break
-    case '24h':
-      startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-      break
-    case '7d':
-      startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-      break
-    case '30d':
-      startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-      break
-  }
-
-  return {
-    startTime: startTime ? startTime.toISOString() : undefined,
-    endTime: now.toISOString()
-  }
-}
 
 // Load logs
 const loadLogs = async () => {
   try {
     loading.value = true
 
-    const timeParams = getTimeRangeParams()
     const params = {
       page: pagination.value.page,
       pageSize: pagination.value.pageSize,
-      ...(filters.status && { status: filters.status }),
-      ...(timeParams.startTime && { startTime: timeParams.startTime }),
-      ...(timeParams.endTime && { endTime: timeParams.endTime })
+      ...(filters.status && { status: filters.status })
     }
 
     const response = await queryService.getQueryHistory(
       params.page,
       params.pageSize,
       {
-        status: params.status,
-        start_time: params.startTime,
-        end_time: params.endTime
+        status: params.status
       }
     )
 

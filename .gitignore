@@ -145,4 +145,4 @@ tmp/
 temp/
 .tmp/
 
-backend/database/Qwen/
+backend/database/Qwen3-Embedding-0___6B/

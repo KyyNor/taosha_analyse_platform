@@ -136,9 +136,7 @@ async def process_natural_language_query(request: QueryRequest):
 async def get_query_history(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页大小"),
-    status: str = Query(None, description="状态过滤"),
-    start_time: str = Query(None, description="开始时间"),
-    end_time: str = Query(None, description="结束时间")
+    status: str = Query(None, description="状态过滤")
 ):
     """
     获取查询历史记录
@@ -151,8 +149,6 @@ async def get_query_history(
             page=page,
             page_size=page_size,
             status=status,
-            start_time=start_time,
-            end_time=end_time,
             operator="api_user"  # 暂时写死
         )
 
