@@ -144,3 +144,5 @@ yarn-error.log*
 tmp/
 temp/
 .tmp/
+
+backend/database/Qwen/

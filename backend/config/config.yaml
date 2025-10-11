@@ -38,10 +38,14 @@ openai:
 
 # Embedding配置 (用于ChromaDB向量存储)
 embedding:
-  api_key: ""  # 从环境变量 EMBEDDING_API_KEY 读取，如果为空则使用默认embedding
-  base_url: ""  # 从环境变量 EMBEDDING_BASE_URL 读取，OpenAI兼容API的base_url
+  type: "local"  # remote 或 local
+  api_key: ""  # remote需配置环境变量 EMBEDDING_API_KEY
+  base_url: ""  # remote需配置环境变量 EMBEDDING_BASE_URL
+  model_path: "D:\\code\\taosha_analyse_platform\\backend\\database\\Qwen\\Qwen3-Embedding-0___6B"  # local需配置 本地模型路径
+  device: "cpu"  # 推理设备: cpu/cuda
+  cache_size: 1000  # embedding缓存大小
   model: "Qwen/Qwen3-Embedding-0.6B"  # OpenAI embedding模型名称
-  dimensions: 1024  # embedding维度 (用于验证)
+  dimensions: 1024  # embedding维度
 
 # 日志配置
 logging:

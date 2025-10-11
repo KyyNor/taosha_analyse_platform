@@ -85,10 +85,16 @@ class ConfigManager:
             openai_temperature: float = self._config_data.get('openai', {}).get('temperature', 0.1)
 
             # Embedding配置
+            embedding_type: str = self._config_data.get('embedding', {}).get('type', 'remote')  # remote 或 local
             embedding_api_key: Optional[str] = os.getenv("EMBEDDING_API_KEY") or self._config_data.get('embedding', {}).get('api_key')
             embedding_base_url: Optional[str] = os.getenv("EMBEDDING_BASE_URL") or self._config_data.get('embedding', {}).get('base_url')
             embedding_model: str = self._config_data.get('embedding', {}).get('model', 'text-embedding-3-small')
             embedding_dimensions: int = self._config_data.get('embedding', {}).get('dimensions', 1024)
+
+            # 本地Embedding配置（统一到embedding配置下）
+            embedding_model_path: Optional[str] = self._config_data.get('embedding', {}).get('model_path')
+            embedding_device: str = self._config_data.get('embedding', {}).get('device', 'cpu')
+            embedding_cache_size: int = self._config_data.get('embedding', {}).get('cache_size', 1000)
 
             # 日志配置
             log_level: str = self._config_data.get('logging', {}).get('level', 'INFO')
