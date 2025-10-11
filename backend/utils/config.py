@@ -65,18 +65,18 @@ class ConfigManager:
             chromadb_path: str = self._config_data.get('database', {}).get('chromadb_path', './database/chromadb')
 
             # 元数据配置
-            metadata_db_type: str = self._config_data.get('metadata', {}).get('db_type', 'sqlite')
+            taosha_db_db_type: str = self._config_data.get('taosha_db', {}).get('db_type', 'sqlite')
 
             # SQLite配置
-            metadata_sqlite_path: str = self._config_data.get('metadata', {}).get('sqlite_path', './database/metadata.db')
+            taosha_db_sqlite_path: str = self._config_data.get('taosha_db', {}).get('sqlite_path', './database/metadata.db')
 
             # MySQL配置
-            metadata_mysql_host: str = self._config_data.get('metadata', {}).get('mysql', {}).get('host', 'localhost')
-            metadata_mysql_port: int = self._config_data.get('metadata', {}).get('mysql', {}).get('port', 3306)
-            metadata_mysql_database: str = self._config_data.get('metadata', {}).get('mysql', {}).get('database', 'taosha_metadata')
-            metadata_mysql_user: str = self._config_data.get('metadata', {}).get('mysql', {}).get('user', 'root')
-            metadata_mysql_password: str = self._config_data.get('metadata', {}).get('mysql', {}).get('password', '')
-            metadata_mysql_charset: str = self._config_data.get('metadata', {}).get('mysql', {}).get('charset', 'utf8mb4')
+            taosha_db_mysql_host: str = self._config_data.get('taosha_db', {}).get('mysql', {}).get('host', 'localhost')
+            taosha_db_mysql_port: int = self._config_data.get('taosha_db', {}).get('mysql', {}).get('port', 3306)
+            taosha_db_mysql_database: str = self._config_data.get('taosha_db', {}).get('mysql', {}).get('database', 'taosha')
+            taosha_db_mysql_user: str = self._config_data.get('taosha_db', {}).get('mysql', {}).get('user', 'root')
+            taosha_db_mysql_password: str = self._config_data.get('taosha_db', {}).get('mysql', {}).get('password', '')
+            taosha_db_mysql_charset: str = self._config_data.get('taosha_db', {}).get('mysql', {}).get('charset', 'utf8mb4')
 
             # OpenAI配置
             openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY") or self._config_data.get('openai', {}).get('api_key')

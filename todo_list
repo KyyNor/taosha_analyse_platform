@@ -6,3 +6,6 @@
 6、即便流程失败了，也是显示的成功 例如需要澄清
 7、需要澄清的时候，不会展示选项
 8、为什么DataQuery里需要分情况判断 log，有好多重复代码
+
+
+metadata里边很多都是get_taosha_db_connection 然后干啥干啥，其实直接用execute_query就行，可以改一下

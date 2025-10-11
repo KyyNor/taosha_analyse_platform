@@ -235,7 +235,7 @@ class OperationTracker:
 
             # 查询总数
             count_query = f"SELECT COUNT(*) as total FROM operation_sessions WHERE {where_clause}"
-            count_result = self.db_manager.execute_query(count_query, params, fetch="one")
+            count_result = self.db_manager.execute_query(count_query, params, fetch="one", return_dict=False)
             total = count_result[0] if count_result else 0
 
             # 查询分页数据
@@ -283,7 +283,7 @@ class OperationTracker:
                     'duration': duration,
                     'generatedSql': '',
                     'errorMessage': result['errorMessage'],
-                    'executionResult': '',
+                    'executionResult': [],
                     'operator': result['operator']
                 }
                 history_items.append(item)

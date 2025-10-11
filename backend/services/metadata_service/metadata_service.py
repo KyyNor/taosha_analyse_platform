@@ -24,7 +24,7 @@ class MetadataService:
     def _load_metadata(self) -> Dict[str, Any]:
         """从数据库加载元数据"""
         try:
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 
                 cursor.execute("SELECT name, comment, is_available FROM metadata_tables ORDER BY name")
@@ -112,7 +112,7 @@ class MetadataService:
     def add_table(self, table_name: str, comment: str = "", is_available: int = 0) -> bool:
         """添加表元数据"""
         try:
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
@@ -131,7 +131,7 @@ class MetadataService:
     def update_table(self, table_name: str, comment: str = None, is_available: int = None) -> bool:
         """更新表元数据"""
         try:
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
@@ -164,7 +164,7 @@ class MetadataService:
     def delete_table(self, table_name: str) -> bool:
         """删除表元数据"""
         try:
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
@@ -181,7 +181,7 @@ class MetadataService:
                    comment: str = "", is_available: int = 0, business_type: str = "", relation_id: str = "") -> bool:
         """添加列元数据"""
         try:
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
@@ -201,7 +201,7 @@ class MetadataService:
                      comment: str = None, is_available: int = None, business_type: str = None, relation_id: str = None) -> bool:
         """更新列元数据"""
         try:
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
@@ -243,7 +243,7 @@ class MetadataService:
     def delete_column(self, table_name: str, column_name: str) -> bool:
         """删除列元数据"""
         try:
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
@@ -261,7 +261,7 @@ class MetadataService:
     
     def _load_metadata_from_db(self) -> Dict[str, Any]:
         """从数据库加载元数据（不更新实例状态）"""
-        with self.db_manager.get_metadata_connection() as (conn, db_type):
+        with self.db_manager.get_taosha_db_connection() as (conn, db_type):
             cursor = conn.cursor()
             
             cursor.execute("SELECT name, comment, is_available FROM metadata_tables ORDER BY name")
@@ -312,7 +312,7 @@ class RelationFieldConfigService:
     def get_all_relation_configs(self) -> List[Dict[str, Any]]:
         """获取所有关联字段配置"""
         try:
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 
                 cursor.execute("""
@@ -342,7 +342,7 @@ class RelationFieldConfigService:
         try:
             relation_id = f"{family}|{subfamily}"
             
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
@@ -361,7 +361,7 @@ class RelationFieldConfigService:
     def update_relation_config(self, relation_id: str, family: str = None, subfamily: str = None, desc: str = None) -> bool:
         """更新关联字段配置"""
         try:
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
@@ -414,7 +414,7 @@ class RelationFieldConfigService:
     def delete_relation_config(self, relation_id: str) -> bool:
         """删除关联字段配置"""
         try:
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
@@ -444,7 +444,7 @@ class GlossaryService:
     def _load_glossary(self) -> Dict[str, Any]:
         """从数据库加载术语表"""
         try:
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 
                 cursor.execute("""
@@ -530,7 +530,7 @@ class GlossaryService:
                  category: str = "", aliases: List[str] = None) -> bool:
         """添加术语"""
         try:
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
@@ -559,7 +559,7 @@ class GlossaryService:
                    sql_expression: str = None, category: str = None) -> bool:
         """更新术语"""
         try:
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
@@ -598,7 +598,7 @@ class GlossaryService:
     def delete_term(self, term_id: int) -> bool:
         """删除术语"""
         try:
-            with self.db_manager.get_metadata_connection() as (conn, db_type):
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 
@@ -613,7 +613,7 @@ class GlossaryService:
     
     def _load_glossary_from_db(self) -> Dict[str, Any]:
         """从数据库加载术语表（不更新实例状态）"""
-        with self.db_manager.get_metadata_connection() as (conn, db_type):
+        with self.db_manager.get_taosha_db_connection() as (conn, db_type):
             cursor = conn.cursor()
             
             cursor.execute("""

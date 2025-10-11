@@ -14,7 +14,7 @@ query_engine:
   chromadb_path: "./database/chromadb"
 
 # 元数据配置
-metadata:
+taosha_db:
   db_type: "sqlite"  # sqlite 或 mysql
 
   # SQLite配置（默认）

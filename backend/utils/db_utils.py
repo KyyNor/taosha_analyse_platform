@@ -18,11 +18,11 @@ class DatabaseConnectionManager:
     def __init__(self):
         self._connections: Dict[str, Any] = {}
     
-    def get_metadata_db_config(self) -> Dict[str, Any]:
+    def get_taosha_db_config(self) -> Dict[str, Any]:
         """获取元数据数据库配置"""
         return {
-            "type": getattr(settings, "metadata_db_type", "sqlite"),
-            "config": self._get_db_config_by_type(getattr(settings, "metadata_db_type", "sqlite"))
+            "type": getattr(settings, "taosha_db_type", "sqlite"),
+            "config": self._get_db_config_by_type(getattr(settings, "taosha_db_type", "sqlite"))
         }
     
     def _get_db_config_by_type(self, db_type: str) -> Dict[str, Any]:
@@ -33,12 +33,12 @@ class DatabaseConnectionManager:
             }
         elif db_type == "mysql":
             return {
-                "host": getattr(settings, "metadata_mysql_host", "localhost"),
-                "port": getattr(settings, "metadata_mysql_port", 3306),
-                "database": getattr(settings, "metadata_mysql_database", "taosha_metadata"),
-                "user": getattr(settings, "metadata_mysql_user", "root"),
-                "password": getattr(settings, "metadata_mysql_password", ""),
-                "charset": getattr(settings, "metadata_mysql_charset", "utf8mb4")
+                "host": getattr(settings, "taosha_db_mysql_host", "localhost"),
+                "port": getattr(settings, "taosha_db_mysql_port", 3306),
+                "database": getattr(settings, "taosha_db_mysql_database", "taosha"),
+                "user": getattr(settings, "taosha_db_mysql_user", "root"),
+                "password": getattr(settings, "taosha_db_mysql_password", ""),
+                "charset": getattr(settings, "taosha_db_mysql_charset", "utf8mb4")
             }
         else:
             raise ValueError(f"不支持的数据库类型: {db_type}")
@@ -62,9 +62,9 @@ class DatabaseConnectionManager:
             raise ValueError(f"不支持的数据库类型: {db_type}")
     
     @contextmanager
-    def get_metadata_connection(self):
+    def get_taosha_db_connection(self):
         """获取元数据数据库连接（上下文管理器）"""
-        db_config = self.get_metadata_db_config()
+        db_config = self.get_taosha_db_config()
         db_type = db_config["type"]
         config = db_config["config"]
         
@@ -87,7 +87,7 @@ class DatabaseConnectionManager:
                 conn.close()
                 logger.debug(f"关闭{db_type}数据库连接")
     
-    def init_metadata_tables(self, force_recreate: bool = False):
+    def init_taosha_db_tables(self, force_recreate: bool = False):
         """初始化元数据表结构
 
         Args:
@@ -95,7 +95,7 @@ class DatabaseConnectionManager:
         """
         from pathlib import Path
 
-        db_config = self.get_metadata_db_config()
+        db_config = self.get_taosha_db_config()
         db_type = db_config["type"]
 
         # 如果需要强制重建且是SQLite，删除数据库文件
@@ -105,7 +105,7 @@ class DatabaseConnectionManager:
                 db_path.unlink()
                 logger.info(f"SQLite数据库文件已删除: {db_path}")
 
-        with self.get_metadata_connection() as (conn, db_type):
+        with self.get_taosha_db_connection() as (conn, db_type):
             cursor = conn.cursor()
 
             try:
@@ -160,33 +160,59 @@ class DatabaseConnectionManager:
         else:
             raise ValueError(f"不支持的数据库类型: {db_type}")
     
-    def execute_query(self, query: str, params: tuple = None, fetch: str = "none") -> Optional[Any]:
-        """执行查询"""
-        with self.get_metadata_connection() as (conn, db_type):
-            cursor = conn.cursor()
-            
+    def execute_query(self, query: str, params: tuple = None, fetch: str = "all", return_dict: bool = True) -> Optional[Any]:
+        """执行查询
+
+        Args:
+            query: SQL查询语句
+            params: 查询参数
+            fetch: 获取结果的方式 ("none", "one", "all", "lastrowid")
+            return_dict: 是否返回字典格式 (True) 或元组格式 (False)，默认True
+
+        Returns:
+            根据fetch和return_dict参数返回相应格式的结果
+        """
+        with self.get_taosha_db_connection() as (conn, db_type):
+            # 根据return_dict选择cursor类型
+            if return_dict:
+                if db_type == "sqlite":
+                    cursor = conn.cursor()
+                    cursor.row_factory = sqlite3.Row
+                elif db_type == "mysql":
+                    cursor = conn.cursor(pymysql.cursors.DictCursor)
+                else:
+                    cursor = conn.cursor()
+            else:
+                cursor = conn.cursor()
+
             # 转换占位符
             if db_type == "mysql" and "?" in query:
                 query = query.replace("?", "%s")
-            
+
             try:
                 if params:
                     cursor.execute(query, params)
                 else:
                     cursor.execute(query)
-                
+
                 if fetch == "one":
                     result = cursor.fetchone()
+                    # 将sqlite.Row转换为字典
+                    if return_dict and db_type == "sqlite" and result is not None:
+                        result = dict(result)
                 elif fetch == "all":
                     result = cursor.fetchall()
+                    # 将sqlite.Row列表转换为字典列表
+                    if return_dict and db_type == "sqlite":
+                        result = [dict(row) for row in result]
                 elif fetch == "lastrowid":
                     result = cursor.lastrowid
                 else:
                     result = None
-                
+
                 conn.commit()
                 return result
-                
+
             except Exception as e:
                 logger.error(f"SQL执行失败: {e}, SQL: {query}, 参数: {params}")
                 conn.rollback()
