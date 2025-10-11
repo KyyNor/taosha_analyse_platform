@@ -6,64 +6,23 @@ import hashlib
 import json
 import traceback
 from datetime import datetime
-from pathlib import Path
+
 from typing import Dict, Any, Optional
 
 # LangGraph imports
 from langgraph.graph import StateGraph, END
-from vanna.chromadb import ChromaDB_VectorStore
-# Vanna imports
-from vanna.openai import OpenAI_Chat
 
 from services.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service
 from services.operation_tracking import tracker
 from services.query_engine import get_query_engine
 from services.service_models import BaseNodeLog, TaskState, TaskStateHelper
+from services.taosha_vanna_service import TaoshaVanna
+
 # Local imports
 from utils.config import settings
 from utils.logger import logger
 from utils.progress_decorator import track_node_progress
 
-
-class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
-    """自定义Vanna实现"""
-    
-    def __init__(self, config=None):
-        # 初始化ChromaDB
-        chroma_path = settings.chromadb_path
-        Path(chroma_path).mkdir(parents=True, exist_ok=True)
-        
-        ChromaDB_VectorStore.__init__(self, config={'path': chroma_path})
-        
-        # 创建 OpenAI 客户端配置
-        openai_config = {
-            'model': settings.openai_model,
-            'temperature': settings.openai_temperature,
-
-        }
-        client = None
-        
-        # 只有当 API key 存在时才设置
-        if settings.openai_api_key:
-            openai_config['api_key'] = settings.openai_api_key
-            
-        # 如果有自定义 base_url，需要传递 OpenAI 客户端实例
-        if settings.openai_base_url:
-            try:
-                from openai import OpenAI
-                client = OpenAI(
-                    api_key=settings.openai_api_key,
-                    base_url=settings.openai_base_url
-                )
-            except ImportError:
-                logger.warning("OpenAI包不可用，使用默认配置")
-        
-        OpenAI_Chat.__init__(self, client=client, config=openai_config)
-        
-        self.training_hash = None
-        logger.info("TaoshaVanna初始化完成")
-    
-  
 class NL2SQLService:
     """自然语言转SQL服务"""
     

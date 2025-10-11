@@ -84,6 +84,12 @@ class ConfigManager:
             openai_model: str = self._config_data.get('openai', {}).get('model', 'qwen/qwen3-8b:free')
             openai_temperature: float = self._config_data.get('openai', {}).get('temperature', 0.0)
 
+            # Embedding配置
+            embedding_api_key: Optional[str] = os.getenv("EMBEDDING_API_KEY") or self._config_data.get('embedding', {}).get('api_key')
+            embedding_base_url: Optional[str] = os.getenv("EMBEDDING_BASE_URL") or self._config_data.get('embedding', {}).get('base_url')
+            embedding_model: str = self._config_data.get('embedding', {}).get('model', 'text-embedding-3-small')
+            embedding_dimensions: int = self._config_data.get('embedding', {}).get('dimensions', 1024)
+
             # 日志配置
             log_level: str = self._config_data.get('logging', {}).get('level', 'INFO')
             log_rotation: str = self._config_data.get('logging', {}).get('rotation', '10 MB')
