@@ -1,120 +1,5 @@
 <template>
   <div class="space-y-6">
-    <!-- Log Statistics -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div class="stat bg-base-100 rounded-lg shadow">
-        <div class="stat-figure text-info">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-8 w-8"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-        </div>
-        <div class="stat-title">
-          总查询数
-        </div>
-        <div class="stat-value text-info">
-          {{ statistics.totalQueries || 0 }}
-        </div>
-        <div class="stat-desc">
-          今日 {{ statistics.todayQueries || 0 }}
-        </div>
-      </div>
-
-      <div class="stat bg-base-100 rounded-lg shadow">
-        <div class="stat-figure text-success">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-8 w-8"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-        </div>
-        <div class="stat-title">
-          成功率
-        </div>
-        <div class="stat-value text-success">
-          {{ statistics.successRate || 0 }}%
-        </div>
-        <div class="stat-desc">
-          {{ statistics.successCount || 0 }} 成功
-        </div>
-      </div>
-
-      <div class="stat bg-base-100 rounded-lg shadow">
-        <div class="stat-figure text-warning">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-8 w-8"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-        </div>
-        <div class="stat-title">
-          平均耗时
-        </div>
-        <div class="stat-value text-warning">
-          {{ statistics.avgDuration || 0 }}s
-        </div>
-        <div class="stat-desc">
-          查询执行时间
-        </div>
-      </div>
-
-      <div class="stat bg-base-100 rounded-lg shadow">
-        <div class="stat-figure text-error">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-8 w-8"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-        </div>
-        <div class="stat-title">
-          失败次数
-        </div>
-        <div class="stat-value text-error">
-          {{ statistics.errorCount || 0 }}
-        </div>
-        <div class="stat-desc">
-          需要关注
-        </div>
-      </div>
-    </div>
-
     <!-- Filters -->
     <div class="flex flex-wrap gap-4 items-center bg-base-200 p-4 rounded-lg">
       <div class="form-control">
@@ -309,14 +194,6 @@ const { success, info } = useToast()
 // State
 const logs = ref<QueryLog[]>([])
 const loading = ref(false)
-const statistics = ref({
-  totalQueries: 0,
-  todayQueries: 0,
-  successRate: 0,
-  successCount: 0,
-  errorCount: 0,
-  avgDuration: 0
-})
 
 // Filters
 const filters = reactive({
@@ -375,14 +252,6 @@ const loadLogs = async () => {
     loading.value = true
     // Mock data - in real implementation would call API
     logs.value = []
-    statistics.value = {
-      totalQueries: 0,
-      todayQueries: 0,
-      successRate: 0,
-      successCount: 0,
-      errorCount: 0,
-      avgDuration: 0
-    }
   } catch (err) {
     console.error('Failed to load logs:', err)
   } finally {

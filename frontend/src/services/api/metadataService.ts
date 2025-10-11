@@ -253,15 +253,6 @@ class MetadataService {
     return await api.delete(buildApiUrl(url))
   }
 
-  // Get sync status
-  async getSyncStatus(): Promise<{
-    lastSyncTime: string
-    pendingSyncCount: number
-    syncing: boolean
-  }> {
-    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.SYNC.STATUS))
-  }
-
   // === Validation ===
 
   // Validate metadata configuration

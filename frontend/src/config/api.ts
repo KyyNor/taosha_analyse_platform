@@ -31,7 +31,6 @@ export const API_ENDPOINTS = {
     RERUN: '/nlquery/rerun/:taskId',              // 重新运行查询
     PROGRESS: '/nlquery/progress/:taskId',        // 获取查询进度
     HISTORY: '/nlquery/history',                  // 查询历史
-    EXPORT: '/nlquery/export/:taskId',            // 导出查询结果
     FEEDBACK: '/nlquery/feedback/:taskId'        // 提交反馈
   },
 
@@ -87,12 +86,6 @@ export const API_ENDPOINTS = {
       TABLES: '/metadata/themes/:themeId/tables'  // 主题下的表
     },
 
-    // 数据库同步
-    SYNC: {
-      FROM_DB: '/metadata/sync-from-database',  // 从数据库同步
-      STATUS: '/metadata/sync-status'          // 同步状态
-    },
-
     // 导入导出
     IMPORT_EXPORT: {
       EXPORT: '/metadata/export',           // 导出元数据
@@ -112,21 +105,6 @@ export const API_ENDPOINTS = {
     UPDATE: '/favorites/:id',               // 更新收藏
     DELETE: '/favorites/:id',               // 删除收藏
     EXECUTE: '/favorites/:id/execute'      // 执行收藏的查询
-  },
-
-  // === 操作日志相关 ===
-  LOGS: {
-    LIST: '/logs',                          // 获取日志列表
-    DETAIL: '/logs/:id',                    // 获取日志详情
-    EXPORT: '/logs/export',                 // 导出日志
-    CLEAR: '/logs/clear'                   // 清理日志
-  },
-
-  // === 系统管理相关 ===
-  SYSTEM: {
-    HEALTH: '/system/health',               // 健康检查
-    INFO: '/system/info',                   // 系统信息
-    CONFIG: '/system/config'               // 系统配置
   }
 }
 

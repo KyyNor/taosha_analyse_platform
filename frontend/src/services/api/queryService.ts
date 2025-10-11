@@ -74,13 +74,6 @@ class QueryService {
     return await api.get(buildApiUrl(API_ENDPOINTS.NL_QUERY.HISTORY, params))
   }
 
-  // Export query results
-  async exportResults(taskId: string, format: 'csv' | 'xlsx'): Promise<Blob> {
-    const url = replaceUrlParams(API_ENDPOINTS.NL_QUERY.EXPORT, { taskId })
-    const response = await api.getRaw(buildApiUrl(url, { format }))
-    return response.data
-  }
-
   // Submit feedback
   async submitFeedback(taskId: string, type: 'positive' | 'negative' | 'neutral', content?: string): Promise<void> {
     const request: FeedbackRequest = { type, content }
