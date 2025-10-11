@@ -31,6 +31,7 @@ export const API_ENDPOINTS = {
     RERUN: '/nlquery/rerun/:taskId',              // 重新运行查询
     PROGRESS: '/nlquery/progress/:taskId',        // 获取查询进度
     HISTORY: '/nlquery/history',                  // 查询历史
+    HISTORY_DETAIL: '/nlquery/history/:taskId',   // 查询详情
     FEEDBACK: '/nlquery/feedback/:taskId'        // 提交反馈
   },
 

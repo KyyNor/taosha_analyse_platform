@@ -61,17 +61,23 @@ class QueryService {
     pageSize: number = 20,
     filters: {
       status?: string
-      startTime?: string
-      endTime?: string
+      start_time?: string
+      end_time?: string
     } = {}
   ): Promise<PaginatedResponse<QueryLog>> {
     const params = {
       page: page.toString(),
-      pageSize: pageSize.toString(),
+      page_size: pageSize.toString(),
       ...filters
     }
 
     return await api.get(buildApiUrl(API_ENDPOINTS.NL_QUERY.HISTORY, params))
+  }
+
+  // Get query history detail
+  async getQueryHistoryDetail(taskId: string): Promise<{ success: boolean; data: QueryLog }> {
+    const url = replaceUrlParams(API_ENDPOINTS.NL_QUERY.HISTORY_DETAIL, { taskId })
+    return await api.get(buildApiUrl(url))
   }
 
   // Submit feedback

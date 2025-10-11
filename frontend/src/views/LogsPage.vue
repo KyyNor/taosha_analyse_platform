@@ -187,6 +187,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useToast } from '@/composables/useToast'
 import DataTable from '@/components/common/DataTable.vue'
+import queryService from '@/services/api/queryService'
 import type { QueryLog } from '@types/index'
 
 const { success, info } = useToast()
@@ -194,6 +195,12 @@ const { success, info } = useToast()
 // State
 const logs = ref<QueryLog[]>([])
 const loading = ref(false)
+const pagination = ref({
+  page: 1,
+  pageSize: 50,
+  total: 0,
+  totalPages: 0
+})
 
 // Filters
 const filters = reactive({
@@ -246,14 +253,66 @@ const debouncedSearch = () => {
   searchTimeout = setTimeout(loadLogs, 500)
 }
 
+// Convert time range to actual timestamps
+const getTimeRangeParams = () => {
+  const now = new Date()
+  let startTime = null
+
+  switch (filters.timeRange) {
+    case '1h':
+      startTime = new Date(now.getTime() - 60 * 60 * 1000)
+      break
+    case '24h':
+      startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+      break
+    case '7d':
+      startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+      break
+    case '30d':
+      startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+      break
+  }
+
+  return {
+    startTime: startTime ? startTime.toISOString() : undefined,
+    endTime: now.toISOString()
+  }
+}
+
 // Load logs
 const loadLogs = async () => {
   try {
     loading.value = true
-    // Mock data - in real implementation would call API
-    logs.value = []
+
+    const timeParams = getTimeRangeParams()
+    const params = {
+      page: pagination.value.page,
+      pageSize: pagination.value.pageSize,
+      ...(filters.status && { status: filters.status }),
+      ...(timeParams.startTime && { startTime: timeParams.startTime }),
+      ...(timeParams.endTime && { endTime: timeParams.endTime })
+    }
+
+    const response = await queryService.getQueryHistory(
+      params.page,
+      params.pageSize,
+      {
+        status: params.status,
+        start_time: params.startTime,
+        end_time: params.endTime
+      }
+    )
+
+    if (response.success) {
+      logs.value = response.data || []
+      pagination.value = response.pagination || pagination.value
+    } else {
+      logs.value = []
+      console.error('Failed to load logs: API returned success=false')
+    }
   } catch (err) {
     console.error('Failed to load logs:', err)
+    logs.value = []
   } finally {
     loading.value = false
   }
@@ -285,13 +344,35 @@ const formatTime = (timeStr: string) => {
 }
 
 // View log details
-const viewLogDetails = (log: QueryLog) => {
-  info(`查看日志详情: ${log.id}`)
+const viewLogDetails = async (log: QueryLog) => {
+  try {
+    const response = await queryService.getQueryHistoryDetail(log.id)
+    if (response.success) {
+      console.log('Log details:', response.data)
+      info(`查看日志详情: ${log.id}`)
+      // TODO: 可以在这里添加显示详情的逻辑，比如弹窗或跳转
+    } else {
+      console.error('Failed to get log details')
+    }
+  } catch (err) {
+    console.error('Failed to get log details:', err)
+  }
 }
 
 // Rerun query
-const rerunQuery = (log: QueryLog) => {
-  info(`重新执行查询: ${log.id}`)
+const rerunQuery = async (log: QueryLog) => {
+  try {
+    const response = await queryService.rerunQuery(log.id)
+    if (response.success) {
+      success('查询已重新提交执行')
+      // 刷新列表
+      await loadLogs()
+    } else {
+      console.error('Failed to rerun query')
+    }
+  } catch (err) {
+    console.error('Failed to rerun query:', err)
+  }
 }
 
 // Initialize

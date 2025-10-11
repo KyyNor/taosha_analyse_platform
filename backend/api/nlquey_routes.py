@@ -3,11 +3,11 @@ API路由定义
 """
 import asyncio
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 
 from fastapi.encoders import jsonable_encoder
 
-from api.endpoint_models import QueryRequest
+from api.endpoint_models import QueryRequest, QueryHistoryResponse, QueryDetailResponse, QueryLogItem
 from services.nlquery_service.async_query_service import get_async_query_service
 from services.tracking_service.operation_tracking import tracker
 from utils.logger import logger
@@ -130,4 +130,108 @@ async def process_natural_language_query(request: QueryRequest):
             "success": False,
             "error": error_message
         }
+
+
+@router.get("/history", response_model=QueryHistoryResponse)
+async def get_query_history(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页大小"),
+    status: str = Query(None, description="状态过滤"),
+    start_time: str = Query(None, description="开始时间"),
+    end_time: str = Query(None, description="结束时间")
+):
+    """
+    获取查询历史记录
+    """
+    try:
+        logger.info(f"获取查询历史请求: page={page}, page_size={page_size}, status={status}")
+
+        # 调用追踪服务获取历史记录
+        result = await tracker.get_query_history(
+            page=page,
+            page_size=page_size,
+            status=status,
+            start_time=start_time,
+            end_time=end_time,
+            operator="api_user"  # 暂时写死
+        )
+
+        if result['success']:
+            # 转换数据为QueryLogItem对象
+            log_items = [QueryLogItem(**item) for item in result['data']]
+            return QueryHistoryResponse(
+                success=True,
+                data=log_items,
+                pagination=result['pagination']
+            )
+        else:
+            return QueryHistoryResponse(
+                success=False,
+                data=[],
+                pagination={'page': page, 'pageSize': page_size, 'total': 0, 'totalPages': 0}
+            )
+
+    except Exception as e:
+        error_message = f"获取查询历史失败: {str(e)}"
+        logger.error(error_message, exc_info=True)
+        return QueryHistoryResponse(
+            success=False,
+            data=[],
+            pagination={'page': page, 'pageSize': page_size, 'total': 0, 'totalPages': 0}
+        )
+
+
+@router.get("/history/{task_id}", response_model=QueryDetailResponse)
+async def get_query_detail(task_id: str):
+    """
+    获取查询详情
+    """
+    try:
+        logger.info(f"获取查询详情请求: task_id={task_id}")
+
+        # 调用追踪服务获取详情
+        result = await tracker.get_task_detail(task_id)
+
+        if result['success']:
+            # 转换数据为QueryLogItem对象
+            log_item = QueryLogItem(**result['data'])
+            return QueryDetailResponse(
+                success=True,
+                data=log_item
+            )
+        else:
+            return QueryDetailResponse(
+                success=False,
+                data=QueryLogItem(
+                    id=task_id,
+                    query='',
+                    status='not_found',
+                    createdAt='',
+                    completedAt=None,
+                    duration=None,
+                    generatedSql=None,
+                    errorMessage=result.get('error', '任务不存在'),
+                    executionResult=None,
+                    operator=None
+                )
+            )
+
+    except Exception as e:
+        error_message = f"获取查询详情失败: {str(e)}"
+        logger.error(error_message, exc_info=True)
+        return QueryDetailResponse(
+            success=False,
+            data=QueryLogItem(
+                id=task_id,
+                query='',
+                status='error',
+                createdAt='',
+                completedAt=None,
+                duration=None,
+                generatedSql=None,
+                errorMessage=error_message,
+                executionResult=None,
+                operator=None
+            )
+        )
 

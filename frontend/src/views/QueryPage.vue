@@ -191,6 +191,7 @@
       :is-visible="isSidebarVisible"
       @close="closeSidebar"
       @rerun-query="handleRerunQuery"
+      @view-details="handleViewDetails"
       @execute-favorite="handleExecuteFavorite"
       @edit-favorite="handleEditFavorite"
       @delete-favorite="handleDeleteFavorite"
@@ -334,6 +335,13 @@ const handleRerunQuery = async (taskId: string) => {
   } catch (err) {
     error('重新执行查询失败')
   }
+}
+
+// Handle view details
+const handleViewDetails = (log: any) => {
+  info(`查看查询详情: ${log.id}`)
+  // TODO: 可以在这里添加显示详情的逻辑，比如弹窗或跳转到详情页
+  console.log('Log details:', log)
 }
 
 // Handle favorites actions

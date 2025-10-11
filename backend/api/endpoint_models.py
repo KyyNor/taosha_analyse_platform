@@ -67,3 +67,32 @@ class RelationFieldConfigUpdate(BaseModel):
     relation_family: Optional[str] = None
     relation_subfamily: Optional[str] = None
     relation_desc: Optional[str] = None
+
+
+# === 查询历史相关模型 ===
+
+class QueryLogItem(BaseModel):
+    """查询日志项模型"""
+    id: str = Field(..., description="任务ID")
+    query: str = Field(..., description="查询内容")
+    status: str = Field(..., description="状态")
+    createdAt: str = Field(..., description="创建时间")
+    completedAt: Optional[str] = Field(None, description="完成时间")
+    duration: Optional[int] = Field(None, description="耗时(毫秒)")
+    generatedSql: Optional[str] = Field(None, description="生成的SQL")
+    errorMessage: Optional[str] = Field(None, description="错误信息")
+    executionResult: Optional[List[Dict[str, Any]]] = Field(None, description="执行结果")
+    operator: Optional[str] = Field(None, description="操作人")
+
+
+class QueryHistoryResponse(BaseModel):
+    """查询历史响应模型"""
+    success: bool = Field(True, description="是否成功")
+    data: List[QueryLogItem] = Field(..., description="历史记录列表")
+    pagination: Dict[str, Any] = Field(..., description="分页信息")
+
+
+class QueryDetailResponse(BaseModel):
+    """查询详情响应模型"""
+    success: bool = Field(True, description="是否成功")
+    data: QueryLogItem = Field(..., description="查询详情")

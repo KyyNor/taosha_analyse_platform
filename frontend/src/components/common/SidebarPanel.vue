@@ -84,65 +84,12 @@
 
           <!-- 历史列表 -->
           <div class="flex-1 overflow-y-auto">
-            <div
-              v-if="historyLoading"
-              class="flex items-center justify-center py-8"
-            >
-              <span class="loading loading-spinner loading-md" />
-              <span class="ml-2">加载中...</span>
-            </div>
-            <div
-              v-else-if="filteredHistory.length === 0"
-              class="text-center py-8 text-base-content/60"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-12 w-12 mx-auto mb-2"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <p>暂无查询历史</p>
-            </div>
-            <div
-              v-else
-              class="space-y-2"
-            >
-              <div
-                v-for="item in filteredHistory"
-                :key="item.taskId"
-                class="card bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
-                @click="$emit('rerun-query', item.taskId)"
-              >
-                <div class="card-body p-3">
-                  <div class="flex items-start justify-between">
-                    <div class="flex-1 min-w-0">
-                      <p class="text-sm font-medium truncate">
-                        {{ item.userQuestion }}
-                      </p>
-                      <div class="flex items-center gap-2 mt-1">
-                        <div
-                          class="badge badge-xs"
-                          :class="getStatusBadgeClass(item.status)"
-                        >
-                          {{ getStatusText(item.status) }}
-                        </div>
-                        <span class="text-xs text-base-content/60">
-                          {{ formatTime(item.startTime) }}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <QueryHistoryList
+              :history="filteredHistory"
+              :loading="historyLoading"
+              @rerun="$emit('rerun-query', $event)"
+              @view-details="$emit('view-details', $event)"
+            />
           </div>
         </div>
 
@@ -276,11 +223,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useQueryStore } from '@stores/query'
+import QueryHistoryList from '@/components/query/QueryHistoryList.vue'
 import type { QueryLog, Favorite } from '@types/index'
 
 interface Emits {
   (e: 'close'): void
   (e: 'rerun-query', taskId: string): void
+  (e: 'view-details', log: QueryLog): void
   (e: 'execute-favorite', favoriteId: number): void
   (e: 'edit-favorite', favoriteId: number, newTitle: string): void
   (e: 'delete-favorite', favoriteId: number): void

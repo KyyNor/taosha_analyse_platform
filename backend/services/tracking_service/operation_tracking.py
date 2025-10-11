@@ -219,5 +219,199 @@ class OperationTracker:
             logger.error(f"创建会话记录失败: {e}")
 
 
+    async def get_query_history(self, page: int = 1, page_size: int = 20,
+                                status: str = None, start_time: str = None,
+                                end_time: str = None, operator: str = "api_user"):
+        """获取查询历史记录"""
+        try:
+            # 构建查询条件
+            where_conditions = ["operator = ?"]
+            params = [operator]
+
+            if status:
+                where_conditions.append("status = ?")
+                params.append(status)
+
+            if start_time:
+                where_conditions.append("start_time >= ?")
+                params.append(start_time)
+
+            if end_time:
+                where_conditions.append("start_time <= ?")
+                params.append(end_time)
+
+            where_clause = " AND ".join(where_conditions)
+
+            # 查询总数
+            count_query = f"SELECT COUNT(*) as total FROM operation_sessions WHERE {where_clause}"
+            count_result = self.db_manager.execute_query(count_query, params)
+            total = count_result[0]['total'] if count_result else 0
+
+            # 查询分页数据
+            offset = (page - 1) * page_size
+            query = f"""
+                SELECT
+                    session_id as id,
+                    operation_type,
+                    '' as query,
+                    status,
+                    start_time as createdAt,
+                    end_time as completedAt,
+                    error_message as errorMessage,
+                    operator
+                FROM operation_sessions
+                WHERE {where_clause}
+                ORDER BY start_time DESC
+                LIMIT ? OFFSET ?
+            """
+            params.extend([page_size, offset])
+
+            results = self.db_manager.execute_query(query, params)
+
+            # 处理数据格式
+            history_items = []
+            for result in results:
+                # 计算耗时
+                duration = None
+                if result.get('createdAt') and result.get('completedAt'):
+                    try:
+                        start = datetime.fromisoformat(result['createdAt'].replace('Z', '+00:00'))
+                        end = datetime.fromisoformat(result['completedAt'].replace('Z', '+00:00'))
+                        duration = int((end - start).total_seconds() * 1000)
+                    except:
+                        pass
+
+                item = {
+                    'id': result['id'],
+                    'query': result['query'] or '',
+                    'status': result['status'],
+                    'createdAt': result['createdAt'],
+                    'completedAt': result['completedAt'],
+                    'duration': duration,
+                    'generatedSql': '',
+                    'errorMessage': result['errorMessage'],
+                    'executionResult': '',
+                    'operator': result['operator']
+                }
+                history_items.append(item)
+
+            # 构建分页信息
+            pagination = {
+                'page': page,
+                'pageSize': page_size,
+                'total': total,
+                'totalPages': (total + page_size - 1) // page_size
+            }
+
+            return {
+                'success': True,
+                'data': history_items,
+                'pagination': pagination
+            }
+
+        except Exception as e:
+            logger.error(f"获取查询历史失败: {e}")
+            return {
+                'success': False,
+                'data': [],
+                'pagination': {'page': page, 'pageSize': page_size, 'total': 0, 'totalPages': 0},
+                'error': str(e)
+            }
+
+    async def get_task_detail(self, task_id: str):
+        """获取单个任务的详细信息"""
+        try:
+            # 先查缓存
+            cached_state = await self.cache.get(task_id)
+            if cached_state:
+                return {
+                    'success': True,
+                    'data': cached_state.model_dump()
+                }
+
+            # 从数据库查询
+            query = """
+                SELECT
+                    session_id as id,
+                    operation_type,
+                    '' as query,
+                    status,
+                    start_time as createdAt,
+                    end_time as completedAt,
+                    error_message as errorMessage,
+                    operator
+                FROM operation_sessions
+                WHERE session_id = ?
+            """
+            results = self.db_manager.execute_query(query, [task_id])
+
+            if not results:
+                return {
+                    'success': False,
+                    'error': f'任务 {task_id} 不存在'
+                }
+
+            result = results[0]
+
+            # 计算耗时
+            duration = None
+            if result.get('createdAt') and result.get('completedAt'):
+                try:
+                    start = datetime.fromisoformat(result['createdAt'].replace('Z', '+00:00'))
+                    end = datetime.fromisoformat(result['completedAt'].replace('Z', '+00:00'))
+                    duration = int((end - start).total_seconds() * 1000)
+                except:
+                    pass
+
+            # 获取步骤详情
+            steps_query = """
+                SELECT step_sequence, step_name, input_data, output_data,
+                       generated_sql, error_message, success
+                FROM operation_steps
+                WHERE session_id = ?
+                ORDER BY step_sequence
+            """
+            steps = self.db_manager.execute_query(steps_query, [task_id])
+
+            # 获取最新的SQL和执行结果
+            sql_query = None
+            execution_result = None
+            if steps:
+                latest_step = steps[-1]
+                sql_query = latest_step.get('generated_sql')
+                output_data = latest_step.get('output_data')
+                if output_data:
+                    try:
+                        execution_result = json.loads(output_data) if isinstance(output_data, str) else output_data
+                    except:
+                        execution_result = None
+
+            detail_data = {
+                'id': result['id'],
+                'query': result['query'] or '',
+                'status': result['status'],
+                'createdAt': result['createdAt'],
+                'completedAt': result['completedAt'],
+                'duration': duration,
+                'generatedSql': sql_query,
+                'errorMessage': result['errorMessage'],
+                'executionResult': execution_result,
+                'operator': result['operator'],
+                'steps': steps
+            }
+
+            return {
+                'success': True,
+                'data': detail_data
+            }
+
+        except Exception as e:
+            logger.error(f"获取任务详情失败: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+
 # 全局追踪器实例
 tracker = OperationTracker()
