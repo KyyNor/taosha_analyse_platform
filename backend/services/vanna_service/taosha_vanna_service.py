@@ -8,7 +8,7 @@ from pathlib import Path
 
 from utils.config import settings
 from utils.logger import logger
-from services.local_embedding_service import LocalEmbeddingFunction
+from services.vanna_service.local_embedding_service import LocalEmbeddingFunction
 
 class TaoshaVanna(ChromaDB_VectorStore, OpenAI_Chat):
     """自定义Vanna实现"""

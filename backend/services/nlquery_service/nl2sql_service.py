@@ -7,16 +7,16 @@ import json
 import traceback
 from datetime import datetime
 
-from typing import Dict, Any, Optional
+from typing import Optional
 
 # LangGraph imports
 from langgraph.graph import StateGraph, END
 
-from services.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service
-from services.operation_tracking import tracker
+from services.metadata_service.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service
+from services.tracking_service.operation_tracking import tracker
 from services.query_engine import get_query_engine
 from services.service_models import BaseNodeLog, TaskState, TaskStateHelper
-from services.taosha_vanna_service import TaoshaVanna
+from services.vanna_service.taosha_vanna_service import TaoshaVanna
 
 # Local imports
 from utils.config import settings

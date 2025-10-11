@@ -14,8 +14,8 @@ from api.nlquey_routes import router as nlquey_router
 from api.metadata_routes import router as metadata_router
 from api.user_routes import router as user_router
 from services.query_engine import get_query_engine
-from services.nl2sql_service import get_nl2sql_service
-from services.async_query_service import get_async_query_service
+from services.nlquery_service.nl2sql_service import get_nl2sql_service
+from services.nlquery_service.async_query_service import get_async_query_service
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

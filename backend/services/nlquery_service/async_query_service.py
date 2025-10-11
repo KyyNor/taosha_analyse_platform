@@ -4,10 +4,10 @@
 
 import asyncio
 import uuid
-from typing import Dict, Any, Optional, Set
+from typing import Optional, Set
 from utils.logger import logger
 from services import get_nl2sql_service
-from services.operation_tracking import tracker
+from services.tracking_service.operation_tracking import tracker
 
 
 _background_tasks: Set[asyncio.Task] = set()

@@ -6,10 +6,10 @@
 import asyncio
 import functools
 from datetime import datetime
-from typing import Dict, Any, Callable, List
+from typing import Callable, List
 
 from services.service_models import BaseNodeLog, TaskState
-from services.operation_tracking import tracker
+from services.tracking_service.operation_tracking import tracker
 
 
 def safe_create_async_task(coro):
