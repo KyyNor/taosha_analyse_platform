@@ -82,7 +82,7 @@ class ConfigManager:
             openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY") or self._config_data.get('openai', {}).get('api_key')
             openai_base_url: Optional[str] = os.getenv("OPENAI_BASE_URL") or self._config_data.get('openai', {}).get('base_url')
             openai_model: str = self._config_data.get('openai', {}).get('model', 'qwen/qwen3-8b:free')
-            openai_temperature: float = self._config_data.get('openai', {}).get('temperature', 0.0)
+            openai_temperature: float = self._config_data.get('openai', {}).get('temperature', 0.1)
 
             # Embedding配置
             embedding_api_key: Optional[str] = os.getenv("EMBEDDING_API_KEY") or self._config_data.get('embedding', {}).get('api_key')
