@@ -149,17 +149,30 @@ class OperationTracker:
         try:
             logger.debug(f"开始写入任务 {state.task_id} 到数据库，状态: {state.status}")
 
-            # 更新会话状态
+            # 更新会话状态 - 使用UPSERT方式
             self.db_manager.execute_query("""
-                UPDATE operation_sessions
-                SET status = ?, end_time = ?, error_message = ?, updated_at = ?
-                WHERE session_id = ?
+                INSERT OR REPLACE INTO nlquery_sessions
+                (task_id, user_input, operator, flow_type, status, current_step,
+                 progress, created_at, completed_at, sql_query, execution_result,
+                 clear_check_details, is_clear, error_message, retry_count, max_retries)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
+                state.task_id,
+                state.user_input,
+                state.operator,
+                state.flow_type,
                 state.status,
-                state.completed_at.isoformat() if state.completed_at else None,
+                state.current_step,
+                state.progress,
+                state.created_at.strftime('%Y-%m-%d %H:%M:%S') if state.created_at else datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                state.completed_at.strftime('%Y-%m-%d %H:%M:%S') if state.completed_at else None,
+                state.sql_query,
+                json.dumps(state.execution_result) if state.execution_result else None,
+                json.dumps(state.clear_check_details) if state.clear_check_details else None,
+                int(state.is_clear),
                 state.error_message,
-                datetime.now().isoformat(),
-                state.task_id
+                state.retry_count,
+                state.max_retries
             ))
             logger.debug(f"已更新会话状态，任务ID: {state.task_id}")
 
@@ -179,22 +192,21 @@ class OperationTracker:
                 logger.debug(f"准备写入步骤日志: step={latest_log.step}, success={latest_log.success}")
 
                 self.db_manager.execute_query("""
-                    INSERT INTO operation_steps
-                    (session_id, step_sequence, step_name, input_data,
-                     output_data, generated_sql, error_message, success,
-                     token_usage, metadata)
+                    INSERT INTO nlquery_steps
+                    (task_id, step, input_data, prompt, model_output, success, error,
+                     start_time, end_time, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     state.task_id,
-                    len(state.logs),
                     latest_log.step,
                     latest_log.input_data,
+                    latest_log.prompt if hasattr(latest_log, 'prompt') else "",
                     latest_log.model_output,
-                    "",  # generated_sql (暂未使用)
+                    int(latest_log.success),
                     latest_log.error,
-                    latest_log.success,
-                    "{}",  # token_usage
-                    "{}"   # metadata
+                    latest_log.start_time.strftime('%Y-%m-%d %H:%M:%S') if latest_log.start_time else None,
+                    latest_log.end_time.strftime('%Y-%m-%d %H:%M:%S') if latest_log.end_time else None,
+                    datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 ))
                 logger.debug(f"已写入步骤日志，任务ID: {state.task_id}")
             else:
@@ -211,10 +223,20 @@ class OperationTracker:
         """异步写入会话记录到数据库"""
         try:
             self.db_manager.execute_query("""
-                INSERT INTO operation_sessions
-                (session_id, operation_type, operator, start_time, status)
-                VALUES (?, ?, ?, ?, ?)
-            """, (task_id, "nl2sql_query", operator, datetime.now().isoformat(), 'running'))
+                INSERT OR IGNORE INTO nlquery_sessions
+                (task_id, user_input, operator, flow_type, status, current_step,
+                 progress, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                task_id,
+                "",  # user_input 将在后续更新
+                operator,
+                "fast",  # 默认flow_type
+                "running",  # 默认status
+                "初始化",  # 默认current_step
+                0,  # 默认progress
+                datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            ))
         except Exception as e:
             logger.error(f"创建会话记录失败: {e}")
 
@@ -234,7 +256,7 @@ class OperationTracker:
             where_clause = " AND ".join(where_conditions)
 
             # 查询总数
-            count_query = f"SELECT COUNT(*) as total FROM operation_sessions WHERE {where_clause}"
+            count_query = f"SELECT COUNT(*) as total FROM nlquery_sessions WHERE {where_clause}"
             count_result = self.db_manager.execute_query(count_query, params, fetch="one", return_dict=False)
             total = count_result[0] if count_result else 0
 
@@ -242,17 +264,16 @@ class OperationTracker:
             offset = (page - 1) * page_size
             query = f"""
                 SELECT
-                    session_id as id,
-                    operation_type,
-                    '' as query,
+                    task_id as id,
+                    user_input as query,
                     status,
-                    start_time as createdAt,
-                    end_time as completedAt,
+                    created_at as createdAt,
+                    completed_at as completedAt,
                     error_message as errorMessage,
                     operator
-                FROM operation_sessions
+                FROM nlquery_sessions
                 WHERE {where_clause}
-                ORDER BY start_time DESC
+                ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
             """
             params.extend([page_size, offset])
@@ -325,16 +346,23 @@ class OperationTracker:
             # 从数据库查询
             query = """
                 SELECT
-                    session_id as id,
-                    operation_type,
-                    '' as query,
+                    task_id as id,
+                    user_input as query,
                     status,
-                    start_time as createdAt,
-                    end_time as completedAt,
+                    created_at as createdAt,
+                    completed_at as completedAt,
                     error_message as errorMessage,
-                    operator
-                FROM operation_sessions
-                WHERE session_id = ?
+                    operator,
+                    sql_query,
+                    execution_result,
+                    flow_type,
+                    current_step,
+                    progress,
+                    is_clear,
+                    retry_count,
+                    max_retries
+                FROM nlquery_sessions
+                WHERE task_id = ?
             """
             results = self.db_manager.execute_query(query, [task_id], fetch="all")
 
@@ -358,26 +386,23 @@ class OperationTracker:
 
             # 获取步骤详情
             steps_query = """
-                SELECT step_sequence, step_name, input_data, output_data,
-                       generated_sql, error_message, success
-                FROM operation_steps
-                WHERE session_id = ?
-                ORDER BY step_sequence
+                SELECT step, input_data, prompt, model_output, success, error,
+                       start_time, end_time, created_at
+                FROM nlquery_steps
+                WHERE task_id = ?
+                ORDER BY created_at
             """
             steps = self.db_manager.execute_query(steps_query, [task_id], fetch="all")
 
-            # 获取最新的SQL和执行结果
-            sql_query = None
+            # 从sessions中获取SQL和执行结果
+            sql_query = result.get('sql_query')
+            execution_result_str = result.get('execution_result')
             execution_result = None
-            if steps:
-                latest_step = steps[-1]
-                sql_query = latest_step.get('generated_sql')
-                output_data = latest_step.get('output_data')
-                if output_data:
-                    try:
-                        execution_result = json.loads(output_data) if isinstance(output_data, str) else output_data
-                    except:
-                        execution_result = None
+            if execution_result_str:
+                try:
+                    execution_result = json.loads(execution_result_str) if isinstance(execution_result_str, str) else execution_result_str
+                except:
+                    execution_result = None
 
             detail_data = {
                 'id': result['id'],
@@ -386,10 +411,16 @@ class OperationTracker:
                 'createdAt': result['createdAt'],
                 'completedAt': result['completedAt'],
                 'duration': duration,
-                'generatedSql': sql_query,
+                'generatedSql': sql_query or '',
                 'errorMessage': result['errorMessage'],
-                'executionResult': execution_result,
+                'executionResult': execution_result or [],
                 'operator': result['operator'],
+                'flowType': result.get('flow_type', 'fast'),
+                'currentStep': result.get('current_step', ''),
+                'progress': result.get('progress', 0),
+                'isClear': bool(result.get('is_clear', 0)),
+                'retryCount': result.get('retry_count', 0),
+                'maxRetries': result.get('max_retries', 5),
                 'steps': steps
             }
 

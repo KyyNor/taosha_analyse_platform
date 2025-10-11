@@ -8,8 +8,8 @@ PRAGMA foreign_keys = OFF;
 
 -- 删除表 (按依赖关系倒序)
 DROP TABLE IF EXISTS user_feedback;
-DROP TABLE IF EXISTS operation_steps;
-DROP TABLE IF EXISTS operation_sessions;
+DROP TABLE IF EXISTS nlquery_steps;
+DROP TABLE IF EXISTS nlquery_sessions;
 DROP TABLE IF EXISTS glossary_aliases;
 DROP TABLE IF EXISTS glossary_terms;
 DROP TABLE IF EXISTS metadata_columns;

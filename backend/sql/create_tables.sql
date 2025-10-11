@@ -63,38 +63,40 @@ CREATE TABLE IF NOT EXISTS relation_field_config (
 
 -- ==================== 操作追踪表 ====================
 
--- 操作会话记录表
-CREATE TABLE IF NOT EXISTS operation_sessions (
-    session_id TEXT PRIMARY KEY,
-    operation_type TEXT NOT NULL,
+-- NL查询会话记录表
+CREATE TABLE IF NOT EXISTS nlquery_sessions (
+    task_id TEXT PRIMARY KEY,
+    user_input TEXT NOT NULL,
     operator TEXT,
-    start_time DATETIME NOT NULL,
-    end_time DATETIME,
-    total_duration INTEGER,
-    max_step_sequence INTEGER DEFAULT 0,
+    flow_type TEXT DEFAULT 'fast',
     status TEXT DEFAULT 'running',
+    current_step TEXT DEFAULT '初始化',
+    progress INTEGER DEFAULT 0,
+    created_at DATETIME NOT NULL,
+    completed_at DATETIME,
+    sql_query TEXT,
+    execution_result TEXT,
+    clear_check_details TEXT,
+    is_clear INTEGER DEFAULT 0,
     error_message TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    retry_count INTEGER DEFAULT 0,
+    max_retries INTEGER DEFAULT 5
 );
 
--- 操作步骤详情表
-CREATE TABLE IF NOT EXISTS operation_steps (
+-- NL查询步骤详情表
+CREATE TABLE IF NOT EXISTS nlquery_steps (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT NOT NULL,
-    step_sequence INTEGER NOT NULL,
-    step_name TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    step TEXT NOT NULL,
     input_data TEXT,
-    call_method TEXT,
-    output_data TEXT,
-    generated_sql TEXT,
-    error_message TEXT,
+    prompt TEXT,
+    model_output TEXT,
     success INTEGER DEFAULT 1,
-    duration INTEGER,
-    token_usage TEXT,
-    metadata TEXT,
+    error TEXT,
+    start_time DATETIME,
+    end_time DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (session_id) REFERENCES operation_sessions(session_id)
+    FOREIGN KEY (task_id) REFERENCES nlquery_sessions(task_id)
 );
 
 -- 用户反馈表
@@ -113,11 +115,12 @@ CREATE TABLE IF NOT EXISTS user_feedback (
 -- ==================== 索引 ====================
 
 -- 操作追踪相关索引
-CREATE INDEX IF NOT EXISTS idx_operation_sessions_operator ON operation_sessions(operator);
-CREATE INDEX IF NOT EXISTS idx_operation_sessions_operation_type ON operation_sessions(operation_type);
-CREATE INDEX IF NOT EXISTS idx_operation_sessions_start_time ON operation_sessions(start_time);
-CREATE INDEX IF NOT EXISTS idx_operation_steps_session_id ON operation_steps(session_id);
-CREATE INDEX IF NOT EXISTS idx_operation_steps_step_sequence ON operation_steps(session_id, step_sequence);
+CREATE INDEX IF NOT EXISTS idx_nlquery_sessions_operator ON nlquery_sessions(operator);
+CREATE INDEX IF NOT EXISTS idx_nlquery_sessions_flow_type ON nlquery_sessions(flow_type);
+CREATE INDEX IF NOT EXISTS idx_nlquery_sessions_status ON nlquery_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_nlquery_sessions_created_at ON nlquery_sessions(created_at);
+CREATE INDEX IF NOT EXISTS idx_nlquery_steps_task_id ON nlquery_steps(task_id);
+CREATE INDEX IF NOT EXISTS idx_nlquery_steps_step ON nlquery_steps(task_id, step);
 CREATE INDEX IF NOT EXISTS idx_user_feedback_session_id ON user_feedback(session_id);
 
 -- 术语表相关索引

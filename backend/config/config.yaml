@@ -41,7 +41,7 @@ embedding:
   type: "local"  # remote 或 local
   api_key: ""  # remote需配置环境变量 EMBEDDING_API_KEY
   base_url: ""  # remote需配置环境变量 EMBEDDING_BASE_URL
-  model_path: "backend\\database\\Qwen3-Embedding-0___6B"  # local需配置 本地模型路径
+  model_path: "./database/Qwen3-Embedding-0___6B"  # local需配置 本地模型路径
   device: "cpu"  # 推理设备: cpu/cuda
   cache_size: 1000  # embedding缓存大小
   model: "Qwen/Qwen3-Embedding-0.6B"  # OpenAI embedding模型名称
