@@ -120,12 +120,12 @@
           >-</span>
         </template>
 
-        <template #actions="{ record }">
+        <template #actions="{ task_id, task_status }">
           <div class="flex gap-1">
             <button
               class="btn btn-ghost btn-xs"
               title="查看详情"
-              @click="viewLogDetails(record)"
+              @click="viewLogDetails(task_id)"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -149,10 +149,10 @@
               </svg>
             </button>
             <button
-              v-if="record.status === 'success'"
+              v-if="task_status === 'success'"
               class="btn btn-ghost btn-xs"
               title="重新执行"
-              @click="rerunQuery(record)"
+              @click="rerunQuery(task_id)"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -339,12 +339,12 @@ const calculateDuration = (record: QueryTask) => {
 }
 
 // View log details
-const viewLogDetails = async (log: QueryTask) => {
+const viewLogDetails = async (task_id: string) => {
   try {
-    const response = await queryService.getQueryHistoryDetail(log.task_id)
+    const response = await queryService.getQueryHistoryDetail(task_id)
     if (response.success) {
       console.log('Log details:', response.data)
-      info(`查看日志详情: ${log.task_id}`)
+      info(`查看日志详情: ${task_id}`)
       // TODO: 可以在这里添加显示详情的逻辑，比如弹窗或跳转
     } else {
       console.error('Failed to get log details')
@@ -355,9 +355,9 @@ const viewLogDetails = async (log: QueryTask) => {
 }
 
 // Rerun query
-const rerunQuery = async (log: QueryTask) => {
+const rerunQuery = async (task_id: string) => {
   try {
-    const response = await queryService.rerunQuery(log.task_id)
+    const response = await queryService.rerunQuery(task_id)
     if (response.success) {
       success('查询已重新提交执行')
       // 刷新列表

@@ -249,6 +249,8 @@
               <slot
                 name="actions"
                 :record="item"
+                :task_id="getNestedValue(item, 'task_id')"
+                :task_status="getNestedValue(item, 'status')"
                 :index="index"
               />
             </td>
