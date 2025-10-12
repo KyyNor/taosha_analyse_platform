@@ -18,7 +18,7 @@ router = APIRouter(prefix="/metadata")
 
 
 # 表元数据管理
-@router.get("/metadata/tables")
+@router.get("/tables")
 async def get_all_table_metadata():
     """获取所有表元数据"""
     try:
@@ -30,7 +30,7 @@ async def get_all_table_metadata():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/metadata/tables")
+@router.post("/tables")
 async def add_table_metadata(request: TableMetadataRequest):
     """添加表元数据"""
     try:
@@ -46,7 +46,7 @@ async def add_table_metadata(request: TableMetadataRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/metadata/tables/{table_name}")
+@router.put("/tables/{table_name}")
 async def update_table_metadata(table_name: str, request: TableMetadataUpdate):
     """更新表元数据"""
     try:
@@ -62,7 +62,7 @@ async def update_table_metadata(table_name: str, request: TableMetadataUpdate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/metadata/tables/{table_name}")
+@router.delete("/tables/{table_name}")
 async def delete_table_metadata(table_name: str):
     """删除表元数据"""
     try:
@@ -79,7 +79,7 @@ async def delete_table_metadata(table_name: str):
 
 
 # 列元数据管理
-@router.post("/metadata/columns")
+@router.post("/columns")
 async def add_column_metadata(request: ColumnMetadataRequest):
     """添加列元数据"""
     try:
@@ -103,7 +103,7 @@ async def add_column_metadata(request: ColumnMetadataRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/metadata/columns/{table_name}/{column_name}")
+@router.put("/columns/{table_name}/{column_name}")
 async def update_column_metadata(table_name: str, column_name: str, request: ColumnMetadataUpdate):
     """更新列元数据"""
     try:
@@ -127,7 +127,7 @@ async def update_column_metadata(table_name: str, column_name: str, request: Col
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/metadata/columns/{table_name}/{column_name}")
+@router.delete("/columns/{table_name}/{column_name}")
 async def delete_column_metadata(table_name: str, column_name: str):
     """删除列元数据"""
     try:
@@ -225,59 +225,6 @@ async def search_term(query: str):
             return {"success": False, "message": "未找到匹配的术语"}
     except Exception as e:
         logger.error(f"搜索术语失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# 数据库同步工具
-@router.post("/metadata/sync-from-database")
-async def sync_metadata_from_database():
-    """从实际数据库同步元数据结构"""
-    try:
-        from services import get_query_engine
-        
-        db_service = get_query_engine()
-        metadata_service = get_metadata_service()
-        
-        # 获取数据库中的表
-        table_names = db_service.get_tables()
-        synced_tables = []
-        
-        for table_name in table_names:
-            # 检查表是否已存在元数据
-            existing_table = metadata_service.get_table_info(table_name)
-            if not existing_table:
-                # 添加表元数据
-                metadata_service.add_table(table_name, f"自动从数据库同步的表: {table_name}")
-            
-            # 获取表结构
-            schema = db_service.get_table_schema(table_name)
-            columns = schema.get('columns', [])
-            
-            for column in columns:
-                try:
-                    metadata_service.add_column(
-                        table_name,
-                        column['name'],
-                        column['type'],
-                        f"自动从数据库同步的列: {column['name']}",
-                        0,  # 默认可用
-                        column['type'],  # 业务类型默认与存储类型相同
-                        ""  # 无关联ID
-                    )
-                except Exception:
-                    # 列可能已存在，忽略错误
-                    pass
-            
-            synced_tables.append(table_name)
-        
-        return {
-            "success": True, 
-            "message": f"已同步 {len(synced_tables)} 张表的元数据",
-            "synced_tables": synced_tables
-        }
-        
-    except Exception as e:
-        logger.error(f"同步元数据失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
