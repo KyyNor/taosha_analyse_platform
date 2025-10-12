@@ -7,7 +7,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 
 from fastapi.encoders import jsonable_encoder
 
-from api.endpoint_models import QueryRequest, QueryHistoryResponse, QueryDetailResponse, QueryLogItem
+from api.endpoint_models import QueryRequest
+from services.service_models import TaskState, BaseNodeLog
 from services.nlquery_service.async_query_service import get_async_query_service
 from services.tracking_service.operation_tracking import tracker
 from utils.logger import logger
@@ -132,7 +133,7 @@ async def process_natural_language_query(request: QueryRequest):
         }
 
 
-@router.get("/history", response_model=QueryHistoryResponse)
+@router.get("/history")
 async def get_query_history(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页大小"),
@@ -140,6 +141,7 @@ async def get_query_history(
 ):
     """
     获取查询历史记录
+    返回TaskState对象列表
     """
     try:
         logger.info(f"获取查询历史请求: page={page}, page_size={page_size}, status={status}")
@@ -152,35 +154,24 @@ async def get_query_history(
             operator="api_user"  # 暂时写死
         )
 
-        if result['success']:
-            # 转换数据为QueryLogItem对象
-            log_items = [QueryLogItem(**item) for item in result['data']]
-            return QueryHistoryResponse(
-                success=True,
-                data=log_items,
-                pagination=result['pagination']
-            )
-        else:
-            return QueryHistoryResponse(
-                success=False,
-                data=[],
-                pagination={'page': page, 'pageSize': page_size, 'total': 0, 'totalPages': 0}
-            )
+        return result
 
     except Exception as e:
         error_message = f"获取查询历史失败: {str(e)}"
         logger.error(error_message, exc_info=True)
-        return QueryHistoryResponse(
-            success=False,
-            data=[],
-            pagination={'page': page, 'pageSize': page_size, 'total': 0, 'totalPages': 0}
-        )
+        return {
+            "success": False,
+            "data": [],
+            "pagination": {'page': page, 'pageSize': page_size, 'total': 0, 'totalPages': 0},
+            "error": error_message
+        }
 
 
-@router.get("/history/{task_id}", response_model=QueryDetailResponse)
+@router.get("/history/{task_id}")
 async def get_query_detail(task_id: str):
     """
     获取查询详情
+    返回List[BaseNodeLog]对象列表
     """
     try:
         logger.info(f"获取查询详情请求: task_id={task_id}")
@@ -188,46 +179,14 @@ async def get_query_detail(task_id: str):
         # 调用追踪服务获取详情
         result = await tracker.get_task_detail(task_id)
 
-        if result['success']:
-            # 转换数据为QueryLogItem对象
-            log_item = QueryLogItem(**result['data'])
-            return QueryDetailResponse(
-                success=True,
-                data=log_item
-            )
-        else:
-            return QueryDetailResponse(
-                success=False,
-                data=QueryLogItem(
-                    id=task_id,
-                    query='',
-                    status='not_found',
-                    createdAt='',
-                    completedAt=None,
-                    duration=None,
-                    generatedSql=None,
-                    errorMessage=result.get('error', '任务不存在'),
-                    executionResult=None,
-                    operator=None
-                )
-            )
+        return result
 
     except Exception as e:
         error_message = f"获取查询详情失败: {str(e)}"
         logger.error(error_message, exc_info=True)
-        return QueryDetailResponse(
-            success=False,
-            data=QueryLogItem(
-                id=task_id,
-                query='',
-                status='error',
-                createdAt='',
-                completedAt=None,
-                duration=None,
-                generatedSql=None,
-                errorMessage=error_message,
-                executionResult=None,
-                operator=None
-            )
-        )
+        return {
+            "success": False,
+            "data": None,
+            "error": error_message
+        }
 

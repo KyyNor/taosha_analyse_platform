@@ -267,10 +267,18 @@ class OperationTracker:
                     task_id as id,
                     user_input as query,
                     status,
-                    created_at as createdAt,
-                    completed_at as completedAt,
-                    error_message as errorMessage,
-                    operator
+                    created_at as created_at,
+                    completed_at as completed_at,
+                    sql_query as sql_query,
+                    execution_result as execution_result,
+                    error_message as error_message,
+                    operator as operator,
+                    flow_type as flow_type,
+                    current_step as current_step,
+                    progress as progress,
+                    is_clear as is_clear,
+                    retry_count as retry_count,
+                    max_retries as max_retries
                 FROM nlquery_sessions
                 WHERE {where_clause}
                 ORDER BY created_at DESC
@@ -282,32 +290,52 @@ class OperationTracker:
             
             logger.info(f"操作人：{operator} 返回总条数：{total} 是否获取到分页结果：{results is None}")
 
-            # 处理数据格式
+            # 转换数据为TaskState对象
             history_items = []
             for result in results:
-                # 计算耗时
-                duration = None
-                if result.get('createdAt') and result.get('completedAt'):
-                    try:
-                        start = datetime.fromisoformat(result['createdAt'].replace('Z', '+00:00'))
-                        end = datetime.fromisoformat(result['completedAt'].replace('Z', '+00:00'))
-                        duration = int((end - start).total_seconds() * 1000)
-                    except:
-                        pass
+                try:
+                    # 处理执行结果
+                    execution_result = None
+                    if result.get('execution_result'):
+                        try:
+                            execution_result = json.loads(result['execution_result']) if isinstance(result['execution_result'], str) else result['execution_result']
+                        except:
+                            execution_result = []
 
-                item = {
-                    'id': result['id'],
-                    'query': result['query'] or '',
-                    'status': result['status'],
-                    'createdAt': result['createdAt'],
-                    'completedAt': result['completedAt'],
-                    'duration': duration,
-                    'generatedSql': '',
-                    'errorMessage': result['errorMessage'],
-                    'executionResult': [],
-                    'operator': result['operator']
-                }
-                history_items.append(item)
+                    # 创建TaskState对象
+                    task_state = TaskState(
+                        task_id=result['id'],
+                        user_input=result['query'] or '',
+                        operator=result.get('operator'),
+                        flow_type=result.get('flow_type', 'fast'),
+                        status=result['status'],
+                        current_step=result.get('current_step', ''),
+                        progress=result.get('progress', 0),
+                        created_at=datetime.strptime(result['created_at'], '%Y-%m-%d %H:%M:%S') if result.get('created_at') else None,
+                        completed_at=datetime.strptime(result['completed_at'], '%Y-%m-%d %H:%M:%S') if result.get('completed_at') else None,
+                        sql_query=result.get('sql_query', ''),
+                        execution_result=execution_result,
+                        clear_check_details={},
+                        is_clear=bool(result.get('is_clear', 0)),
+                        error_message=result.get('error_message'),
+                        retry_count=result.get('retry_count', 0),
+                        max_retries=result.get('max_retries', 5),
+                        logs=[],
+                        current_step_log=None,
+                        current_step_name=''
+                    )
+                    history_items.append(task_state)
+                except Exception as e:
+                    logger.error(f"转换TaskState对象失败: {e}, result: {result}")
+                    # 如果转换失败，创建一个默认的TaskState
+                    task_state = TaskState(
+                        task_id=result['id'],
+                        user_input=result['query'] or '',
+                        operator=result.get('operator'),
+                        status='error',
+                        error_message=f"数据转换失败: {str(e)}"
+                    )
+                    history_items.append(task_state)
 
             # 构建分页信息
             pagination = {
@@ -333,58 +361,9 @@ class OperationTracker:
             }
 
     async def get_task_detail(self, task_id: str):
-        """获取单个任务的详细信息"""
+        """获取单个任务的步骤详情"""
         try:
-            # 先查缓存
-            cached_state = await self.cache.get(task_id)
-            if cached_state:
-                return {
-                    'success': True,
-                    'data': cached_state.model_dump()
-                }
-
-            # 从数据库查询
-            query = """
-                SELECT
-                    task_id as id,
-                    user_input as query,
-                    status,
-                    created_at as createdAt,
-                    completed_at as completedAt,
-                    error_message as errorMessage,
-                    operator,
-                    sql_query,
-                    execution_result,
-                    flow_type,
-                    current_step,
-                    progress,
-                    is_clear,
-                    retry_count,
-                    max_retries
-                FROM nlquery_sessions
-                WHERE task_id = ?
-            """
-            results = self.db_manager.execute_query(query, [task_id], fetch="all")
-
-            if not results:
-                return {
-                    'success': False,
-                    'error': f'任务 {task_id} 不存在'
-                }
-
-            result = results[0]
-
-            # 计算耗时
-            duration = None
-            if result.get('createdAt') and result.get('completedAt'):
-                try:
-                    start = datetime.fromisoformat(result['createdAt'].replace('Z', '+00:00'))
-                    end = datetime.fromisoformat(result['completedAt'].replace('Z', '+00:00'))
-                    duration = int((end - start).total_seconds() * 1000)
-                except:
-                    pass
-
-            # 获取步骤详情
+            # 只查询 nlquery_steps 表获取步骤日志
             steps_query = """
                 SELECT step, input_data, prompt, model_output, success, error,
                        start_time, end_time, created_at
@@ -394,39 +373,33 @@ class OperationTracker:
             """
             steps = self.db_manager.execute_query(steps_query, [task_id], fetch="all")
 
-            # 从sessions中获取SQL和执行结果
-            sql_query = result.get('sql_query')
-            execution_result_str = result.get('execution_result')
-            execution_result = None
-            if execution_result_str:
-                try:
-                    execution_result = json.loads(execution_result_str) if isinstance(execution_result_str, str) else execution_result_str
-                except:
-                    execution_result = None
+            if not steps:
+                return {
+                    'success': True,
+                    'data': []
+                }
 
-            detail_data = {
-                'id': result['id'],
-                'query': result['query'] or '',
-                'status': result['status'],
-                'createdAt': result['createdAt'],
-                'completedAt': result['completedAt'],
-                'duration': duration,
-                'generatedSql': sql_query or '',
-                'errorMessage': result['errorMessage'],
-                'executionResult': execution_result or [],
-                'operator': result['operator'],
-                'flowType': result.get('flow_type', 'fast'),
-                'currentStep': result.get('current_step', ''),
-                'progress': result.get('progress', 0),
-                'isClear': bool(result.get('is_clear', 0)),
-                'retryCount': result.get('retry_count', 0),
-                'maxRetries': result.get('max_retries', 5),
-                'steps': steps
-            }
+            # 转换步骤为BaseNodeLog对象
+            log_list = []
+            for step in steps:
+                try:
+                    node_log = BaseNodeLog(
+                        step=step['step'],
+                        input_data=step['input_data'] or '',
+                        prompt=step['prompt'] or '',
+                        model_output=step['model_output'] or '',
+                        success=bool(step['success']),
+                        error=step.get('error'),
+                        start_time=datetime.strptime(step['start_time'], '%Y-%m-%d %H:%M:%S') if step.get('start_time') else None,
+                        end_time=datetime.strptime(step['end_time'], '%Y-%m-%d %H:%M:%S') if step.get('end_time') else None
+                    )
+                    log_list.append(node_log)
+                except Exception as e:
+                    logger.error(f"转换步骤日志失败: {e}, step: {step}")
 
             return {
                 'success': True,
-                'data': detail_data
+                'data': log_list
             }
 
         except Exception as e:
