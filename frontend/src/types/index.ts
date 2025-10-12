@@ -206,14 +206,6 @@ export interface PaginationParams {
   pageSize: number
 }
 
-export interface PaginatedResponse<T> {
-  items: T[]
-  total: number
-  page: number
-  pageSize: number
-  totalPages: number
-}
-
 // UI State types
 export interface LoadingState {
   [key: string]: boolean

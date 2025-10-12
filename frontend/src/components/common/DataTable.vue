@@ -464,6 +464,14 @@ const getRowKey = (record: any, index?: number) => {
   return record[props.rowKey] || index
 }
 
+// Get row class
+const getRowClass = (record: any, index: number) => {
+  if (props.getRowClass) {
+    return props.getRowClass(record, index)
+  }
+  return ''
+}
+
 // Handle sort
 const handleSort = (column: Column) => {
   if (!column.sortable) return

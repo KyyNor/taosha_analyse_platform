@@ -6,7 +6,6 @@ import type {
   GlossaryTerm,
   RelationConfig,
   DataTheme,
-  PaginatedResponse
 } from '@types/index'
 
 class MetadataService {

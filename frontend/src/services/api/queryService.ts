@@ -10,7 +10,7 @@ import type {
   UpdateFavoriteRequest,
   FeedbackRequest,
   QueryTask,
-  PaginatedResponse
+  BaseNodeLog
 } from '@types/index'
 
 class QueryService {
@@ -62,7 +62,16 @@ class QueryService {
     filters: {
       status?: string
     } = {}
-  ): Promise<PaginatedResponse<QueryTask>> {
+  ): Promise<{
+      success: boolean
+      data: QueryTask[]
+      pagination: {
+        page: number
+        pageSize: number
+        total: number
+        totalPages: number
+      }
+    }> {
     const params = {
       page: page.toString(),
       page_size: pageSize.toString(),
@@ -73,7 +82,11 @@ class QueryService {
   }
 
   // Get query history detail
-  async getQueryHistoryDetail(taskId: string): Promise<{ success: boolean; data: QueryTask }> {
+  async getQueryHistoryDetail(taskId: string): Promise<{
+      success: boolean
+      data: QueryTask
+      logs: BaseNodeLog[]
+    }> {
     const url = replaceUrlParams(API_ENDPOINTS.NL_QUERY.HISTORY_DETAIL, { taskId })
     return await api.get(buildApiUrl(url))
   }

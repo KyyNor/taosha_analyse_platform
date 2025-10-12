@@ -24,8 +24,8 @@
           <option value="running">
             运行中
           </option>
-          <option value="cancelled">
-            已取消
+          <option value="completed">
+            已完成
           </option>
         </select>
       </div>
@@ -67,7 +67,7 @@
         :paginated="true"
         :page-size="50"
         empty-state-type="no-data"
-        row-key="id"
+        row-key="task_id"
       >
         <template #cell-status="{ value }">
           <span
@@ -76,7 +76,7 @@
               'badge-success': value === 'success',
               'badge-error': value === 'failed',
               'badge-warning': value === 'running',
-              'badge-info': value === 'cancelled'
+              'badge-info': value === 'completed'
             }"
           >
             {{ getStatusText(value) }}
@@ -92,16 +92,32 @@
           </div>
         </template>
 
-        <template #cell-duration="{ value }">
-          <span v-if="value">{{ formatDuration(value) }}</span>
+        <template #cell-operator="{ value }">
+          <span class="badge badge-outline badge-sm">{{ value }}</span>
+        </template>
+
+        <template #cell-duration="{ record }">
+          <span v-if="calculateDuration(record)">{{ formatDuration(calculateDuration(record) || 0) }}</span>
           <span
             v-else
             class="text-base-content/40"
           >-</span>
         </template>
 
-        <template #cell-createdAt="{ value }">
-          {{ formatTime(value) }}
+        <template #cell-created_at="{ value }">
+          <span v-if="value">{{ formatTime(value) }}</span>
+          <span
+            v-else
+            class="text-base-content/40"
+          >-</span>
+        </template>
+
+        <template #cell-completed_at="{ value }">
+          <span v-if="value">{{ formatTime(value) }}</span>
+          <span
+            v-else
+            class="text-base-content/40"
+          >-</span>
         </template>
 
         <template #actions="{ record }">
@@ -201,6 +217,14 @@ const logColumns = [
     visible: true
   },
   {
+    key: 'operator',
+    title: '用户',
+    sortable: true,
+    visible: true,
+    className: 'text-center',
+    width: '100px'
+  },
+  {
     key: 'status',
     title: '状态',
     sortable: true,
@@ -208,17 +232,25 @@ const logColumns = [
     className: 'text-center'
   },
   {
+    key: 'created_at',
+    title: '开始时间',
+    sortable: true,
+    visible: true,
+    width: '150px'
+  },
+  {
+    key: 'completed_at',
+    title: '结束时间',
+    sortable: true,
+    visible: true,
+    width: '150px'
+  },
+  {
     key: 'duration',
     title: '耗时',
     sortable: true,
     visible: true,
     className: 'text-center'
-  },
-  {
-    key: 'created_at',
-    title: '时间',
-    sortable: true,
-    visible: true
   }
 ]
 
@@ -251,10 +283,17 @@ const loadLogs = async () => {
 
     if (response.success) {
       logs.value = response.data || []
-      pagination.value = response.pagination || pagination.value
+      if (response.pagination) {
+        pagination.value = {
+          page: response.pagination.page || pagination.value.page,
+          pageSize: response.pagination.pageSize || pagination.value.pageSize,
+          total: response.pagination.total || 0,
+          totalPages: response.pagination.totalPages || Math.ceil((response.pagination.total || 0) / (response.pagination.pageSize || pagination.value.pageSize))
+        }
+      }
     } else {
+      console.error('[LogsPage] API returned success=false:', response)
       logs.value = []
-      console.error('Failed to load logs: API returned success=false')
     }
   } catch (err) {
     console.error('Failed to load logs:', err)
@@ -266,11 +305,11 @@ const loadLogs = async () => {
 
 // Get status text
 const getStatusText = (status: string) => {
-  const statusMap = {
+  const statusMap: Record<string, string> = {
     'success': '成功',
     'failed': '失败',
     'running': '运行中',
-    'cancelled': '已取消'
+    'completed': '已完成'
   }
   return statusMap[status] || status
 }
@@ -287,6 +326,16 @@ const formatDuration = (duration: number) => {
 // Format time
 const formatTime = (timeStr: string) => {
   return new Date(timeStr).toLocaleString()
+}
+
+// Calculate duration from created_at and completed_at
+const calculateDuration = (record: QueryTask) => {
+  if (!record.created_at) return null
+
+  const startTime = new Date(record.created_at).getTime()
+  const endTime = record.completed_at ? new Date(record.completed_at).getTime() : Date.now()
+
+  return endTime - startTime
 }
 
 // View log details
