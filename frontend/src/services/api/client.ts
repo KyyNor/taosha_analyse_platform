@@ -124,21 +124,21 @@ export const api = {
     const response = await apiClient.get<ApiResponse<T>>(url, config)
     // Handle both nested data format (response.data.data) and direct data format (response.data)
     const responseData = response.data as any
-    return responseData.data || responseData as T
+    return responseData
   },
 
   post: async <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
     const response = await apiClient.post<ApiResponse<T>>(url, data, config)
     // Handle both nested data format (response.data.data) and direct data format (response.data)
     const responseData = response.data as any
-    return responseData.data || responseData as T
+    return responseData
   },
 
   put: async <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
     const response = await apiClient.put<ApiResponse<T>>(url, data, config)
     // Handle both nested data format (response.data.data) and direct data format (response.data)
     const responseData = response.data as any
-    return responseData.data || responseData as T
+    return responseData
   },
 
   delete: async <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {

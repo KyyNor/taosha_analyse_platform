@@ -188,7 +188,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQueryStore } from '@stores/query'
-import type { QueryLog } from '@types/index'
+import type { QueryTask } from '@types/index'
 
 const router = useRouter()
 const queryStore = useQueryStore()

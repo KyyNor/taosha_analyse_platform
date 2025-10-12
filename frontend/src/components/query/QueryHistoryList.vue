@@ -31,7 +31,7 @@
     >
       <div
         v-for="item in history"
-        :key="item.id"
+        :key="item.task_id"
         class="card bg-base-100 border border-base-300 hover:border-primary transition-colors"
       >
         <div class="card-body p-4">
@@ -45,48 +45,42 @@
                     'badge-success': item.status === 'success',
                     'badge-error': item.status === 'failed',
                     'badge-warning': item.status === 'running',
-                    'badge-info': item.status === 'cancelled'
+                    'badge-info': item.status === 'completed'
                   }"
                 >
                   {{ getStatusText(item.status) }}
                 </span>
                 <span class="text-xs text-base-content/60">
-                  {{ formatTime(item.createdAt) }}
-                </span>
-                <span
-                  v-if="item.duration"
-                  class="text-xs text-base-content/60"
-                >
-                  {{ formatDuration(item.duration) }}
+                  {{ formatTime(item.created_at) }}
                 </span>
               </div>
 
               <div class="mb-2">
                 <p class="text-sm font-medium line-clamp-2">
-                  {{ item.query }}
+                  {{ item.user_input }}
                 </p>
                 <p
-                  v-if="item.generatedSql"
+                  v-if="item.sql_query"
                   class="text-xs text-base-content/60 mt-1 font-mono line-clamp-1"
                 >
-                  {{ item.generatedSql }}
+                  {{ item.sql_query }}
                 </p>
               </div>
 
               <!-- Result Summary -->
               <div
-                v-if="item.result"
+                v-if="item.execution_result"
                 class="text-xs text-base-content/60"
               >
-                返回 {{ item.result.rowCount || 0 }} 行数据
+                返回 {{ item.execution_result.length || 0 }} 行数据
               </div>
 
               <!-- Error Message -->
               <div
-                v-if="item.errorMessage"
+                v-if="item.error_message"
                 class="text-xs text-error mt-2"
               >
-                {{ item.errorMessage }}
+                {{ item.error_message }}
               </div>
             </div>
 
@@ -96,7 +90,7 @@
                 v-if="item.status === 'success'"
                 class="btn btn-ghost btn-xs"
                 title="重新运行"
-                @click="$emit('rerun', item.id)"
+                @click="$emit('rerun', item.task_id)"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -116,7 +110,7 @@
               <button
                 class="btn btn-ghost btn-xs"
                 title="查看详情"
-                @click="$emit('view-details', item)"
+                @click="$emit('viewDetails', item)"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -173,10 +167,10 @@ import { useToast } from '@/composables/useToast'
 import { useQueryStore } from '@stores/query'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import type { QueryLog } from '@types/index'
+import type { QueryTask } from '@types/index'
 
 interface Props {
-  history: QueryLog[]
+  history: QueryTask[]
   loading: boolean
 }
 
@@ -184,7 +178,7 @@ defineProps<Props>()
 
 const emit = defineEmits<{
   rerun: [id: string]
-  viewDetails: [log: QueryLog]
+  viewDetails: [log: QueryTask]
 }>()
 
 const queryStore = useQueryStore()
@@ -224,17 +218,17 @@ const getStatusText = (status: string) => {
     'success': '成功',
     'failed': '失败',
     'running': '运行中',
-    'cancelled': '已取消',
+    'completed': '已完成',
     'pending': '等待中'
   }
   return statusMap[status] || status
 }
 
 // Add to favorites
-const addToFavorites = async (log: QueryLog) => {
+const addToFavorites = async (log: QueryTask) => {
   try {
-    const title = `${log.query.substring(0, 20)}${log.query.length > 20 ? '...' : ''}`
-    await queryStore.addToFavorites(log.id, title)
+    const title = `${log.user_input.substring(0, 20)}${log.user_input.length > 20 ? '...' : ''}`
+    await queryStore.addToFavorites(log.task_id, title)
     success('已添加到收藏')
   } catch (err) {
     error('添加到收藏失败')

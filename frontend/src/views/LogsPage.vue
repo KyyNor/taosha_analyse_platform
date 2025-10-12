@@ -83,7 +83,7 @@
           </span>
         </template>
 
-        <template #cell-query="{ value }">
+        <template #cell-user_input="{ value }">
           <div
             class="max-w-md truncate"
             :title="value"
@@ -165,12 +165,12 @@ import { ref, reactive, onMounted } from 'vue'
 import { useToast } from '@/composables/useToast'
 import DataTable from '@/components/common/DataTable.vue'
 import queryService from '@/services/api/queryService'
-import type { QueryLog } from '@types/index'
+import type { QueryTask, BaseNodeLog } from '@types/index'
 
 const { success, info } = useToast()
 
 // State
-const logs = ref<QueryLog[]>([])
+const logs = ref<QueryTask[]>([])
 const loading = ref(false)
 const pagination = ref({
   page: 1,
@@ -189,13 +189,13 @@ const filters = reactive({
 // Table columns
 const logColumns = [
   {
-    key: 'id',
+    key: 'task_id',
     title: 'ID',
     sortable: true,
     visible: false
   },
   {
-    key: 'query',
+    key: 'user_input',
     title: '查询内容',
     sortable: true,
     visible: true
@@ -215,7 +215,7 @@ const logColumns = [
     className: 'text-center'
   },
   {
-    key: 'createdAt',
+    key: 'created_at',
     title: '时间',
     sortable: true,
     visible: true
@@ -223,7 +223,7 @@ const logColumns = [
 ]
 
 // Debounced search
-let searchTimeout: NodeJS.Timeout
+let searchTimeout: number
 const debouncedSearch = () => {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(loadLogs, 500)
@@ -290,12 +290,12 @@ const formatTime = (timeStr: string) => {
 }
 
 // View log details
-const viewLogDetails = async (log: QueryLog) => {
+const viewLogDetails = async (log: QueryTask) => {
   try {
-    const response = await queryService.getQueryHistoryDetail(log.id)
+    const response = await queryService.getQueryHistoryDetail(log.task_id)
     if (response.success) {
       console.log('Log details:', response.data)
-      info(`查看日志详情: ${log.id}`)
+      info(`查看日志详情: ${log.task_id}`)
       // TODO: 可以在这里添加显示详情的逻辑，比如弹窗或跳转
     } else {
       console.error('Failed to get log details')
@@ -306,9 +306,9 @@ const viewLogDetails = async (log: QueryLog) => {
 }
 
 // Rerun query
-const rerunQuery = async (log: QueryLog) => {
+const rerunQuery = async (log: QueryTask) => {
   try {
-    const response = await queryService.rerunQuery(log.id)
+    const response = await queryService.rerunQuery(log.task_id)
     if (response.success) {
       success('查询已重新提交执行')
       // 刷新列表

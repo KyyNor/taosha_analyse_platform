@@ -69,6 +69,7 @@ export interface QueryTask {
   current_step_name: string
 }
 
+
 export interface TaskProgress {
   currentStep: string
   completedNodes: TaskNode[]
@@ -189,21 +190,6 @@ export interface Feedback {
   createdAt: string
 }
 
-// Log types
-export interface QueryLog {
-  id: number
-  taskId: string
-  userId: number
-  userQuestion: string
-  generatedSql: string
-  status: string
-  startTime: string
-  endTime?: string
-  durationMs?: number
-  errorMessage?: string
-  nodes: TaskNode[]
-  createdAt: string
-}
 
 export interface LogFilter {
   userId?: number

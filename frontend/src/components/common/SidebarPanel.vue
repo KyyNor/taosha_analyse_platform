@@ -224,12 +224,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useQueryStore } from '@stores/query'
 import QueryHistoryList from '@/components/query/QueryHistoryList.vue'
-import type { QueryLog, Favorite } from '@types/index'
+import type { QueryTask, Favorite } from '@types/index'
 
 interface Emits {
   (e: 'close'): void
   (e: 'rerun-query', taskId: string): void
-  (e: 'view-details', log: QueryLog): void
+  (e: 'view-details', log: QueryTask): void
   (e: 'execute-favorite', favoriteId: number): void
   (e: 'edit-favorite', favoriteId: number, newTitle: string): void
   (e: 'delete-favorite', favoriteId: number): void

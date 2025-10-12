@@ -9,7 +9,7 @@ import type {
   AddFavoriteRequest,
   UpdateFavoriteRequest,
   FeedbackRequest,
-  QueryLog,
+  QueryTask,
   PaginatedResponse
 } from '@types/index'
 
@@ -62,7 +62,7 @@ class QueryService {
     filters: {
       status?: string
     } = {}
-  ): Promise<PaginatedResponse<QueryLog>> {
+  ): Promise<PaginatedResponse<QueryTask>> {
     const params = {
       page: page.toString(),
       page_size: pageSize.toString(),
@@ -73,7 +73,7 @@ class QueryService {
   }
 
   // Get query history detail
-  async getQueryHistoryDetail(taskId: string): Promise<{ success: boolean; data: QueryLog }> {
+  async getQueryHistoryDetail(taskId: string): Promise<{ success: boolean; data: QueryTask }> {
     const url = replaceUrlParams(API_ENDPOINTS.NL_QUERY.HISTORY_DETAIL, { taskId })
     return await api.get(buildApiUrl(url))
   }

@@ -4,8 +4,7 @@ import type {
   QueryRequest,
   QueryTask,
   QueryResult,
-  Favorite,
-  QueryLog
+  Favorite
 } from '@/types/index'
 import queryService from '@services/api/queryService'
 
@@ -14,7 +13,7 @@ export const useQueryStore = defineStore('query', () => {
   const currentQuery = ref<QueryRequest | null>(null)
   const currentTask = ref<QueryTask | null>(null)
   const currentResult = ref<QueryResult | null>(null)
-  const queryHistory = ref<QueryLog[]>([])
+  const queryHistory = ref<QueryTask[]>([])
   const favorites = ref<Favorite[]>([])
   const isLoading = ref(false)
   const wsConnected = ref(false)
