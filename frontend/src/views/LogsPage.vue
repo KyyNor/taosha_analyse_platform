@@ -507,20 +507,29 @@ const viewLogDetails = async (task_id: string) => {
     showDetailModal.value = true
     detailLoading.value = true
 
+    // 1. 先从现有logs数组中获取任务基本信息
+    const taskInfo = logs.value.find(log => log.task_id === task_id)
+
+    // 2. 获取步骤日志
     const response = await queryService.getQueryHistoryDetail(task_id)
     if (response.success) {
       detailData.value = {
-        task: response.data,
-        logs: response.logs || []
+        task: taskInfo || null, // 使用列表中的任务信息
+        logs: response.data || [] // 后端返回的是BaseNodeLog数组
       }
       console.log('Log details loaded:', detailData.value)
+      console.log('Response data structure:', response)
+      console.log('Response data type:', typeof response.data)
+      console.log('Response data keys:', response.data ? Object.keys(response.data) : 'null')
     } else {
       console.error('Failed to get log details')
-      detailData.value = { task: null, logs: [] }
+      detailData.value = { task: taskInfo || null, logs: [] }
     }
   } catch (err) {
     console.error('Failed to get log details:', err)
-    detailData.value = { task: null, logs: [] }
+    // 即使获取步骤失败，也要显示任务基本信息
+    const taskInfo = logs.value.find(log => log.task_id === task_id)
+    detailData.value = { task: taskInfo || null, logs: [] }
   } finally {
     detailLoading.value = false
   }
