@@ -429,12 +429,6 @@ const metadataSubItems = computed(() => [
     icon: TableIcon
   },
   {
-    name: 'MetadataColumns',
-    path: '/metadata/columns',
-    label: '字段配置',
-    icon: ColumnIcon
-  },
-  {
     name: 'MetadataRelations',
     path: '/metadata/relations',
     label: '关联配置',

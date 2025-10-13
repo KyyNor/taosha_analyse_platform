@@ -50,15 +50,7 @@ const routes: RouteRecordRaw[] = [
               title: '表配置 - 淘沙分析平台'
             }
           },
-          {
-            path: 'columns',
-            name: 'MetadataColumns',
-            component: () => import('@/views/metadata/ColumnsPage.vue'),
-            meta: {
-              title: '字段配置 - 淘沙分析平台'
-            }
-          },
-          {
+            {
             path: 'relations',
             name: 'MetadataRelations',
             component: () => import('@/views/metadata/RelationsPage.vue'),
