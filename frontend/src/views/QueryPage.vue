@@ -182,6 +182,14 @@
       </form>
     </dialog>
 
+    <!-- 日志详情弹框 -->
+    <LogDetailModal
+      :is-visible="showDetailModal"
+      :task-id="detailTaskId"
+      :task-info="detailTaskInfo"
+      @close="closeDetailModal"
+    />
+
     <!-- 悬浮球和侧边栏 -->
     <FloatingBall
       :is-expanded="isSidebarVisible"
@@ -208,6 +216,7 @@ import QueryProgress from '@/components/common/QueryProgress.vue'
 import QueryResultsTable from '@/components/query/QueryResultsTable.vue'
 import FloatingBall from '@/components/common/FloatingBall.vue'
 import SidebarPanel from '@/components/common/SidebarPanel.vue'
+import LogDetailModal from '@/components/common/LogDetailModal.vue'
 import type { QueryRequest } from '@/types/index'
 
 const queryStore = useQueryStore()
@@ -221,6 +230,11 @@ const isSidebarVisible = ref(false)
 const addToFavoritesModal = ref<HTMLDialogElement>()
 const favoriteTitle = ref('')
 const favoriteTitleInput = ref<HTMLInputElement>()
+
+// Detail modal state
+const showDetailModal = ref(false)
+const detailTaskId = ref('')
+const detailTaskInfo = ref(null)
 
 // Quick examples
 const quickExamples = [
@@ -339,9 +353,15 @@ const handleRerunQuery = async (taskId: string) => {
 
 // Handle view details
 const handleViewDetails = (log: any) => {
-  info(`查看查询详情: ${log.id}`)
-  // TODO: 可以在这里添加显示详情的逻辑，比如弹窗或跳转到详情页
-  console.log('Log details:', log)
+  detailTaskId.value = log.task_id
+  detailTaskInfo.value = log
+  showDetailModal.value = true
+}
+
+const closeDetailModal = () => {
+  showDetailModal.value = false
+  detailTaskId.value = ''
+  detailTaskInfo.value = null
 }
 
 // Handle favorites actions

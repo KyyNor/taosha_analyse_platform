@@ -174,154 +174,13 @@
       </DataTable>
     </div>
 
-    <!-- 详情弹框 -->
-    <div
-      v-if="showDetailModal"
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      @click.self="closeDetailModal"
-    >
-      <div class="bg-white rounded-lg w-11/12 max-w-4xl max-h-[90vh] overflow-hidden">
-        <!-- 弹框头部 -->
-        <div class="bg-primary text-white p-4 flex justify-between items-center">
-          <h3 class="text-lg font-semibold">查询详情 - {{ detailTaskId }}</h3>
-          <button
-            @click="closeDetailModal"
-            class="btn btn-sm btn-circle btn-ghost text-white hover:bg-white hover:bg-opacity-20"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <!-- 弹框内容 -->
-        <div class="overflow-y-auto max-h-[calc(90vh-64px)]">
-          <div v-if="detailLoading" class="flex justify-center items-center p-8">
-            <span class="loading loading-spinner loading-lg"></span>
-          </div>
-
-          <div v-else-if="detailData.task" class="p-6">
-            <!-- 任务基本信息 -->
-            <div class="mb-6">
-              <h4 class="text-lg font-semibold mb-4">任务信息</h4>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded">
-                <div>
-                  <label class="font-medium text-gray-600">任务ID:</label>
-                  <p class="font-mono text-sm">{{ detailData.task.task_id }}</p>
-                </div>
-                <div>
-                  <label class="font-medium text-gray-600">用户:</label>
-                  <p>{{ detailData.task.operator }}</p>
-                </div>
-                <div>
-                  <label class="font-medium text-gray-600">查询内容:</label>
-                  <p class="text-sm">{{ detailData.task.user_input }}</p>
-                </div>
-                <div>
-                  <label class="font-medium text-gray-600">状态:</label>
-                  <p>
-                    <span
-                      class="badge badge-sm"
-                      :class="{
-                        'badge-success': detailData.task.status === 'success',
-                        'badge-error': detailData.task.status === 'failed',
-                        'badge-warning': detailData.task.status === 'running',
-                        'badge-info': detailData.task.status === 'completed'
-                      }"
-                    >
-                      {{ getStatusText(detailData.task.status) }}
-                    </span>
-                  </p>
-                </div>
-                <div>
-                  <label class="font-medium text-gray-600">开始时间:</label>
-                  <p class="text-sm">{{ formatTime(detailData.task.created_at) }}</p>
-                </div>
-                <div>
-                  <label class="font-medium text-gray-600">结束时间:</label>
-                  <p class="text-sm">{{ detailData.task.completed_at ? formatTime(detailData.task.completed_at) : '进行中' }}</p>
-                </div>
-                <div>
-                  <label class="font-medium text-gray-600">SQL查询:</label>
-                  <pre class="bg-gray-100 p-2 rounded text-xs overflow-x-auto">{{ detailData.task.sql_query || '无' }}</pre>
-                </div>
-                <div>
-                  <label class="font-medium text-gray-600">执行结果:</label>
-                  <p class="text-sm">{{ detailData.task.execution_result?.length || 0 }} 条记录</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- 执行步骤日志 -->
-            <div>
-              <h4 class="text-lg font-semibold mb-4">执行步骤</h4>
-              <div v-if="detailData.logs.length === 0" class="text-center py-8 text-gray-500">
-                暂无执行步骤日志
-              </div>
-              <div v-else class="space-y-3">
-                <div
-                  v-for="(log, index) in detailData.logs"
-                  :key="index"
-                  class="border rounded-lg p-4"
-                  :class="{
-                    'border-green-200 bg-green-50': log.success,
-                    'border-red-200 bg-red-50': !log.success
-                  }"
-                >
-                  <div class="flex justify-between items-start mb-2">
-                    <div class="flex items-center gap-2">
-                      <span class="font-medium">{{ log.step }}</span>
-                      <span
-                        class="badge badge-sm"
-                        :class="{
-                          'badge-success': log.success,
-                          'badge-error': !log.success
-                        }"
-                      >
-                        {{ log.success ? '成功' : '失败' }}
-                      </span>
-                    </div>
-                    <span class="text-xs text-gray-500">
-                      {{ log.start_time ? formatTime(log.start_time) : '' }} -
-                      {{ log.end_time ? formatTime(log.end_time) : '' }}
-                    </span>
-                  </div>
-
-                  <div v-if="log.error" class="text-red-600 text-sm mb-2 p-2 bg-red-100 rounded">
-                    <strong>错误:</strong> {{ log.error }}
-                  </div>
-
-                  <div v-if="log.prompt" class="mb-2">
-                    <details class="text-sm">
-                      <summary class="font-medium cursor-pointer hover:text-primary">提示词</summary>
-                      <pre class="bg-gray-100 p-2 rounded mt-1 text-xs overflow-x-auto">{{ log.prompt }}</pre>
-                    </details>
-                  </div>
-
-                  <div v-if="log.input_data" class="mb-2">
-                    <details class="text-sm">
-                      <summary class="font-medium cursor-pointer hover:text-primary">输入数据</summary>
-                      <pre class="bg-gray-100 p-2 rounded mt-1 text-xs overflow-x-auto">{{ log.input_data }}</pre>
-                    </details>
-                  </div>
-
-                  <div v-if="log.model_output" class="mb-2">
-                    <details class="text-sm">
-                      <summary class="font-medium cursor-pointer hover:text-primary">模型输出</summary>
-                      <pre class="bg-gray-100 p-2 rounded mt-1 text-xs overflow-x-auto">{{ log.model_output }}</pre>
-                    </details>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div v-else class="p-8 text-center text-gray-500">
-            加载详情失败
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- 日志详情弹框 -->
+    <LogDetailModal
+      :is-visible="showDetailModal"
+      :task-id="detailTaskId"
+      :task-info="detailTaskInfo"
+      @close="closeDetailModal"
+    />
   </div>
 </template>
 
@@ -329,6 +188,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useToast } from '@/composables/useToast'
 import DataTable from '@/components/common/DataTable.vue'
+import LogDetailModal from '@/components/common/LogDetailModal.vue'
 import queryService from '@/services/api/queryService'
 import type { QueryTask, BaseNodeLog } from '@types/index'
 
@@ -347,14 +207,7 @@ const pagination = ref({
 // 详情弹框状态
 const showDetailModal = ref(false)
 const detailTaskId = ref<string>('')
-const detailData = ref<{
-  task: QueryTask | null
-  logs: BaseNodeLog[]
-}>({
-  task: null,
-  logs: []
-})
-const detailLoading = ref(false)
+const detailTaskInfo = ref(null)
 
 // Filters
 const filters = reactive({
@@ -501,45 +354,17 @@ const calculateDuration = (record: QueryTask) => {
 }
 
 // View log details
-const viewLogDetails = async (task_id: string) => {
-  try {
-    detailTaskId.value = task_id
-    showDetailModal.value = true
-    detailLoading.value = true
-
-    // 1. 先从现有logs数组中获取任务基本信息
-    const taskInfo = logs.value.find(log => log.task_id === task_id)
-
-    // 2. 获取步骤日志
-    const response = await queryService.getQueryHistoryDetail(task_id)
-    if (response.success) {
-      detailData.value = {
-        task: taskInfo || null, // 使用列表中的任务信息
-        logs: response.data || [] // 后端返回的是BaseNodeLog数组
-      }
-      console.log('Log details loaded:', detailData.value)
-      console.log('Response data structure:', response)
-      console.log('Response data type:', typeof response.data)
-      console.log('Response data keys:', response.data ? Object.keys(response.data) : 'null')
-    } else {
-      console.error('Failed to get log details')
-      detailData.value = { task: taskInfo || null, logs: [] }
-    }
-  } catch (err) {
-    console.error('Failed to get log details:', err)
-    // 即使获取步骤失败，也要显示任务基本信息
-    const taskInfo = logs.value.find(log => log.task_id === task_id)
-    detailData.value = { task: taskInfo || null, logs: [] }
-  } finally {
-    detailLoading.value = false
-  }
+const viewLogDetails = (task_id: string) => {
+  const taskInfo = logs.value.find(log => log.task_id === task_id)
+  detailTaskId.value = task_id
+  detailTaskInfo.value = taskInfo
+  showDetailModal.value = true
 }
 
-// Close detail modal
 const closeDetailModal = () => {
   showDetailModal.value = false
   detailTaskId.value = ''
-  detailData.value = { task: null, logs: [] }
+  detailTaskInfo.value = null
 }
 
 // Rerun query
