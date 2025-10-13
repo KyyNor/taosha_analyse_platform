@@ -17,13 +17,16 @@ class MetadataService {
     if (dataSource) params.dataSource = dataSource
     if (isActive !== undefined) params.isAvailable = isActive ? '1' : '0'
 
-    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.TABLES.LIST, params))
+    const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.TABLES.LIST, params))
+    // Extract data from response object
+    return response.data || []
   }
 
   // Get table by ID
   async getTable(id: number): Promise<TableMetadata> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.TABLES.DETAIL, { id })
-    return await api.get(buildApiUrl(url))
+    const response = await api.get(buildApiUrl(url))
+    return response.data
   }
 
   // Create new table
@@ -61,14 +64,16 @@ class MetadataService {
     sampleData: any[]
   }> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.TABLES.SCHEMA, { tableName })
-    return await api.get(buildApiUrl(url))
+    const response = await api.get(buildApiUrl(url))
+    return response.data
   }
 
   // === Column Metadata ===
 
   // Get columns for a table
   async getColumns(tableId: number): Promise<ColumnMetadata[]> {
-    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.COLUMNS.LIST, { tableId }))
+    const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.COLUMNS.LIST, { tableId }))
+    return response.data || []
   }
 
   // Get column by ID
@@ -115,18 +120,21 @@ class MetadataService {
   // Get all terms
   async getTerms(category?: string): Promise<GlossaryTerm[]> {
     const params = category ? { category } : {}
-    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.LIST, params))
+    const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.LIST, params))
+    return response.data || []
   }
 
   // Search terms
   async searchTerms(query: string): Promise<GlossaryTerm[]> {
-    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.SEARCH, { q: query }))
+    const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.SEARCH, { q: query }))
+    return response.data || []
   }
 
   // Get term by ID
   async getTerm(id: number): Promise<GlossaryTerm> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.DETAIL, { id })
-    return await api.get(buildApiUrl(url))
+    const response = await api.get(buildApiUrl(url))
+    return response.data
   }
 
   // Create new term
@@ -162,13 +170,15 @@ class MetadataService {
 
   // Get all relation configurations
   async getRelationConfigs(): Promise<RelationConfig[]> {
-    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.RELATIONS.LIST))
+    const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.RELATIONS.LIST))
+    return response.data || []
   }
 
   // Get relation config by ID
   async getRelationConfig(id: string): Promise<RelationConfig> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.RELATIONS.DETAIL, { id })
-    return await api.get(buildApiUrl(url))
+    const response = await api.get(buildApiUrl(url))
+    return response.data
   }
 
   // Create new relation config
@@ -200,13 +210,15 @@ class MetadataService {
 
   // Get all themes
   async getThemes(): Promise<DataTheme[]> {
-    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.THEMES.LIST))
+    const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.THEMES.LIST))
+    return response.data || []
   }
 
   // Get theme by ID
   async getTheme(id: number): Promise<DataTheme> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.THEMES.DETAIL, { id })
-    return await api.get(buildApiUrl(url))
+    const response = await api.get(buildApiUrl(url))
+    return response.data
   }
 
   // Create new theme
@@ -237,7 +249,8 @@ class MetadataService {
   // Get tables in a theme
   async getThemeTables(themeId: number): Promise<TableMetadata[]> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.THEMES.TABLES, { themeId })
-    return await api.get(buildApiUrl(url))
+    const response = await api.get(buildApiUrl(url))
+    return response.data || []
   }
 
   // Add table to theme
@@ -268,7 +281,8 @@ class MetadataService {
       message: string
     }>
   }> {
-    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.VALIDATE))
+    const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.VALIDATE))
+    return response.data
   }
 
   // === Search and Filter ===
@@ -290,7 +304,8 @@ class MetadataService {
       })
     }
 
-    return await api.get(buildApiUrl(API_ENDPOINTS.METADATA.SEARCH, params))
+    const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.SEARCH, params))
+    return response.data
   }
 }
 

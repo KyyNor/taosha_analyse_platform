@@ -184,26 +184,6 @@
               </svg>
             </button>
             <button
-              class="btn btn-ghost btn-xs"
-              title="同步结构"
-              @click="syncTableSchema(record)"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-3 w-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-            </button>
-            <button
               class="btn btn-ghost btn-xs text-error"
               title="删除"
               @click="confirmDeleteTable(record)"
@@ -351,11 +331,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { metadataService } from '@services/api'
 import DataTable from '@/components/common/DataTable.vue'
-import type { TableMetadata } from '@types/index'
+import type { TableMetadata } from '@/types/index'
 
 const { success, error } = useToast()
 
@@ -419,7 +399,7 @@ const tableColumns = [
 ]
 
 // Debounced search
-let searchTimeout: NodeJS.Timeout
+let searchTimeout: number
 const debouncedSearch = () => {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(loadTables, 500)
@@ -430,7 +410,7 @@ const loadTables = async () => {
   try {
     loading.value = true
     const dataSource = filters.dataSource || undefined
-    const isActive = filters.isActive === '' ? undefined : filters.isActive
+    const isActive = filters.isActive === '' ? undefined : Boolean(filters.isActive)
 
     tables.value = await metadataService.getTables(dataSource, isActive)
 
@@ -451,7 +431,7 @@ const loadTables = async () => {
 
 // Get update method text
 const getUpdateMethodText = (method: string) => {
-  const methods = {
+  const methods: Record<string, string> = {
     'auto': '自动',
     'manual': '手动',
     'scheduled': '定时'
@@ -489,16 +469,6 @@ const editTable = (table: TableMetadata) => {
     isAvailable: table.isAvailable
   })
   showEditModal.value = true
-}
-
-// Sync table schema
-const syncTableSchema = async (table: TableMetadata) => {
-  try {
-    // This would trigger schema sync for the specific table
-    success(`正在同步表结构: ${table.name}`)
-  } catch (err) {
-    error('同步表结构失败')
-  }
 }
 
 // Confirm delete table
