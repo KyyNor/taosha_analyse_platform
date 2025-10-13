@@ -258,13 +258,13 @@ const queryHistory = computed(() => queryStore.queryHistory)
 const favorites = computed(() => queryStore.favorites)
 
 const filteredHistory = computed(() => {
-  let filtered = queryHistory.value
+  let filtered = queryHistory.value || []
 
   if (historySearchQuery.value) {
     const query = historySearchQuery.value.toLowerCase()
     filtered = filtered.filter(item =>
-      item.userQuestion.toLowerCase().includes(query) ||
-      item.generatedSql?.toLowerCase().includes(query)
+      item.user_input.toLowerCase().includes(query) ||
+      item.sql_query?.toLowerCase().includes(query)
     )
   }
 

@@ -197,9 +197,9 @@ export const useQueryStore = defineStore('query', () => {
         { ...historyFilter.value, ...filters }
       )
 
-      queryHistory.value = response.items
-      historyPage.value = response.page
-      historyTotal.value = response.total
+      queryHistory.value = response.data || []
+      historyPage.value = response.pagination?.page || page
+      historyTotal.value = response.pagination?.total || 0
     } catch (error) {
       console.error('Failed to load query history:', error)
       throw error
@@ -218,8 +218,8 @@ export const useQueryStore = defineStore('query', () => {
       historyFilter.value
     )
 
-    queryHistory.value.push(...response.items)
-    historyPage.value = response.page
+    queryHistory.value.push(...(response.data || []))
+    historyPage.value = response.pagination?.page || nextPage
   }
 
   const setHistoryFilter = (filters: typeof historyFilter.value) => {
