@@ -2,48 +2,6 @@
   <div class="space-y-6">
     <!-- Filters -->
     <div class="flex flex-wrap gap-4 items-center bg-base-200 p-4 rounded-lg">
-      <div class="form-control">
-        <label class="label">
-          <span class="label-text">数据源</span>
-        </label>
-        <select
-          v-model="filters.dataSource"
-          class="select select-bordered select-sm"
-          @change="loadTables"
-        >
-          <option value="">
-            全部数据源
-          </option>
-          <option value="main">
-            主数据库
-          </option>
-          <option value="analytics">
-            分析数据库
-          </option>
-        </select>
-      </div>
-
-      <div class="form-control">
-        <label class="label">
-          <span class="label-text">状态</span>
-        </label>
-        <select
-          v-model="filters.isActive"
-          class="select select-bordered select-sm"
-          @change="loadTables"
-        >
-          <option value="">
-            全部状态
-          </option>
-          <option :value="true">
-            活跃
-          </option>
-          <option :value="false">
-            非活跃
-          </option>
-        </select>
-      </div>
-
       <div class="form-control flex-1 min-w-64">
         <label class="label">
           <span class="label-text">搜索</span>
@@ -93,23 +51,10 @@
         :show-header="true"
         :column-settings="true"
       >
-        <template #cell-isAvailable="{ value, record }">
-          <input
-            type="checkbox"
-            class="checkbox checkbox-sm"
-            :checked="value"
-            @change="toggleTableAvailability(record)"
-          >
-        </template>
 
-        <template #cell-name="{ value, record }">
-          <div>
-            <div class="font-medium">
-              {{ value }}
-            </div>
-            <div class="text-xs text-base-content/60">
-              {{ record.dataSource }}
-            </div>
+        <template #cell-name="{ value }">
+          <div class="font-medium">
+            {{ value }}
           </div>
         </template>
 
@@ -122,19 +67,7 @@
           </div>
         </template>
 
-        <template #cell-updateMethod="{ value }">
-          <span
-            class="badge badge-sm"
-            :class="{
-              'badge-success': value === 'auto',
-              'badge-warning': value === 'manual',
-              'badge-info': value === 'scheduled'
-            }"
-          >
-            {{ getUpdateMethodText(value) }}
-          </span>
-        </template>
-
+  
         <template #actions="{ record }">
           <div class="flex gap-1">
             <button
@@ -248,54 +181,8 @@
             />
           </div>
 
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text">数据源</span>
-            </label>
-            <select
-              v-model="tableForm.dataSource"
-              class="select select-bordered"
-            >
-              <option value="main">
-                主数据库
-              </option>
-              <option value="analytics">
-                分析数据库
-              </option>
-            </select>
-          </div>
-
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text">更新方式</span>
-            </label>
-            <select
-              v-model="tableForm.updateMethod"
-              class="select select-bordered"
-            >
-              <option value="auto">
-                自动更新
-              </option>
-              <option value="manual">
-                手动更新
-              </option>
-              <option value="scheduled">
-                定时更新
-              </option>
-            </select>
-          </div>
-
-          <div class="form-control">
-            <label class="label cursor-pointer">
-              <span class="label-text">启用表</span>
-              <input
-                v-model="tableForm.isAvailable"
-                type="checkbox"
-                class="checkbox checkbox-primary"
-              >
-            </label>
-          </div>
-
+  
+  
           <div class="modal-action">
             <button
               type="button"
@@ -349,18 +236,13 @@ const editingTable = ref<TableMetadata | null>(null)
 
 // Filters
 const filters = reactive({
-  dataSource: '',
-  isActive: '',
   search: ''
 })
 
 // Form
 const tableForm = reactive({
   name: '',
-  comment: '',
-  dataSource: 'main',
-  updateMethod: 'auto',
-  isAvailable: true
+  comment: ''
 })
 
 // Table columns
@@ -376,25 +258,6 @@ const tableColumns = [
     title: '表注释',
     sortable: true,
     visible: true
-  },
-  {
-    key: 'dataSource',
-    title: '数据源',
-    sortable: true,
-    visible: true
-  },
-  {
-    key: 'updateMethod',
-    title: '更新方式',
-    sortable: true,
-    visible: true
-  },
-  {
-    key: 'isAvailable',
-    title: '启用',
-    sortable: true,
-    visible: true,
-    className: 'text-center'
   }
 ]
 
@@ -409,10 +272,8 @@ const debouncedSearch = () => {
 const loadTables = async () => {
   try {
     loading.value = true
-    const dataSource = filters.dataSource || undefined
-    const isActive = filters.isActive === '' ? undefined : Boolean(filters.isActive)
 
-    tables.value = await metadataService.getTables(dataSource, isActive)
+    tables.value = await metadataService.getTables()
 
     // Apply client-side search
     if (filters.search) {
@@ -429,28 +290,6 @@ const loadTables = async () => {
   }
 }
 
-// Get update method text
-const getUpdateMethodText = (method: string) => {
-  const methods: Record<string, string> = {
-    'auto': '自动',
-    'manual': '手动',
-    'scheduled': '定时'
-  }
-  return methods[method] || method
-}
-
-// Toggle table availability
-const toggleTableAvailability = async (table: TableMetadata) => {
-  try {
-    await metadataService.updateTable(table.id, {
-      isAvailable: !table.isAvailable
-    })
-    table.isAvailable = !table.isAvailable
-    success('表状态已更新')
-  } catch (err) {
-    error('更新表状态失败')
-  }
-}
 
 // View table details
 const viewTableDetails = (table: TableMetadata) => {
@@ -463,10 +302,7 @@ const editTable = (table: TableMetadata) => {
   editingTable.value = table
   Object.assign(tableForm, {
     name: table.name,
-    comment: table.comment,
-    dataSource: table.dataSource,
-    updateMethod: table.updateMethod,
-    isAvailable: table.isAvailable
+    comment: table.comment
   })
   showEditModal.value = true
 }
@@ -496,19 +332,14 @@ const saveTable = async () => {
 
     if (showEditModal.value && editingTable.value) {
       await metadataService.updateTable(editingTable.value.id, {
-        comment: tableForm.comment,
-        dataSource: tableForm.dataSource,
-        updateMethod: tableForm.updateMethod,
-        isAvailable: tableForm.isAvailable
+        comment: tableForm.comment
       })
       success('表已更新')
     } else {
       await metadataService.createTable({
         name: tableForm.name,
         comment: tableForm.comment,
-        isAvailable: tableForm.isAvailable,
-        dataSource: tableForm.dataSource,
-        updateMethod: tableForm.updateMethod
+        isAvailable: true
       })
       success('表已创建')
     }
@@ -531,10 +362,7 @@ const closeModal = () => {
   // Reset form
   Object.assign(tableForm, {
     name: '',
-    comment: '',
-    dataSource: 'main',
-    updateMethod: 'auto',
-    isAvailable: true
+    comment: ''
   })
 }
 
