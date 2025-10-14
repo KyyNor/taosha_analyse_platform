@@ -12,14 +12,15 @@
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "vue": "^3.3.8",
-    "vue-router": "^4.2.5",
-    "pinia": "^2.1.7",
-    "axios": "^1.6.2",
-    "echarts": "^5.4.3",
-    "socket.io-client": "^4.7.4",
     "@vueuse/core": "^10.6.1",
-    "dayjs": "^1.11.10"
+    "axios": "^1.6.2",
+    "dayjs": "^1.11.10",
+    "echarts": "^5.4.3",
+    "pinia": "^2.1.7",
+    "prismjs": "^1.30.0",
+    "socket.io-client": "^4.7.4",
+    "vue": "^3.3.8",
+    "vue-router": "^4.2.5"
   },
   "devDependencies": {
     "@types/node": "^20.9.0",
@@ -28,6 +29,7 @@
     "@vue/eslint-config-typescript": "^12.0.0",
     "@vue/tsconfig": "^0.4.0",
     "autoprefixer": "^10.4.16",
+    "daisyui": "^4.4.6",
     "eslint": "^8.54.0",
     "eslint-plugin-vue": "^9.18.1",
     "postcss": "^8.4.31",
@@ -35,7 +37,6 @@
     "stylelint": "^15.11.0",
     "stylelint-config-standard": "^34.0.0",
     "tailwindcss": "^3.3.5",
-    "daisyui": "^4.4.6",
     "typescript": "~5.2.2",
     "vite": "^4.5.0",
     "vue-tsc": "^1.8.22"

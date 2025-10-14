@@ -67,7 +67,10 @@
               </div>
               <div>
                 <label class="font-medium text-gray-600">SQL查询:</label>
-                <pre class="bg-gray-100 p-2 rounded-lg text-xs overflow-x-auto shadow-inner">{{ detailData.task.sql_query || '无' }}</pre>
+                <div class="rounded-lg text-xs overflow-x-auto border">
+                  <pre v-if="detailData.task.sql_query" class="language-sql shadow-inner" style="margin: 0 !important;"><code class="language-sql" v-html="highlightSql(detailData.task.sql_query)"></code></pre>
+                  <pre v-else class="text-gray-400 m-0">无</pre>
+                </div>
               </div>
               <div>
                 <label class="font-medium text-gray-600">执行结果:</label>
@@ -149,9 +152,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick, onMounted } from 'vue'
 import queryService from '@services/api/queryService'
 import type { QueryTask, BaseNodeLog } from '@types/index'
+import Prism from 'prismjs'
+import 'prismjs/components/prism-sql'
+import 'prismjs/themes/prism.css'
 
 interface Props {
   isVisible: boolean
@@ -193,6 +199,16 @@ const formatTime = (timeStr: string | undefined | null) => {
   return new Date(timeStr).toLocaleString()
 }
 
+const highlightSql = (sql: string) => {
+  if (!sql) return ''
+  return Prism.highlight(sql, Prism.languages.sql, 'sql')
+}
+
+const initHighlight = async () => {
+  await nextTick()
+  Prism.highlightAll()
+}
+
 const loadDetails = async () => {
   if (!props.taskId) return
 
@@ -210,6 +226,9 @@ const loadDetails = async () => {
         logs: response.data || []
       }
       console.log('Log details loaded:', detailData.value)
+
+      // 初始化代码高亮
+      await initHighlight()
     } else {
       console.error('Failed to get log details')
       detailData.value = { task: taskInfo || null, logs: [] }
@@ -247,4 +266,9 @@ watch(
     }
   }
 )
+
+// 组件挂载时初始化 Prism
+onMounted(() => {
+  initHighlight()
+})
 </script>
