@@ -241,17 +241,17 @@
           </div>
 
           <!-- Columns List -->
-          <div class="overflow-x-auto">
-            <table class="table table-sm">
+          <div class="w-full overflow-x-auto">
+            <table class="table table-sm w-full">
               <thead>
                 <tr>
-                  <th>字段名</th>
-                  <th>类型</th>
-                  <th>注释</th>
-                  <th>业务类型</th>
-                  <th>关联ID</th>
-                  <th>启用</th>
-                  <th v-if="isDetailEditMode || isNewTable">操作</th>
+                  <th class="w-32">字段名</th>
+                  <th class="w-32">类型</th>
+                  <th class="w-48">注释</th>
+                  <th class="w-32">业务类型</th>
+                  <th class="w-32">关联ID</th>
+                  <th class="w-16">启用</th>
+                  <th v-if="isDetailEditMode || isNewTable" class="w-16">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -264,12 +264,12 @@
                       v-if="isDetailEditMode || isNewTable"
                       v-model="column.name"
                       type="text"
-                      class="input input-bordered input-xs"
+                      class="input input-bordered input-xs w-full"
                       placeholder="字段名"
                     >
                     <span
                       v-else
-                      class="font-mono text-sm"
+                      class="font-mono text-sm block"
                     >
                       {{ column.name }}
                     </span>
@@ -279,12 +279,12 @@
                       v-if="isDetailEditMode || isNewTable"
                       v-model="column.type"
                       type="text"
-                      class="input input-bordered input-xs"
+                      class="input input-bordered input-xs w-full"
                       placeholder="数据类型"
                     >
                     <span
                       v-else
-                      class="font-mono text-sm text-base-content/60"
+                      class="font-mono text-sm text-base-content/60 block"
                     >
                       {{ column.type }}
                     </span>
@@ -294,7 +294,7 @@
                       v-if="isDetailEditMode || isNewTable"
                       v-model="column.comment"
                       type="text"
-                      class="input input-bordered input-xs"
+                      class="input input-bordered input-xs w-full"
                       placeholder="字段注释"
                     >
                     <span
@@ -309,12 +309,12 @@
                       v-if="isDetailEditMode || isNewTable"
                       v-model="column.businessType"
                       type="text"
-                      class="input input-bordered input-xs"
+                      class="input input-bordered input-xs w-full"
                       placeholder="业务类型"
                     >
                     <span
                       v-else
-                      class="text-sm"
+                      class="text-sm block"
                     >
                       {{ column.businessType || '-' }}
                     </span>
@@ -324,10 +324,10 @@
                       v-if="isDetailEditMode || isNewTable"
                       v-model="column.relationId"
                       type="text"
-                      class="input input-bordered input-xs"
+                      class="input input-bordered input-xs w-full"
                       placeholder="关联ID"
                     >
-                    <span v-else>
+                    <span v-else class="block">
                       {{ column.relationId || '-' }}
                     </span>
                   </td>
