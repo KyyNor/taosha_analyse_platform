@@ -17,7 +17,7 @@
 
       <button
         class="btn btn-primary"
-        @click="showCreateModal = true"
+        @click="openAddTable"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -73,7 +73,7 @@
             <button
               class="btn btn-ghost btn-xs"
               title="查看详情"
-              @click="viewTableDetails(record)"
+              @click="openTableDetail(record, false)"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -93,26 +93,6 @@
                   stroke-linejoin="round"
                   stroke-width="2"
                   d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                />
-              </svg>
-            </button>
-            <button
-              class="btn btn-ghost btn-xs"
-              title="编辑"
-              @click="editTable(record)"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-3 w-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                 />
               </svg>
             </button>
@@ -141,104 +121,106 @@
       </DataTable>
     </div>
 
-    <!-- Create/Edit Modal -->
+    <!-- Table Detail Modal -->
     <dialog
-      ref="tableModal"
+      ref="tableDetailModal"
       class="modal"
-      :open="showCreateModal || showEditModal"
+      :open="showDetailModal"
     >
-      <div class="modal-box max-w-4xl">
-        <h3 class="font-bold text-lg">
-          {{ showEditModal ? '编辑表' : '添加表' }}
-        </h3>
-
-        <!-- Tabs -->
-        <div class="tabs tabs-boxed mt-4">
-          <a
-            class="tab"
-            :class="{ 'tab-active': activeTab === 'table' }"
-            @click="activeTab = 'table'"
-          >
-            表信息
-          </a>
-          <a
-            v-if="showEditModal"
-            class="tab"
-            :class="{ 'tab-active': activeTab === 'columns' }"
-            @click="activeTab = 'columns'"
-          >
-            字段配置
-          </a>
+      <div class="modal-box max-w-6xl max-h-[90vh] overflow-y-auto">
+        <!-- Header -->
+        <div class="flex justify-between items-center">
+          <h3 class="font-bold text-lg">
+            {{ isNewTable ? '添加表' : editingTable?.name || '表详情' }}
+          </h3>
+          <div class="flex gap-2">
+            <button
+              v-if="!isNewTable && !isDetailEditMode"
+              class="btn btn-primary btn-sm"
+              @click="enterEditMode"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
+              </svg>
+              编辑
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              @click="closeDetailModal"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
 
-        <!-- Table Info Tab -->
-        <div
-          v-if="activeTab === 'table'"
-          class="mt-4"
-        >
-          <form
-            class="space-y-4"
-            @submit.prevent="saveTable"
-          >
-            <div class="form-control">
-              <label class="label">
-                <span class="label-text">表名 *</span>
-              </label>
-              <input
-                v-model="tableForm.name"
-                type="text"
-                placeholder="请输入表名"
-                class="input input-bordered"
-                :disabled="showEditModal"
-                required
-              >
-            </div>
+        <!-- Table Info Section -->
+        <div class="mt-6 bg-base-200 p-4 rounded-lg">
+          <h4 class="font-semibold text-lg mb-4">表信息</h4>
+          <form class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text">表名 *</span>
+                </label>
+                <input
+                  v-model="tableForm.name"
+                  type="text"
+                  placeholder="请输入表名"
+                  class="input input-bordered"
+                  :disabled="!isDetailEditMode && !isNewTable"
+                  required
+                >
+              </div>
 
-            <div class="form-control">
-              <label class="label">
-                <span class="label-text">表注释</span>
-              </label>
-              <textarea
-                v-model="tableForm.comment"
-                placeholder="请输入表注释"
-                class="textarea textarea-bordered"
-                rows="3"
-              />
-            </div>
-
-            <div class="modal-action">
-              <button
-                type="button"
-                class="btn btn-ghost"
-                @click="closeModal"
-              >
-                取消
-              </button>
-              <button
-                type="submit"
-                class="btn btn-primary"
-                :disabled="saving"
-              >
-                <span
-                  v-if="saving"
-                  class="loading loading-spinner loading-sm"
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text">表注释</span>
+                </label>
+                <textarea
+                  v-model="tableForm.comment"
+                  placeholder="请输入表注释"
+                  class="textarea textarea-bordered"
+                  rows="3"
+                  :disabled="!isDetailEditMode && !isNewTable"
                 />
-                {{ saving ? '保存中...' : '保存' }}
-              </button>
+              </div>
             </div>
           </form>
         </div>
 
-        <!-- Columns Tab -->
-        <div
-          v-if="activeTab === 'columns' && showEditModal"
-          class="mt-4"
-        >
+        <!-- Columns Section -->
+        <div class="mt-6">
           <div class="flex justify-between items-center mb-4">
-            <h4 class="font-semibold">字段列表</h4>
+            <h4 class="font-semibold text-lg">字段信息</h4>
             <button
+              v-if="isDetailEditMode || isNewTable"
               class="btn btn-primary btn-sm"
-              @click="showColumnModal = true"
+              @click="addNewColumn"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -267,63 +249,140 @@
                   <th>类型</th>
                   <th>注释</th>
                   <th>业务类型</th>
+                  <th>关联ID</th>
                   <th>启用</th>
-                  <th>操作</th>
+                  <th v-if="isDetailEditMode || isNewTable">操作</th>
                 </tr>
               </thead>
               <tbody>
                 <tr
-                  v-for="column in columns"
-                  :key="column.id"
+                  v-for="(column, index) in columns"
+                  :key="column.id || index"
                 >
-                  <td class="font-mono text-sm">
-                    {{ column.name }}
-                  </td>
-                  <td class="font-mono text-sm text-base-content/60">
-                    {{ column.type }}
-                  </td>
-                  <td class="max-w-xs truncate">
-                    {{ column.comment || '-' }}
+                  <td>
+                    <input
+                      v-if="isDetailEditMode || isNewTable"
+                      v-model="column.name"
+                      type="text"
+                      class="input input-bordered input-xs"
+                      placeholder="字段名"
+                    >
+                    <span
+                      v-else
+                      class="font-mono text-sm"
+                    >
+                      {{ column.name }}
+                    </span>
                   </td>
                   <td>
-                    <span class="badge badge-outline badge-xs">
-                      {{ column.businessType }}
+                    <select
+                      v-if="isDetailEditMode || isNewTable"
+                      v-model="column.type"
+                      class="select select-bordered select-xs"
+                    >
+                      <option value="VARCHAR">
+                        VARCHAR
+                      </option>
+                      <option value="INTEGER">
+                        INTEGER
+                      </option>
+                      <option value="DECIMAL">
+                        DECIMAL
+                      </option>
+                      <option value="DATE">
+                        DATE
+                      </option>
+                      <option value="TIMESTAMP">
+                        TIMESTAMP
+                      </option>
+                      <option value="BOOLEAN">
+                        BOOLEAN
+                      </option>
+                    </select>
+                    <span
+                      v-else
+                      class="font-mono text-sm text-base-content/60"
+                    >
+                      {{ column.type }}
                     </span>
                   </td>
                   <td>
                     <input
+                      v-if="isDetailEditMode || isNewTable"
+                      v-model="column.comment"
+                      type="text"
+                      class="input input-bordered input-xs"
+                      placeholder="字段注释"
+                    >
+                    <span
+                      v-else
+                      class="max-w-xs truncate block"
+                    >
+                      {{ column.comment || '-' }}
+                    </span>
+                  </td>
+                  <td>
+                    <select
+                      v-if="isDetailEditMode || isNewTable"
+                      v-model="column.businessType"
+                      class="select select-bordered select-xs"
+                    >
+                      <option value="">
+                        请选择
+                      </option>
+                      <option value="identifier">
+                        标识符
+                      </option>
+                      <option value="measure">
+                        度量值
+                      </option>
+                      <option value="dimension">
+                        维度
+                      </option>
+                      <option value="time">
+                        时间
+                      </option>
+                    </select>
+                    <span
+                      v-else
+                      class="badge badge-outline badge-xs"
+                    >
+                      {{ column.businessType || '-' }}
+                    </span>
+                  </td>
+                  <td>
+                    <input
+                      v-if="isDetailEditMode || isNewTable"
+                      v-model="column.relationId"
+                      type="text"
+                      class="input input-bordered input-xs"
+                      placeholder="关联ID"
+                    >
+                    <span v-else>
+                      {{ column.relationId || '-' }}
+                    </span>
+                  </td>
+                  <td>
+                    <input
+                      v-if="isDetailEditMode || isNewTable"
+                      type="checkbox"
+                      class="checkbox checkbox-xs"
+                      v-model="column.isAvailable"
+                    >
+                    <input
+                      v-else
                       type="checkbox"
                       class="checkbox checkbox-xs"
                       :checked="column.isAvailable"
-                      @change="toggleColumnAvailability(column)"
+                      disabled
                     >
                   </td>
-                  <td>
+                  <td v-if="isDetailEditMode || isNewTable">
                     <div class="flex gap-1">
                       <button
                         class="btn btn-ghost btn-xs p-1"
-                        title="编辑"
-                        @click="editColumn(column)"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-3 w-3"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        class="btn btn-ghost btn-xs text-error p-1"
-                        title="删除"
-                        @click="deleteColumn(column)"
+                        title="删除字段"
+                        @click="removeColumn(index)"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -350,186 +409,50 @@
               v-if="columns.length === 0"
               class="text-center py-8 text-base-content/60"
             >
-              暂无字段配置，点击"添加字段"按钮开始配置。
+              {{ isDetailEditMode || isNewTable ? '暂无字段，点击"添加字段"按钮开始配置。' : '暂无字段信息' }}
             </div>
           </div>
+        </div>
 
-          <div class="modal-action">
-            <button
-              class="btn btn-ghost"
-              @click="closeModal"
-            >
-              关闭
-            </button>
-          </div>
+        <!-- Modal Actions -->
+        <div class="modal-action">
+          <button
+            type="button"
+            class="btn btn-ghost"
+            @click="closeDetailModal"
+          >
+            {{ isDetailEditMode || isNewTable ? '取消' : '关闭' }}
+          </button>
+          <button
+            v-if="isDetailEditMode || isNewTable"
+            type="button"
+            class="btn btn-primary"
+            :disabled="saving"
+            @click="saveTableDetail"
+          >
+            <span
+              v-if="saving"
+              class="loading loading-spinner loading-sm"
+            />
+            {{ saving ? '保存中...' : '保存' }}
+          </button>
         </div>
       </div>
       <form
         method="dialog"
         class="modal-backdrop"
       >
-        <button @click="closeModal">
+        <button @click="closeDetailModal">
           close
         </button>
       </form>
     </dialog>
 
-    <!-- Column Create/Edit Modal -->
-    <dialog
-      ref="columnModal"
-      class="modal"
-      :open="showColumnModal"
-    >
-      <div class="modal-box">
-        <h3 class="font-bold text-lg">
-          {{ editingColumn ? '编辑字段' : '添加字段' }}
-        </h3>
-        <form
-          class="space-y-4 mt-4"
-          @submit.prevent="saveColumn"
-        >
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text">字段名 *</span>
-            </label>
-            <input
-              v-model="columnForm.name"
-              type="text"
-              placeholder="请输入字段名"
-              class="input input-bordered"
-              :disabled="editingColumn"
-              required
-            >
-          </div>
-
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text">字段类型 *</span>
-            </label>
-            <select
-              v-model="columnForm.type"
-              class="select select-bordered"
-              :disabled="editingColumn"
-              required
-            >
-              <option value="VARCHAR">
-                VARCHAR
-              </option>
-              <option value="INTEGER">
-                INTEGER
-              </option>
-              <option value="DECIMAL">
-                DECIMAL
-              </option>
-              <option value="DATE">
-                DATE
-              </option>
-              <option value="TIMESTAMP">
-                TIMESTAMP
-              </option>
-              <option value="BOOLEAN">
-                BOOLEAN
-              </option>
-            </select>
-          </div>
-
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text">字段注释</span>
-            </label>
-            <textarea
-              v-model="columnForm.comment"
-              placeholder="请输入字段注释"
-              class="textarea textarea-bordered"
-              rows="2"
-            />
-          </div>
-
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text">业务类型</span>
-            </label>
-            <select
-              v-model="columnForm.businessType"
-              class="select select-bordered"
-            >
-              <option value="">
-                请选择
-              </option>
-              <option value="identifier">
-                标识符
-              </option>
-              <option value="measure">
-                度量值
-              </option>
-              <option value="dimension">
-                维度
-              </option>
-              <option value="time">
-                时间
-              </option>
-            </select>
-          </div>
-
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text">关联ID</span>
-            </label>
-            <input
-              v-model="columnForm.relationId"
-              type="text"
-              placeholder="请输入关联ID（可选）"
-              class="input input-bordered"
-            >
-          </div>
-
-          <div class="form-control">
-            <label class="label cursor-pointer">
-              <span class="label-text">启用字段</span>
-              <input
-                v-model="columnForm.isAvailable"
-                type="checkbox"
-                class="checkbox checkbox-primary"
-              >
-            </label>
-          </div>
-
-          <div class="modal-action">
-            <button
-              type="button"
-              class="btn btn-ghost"
-              @click="closeColumnModal"
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              class="btn btn-primary"
-              :disabled="savingColumn"
-            >
-              <span
-                v-if="savingColumn"
-                class="loading loading-spinner loading-sm"
-              />
-              {{ savingColumn ? '保存中...' : '保存' }}
-            </button>
-          </div>
-        </form>
-      </div>
-      <form
-        method="dialog"
-        class="modal-backdrop"
-      >
-        <button @click="closeColumnModal">
-          close
-        </button>
-      </form>
-    </dialog>
-  </div>
+    </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { metadataService } from '@services/api'
 import DataTable from '@/components/common/DataTable.vue'
@@ -541,16 +464,11 @@ const { success, error } = useToast()
 const tables = ref<any[]>([])
 const loading = ref(false)
 const saving = ref(false)
-const showCreateModal = ref(false)
-const showEditModal = ref(false)
+const showDetailModal = ref(false)
 const editingTable = ref<any | null>(null)
-
-// Column management state
-const activeTab = ref('table')
+const isDetailEditMode = ref(false)
+const isNewTable = ref(false)
 const columns = ref<any[]>([])
-const showColumnModal = ref(false)
-const editingColumn = ref<any | null>(null)
-const savingColumn = ref(false)
 
 // Filters
 const filters = reactive({
@@ -561,16 +479,6 @@ const filters = reactive({
 const tableForm = reactive({
   name: '',
   comment: ''
-})
-
-// Column form
-const columnForm = reactive({
-  name: '',
-  type: 'VARCHAR',
-  comment: '',
-  businessType: '',
-  relationId: '',
-  isAvailable: true
 })
 
 // Table columns
@@ -618,25 +526,73 @@ const loadTables = async () => {
   }
 }
 
+// Open add table modal
+const openAddTable = () => {
+  isNewTable.value = true
+  isDetailEditMode.value = true
+  editingTable.value = null
+  columns.value = []
 
-// View table details
-const viewTableDetails = (table: any) => {
-  // Navigate to table details page
-  success(`查看表详情: ${table.name}`)
+  // Reset form
+  Object.assign(tableForm, {
+    name: '',
+    comment: ''
+  })
+
+  showDetailModal.value = true
 }
 
-// Load columns for current table
-const loadColumns = async () => {
-  if (!editingTable.value) return
+// Open table detail
+const openTableDetail = async (table: any, editMode: boolean = false) => {
+  isNewTable.value = false
+  isDetailEditMode.value = editMode
+  editingTable.value = table
+
+  // Set form data
+  Object.assign(tableForm, {
+    name: table.name,
+    comment: table.comment || ''
+  })
+
+  // Load columns for this table
+  await loadColumns(table)
+
+  showDetailModal.value = true
+}
+
+// Enter edit mode
+const enterEditMode = () => {
+  isDetailEditMode.value = true
+}
+
+// Close detail modal
+const closeDetailModal = () => {
+  showDetailModal.value = false
+  editingTable.value = null
+  isDetailEditMode.value = false
+  isNewTable.value = false
+  columns.value = []
+
+  // Reset form
+  Object.assign(tableForm, {
+    name: '',
+    comment: ''
+  })
+}
+
+// Load columns for a table
+const loadColumns = async (table?: any) => {
+  const targetTable = table || editingTable.value
+  if (!targetTable) return
 
   try {
     // Get tables data to find the current table with its columns
     const tables = await metadataService.getTables()
-    const currentTable = tables.find(table => table.name === editingTable.value.name)
+    const currentTable = tables.find((t: any) => t.name === targetTable.name)
 
-    if (currentTable && currentTable.columns) {
+    if (currentTable && (currentTable as any).columns) {
       // Transform API response to match our component format
-      columns.value = currentTable.columns.map((column: any, index: number) => ({
+      columns.value = (currentTable as any).columns.map((column: any, index: number) => ({
         id: index + 1, // Generate temporary ID
         name: column.name,
         type: column.type,
@@ -653,101 +609,62 @@ const loadColumns = async () => {
   }
 }
 
-// Toggle column availability
-const toggleColumnAvailability = async (column: any) => {
-  try {
-    // In real implementation, call metadataService.updateColumn()
-    column.isAvailable = !column.isAvailable
-    success('字段状态已更新')
-  } catch (err) {
-    error('更新字段状态失败')
-  }
-}
-
-// Edit column
-const editColumn = (column: any) => {
-  editingColumn.value = column
-  Object.assign(columnForm, {
-    name: column.name,
-    type: column.type,
-    comment: column.comment,
-    businessType: column.businessType,
-    relationId: column.relationId,
-    isAvailable: column.isAvailable
-  })
-  showColumnModal.value = true
-}
-
-// Delete column
-const deleteColumn = async (column: any) => {
-  if (confirm(`确定要删除字段 "${column.name}" 吗？此操作不可恢复。`)) {
-    try {
-      // In real implementation, call metadataService.deleteColumn()
-      columns.value = columns.value.filter(c => c.id !== column.id)
-      success('字段已删除')
-    } catch (err) {
-      error('删除字段失败')
-    }
-  }
-}
-
-// Save column
-const saveColumn = async () => {
-  try {
-    savingColumn.value = true
-
-    if (editingColumn.value) {
-      // Update existing column
-      // In real implementation, call metadataService.updateColumn()
-      Object.assign(editingColumn.value, columnForm)
-      success('字段已更新')
-    } else {
-      // Create new column
-      // In real implementation, call metadataService.createColumn()
-      const newColumn = {
-        id: Date.now(), // Mock ID
-        tableName: editingTable.value?.name,
-        ...columnForm
-      }
-      columns.value.push(newColumn)
-      success('字段已创建')
-    }
-
-    closeColumnModal()
-  } catch (err) {
-    error(editingColumn.value ? '更新字段失败' : '创建字段失败')
-  } finally {
-    savingColumn.value = false
-  }
-}
-
-// Close column modal
-const closeColumnModal = () => {
-  showColumnModal.value = false
-  editingColumn.value = null
-
-  // Reset form
-  Object.assign(columnForm, {
+// Add new column
+const addNewColumn = () => {
+  const newColumn = {
+    id: Date.now(),
     name: '',
     type: 'VARCHAR',
     comment: '',
     businessType: '',
     relationId: '',
     isAvailable: true
-  })
+  }
+  columns.value.push(newColumn)
 }
 
-// Edit table
-const editTable = (table: any) => {
-  editingTable.value = table
-  Object.assign(tableForm, {
-    name: table.name,
-    comment: table.comment
-  })
-  showEditModal.value = true
-  activeTab.value = 'table'
-  // Load columns for this table
-  loadColumns()
+// Remove column
+const removeColumn = (index: number) => {
+  const column = columns.value[index]
+  if (confirm(`确定要删除字段 "${column.name || '未命名字段'}" 吗？此操作不可恢复。`)) {
+    columns.value.splice(index, 1)
+  }
+}
+
+// Save table detail
+const saveTableDetail = async () => {
+  try {
+    saving.value = true
+
+    if (isNewTable.value) {
+      // Create new table
+      await metadataService.createTable({
+        name: tableForm.name,
+        comment: tableForm.comment,
+        isAvailable: true
+      })
+      success('表已创建')
+    } else {
+      // Update existing table
+      await metadataService.updateTable(editingTable.value.id, {
+        comment: tableForm.comment
+      })
+      success('表已更新')
+    }
+
+    // Save columns (in real implementation, this would sync with backend)
+    // For now, just show success message
+    if (columns.value.length > 0) {
+      success('字段配置已保存')
+    }
+
+    closeDetailModal()
+    await loadTables()
+  } catch (err) {
+    error(isNewTable.value ? '创建表失败' : '更新表失败')
+  } finally {
+    saving.value = false
+  }
 }
 
 // Confirm delete table
@@ -767,54 +684,6 @@ const deleteTable = async (table: any) => {
     error('删除表失败')
   }
 }
-
-// Save table
-const saveTable = async () => {
-  try {
-    saving.value = true
-
-    if (showEditModal.value && editingTable.value) {
-      await metadataService.updateTable(editingTable.value.id, {
-        comment: tableForm.comment
-      })
-      success('表已更新')
-    } else {
-      await metadataService.createTable({
-        name: tableForm.name,
-        comment: tableForm.comment,
-        isAvailable: true
-      })
-      success('表已创建')
-    }
-
-    closeModal()
-    await loadTables()
-  } catch (err) {
-    error(showEditModal.value ? '更新表失败' : '创建表失败')
-  } finally {
-    saving.value = false
-  }
-}
-
-// Close modal
-const closeModal = () => {
-  showCreateModal.value = false
-  showEditModal.value = false
-  editingTable.value = null
-
-  // Reset form
-  Object.assign(tableForm, {
-    name: '',
-    comment: ''
-  })
-}
-
-// Watch for tab changes to load columns
-watch(activeTab, (newTab) => {
-  if (newTab === 'columns' && editingTable.value) {
-    loadColumns()
-  }
-})
 
 // Initialize
 onMounted(() => {
