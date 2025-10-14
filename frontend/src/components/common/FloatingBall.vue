@@ -3,7 +3,7 @@
     <!-- 悬浮球 -->
     <button
       v-if="!isExpanded"
-      class="w-14 h-14 bg-primary text-primary-content rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group hover:scale-110"
+      class="w-14 h-14 bg-accent text-accent-content rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group hover:scale-110 border-2 border-base-content/20"
       @click="toggleExpand"
     >
       <svg
@@ -28,7 +28,7 @@
     <!-- 缩小按钮（当侧边栏展开时显示） -->
     <button
       v-else
-      class="w-10 h-10 bg-base-300 text-base-content rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center hover:scale-110"
+      class="w-10 h-10 bg-secondary text-secondary-content rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center hover:scale-110 border-2 border-base-content/20"
       @click="toggleExpand"
     >
       <svg

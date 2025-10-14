@@ -4,7 +4,7 @@
     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
     @click.self="handleClose"
   >
-    <div class="bg-white rounded-lg w-11/12 max-w-4xl max-h-[90vh] overflow-hidden">
+    <div class="bg-base-100 rounded-lg w-11/12 max-w-4xl max-h-[90vh] overflow-hidden">
       <!-- 弹框头部 -->
       <div class="bg-primary text-white p-4 flex justify-between items-center">
         <h3 class="text-lg font-semibold">查询详情 - {{ taskId }}</h3>
@@ -28,21 +28,21 @@
           <!-- 任务基本信息 -->
           <div class="mb-6">
             <h4 class="text-lg font-semibold mb-4">任务信息</h4>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg shadow-md">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-base-200 p-4 rounded-lg shadow-md">
               <div>
-                <label class="font-medium text-gray-600">任务ID:</label>
-                <p class="font-mono text-sm">{{ detailData.task.task_id }}</p>
+                <label class="font-medium text-base-content/70">任务ID:</label>
+                <p class="font-mono text-sm text-base-content">{{ detailData.task.task_id }}</p>
               </div>
               <div>
-                <label class="font-medium text-gray-600">用户:</label>
-                <p>{{ detailData.task.operator }}</p>
+                <label class="font-medium text-base-content/70">用户:</label>
+                <p class="text-base-content">{{ detailData.task.operator }}</p>
               </div>
               <div>
-                <label class="font-medium text-gray-600">查询内容:</label>
-                <p class="text-sm">{{ detailData.task.user_input }}</p>
+                <label class="font-medium text-base-content/70">查询内容:</label>
+                <p class="text-sm text-base-content">{{ detailData.task.user_input }}</p>
               </div>
               <div>
-                <label class="font-medium text-gray-600">状态:</label>
+                <label class="font-medium text-base-content/70">状态:</label>
                 <p>
                   <span
                     class="badge badge-sm"
@@ -58,23 +58,23 @@
                 </p>
               </div>
               <div>
-                <label class="font-medium text-gray-600">开始时间:</label>
-                <p class="text-sm">{{ formatTime(detailData.task.created_at) }}</p>
+                <label class="font-medium text-base-content/70">开始时间:</label>
+                <p class="text-sm text-base-content">{{ formatTime(detailData.task.created_at) }}</p>
               </div>
               <div>
-                <label class="font-medium text-gray-600">结束时间:</label>
-                <p class="text-sm">{{ detailData.task.completed_at ? formatTime(detailData.task.completed_at) : '进行中' }}</p>
+                <label class="font-medium text-base-content/70">结束时间:</label>
+                <p class="text-sm text-base-content">{{ detailData.task.completed_at ? formatTime(detailData.task.completed_at) : '进行中' }}</p>
               </div>
               <div>
-                <label class="font-medium text-gray-600">SQL查询:</label>
+                <label class="font-medium text-base-content/70">SQL查询:</label>
                 <div class="rounded-lg text-xs overflow-x-auto border">
                   <pre v-if="detailData.task.sql_query" class="language-sql shadow-inner" style="margin: 0 !important;"><code class="language-sql" v-html="highlightSql(detailData.task.sql_query)"></code></pre>
-                  <pre v-else class="text-gray-400 m-0">无</pre>
+                  <pre v-else class="text-base-content/50 m-0">无</pre>
                 </div>
               </div>
               <div>
-                <label class="font-medium text-gray-600">执行结果:</label>
-                <p class="text-sm">{{ detailData.task.execution_result?.length || 0 }} 条记录</p>
+                <label class="font-medium text-base-content/70">执行结果:</label>
+                <p class="text-sm text-base-content">{{ detailData.task.execution_result?.length || 0 }} 条记录</p>
               </div>
             </div>
           </div>
@@ -82,7 +82,7 @@
           <!-- 执行步骤日志 -->
           <div>
             <h4 class="text-lg font-semibold mb-4">执行步骤</h4>
-            <div v-if="detailData.logs.length === 0" class="text-center py-8 text-gray-500">
+            <div v-if="detailData.logs.length === 0" class="text-center py-8 text-base-content/60">
               暂无执行步骤日志
             </div>
             <div v-else class="space-y-3">
@@ -114,28 +114,28 @@
                   </span>
                 </div>
 
-                <div v-if="log.error" class="text-red-600 text-sm mb-2 p-2 bg-red-100 rounded">
+                <div v-if="log.error" class="text-error text-sm mb-2 p-2 bg-error/10 rounded border border-error/20">
                   <strong>错误:</strong> {{ log.error }}
                 </div>
 
                 <div v-if="log.prompt" class="mb-2">
                   <details class="text-sm">
                     <summary class="font-medium cursor-pointer hover:text-primary">提示词</summary>
-                    <pre class="bg-gray-100 p-2 rounded-lg mt-1 text-xs overflow-x-auto shadow-inner">{{ log.prompt }}</pre>
+                    <pre class="bg-base-200 p-2 rounded-lg mt-1 text-xs overflow-x-auto shadow-inner">{{ log.prompt }}</pre>
                   </details>
                 </div>
 
                 <div v-if="log.input_data" class="mb-2">
                   <details class="text-sm">
                     <summary class="font-medium cursor-pointer hover:text-primary">输入数据</summary>
-                    <pre class="bg-gray-100 p-2 rounded-lg mt-1 text-xs overflow-x-auto shadow-inner">{{ log.input_data }}</pre>
+                    <pre class="bg-base-200 p-2 rounded-lg mt-1 text-xs overflow-x-auto shadow-inner">{{ log.input_data }}</pre>
                   </details>
                 </div>
 
                 <div v-if="log.model_output" class="mb-2">
                   <details class="text-sm">
                     <summary class="font-medium cursor-pointer hover:text-primary">模型输出</summary>
-                    <pre class="bg-gray-100 p-2 rounded-lg mt-1 text-xs overflow-x-auto shadow-inner">{{ log.model_output }}</pre>
+                    <pre class="bg-base-200 p-2 rounded-lg mt-1 text-xs overflow-x-auto shadow-inner">{{ log.model_output }}</pre>
                   </details>
                 </div>
               </div>
@@ -155,7 +155,7 @@
 import { ref, watch, onMounted } from 'vue'
 import queryService from '@services/api/queryService'
 import type { QueryTask, BaseNodeLog } from '@types/index'
-import { highlightSql, initHighlight } from '@utils/prism'
+import { highlightSql, initHighlight, applyPrismTheme } from '@utils/prism'
 
 interface Props {
   isVisible: boolean
