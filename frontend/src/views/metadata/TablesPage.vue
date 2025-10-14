@@ -179,8 +179,8 @@
         </div>
 
         <!-- Table Info Section -->
-        <div class="mt-6 bg-base-200 p-4 rounded-lg">
-          <h4 class="font-semibold text-lg mb-4">表信息</h4>
+        <div class="mt-6">
+          <h4 class="font-semibold text-lg mb-4 pb-2 border-b border-base-300">表信息</h4>
           <form class="space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="form-control">
@@ -215,8 +215,8 @@
 
         <!-- Columns Section -->
         <div class="mt-6">
+          <h4 class="font-semibold text-lg mb-4 pb-2 border-b border-base-300">字段信息</h4>
           <div class="flex justify-between items-center mb-4">
-            <h4 class="font-semibold text-lg">字段信息</h4>
             <button
               v-if="isDetailEditMode || isNewTable"
               class="btn btn-primary btn-sm"
@@ -275,30 +275,13 @@
                     </span>
                   </td>
                   <td>
-                    <select
+                    <input
                       v-if="isDetailEditMode || isNewTable"
                       v-model="column.type"
-                      class="select select-bordered select-xs"
+                      type="text"
+                      class="input input-bordered input-xs"
+                      placeholder="数据类型"
                     >
-                      <option value="VARCHAR">
-                        VARCHAR
-                      </option>
-                      <option value="INTEGER">
-                        INTEGER
-                      </option>
-                      <option value="DECIMAL">
-                        DECIMAL
-                      </option>
-                      <option value="DATE">
-                        DATE
-                      </option>
-                      <option value="TIMESTAMP">
-                        TIMESTAMP
-                      </option>
-                      <option value="BOOLEAN">
-                        BOOLEAN
-                      </option>
-                    </select>
                     <span
                       v-else
                       class="font-mono text-sm text-base-content/60"
@@ -322,30 +305,16 @@
                     </span>
                   </td>
                   <td>
-                    <select
+                    <input
                       v-if="isDetailEditMode || isNewTable"
                       v-model="column.businessType"
-                      class="select select-bordered select-xs"
+                      type="text"
+                      class="input input-bordered input-xs"
+                      placeholder="业务类型"
                     >
-                      <option value="">
-                        请选择
-                      </option>
-                      <option value="identifier">
-                        标识符
-                      </option>
-                      <option value="measure">
-                        度量值
-                      </option>
-                      <option value="dimension">
-                        维度
-                      </option>
-                      <option value="time">
-                        时间
-                      </option>
-                    </select>
                     <span
                       v-else
-                      class="badge badge-outline badge-xs"
+                      class="text-sm"
                     >
                       {{ column.businessType || '-' }}
                     </span>
@@ -531,7 +500,37 @@ const openAddTable = () => {
   isNewTable.value = true
   isDetailEditMode.value = true
   editingTable.value = null
-  columns.value = []
+
+  // Add default columns for new table
+  columns.value = [
+    {
+      id: Date.now(),
+      name: 'id',
+      type: 'INTEGER',
+      comment: '主键ID',
+      businessType: 'identifier',
+      relationId: '',
+      isAvailable: 0 // 0 代表启用
+    },
+    {
+      id: Date.now() + 1,
+      name: 'created_at',
+      type: 'TIMESTAMP',
+      comment: '创建时间',
+      businessType: 'time',
+      relationId: '',
+      isAvailable: 0 // 0 代表启用
+    },
+    {
+      id: Date.now() + 2,
+      name: 'updated_at',
+      type: 'TIMESTAMP',
+      comment: '更新时间',
+      businessType: 'time',
+      relationId: '',
+      isAvailable: 0 // 0 代表启用
+    }
+  ]
 
   // Reset form
   Object.assign(tableForm, {
@@ -599,7 +598,7 @@ const loadColumns = async (table?: any) => {
         comment: column.comment,
         businessType: column.business_type,
         relationId: column.relation_id,
-        isAvailable: Boolean(column.is_available)
+        isAvailable: column.is_available === undefined ? true : column.is_available === 0
       }))
     } else {
       columns.value = []
@@ -618,7 +617,7 @@ const addNewColumn = () => {
     comment: '',
     businessType: '',
     relationId: '',
-    isAvailable: true
+    isAvailable: 0 // 0 代表启用
   }
   columns.value.push(newColumn)
 }
@@ -652,9 +651,13 @@ const saveTableDetail = async () => {
       success('表已更新')
     }
 
-    // Save columns (in real implementation, this would sync with backend)
-    // For now, just show success message
+    // Save columns (convert isAvailable values to backend format)
     if (columns.value.length > 0) {
+      const columnsData = columns.value.map(column => ({
+        ...column,
+        is_available: column.isAvailable ? 0 : 1 // 转换为后端格式：0=启用，1=不启用
+      }))
+      // In real implementation, call metadataService.saveColumns(columnsData)
       success('字段配置已保存')
     }
 
