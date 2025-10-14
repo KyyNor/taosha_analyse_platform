@@ -76,8 +76,9 @@
             复制
           </button>
         </div>
-        <div class="mockup-code w-full bg-neutral text-primary-content">
-          <pre class="text-sm"><code>{{ generatedSQL }}</code></pre>
+        <div class="rounded-lg border">
+          <pre v-if="generatedSQL" class="language-sql text-sm shadow-inner" style="margin: 0 !important;"><code class="language-sql" v-html="highlightSql(generatedSQL)"></code></pre>
+          <pre v-else class="text-sm text-gray-400 m-0">无 SQL 代码</pre>
         </div>
       </div>
 
@@ -207,8 +208,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useQueryStore } from '@stores/query'
+import { highlightSql, initHighlight } from '@utils/prism'
 
 interface QueryStep {
   title: string
@@ -466,6 +468,16 @@ watch(currentTask, (newTask) => {
   }
 }, { immediate: true })
 
+// Watch for SQL changes to reinitialize highlighting
+watch(generatedSQL, async () => {
+  await initHighlight()
+})
+
+// 组件挂载时初始化 Prism
+onMounted(() => {
+  initHighlight()
+})
+
 // Format duration
 const formatDuration = (duration: number) => {
   if (duration < 1000) {
@@ -478,6 +490,7 @@ const formatDuration = (duration: number) => {
     return `${minutes}m ${seconds}s`
   }
 }
+
 
 // Handle cancel
 const handleCancel = () => {

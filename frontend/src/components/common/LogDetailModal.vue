@@ -152,12 +152,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import queryService from '@services/api/queryService'
 import type { QueryTask, BaseNodeLog } from '@types/index'
-import Prism from 'prismjs'
-import 'prismjs/components/prism-sql'
-import 'prismjs/themes/prism.css'
+import { highlightSql, initHighlight } from '@utils/prism'
 
 interface Props {
   isVisible: boolean
@@ -199,15 +197,6 @@ const formatTime = (timeStr: string | undefined | null) => {
   return new Date(timeStr).toLocaleString()
 }
 
-const highlightSql = (sql: string) => {
-  if (!sql) return ''
-  return Prism.highlight(sql, Prism.languages.sql, 'sql')
-}
-
-const initHighlight = async () => {
-  await nextTick()
-  Prism.highlightAll()
-}
 
 const loadDetails = async () => {
   if (!props.taskId) return
