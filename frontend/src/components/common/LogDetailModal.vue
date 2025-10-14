@@ -28,7 +28,7 @@
           <!-- 任务基本信息 -->
           <div class="mb-6">
             <h4 class="text-lg font-semibold mb-4">任务信息</h4>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg shadow-md">
               <div>
                 <label class="font-medium text-gray-600">任务ID:</label>
                 <p class="font-mono text-sm">{{ detailData.task.task_id }}</p>
@@ -67,7 +67,7 @@
               </div>
               <div>
                 <label class="font-medium text-gray-600">SQL查询:</label>
-                <pre class="bg-gray-100 p-2 rounded text-xs overflow-x-auto">{{ detailData.task.sql_query || '无' }}</pre>
+                <pre class="bg-gray-100 p-2 rounded-lg text-xs overflow-x-auto shadow-inner">{{ detailData.task.sql_query || '无' }}</pre>
               </div>
               <div>
                 <label class="font-medium text-gray-600">执行结果:</label>
@@ -86,7 +86,7 @@
               <div
                 v-for="(log, index) in detailData.logs"
                 :key="index"
-                class="border rounded-lg p-4"
+                class="border rounded-lg p-4 shadow-md"
                 :class="{
                   'border-green-200 bg-green-50': log.success,
                   'border-red-200 bg-red-50': !log.success
@@ -118,21 +118,21 @@
                 <div v-if="log.prompt" class="mb-2">
                   <details class="text-sm">
                     <summary class="font-medium cursor-pointer hover:text-primary">提示词</summary>
-                    <pre class="bg-gray-100 p-2 rounded mt-1 text-xs overflow-x-auto">{{ log.prompt }}</pre>
+                    <pre class="bg-gray-100 p-2 rounded-lg mt-1 text-xs overflow-x-auto shadow-inner">{{ log.prompt }}</pre>
                   </details>
                 </div>
 
                 <div v-if="log.input_data" class="mb-2">
                   <details class="text-sm">
                     <summary class="font-medium cursor-pointer hover:text-primary">输入数据</summary>
-                    <pre class="bg-gray-100 p-2 rounded mt-1 text-xs overflow-x-auto">{{ log.input_data }}</pre>
+                    <pre class="bg-gray-100 p-2 rounded-lg mt-1 text-xs overflow-x-auto shadow-inner">{{ log.input_data }}</pre>
                   </details>
                 </div>
 
                 <div v-if="log.model_output" class="mb-2">
                   <details class="text-sm">
                     <summary class="font-medium cursor-pointer hover:text-primary">模型输出</summary>
-                    <pre class="bg-gray-100 p-2 rounded mt-1 text-xs overflow-x-auto">{{ log.model_output }}</pre>
+                    <pre class="bg-gray-100 p-2 rounded-lg mt-1 text-xs overflow-x-auto shadow-inner">{{ log.model_output }}</pre>
                   </details>
                 </div>
               </div>
