@@ -34,8 +34,15 @@ export const useQueryStore = defineStore('query', () => {
   }>({})
 
   // Getters
-  const hasActiveQuery = computed(() => currentTask.value !== null)
+  const hasActiveQuery = computed(() => {
+    return currentTask.value !== null &&
+           ['running', 'success', 'failed'].includes((currentTask.value as any).status)
+  })
   const isQueryRunning = computed(() =>
+    (currentTask.value?.status as string) === 'running'
+  )
+  // 新增：专门用于查询按钮状态，只在运行时显示取消
+  const shouldShowCancelButton = computed(() =>
     (currentTask.value?.status as string) === 'running'
   )
   const queryProgress = computed(() => (currentTask.value as any)?.progress || null)
@@ -455,6 +462,7 @@ export const useQueryStore = defineStore('query', () => {
     // Getters
     hasActiveQuery,
     isQueryRunning,
+    shouldShowCancelButton,
     queryProgress,
     canCancelQuery,
     hasResults,

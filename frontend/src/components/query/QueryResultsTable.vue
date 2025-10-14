@@ -88,9 +88,71 @@
       <div
         v-if="viewMode === 'table'"
         class="overflow-x-auto"
+        ref="tableContainer"
       >
-        <table class="table table-zebra w-full">
-          <thead>
+        <!-- Fixed Header (only visible when table is scrolled) -->
+        <div
+          v-if="showFixedHeader"
+          class="fixed-header-container"
+          :style="fixedHeaderStyle"
+        >
+          <table class="table table-zebra w-full">
+            <thead class="bg-base-100 shadow-md" style="background-color: hsl(var(--b1)); opacity: 1 !important;">
+              <tr>
+                <th
+                  v-for="column in data.columns"
+                  :key="column.name"
+                  class="cursor-pointer hover:bg-base-200"
+                  :style="{ width: getColumnWidth(column.name) + 'px' }"
+                  @click="sortByColumn(column.name)"
+                >
+                  <div class="flex items-center gap-1">
+                    <span>{{ column.name }}</span>
+                    <div
+                      v-if="sortColumn === column.name"
+                      class="flex flex-col"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-3 w-3"
+                        :class="{
+                          'text-primary': sortOrder === 'asc'
+                        }"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-3 w-3 -mt-1"
+                        :class="{
+                          'text-primary': sortOrder === 'desc'
+                        }"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+          </table>
+        </div>
+
+        <!-- Original Table -->
+        <table class="table table-zebra w-full" ref="originalTable">
+          <thead ref="tableHeader">
             <tr>
               <th
                 v-for="column in data.columns"
@@ -99,7 +161,7 @@
                 @click="sortByColumn(column.name)"
               >
                 <div class="flex items-center gap-1">
-                  <span>{{ getColumnDisplayName(column.name) }}</span>
+                  <span>{{ column.name }}</span>
                   <div
                     v-if="sortColumn === column.name"
                     class="flex flex-col"
@@ -216,7 +278,7 @@
                 :key="column.name"
                 :value="column.name"
               >
-                {{ getColumnDisplayName(column.name) }}
+                {{ column.name }}
               </option>
             </select>
           </div>
@@ -237,7 +299,7 @@
                 :key="column.name"
                 :value="column.name"
               >
-                {{ getColumnDisplayName(column.name) }}
+                {{ column.name }}
               </option>
             </select>
           </div>
@@ -300,7 +362,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, watchEffect } from 'vue'
+import { ref, computed, watch, watchEffect, onMounted, onUnmounted, nextTick } from 'vue'
 import { useToast } from '@/composables/useToast'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -341,6 +403,17 @@ const sortColumn = ref<string>('')
 const sortOrder = ref<'asc' | 'desc'>('asc')
 const currentPage = ref(1)
 const pageSize = ref(50)
+
+// Fixed header state
+const showFixedHeader = ref(false)
+const fixedHeaderStyle = ref({})
+const tableContainer = ref<HTMLElement>()
+const originalTable = ref<HTMLElement>()
+const tableHeader = ref<HTMLElement>()
+const columnWidths = ref<Record<string, number>>({})
+
+// Intersection Observer for detecting when table header is out of view
+let observer: IntersectionObserver | null = null
 
 const chartConfig = ref({
   type: 'bar',
@@ -406,11 +479,6 @@ const visiblePages = computed(() => {
   return pages
 })
 
-// Methods
-const getColumnDisplayName = (columnName: string) => {
-  // 可以在这里实现列名的友好显示逻辑
-  return columnName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-}
 
 const formatCellValue = (value: any, columnType?: string) => {
   if (value === null || value === undefined) return '-'
@@ -462,11 +530,123 @@ const refreshData = () => {
   info('刷新功能开发中...')
 }
 
+// Fixed header methods
+const getColumnWidth = (columnName: string): number => {
+  return columnWidths.value[columnName] || 150 // Default width
+}
+
+const updateColumnWidths = () => {
+  if (!tableHeader.value) return
+
+  const headers = tableHeader.value.querySelectorAll('th')
+  const widths: Record<string, number> = {}
+
+  headers.forEach((header, index) => {
+    const column = props.data?.columns?.[index]
+    if (column) {
+      widths[column.name] = header.offsetWidth
+    }
+  })
+
+  columnWidths.value = widths
+}
+
+const updateFixedHeaderPosition = () => {
+  if (!tableHeader.value || !tableContainer.value) return
+
+  const containerRect = tableContainer.value.getBoundingClientRect()
+  const headerRect = tableHeader.value.getBoundingClientRect()
+
+  fixedHeaderStyle.value = {
+    position: 'fixed',
+    top: '0px',
+    left: `${containerRect.left}px`,
+    width: `${containerRect.width}px`,
+    zIndex: 40,
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    backgroundColor: 'hsl(var(--b1))'
+  }
+}
+
+const initializeFixedHeader = () => {
+  if (!tableHeader.value || viewMode.value !== 'table') return
+
+  // Set up Intersection Observer
+  observer = new IntersectionObserver(
+    (entries) => {
+      const [entry] = entries
+      showFixedHeader.value = !entry.isIntersecting
+
+      if (showFixedHeader.value) {
+        updateColumnWidths()
+        updateFixedHeaderPosition()
+      }
+    },
+    {
+      root: null,
+      rootMargin: '-1px 0px 0px 0px',
+      threshold: 0
+    }
+  )
+
+  observer.observe(tableHeader.value)
+
+  // Update positions on scroll and resize
+  window.addEventListener('scroll', updateFixedHeaderPosition)
+  window.addEventListener('resize', () => {
+    updateColumnWidths()
+    updateFixedHeaderPosition()
+  })
+}
+
+const cleanupFixedHeader = () => {
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
+
+  window.removeEventListener('scroll', updateFixedHeaderPosition)
+  window.removeEventListener('resize', updateFixedHeaderPosition)
+
+  showFixedHeader.value = false
+}
+
 // Watch for data changes
-watch(() => props.data, () => {
+watch(() => props.data, async () => {
   currentPage.value = 1
   sortColumn.value = ''
   sortOrder.value = 'asc'
+
+  // Reinitialize fixed header when data changes
+  await nextTick()
+  if (viewMode.value === 'table') {
+    cleanupFixedHeader()
+    initializeFixedHeader()
+  }
+})
+
+// Watch for view mode changes
+watch(viewMode, (newMode) => {
+  if (newMode === 'table') {
+    nextTick(() => {
+      initializeFixedHeader()
+    })
+  } else {
+    cleanupFixedHeader()
+  }
+})
+
+// Lifecycle hooks
+onMounted(() => {
+  nextTick(() => {
+    if (viewMode.value === 'table') {
+      initializeFixedHeader()
+    }
+  })
+})
+
+onUnmounted(() => {
+  cleanupFixedHeader()
 })
 </script>
 
@@ -484,5 +664,71 @@ watch(() => props.data, () => {
   font-size: 0.875rem;
   line-height: 1.25;
   color: hsl(var(--bc));
+}
+
+/* Fixed header styles */
+.fixed-header-container {
+  transition: opacity 0.2s ease-in-out;
+  opacity: 1 !important;
+}
+
+.fixed-header-container table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.fixed-header-container thead {
+  background-color: hsl(var(--b1));
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-bottom: 2px solid hsl(var(--b2));
+  color: hsl(var(--bc));
+  opacity: 1 !important;
+}
+
+.fixed-header-container th {
+  background-color: hsl(var(--b1));
+  position: relative;
+  color: hsl(var(--bc));
+  font-weight: 600;
+  opacity: 1 !important;
+}
+
+.fixed-header-container th span {
+  color: hsl(var(--bc)) !important;
+}
+
+/* Add a subtle border to distinguish fixed header */
+.fixed-header-container::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    hsl(var(--bc) / 0.1) 50%,
+    transparent 100%
+  );
+}
+
+/* Ensure smooth transitions when switching between table and chart views */
+.overflow-x-auto {
+  position: relative;
+}
+
+/* Hide original header when fixed header is visible */
+.overflow-x-auto:has(.fixed-header-container) thead {
+  opacity: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* Fallback for browsers that don't support :has() */
+@media (hover: hover) {
+  .overflow-x-auto thead {
+    transition: opacity 0.2s ease-in-out;
+  }
 }
 </style>

@@ -198,7 +198,7 @@
           <div class="pt-2">
             <!-- 有活跃查询时显示取消按钮 -->
             <button
-              v-if="hasActiveQuery"
+              v-if="shouldShowCancelButton"
               type="button"
               class="btn btn-error w-full h-10"
               @click="handleCancel"
@@ -338,6 +338,7 @@ const filteredTables = computed(() => {
 // Computed
 const loading = computed(() => queryStore.isLoading)
 const hasActiveQuery = computed(() => queryStore.hasActiveQuery)
+const shouldShowCancelButton = computed(() => queryStore.shouldShowCancelButton)
 
 // 监听表选择模式切换，清理相关选择
 watch(tableSelectionMode, (newMode) => {
