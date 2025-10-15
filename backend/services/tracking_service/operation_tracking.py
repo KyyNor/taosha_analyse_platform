@@ -84,7 +84,8 @@ class OperationTracker:
     async def update_task_progress(self, task_id: str, progress: int,
                                  step_name: str, current_log: BaseNodeLog = None,
                                  error: str = None, final_status: str = None,
-                                 execution_result: list[dict] = None, sql_query: str = None):
+                                 execution_result: list[dict] = None, sql_query: str = None,
+                                 write_step_log: bool = True):
         """更新任务进度（更新缓存，异步写数据库）"""
         # 获取或创建任务状态
         state = await self.cache.get(task_id)
@@ -132,7 +133,7 @@ class OperationTracker:
         logger.info(f"{task_id} 更新任务进度，更新缓存结束")
 
         # 写入数据库
-        await self._write_to_db(state)
+        await self._write_to_db(state, write_step_log)
 
     def create_task(self, state: TaskState):
         """创建新任务"""
@@ -144,7 +145,7 @@ class OperationTracker:
 
         self._write_session_to_db(state.task_id, state.operator)
 
-    async def _write_to_db(self, state: TaskState):
+    async def _write_to_db(self, state: TaskState, write_step_log: bool = True):
         """异步写入任务状态到数据库"""
         try:
             logger.debug(f"开始写入任务 {state.task_id} 到数据库，状态: {state.status}")
@@ -176,9 +177,9 @@ class OperationTracker:
             ))
             logger.debug(f"已更新会话状态，任务ID: {state.task_id}")
 
-            # 写入步骤日志（只写入最新的一条）
-            if state.logs:
-                logger.debug(f"任务 {state.task_id} 有 {len(state.logs)} 条日志")
+            # 写入步骤日志（只写入最新的一条，且根据 write_step_log 参数决定）
+            if state.logs and write_step_log:
+                logger.debug(f"任务 {state.task_id} 有 {len(state.logs)} 条日志，准备写入步骤日志")
                 latest_log = state.current_step_log
 
                 if latest_log is None:
@@ -210,7 +211,10 @@ class OperationTracker:
                 ))
                 logger.debug(f"已写入步骤日志，任务ID: {state.task_id}")
             else:
-                logger.debug(f"任务 {state.task_id} 没有日志需要写入")
+                if not write_step_log:
+                    logger.debug(f"任务 {state.task_id} 根据设置不写入步骤日志")
+                else:
+                    logger.debug(f"任务 {state.task_id} 没有日志需要写入")
 
             logger.debug(f"任务 {state.task_id} 状态已写入数据库")
 

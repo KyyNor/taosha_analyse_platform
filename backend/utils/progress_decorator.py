@@ -72,11 +72,16 @@ def track_node_progress(node_name: str):
             state.current_step_name = f"{node_name} 流程开始"
             state.progress = progress
 
-            tracker.update_task_progress(
-                task_id=task_id,
-                progress=progress,
-                step_name=f"{node_name} 流程开始",
-            )
+            # 更新流程开始状态（只更新会话状态，不写入步骤日志）
+            if task_id:
+                safe_create_async_task(
+                    tracker.update_task_progress(
+                        task_id=task_id,
+                        progress=progress,
+                        step_name=f"{node_name} 流程开始",
+                        write_step_log=False  # 不写入步骤日志，只更新会话状态
+                    )
+                )
 
             try:
                 # 执行原函数

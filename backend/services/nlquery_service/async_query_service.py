@@ -68,13 +68,14 @@ class AsyncQueryService:
 
             result = await tracker.cache.get(task_id)
 
-            # 更新最终状态 - TaskState 对象需要转换为字典或直接访问属性
+            # 更新最终状态 - 只更新会话状态，不添加新的步骤日志
             if result.status in ('success', 'completed'):
                 await tracker.update_task_progress(
                     task_id=task_id,
                     progress=100,
                     step_name="查询完成",
-                    final_status="success"
+                    final_status="success",
+                    write_step_log=False  # 不写入步骤日志，避免重复记录
                 )
             else:
                 await tracker.update_task_progress(
@@ -82,7 +83,8 @@ class AsyncQueryService:
                     progress=0,
                     step_name="查询失败",
                     error=result.error_message or '未知错误',
-                    final_status="failed"
+                    final_status="failed",
+                    write_step_log=False  # 不写入步骤日志，避免重复记录
                 )
 
         except Exception as e:
@@ -92,7 +94,8 @@ class AsyncQueryService:
                 progress=0,
                 step_name="查询异常",
                 error=str(e),
-                final_status="failed"
+                final_status="failed",
+                write_step_log=False  # 不写入步骤日志，避免重复记录
             )
             raise
 
