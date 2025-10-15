@@ -76,6 +76,12 @@
                 <label class="font-medium text-base-content/70">执行结果:</label>
                 <p class="text-sm text-base-content">{{ detailData.task.execution_result?.length || 0 }} 条记录</p>
               </div>
+              <div v-if="detailData.task.clear_check_details && Object.keys(detailData.task.clear_check_details).length > 0">
+                <label class="font-medium text-base-content/70">输入验证结果:</label>
+                <div class="rounded-lg text-xs overflow-x-auto border">
+                  <pre class="bg-base-200 p-2 rounded-lg shadow-inner">{{ formatText(detailData.task.clear_check_details) }}</pre>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -143,29 +149,30 @@
                   </div>
                 </div>
 
-                <!-- 错误信息始终显示 -->
-                <div v-if="log.error" class="text-error text-sm mb-2 p-2 bg-error/10 rounded border border-error/20">
-                  <strong>错误:</strong> {{ log.error }}
-                </div>
-
                 <!-- 详情内容 - 统一展开/收起 -->
                 <div
                   v-show="expandedLogs[index]"
                   class="space-y-2 border-t border-base-300 pt-2 mt-2"
                 >
+                  <!-- 错误信息 - 跟随展开状态 -->
+                  <div v-if="log.error" class="text-error text-sm p-2 bg-error/10 rounded border border-error/20 shadow-inner">
+                    <div class="font-medium mb-1">错误信息:</div>
+                    <pre class="whitespace-pre-wrap text-xs">{{ formatText(log.error) }}</pre>
+                  </div>
+
                   <div v-if="log.prompt" class="text-sm">
                     <div class="font-medium text-base-content/80 mb-1">提示词:</div>
-                    <pre class="bg-base-200 p-2 rounded-lg text-xs overflow-x-auto shadow-inner">{{ log.prompt }}</pre>
+                    <pre class="bg-base-200 p-2 rounded-lg text-xs overflow-x-auto shadow-inner">{{ formatText(log.prompt) }}</pre>
                   </div>
 
                   <div v-if="log.input_data" class="text-sm">
                     <div class="font-medium text-base-content/80 mb-1">输入数据:</div>
-                    <pre class="bg-base-200 p-2 rounded-lg text-xs overflow-x-auto shadow-inner">{{ log.input_data }}</pre>
+                    <pre class="bg-base-200 p-2 rounded-lg text-xs overflow-x-auto shadow-inner">{{ formatText(log.input_data) }}</pre>
                   </div>
 
                   <div v-if="log.model_output" class="text-sm">
                     <div class="font-medium text-base-content/80 mb-1">模型输出:</div>
-                    <pre class="bg-base-200 p-2 rounded-lg text-xs overflow-x-auto shadow-inner">{{ log.model_output }}</pre>
+                    <pre class="bg-base-200 p-2 rounded-lg text-xs overflow-x-auto shadow-inner">{{ formatText(log.model_output) }}</pre>
                   </div>
                 </div>
               </div>
@@ -187,6 +194,7 @@ import queryService from '@services/api/queryService'
 import type { QueryTask, BaseNodeLog } from '@types/index'
 import { highlightSql, initHighlight, applyPrismTheme } from '@utils/prism'
 import { calculateDuration, formatDuration, formatTime } from '@utils/duration'
+import { formatText } from '@utils/formatText'
 
 interface Props {
   isVisible: boolean
@@ -226,7 +234,7 @@ const getStatusText = (status: string) => {
 
 // 检查是否有详情内容
 const hasDetails = (log: BaseNodeLog) => {
-  return !!(log.prompt || log.input_data || log.model_output)
+  return !!(log.prompt || log.input_data || log.model_output || log.error)
 }
 
 // 切换展开/收起状态

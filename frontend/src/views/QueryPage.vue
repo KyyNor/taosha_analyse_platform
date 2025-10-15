@@ -257,6 +257,11 @@ const generatedSQL = computed(() => queryStore.generatedSQL)
 // Handle query submission
 const handleSubmitQuery = async (request: QueryRequest) => {
   try {
+    // 清理上一次的查询结果，准备新的查询
+    if (queryStore.currentResult) {
+      queryStore.clearCurrentQuery()
+    }
+
     await queryStore.submitQuery(request)
     success('查询已提交，正在处理...')
   } catch (err) {

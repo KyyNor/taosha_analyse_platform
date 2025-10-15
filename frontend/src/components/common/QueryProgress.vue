@@ -211,6 +211,8 @@
 import { computed, ref, watch, onMounted } from 'vue'
 import { useQueryStore } from '@stores/query'
 import { highlightSql, initHighlight } from '@utils/prism'
+import { formatText } from '@utils/formatText'
+import { formatDuration } from '@utils/duration'
 
 interface QueryStep {
   title: string
@@ -337,10 +339,10 @@ const updateStepsFromLogs = () => {
     }
 
     // Format description (input data)
-    const formattedDescription = formatInputData(log.input_data)
+    const formattedDescription = formatText(log.input_data)
 
     // Format details (model output) - include error if present
-    let formattedDetails = formatModelOutput(log.model_output)
+    let formattedDetails = formatText(log.model_output)
     if (log.error) {
       formattedDetails = `❌ 错误: ${log.error}\n\n${formattedDetails}`
     }
@@ -385,42 +387,6 @@ const formatDateTime = (dateString: string): string => {
   })
 }
 
-// Format input data with comma separation
-const formatInputData = (inputData: string): string => {
-  if (!inputData) return ''
-
-  // If it's a simple string, just return as is
-  if (!inputData.includes(',') && !inputData.includes('{') && !inputData.includes('[')) {
-    return inputData
-  }
-
-  // Try to parse as JSON first
-  try {
-    const parsed = JSON.parse(inputData)
-    return JSON.stringify(parsed, null, 2)
-  } catch {
-    // If not valid JSON, just split by commas
-    return inputData.split(',').map(item => item.trim()).join(', ')
-  }
-}
-
-// Format model output with syntax highlighting
-const formatModelOutput = (output: string): string => {
-  if (!output) return ''
-
-  // Try to parse as JSON first
-  try {
-    const parsed = JSON.parse(output)
-    return JSON.stringify(parsed, null, 2)
-  } catch {
-    // If not valid JSON, check if it's SQL
-    if (isSQL(output)) {
-      return formatSQL(output)
-    }
-    // Otherwise return as is
-    return output
-  }
-}
 
 // Check if content is SQL
 const isSQL = (content: string): boolean => {
@@ -478,18 +444,6 @@ onMounted(() => {
   initHighlight()
 })
 
-// Format duration
-const formatDuration = (duration: number) => {
-  if (duration < 1000) {
-    return `${duration}ms`
-  } else if (duration < 60000) {
-    return `${(duration / 1000).toFixed(1)}s`
-  } else {
-    const minutes = Math.floor(duration / 60000)
-    const seconds = Math.floor((duration % 60000) / 1000)
-    return `${minutes}m ${seconds}s`
-  }
-}
 
 
 // Handle cancel

@@ -99,18 +99,18 @@
                   v-for="table in filteredTables"
                   :key="table.id"
                 >
-                  <label class="cursor-pointer flex items-center gap-2 p-1">
+                  <div class="flex items-center gap-2 p-1 hover:bg-base-200 rounded cursor-pointer" @click="toggleTableSelection(table.id)">
                     <input
                       :id="`table-${table.id}`"
-                      v-model="formData.selectedTableIds"
                       type="checkbox"
-                      :value="table.id"
+                      :checked="isTableSelected(table.id)"
                       class="checkbox checkbox-sm"
                       :disabled="loading"
+                      @click.stop
                     >
                     <span class="flex-1">{{ table.name }}</span>
                     <span class="badge badge-outline badge-xs">{{ table.dataSource }}</span>
-                  </label>
+                  </div>
                 </li>
                 <li
                   v-if="filteredTables.length === 0"
@@ -384,6 +384,27 @@ const removeTable = (tableId: number) => {
   const index = formData.value.selectedTableIds?.indexOf(tableId)
   if (index > -1 && formData.value.selectedTableIds) {
     formData.value.selectedTableIds.splice(index, 1)
+  }
+}
+
+// Check if table is selected
+const isTableSelected = (tableId: number) => {
+  return formData.value.selectedTableIds?.includes(tableId) || false
+}
+
+// Toggle table selection
+const toggleTableSelection = (tableId: number) => {
+  if (loading.value) return
+
+  if (!formData.value.selectedTableIds) {
+    formData.value.selectedTableIds = []
+  }
+
+  const index = formData.value.selectedTableIds.indexOf(tableId)
+  if (index > -1) {
+    formData.value.selectedTableIds.splice(index, 1)
+  } else {
+    formData.value.selectedTableIds.push(tableId)
   }
 }
 

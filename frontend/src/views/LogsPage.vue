@@ -97,7 +97,7 @@
         </template>
 
         <template #cell-duration="{ record }">
-          <span v-if="calculateDuration(record)">{{ formatDuration(calculateDuration(record) || 0) }}</span>
+          <span v-if="calculateTaskDuration(record)">{{ formatDuration(calculateTaskDuration(record) || 0) }}</span>
           <span
             v-else
             class="text-base-content/40"
@@ -191,6 +191,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import LogDetailModal from '@/components/common/LogDetailModal.vue'
 import queryService from '@/services/api/queryService'
 import type { QueryTask, BaseNodeLog } from '@types/index'
+import { calculateTaskDuration, formatDuration, formatTime } from '@/utils/duration'
 
 const { success, info } = useToast()
 
@@ -328,30 +329,6 @@ const getStatusText = (status: string) => {
   return statusMap[status] || status
 }
 
-// Format duration
-const formatDuration = (duration: number) => {
-  if (duration < 1000) {
-    return `${duration}ms`
-  } else {
-    return `${(duration / 1000).toFixed(1)}s`
-  }
-}
-
-// Format time
-const formatTime = (timeStr: string | undefined | null) => {
-  if (!timeStr) return '-'
-  return new Date(timeStr).toLocaleString()
-}
-
-// Calculate duration from created_at and completed_at
-const calculateDuration = (record: QueryTask) => {
-  if (!record.created_at) return null
-
-  const startTime = new Date(record.created_at).getTime()
-  const endTime = record.completed_at ? new Date(record.completed_at).getTime() : Date.now()
-
-  return endTime - startTime
-}
 
 // View log details
 const viewLogDetails = (task_id: string) => {
