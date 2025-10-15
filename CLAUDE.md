@@ -121,10 +121,25 @@ python -c "from services.query_engine import get_query_engine; print(get_query_e
 ### Frontend Components
 
 - `QueryForm.vue`: 查询表单组件，支持示例填充和查询模式切换
-- `QueryProgress.vue`: 查询进度展示组件，支持实时进度更新
-- `QueryResultsTable.vue`: 查询结果表格组件
+- `QueryProgress.vue`: 查询进度展示组件，支持实时进度更新和耗时显示
+- `QueryResultsTable.vue`: 查询结果表格组件，支持数据可视化和交互优化
 - `SidebarPanel.vue`: 侧边栏面板，包含查询历史和收藏功能
 - `FloatingBall.vue`: 悬浮球交互组件
+- `LogDetailModal.vue`: 日志详情弹窗组件，支持SQL语法高亮和执行步骤展示
+
+### Frontend Utility Libraries
+
+- `duration.ts`: 时间和耗时计算工具函数
+  - `calculateDuration()`: 计算两个时间点之间的耗时
+  - `formatDuration()`: 格式化耗时显示（ms/s/min）
+  - `formatTime()`: 格式化时间显示为本地化字符串
+- `formatText.ts`: 智能文本格式化工具
+  - `formatText()`: 智能格式化各种文本内容（JSON、多行文本等）
+  - `formatJson()`: JSON内容格式化，确保正确缩进和换行
+  - `isJson()`: 判断文本是否为JSON格式
+- `prism.ts`: SQL语法高亮工具
+  - `highlightSql()`: SQL代码语法高亮
+  - `applyPrismTheme()`: 动态应用Prism主题（支持深色/浅色主题）
 
 ## Data Flow
 
@@ -157,6 +172,8 @@ python -c "from services.query_engine import get_query_engine; print(get_query_e
 - 响应式设计，支持移动端适配
 - 使用Pinia进行状态管理，支持查询历史和收藏功能
 - 完整的错误处理和用户友好的提示系统
+- 集成Prism.js进行SQL语法高亮显示
+- 智能文本格式化和时间处理工具函数
 
 ### Database Schema
 
@@ -229,6 +246,7 @@ TAOSHA_LOG_LEVEL=INFO
 - **本地Embedding加载失败**: 检查模型路径和设备配置
 - **WebSocket连接问题**: 检查前后端WebSocket配置
 - **任务状态缓存问题**: 检查TTLCache配置和内存使用情况
+- **SQL语法高亮显示问题**: 检查Prism.js主题配置和CDN连接
 
 ## New Features Since 88ebe2925ff8db667dafde3ee46c6e95d4a08ff3
 
@@ -251,9 +269,11 @@ TAOSHA_LOG_LEVEL=INFO
 - ✅ 查询历史和收藏功能
 - ✅ 悬浮球侧边栏交互
 - ✅ 响应式布局优化
-- ✅ 日志详情弹框功能
+- ✅ 日志详情弹框功能（支持SQL语法高亮和执行步骤展示）
 - ✅ API配置和服务代码优化
 - ✅ TypeScript类型系统完善
+- ✅ 智能文本格式化和时间处理工具函数
+- ✅ 查询结果表格数据可视化增强
 
 ### UI/UX Improvements
 
@@ -270,3 +290,8 @@ TAOSHA_LOG_LEVEL=INFO
 - ✅ 配置系统标准化
 - ✅ 错误处理机制完善
 - ✅ 日志系统统一化
+
+---
+
+## Documentation Update History
+- **2025-10-15**: 文档更新，整合commit c462db2的最新功能到现有章节中
