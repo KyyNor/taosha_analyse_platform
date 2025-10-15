@@ -107,36 +107,66 @@
                     >
                       {{ log.success ? '成功' : '失败' }}
                     </span>
+                    <!-- 展开/收起按钮 -->
+                    <button
+                      v-if="hasDetails(log)"
+                      @click="toggleLogDetails(index)"
+                      class="btn btn-ghost btn-xs p-1 hover:bg-base-200"
+                      :title="expandedLogs[index] ? '收起详情' : '展开详情'"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4 transition-transform duration-200"
+                        :class="{ 'rotate-180': expandedLogs[index] }"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </button>
                   </div>
-                  <span class="text-xs text-gray-500">
-                    {{ log.start_time ? formatTime(log.start_time) : '' }} -
-                    {{ log.end_time ? formatTime(log.end_time) : '' }}
-                  </span>
+                  <div class="text-right">
+                    <div class="text-xs text-gray-500">
+                      {{ log.start_time ? formatTime(log.start_time) : '' }} -
+                      {{ log.end_time ? formatTime(log.end_time) : '' }}
+                    </div>
+                    <!-- 耗时信息 -->
+                    <div class="duration-display text-xs mt-1">
+                      ⏱️ {{ formatDuration(calculateDuration(log.start_time, log.end_time)) }}
+                    </div>
+                  </div>
                 </div>
 
+                <!-- 错误信息始终显示 -->
                 <div v-if="log.error" class="text-error text-sm mb-2 p-2 bg-error/10 rounded border border-error/20">
                   <strong>错误:</strong> {{ log.error }}
                 </div>
 
-                <div v-if="log.prompt" class="mb-2">
-                  <details class="text-sm">
-                    <summary class="font-medium cursor-pointer hover:text-primary">提示词</summary>
-                    <pre class="bg-base-200 p-2 rounded-lg mt-1 text-xs overflow-x-auto shadow-inner">{{ log.prompt }}</pre>
-                  </details>
-                </div>
+                <!-- 详情内容 - 统一展开/收起 -->
+                <div
+                  v-show="expandedLogs[index]"
+                  class="space-y-2 border-t border-base-300 pt-2 mt-2"
+                >
+                  <div v-if="log.prompt" class="text-sm">
+                    <div class="font-medium text-base-content/80 mb-1">提示词:</div>
+                    <pre class="bg-base-200 p-2 rounded-lg text-xs overflow-x-auto shadow-inner">{{ log.prompt }}</pre>
+                  </div>
 
-                <div v-if="log.input_data" class="mb-2">
-                  <details class="text-sm">
-                    <summary class="font-medium cursor-pointer hover:text-primary">输入数据</summary>
-                    <pre class="bg-base-200 p-2 rounded-lg mt-1 text-xs overflow-x-auto shadow-inner">{{ log.input_data }}</pre>
-                  </details>
-                </div>
+                  <div v-if="log.input_data" class="text-sm">
+                    <div class="font-medium text-base-content/80 mb-1">输入数据:</div>
+                    <pre class="bg-base-200 p-2 rounded-lg text-xs overflow-x-auto shadow-inner">{{ log.input_data }}</pre>
+                  </div>
 
-                <div v-if="log.model_output" class="mb-2">
-                  <details class="text-sm">
-                    <summary class="font-medium cursor-pointer hover:text-primary">模型输出</summary>
-                    <pre class="bg-base-200 p-2 rounded-lg mt-1 text-xs overflow-x-auto shadow-inner">{{ log.model_output }}</pre>
-                  </details>
+                  <div v-if="log.model_output" class="text-sm">
+                    <div class="font-medium text-base-content/80 mb-1">模型输出:</div>
+                    <pre class="bg-base-200 p-2 rounded-lg text-xs overflow-x-auto shadow-inner">{{ log.model_output }}</pre>
+                  </div>
                 </div>
               </div>
             </div>
@@ -156,6 +186,7 @@ import { ref, watch, onMounted } from 'vue'
 import queryService from '@services/api/queryService'
 import type { QueryTask, BaseNodeLog } from '@types/index'
 import { highlightSql, initHighlight, applyPrismTheme } from '@utils/prism'
+import { calculateDuration, formatDuration, formatTime } from '@utils/duration'
 
 interface Props {
   isVisible: boolean
@@ -172,6 +203,7 @@ const emit = defineEmits<Emits>()
 
 // State
 const isLoading = ref(false)
+const expandedLogs = ref<Record<number, boolean>>({})
 const detailData = ref<{
   task: QueryTask | null
   logs: BaseNodeLog[]
@@ -192,9 +224,14 @@ const getStatusText = (status: string) => {
   return statusMap[status] || status
 }
 
-const formatTime = (timeStr: string | undefined | null) => {
-  if (!timeStr) return '-'
-  return new Date(timeStr).toLocaleString()
+// 检查是否有详情内容
+const hasDetails = (log: BaseNodeLog) => {
+  return !!(log.prompt || log.input_data || log.model_output)
+}
+
+// 切换展开/收起状态
+const toggleLogDetails = (index: number) => {
+  expandedLogs.value[index] = !expandedLogs.value[index]
 }
 
 
@@ -261,3 +298,17 @@ onMounted(() => {
   initHighlight()
 })
 </script>
+
+<style scoped>
+/* Duration display styles - from QueryProgress */
+.duration-display {
+  background-color: hsl(var(--p));
+  color: hsl(var(--pc));
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  min-width: 60px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+</style>
