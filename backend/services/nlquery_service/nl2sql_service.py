@@ -503,10 +503,21 @@ class NL2SQLService:
         # 4. 训练术语表映射
         terms = self.glossary_service.get_terms()
         for term in terms:
-            if term.get('sql_expression'):
-                question = f"什么是{term.get('term')}"
-                sql = f"SELECT {term.get('sql_expression')} AS {term.get('term')}"
-                self.vanna.train(question=question, sql=sql)
+            # 只处理概念解释和SQL问答类型的术语
+            if term.get('type') in ['concept', 'sql_qa']:
+                term_name = term.get('name', '')
+                content = term.get('content', {})
+
+                if term.get('type') == 'sql_qa' and content.get('answer'):
+                    # SQL问答类型，使用答案作为SQL
+                    question = content.get('question', f"什么是{term_name}")
+                    sql = content.get('answer', '')
+                    self.vanna.train(question=question, sql=sql)
+                elif term.get('type') == 'concept' and content.get('content'):
+                    # 概念解释类型，将解释内容作为问答对训练
+                    question = f"什么是{term_name}"
+                    answer = content.get('content', '')
+                    self.vanna.train(question=question, sql=f"SELECT '{answer}' AS {term_name}")
         
         # 5. 生成训练hash
         metadata_str = str(self.metadata_service.get_metadata())
@@ -546,13 +557,24 @@ class NL2SQLService:
         term_lines = []
         
         for term in terms:
-            term_name = term.get('term', '')
-            definition = term.get('definition', '')
-            aliases = ", ".join(term.get('aliases', []))
-            
-            term_line = f"- {term_name}: {definition}"
-            if aliases:
-                term_line += f" (别名: {aliases})"
+            term_name = term.get('name', '')
+            term_type = term.get('type', '')
+            content = term.get('content', {})
+
+            if term_type == 'concept':
+                content_text = content.get('content', '')
+                term_line = f"- {term_name} (概念解释): {content_text}"
+            elif term_type == 'sql_qa':
+                question = content.get('question', '')
+                answer = content.get('answer', '')
+                term_line = f"- {term_name} (SQL问答): {question} - {answer}"
+            elif term_type == 'dict_mapping':
+                col_name = content.get('col_name', '')
+                dict_map_count = len(content.get('dict_map', []))
+                term_line = f"- {term_name} (字典转换): 字段({col_name})，映射项({dict_map_count}个)"
+            else:
+                term_line = f"- {term_name}: {content}"
+
             term_lines.append(term_line)
         
         return "\n".join(term_lines)

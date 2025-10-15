@@ -446,39 +446,39 @@ class GlossaryService:
         try:
             with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
-                
+
                 cursor.execute("""
-                    SELECT id, term, definition, sql_expression, category 
-                    FROM glossary_terms 
-                    ORDER BY term
+                    SELECT id, name, type, content, creator, created_at, updated_at
+                    FROM glossary_terms
+                    ORDER BY name
                 """)
                 terms_data = cursor.fetchall()
-                
+
                 terms = []
-                for term_id, term, definition, sql_expr, category in terms_data:
-                    placeholder = self.db_manager.get_sql_placeholder(db_type)
-                    cursor.execute(
-                        f"SELECT alias FROM glossary_aliases WHERE term_id = {placeholder}",
-                        (term_id,)
-                    )
-                    aliases_data = cursor.fetchall()
-                    aliases = [alias[0] for alias in aliases_data]
-                    
+                for term_id, name, term_type, content, creator, created_at, updated_at in terms_data:
+                    # 解析 JSON content
+                    try:
+                        content_data = json.loads(content) if content else {}
+                    except json.JSONDecodeError:
+                        content_data = {}
+                        logger.warning(f"术语 {name} 的 content 字段不是有效的 JSON 格式")
+
                     terms.append({
                         "id": term_id,
-                        "term": term,
-                        "definition": definition or "",
-                        "sql_expression": sql_expr or "",
-                        "category": category or "",
-                        "aliases": aliases
+                        "name": name,
+                        "type": term_type,
+                        "content": content_data,
+                        "creator": creator or "",
+                        "created_at": created_at.isoformat() if created_at else "",
+                        "updated_at": updated_at.isoformat() if updated_at else ""
                     })
-                
+
                 self._glossary = {"terms": terms}
                 content_str = json.dumps(self._glossary, sort_keys=True, ensure_ascii=False)
                 self._glossary_hash = hashlib.md5(content_str.encode()).hexdigest()
-                
+
                 logger.info(f"术语表已从{db_type}数据库加载，共{len(terms)}个术语")
-                
+
         except Exception as e:
             logger.error(f"从数据库加载术语表失败: {e}")
             self._glossary = {"terms": []}
@@ -495,68 +495,44 @@ class GlossaryService:
     def find_term(self, query: str) -> Optional[Dict[str, Any]]:
         """根据查询找到匹配的术语"""
         query_lower = query.lower()
-        
+
         for term in self.get_terms():
             # 检查术语名称
-            if term.get("term", "").lower() == query_lower:
+            if term.get("name", "").lower() == query_lower:
                 return term
-            
-            # 检查别名
-            aliases = term.get("aliases", [])
-            for alias in aliases:
-                if alias.lower() == query_lower:
-                    return term
-        
+
         return None
     
-    def get_term_mappings(self) -> Dict[str, str]:
-        """获取术语到SQL表达式的映射"""
-        mappings = {}
-        
-        for term in self.get_terms():
-            term_name = term.get("term")
-            sql_expr = term.get("sql_expression")
-            
-            if term_name and sql_expr:
-                mappings[term_name.lower()] = sql_expr
-                
-                # 添加别名映射
-                for alias in term.get("aliases", []):
-                    mappings[alias.lower()] = sql_expr
-        
-        return mappings
+    def get_terms_by_type(self, term_type: str) -> List[Dict[str, Any]]:
+        """根据类型获取术语"""
+        return [term for term in self.get_terms() if term.get("type") == term_type]
     
-    def add_term(self, term: str, definition: str = "", sql_expression: str = "", 
-                 category: str = "", aliases: List[str] = None) -> bool:
+    def add_term(self, name: str, term_type: str, content: Dict[str, Any], creator: str = "api_user") -> bool:
         """添加术语"""
         try:
             with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
-                
+
+                # 将 content 转换为 JSON 字符串
+                content_json = json.dumps(content, ensure_ascii=False)
+
                 cursor.execute(f"""
-                    INSERT INTO glossary_terms (term, definition, sql_expression, category) 
+                    INSERT INTO glossary_terms (name, type, content, creator)
                     VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
-                """, (term, definition, sql_expression, category))
-                
-                term_id = cursor.lastrowid
-                
-                if aliases:
-                    for alias in aliases:
-                        cursor.execute(
-                            f"INSERT INTO glossary_aliases (term_id, alias) VALUES ({placeholder}, {placeholder})",
-                            (term_id, alias)
-                        )
-                
-            logger.info(f"添加术语成功: {term}")
+                """, (name, term_type, content_json, creator))
+
+            logger.info(f"添加术语成功: {name}")
+            # 重新加载术语表
+            self._load_glossary()
             return True
-            
+
         except Exception as e:
             logger.error(f"添加术语失败: {e}")
             return False
     
-    def update_term(self, term_id: int, term: str = None, definition: str = None, 
-                   sql_expression: str = None, category: str = None) -> bool:
+    def update_term(self, term_id: int, name: str = None, term_type: str = None,
+                   content: Dict[str, Any] = None) -> bool:
         """更新术语"""
         try:
             with self.db_manager.get_taosha_db_connection() as (conn, db_type):
@@ -566,18 +542,16 @@ class GlossaryService:
                 updates = []
                 params = []
                 
-                if term is not None:
-                    updates.append(f"term = {placeholder}")
-                    params.append(term)
-                if definition is not None:
-                    updates.append(f"definition = {placeholder}")
-                    params.append(definition)
-                if sql_expression is not None:
-                    updates.append(f"sql_expression = {placeholder}")
-                    params.append(sql_expression)
-                if category is not None:
-                    updates.append(f"category = {placeholder}")
-                    params.append(category)
+                if name is not None:
+                    updates.append(f"name = {placeholder}")
+                    params.append(name)
+                if term_type is not None:
+                    updates.append(f"type = {placeholder}")
+                    params.append(term_type)
+                if content is not None:
+                    updates.append(f"content = {placeholder}")
+                    content_json = json.dumps(content, ensure_ascii=False)
+                    params.append(content_json)
                 
                 updates.append(f"updated_at = {placeholder}")
                 params.append(datetime.now())
@@ -589,6 +563,8 @@ class GlossaryService:
                 )
                 
             logger.info(f"更新术语成功: ID {term_id}")
+            # 重新加载术语表
+            self._load_glossary()
             return True
             
         except Exception as e:
@@ -605,6 +581,8 @@ class GlossaryService:
                 cursor.execute(f"DELETE FROM glossary_terms WHERE id = {placeholder}", (term_id,))
                 
             logger.info(f"删除术语成功: ID {term_id}")
+            # 重新加载术语表
+            self._load_glossary()
             return True
             
         except Exception as e:
@@ -615,40 +593,238 @@ class GlossaryService:
         """从数据库加载术语表（不更新实例状态）"""
         with self.db_manager.get_taosha_db_connection() as (conn, db_type):
             cursor = conn.cursor()
-            
+
             cursor.execute("""
-                SELECT id, term, definition, sql_expression, category 
-                FROM glossary_terms 
-                ORDER BY term
+                SELECT id, name, type, content, creator, created_at, updated_at
+                FROM glossary_terms
+                ORDER BY name
             """)
             terms_data = cursor.fetchall()
-            
+
             terms = []
-            for term_id, term, definition, sql_expr, category in terms_data:
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-                cursor.execute(
-                    f"SELECT alias FROM glossary_aliases WHERE term_id = {placeholder}",
-                    (term_id,)
-                )
-                aliases_data = cursor.fetchall()
-                aliases = [alias[0] for alias in aliases_data]
-                
+            for term_id, name, term_type, content, creator, created_at, updated_at in terms_data:
+                # 解析 JSON content
+                try:
+                    content_data = json.loads(content) if content else {}
+                except json.JSONDecodeError:
+                    content_data = {}
+                    logger.warning(f"术语 {name} 的 content 字段不是有效的 JSON 格式")
+
                 terms.append({
                     "id": term_id,
-                    "term": term,
-                    "definition": definition or "",
-                    "sql_expression": sql_expr or "",
-                    "category": category or "",
-                    "aliases": aliases
+                    "name": name,
+                    "type": term_type,
+                    "content": content_data,
+                    "creator": creator or "",
+                    "created_at": created_at.isoformat() if created_at else "",
+                    "updated_at": updated_at.isoformat() if updated_at else ""
                 })
-            
+
             return {"terms": terms}
+
+
+class PromptTemplateService:
+    """提示词模板管理服务"""
+
+    def __init__(self):
+        self.db_manager = get_database_manager()
+        self._templates = None
+        self._templates_hash = None
+        self._load_templates()
+
+    def _load_templates(self) -> Dict[str, Any]:
+        """从数据库加载提示词模板"""
+        try:
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, name, fields, template, created_at, updated_at
+                    FROM prompt_templates
+                    ORDER BY name
+                """)
+                templates_data = cursor.fetchall()
+
+                templates = []
+                for template_id, name, fields, template, created_at, updated_at in templates_data:
+                    # 解析 JSON fields
+                    try:
+                        fields_data = json.loads(fields) if fields else []
+                    except json.JSONDecodeError:
+                        fields_data = []
+                        logger.warning(f"提示词模板 {name} 的 fields 字段不是有效的 JSON 格式")
+
+                    templates.append({
+                        "id": template_id,
+                        "name": name,
+                        "fields": fields_data,
+                        "template": template or "",
+                        "created_at": created_at.isoformat() if created_at else "",
+                        "updated_at": updated_at.isoformat() if updated_at else ""
+                    })
+
+                self._templates = {"templates": templates}
+                content_str = json.dumps(self._templates, sort_keys=True, ensure_ascii=False)
+                self._templates_hash = hashlib.md5(content_str.encode()).hexdigest()
+
+                logger.info(f"提示词模板已从{db_type}数据库加载，共{len(templates)}个模板")
+
+        except Exception as e:
+            logger.error(f"从数据库加载提示词模板失败: {e}")
+            self._templates = {"templates": []}
+            self._templates_hash = None
+
+    def get_templates(self) -> List[Dict[str, Any]]:
+        """获取所有提示词模板"""
+        return self.get_templates_data().get("templates", [])
+
+    def get_templates_data(self) -> Dict[str, Any]:
+        """获取提示词模板数据"""
+        return self._templates or {"templates": []}
+
+    def get_template_by_id(self, template_id: int) -> Optional[Dict[str, Any]]:
+        """根据ID获取提示词模板"""
+        for template in self.get_templates():
+            if template.get("id") == template_id:
+                return template
+        return None
+
+    def get_template_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+        """根据名称获取提示词模板"""
+        for template in self.get_templates():
+            if template.get("name") == name:
+                return template
+        return None
+
+    def validate_template(self, fields: List[str], template: str) -> List[str]:
+        """验证模板中的占位符是否与字段匹配"""
+        import re
+
+        # 找出模板中的所有占位符 {field_name}
+        placeholders = set(re.findall(r'\{(\w+)\}', template))
+
+        # 找出字段列表中的字段
+        field_set = set(fields)
+
+        errors = []
+
+        # 检查是否有模板中的占位符不在字段列表中
+        missing_fields = placeholders - field_set
+        if missing_fields:
+            errors.append(f"模板中使用了不存在的字段: {', '.join(missing_fields)}")
+
+        # 检查是否有字段列表中的字段未在模板中使用
+        unused_fields = field_set - placeholders
+        if unused_fields:
+            errors.append(f"字段列表中有未使用的字段: {', '.join(unused_fields)}")
+
+        return errors
+
+    def add_template(self, name: str, fields: List[str], template: str) -> bool:
+        """添加提示词模板"""
+        try:
+            # 验证模板
+            errors = self.validate_template(fields, template)
+            if errors:
+                for error in errors:
+                    logger.error(f"模板验证失败: {error}")
+                return False
+
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
+                cursor = conn.cursor()
+                placeholder = self.db_manager.get_sql_placeholder(db_type)
+
+                # 将 fields 转换为 JSON 字符串
+                fields_json = json.dumps(fields, ensure_ascii=False)
+
+                cursor.execute(f"""
+                    INSERT INTO prompt_templates (name, fields, template)
+                    VALUES ({placeholder}, {placeholder}, {placeholder})
+                """, (name, fields_json, template))
+
+            logger.info(f"添加提示词模板成功: {name}")
+            # 重新加载模板
+            self._load_templates()
+            return True
+
+        except Exception as e:
+            logger.error(f"添加提示词模板失败: {e}")
+            return False
+
+    def update_template(self, template_id: int, name: str = None, template: str = None) -> bool:
+        """更新提示词模板"""
+        try:
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
+                cursor = conn.cursor()
+                placeholder = self.db_manager.get_sql_placeholder(db_type)
+
+                # 获取当前模板信息
+                current_template = self.get_template_by_id(template_id)
+                if not current_template:
+                    logger.error(f"模板不存在: ID {template_id}")
+                    return False
+
+                updates = []
+                params = []
+
+                if name is not None:
+                    updates.append(f"name = {placeholder}")
+                    params.append(name)
+
+                if template is not None:
+                    # 验证模板（使用当前的字段列表）
+                    errors = self.validate_template(current_template.get("fields", []), template)
+                    if errors:
+                        for error in errors:
+                            logger.error(f"模板验证失败: {error}")
+                        return False
+
+                    updates.append(f"template = {placeholder}")
+                    params.append(template)
+
+                if updates:
+                    updates.append(f"updated_at = {placeholder}")
+                    params.append(datetime.now())
+                    params.append(template_id)
+
+                    cursor.execute(
+                        f"UPDATE prompt_templates SET {', '.join(updates)} WHERE id = {placeholder}",
+                        params
+                    )
+
+            logger.info(f"更新提示词模板成功: ID {template_id}")
+            # 重新加载模板
+            self._load_templates()
+            return True
+
+        except Exception as e:
+            logger.error(f"更新提示词模板失败: {e}")
+            return False
+
+    def delete_template(self, template_id: int) -> bool:
+        """删除提示词模板"""
+        try:
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
+                cursor = conn.cursor()
+                placeholder = self.db_manager.get_sql_placeholder(db_type)
+
+                cursor.execute(f"DELETE FROM prompt_templates WHERE id = {placeholder}", (template_id,))
+
+            logger.info(f"删除提示词模板成功: ID {template_id}")
+            # 重新加载模板
+            self._load_templates()
+            return True
+
+        except Exception as e:
+            logger.error(f"删除提示词模板失败: {e}")
+            return False
 
 
 # 全局服务实例
 _metadata_service: Optional[MetadataService] = None
 _glossary_service: Optional[GlossaryService] = None
 _relation_field_config_service: Optional[RelationFieldConfigService] = None
+_prompt_template_service: Optional[PromptTemplateService] = None
 
 def get_metadata_service() -> MetadataService:
     """获取元数据服务实例"""
@@ -670,3 +846,10 @@ def get_relation_field_config_service() -> RelationFieldConfigService:
     if _relation_field_config_service is None:
         _relation_field_config_service = RelationFieldConfigService()
     return _relation_field_config_service
+
+def get_prompt_template_service() -> PromptTemplateService:
+    """获取提示词模板服务实例"""
+    global _prompt_template_service
+    if _prompt_template_service is None:
+        _prompt_template_service = PromptTemplateService()
+    return _prompt_template_service

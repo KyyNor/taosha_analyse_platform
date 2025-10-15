@@ -118,50 +118,46 @@ class MetadataService {
   // === Glossary Management ===
 
   // Get all terms
-  async getTerms(category?: string): Promise<GlossaryTerm[]> {
-    const params = category ? { category } : {}
-    const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.LIST, params))
-    return response.data || []
+  async getGlossaryTerms(): Promise<any[]> {
+    const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.LIST))
+    return response.data?.data || []
+  }
+
+  // Get terms by type
+  async getGlossaryTermsByType(type: string): Promise<any[]> {
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.BY_TYPE, { type })
+    const response = await api.get(buildApiUrl(url))
+    return response.data?.data || []
   }
 
   // Search terms
-  async searchTerms(query: string): Promise<GlossaryTerm[]> {
+  async searchGlossaryTerms(query: string): Promise<any> {
     const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.SEARCH, { q: query }))
-    return response.data || []
-  }
-
-  // Get term by ID
-  async getTerm(id: number): Promise<GlossaryTerm> {
-    const url = replaceUrlParams(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.DETAIL, { id })
-    const response = await api.get(buildApiUrl(url))
     return response.data
   }
 
   // Create new term
-  async createTerm(data: {
-    term: string
-    definition: string
-    sqlExpression?: string
-    category?: string
-    aliases?: string[]
-  }): Promise<GlossaryTerm> {
+  async createGlossaryTerm(data: {
+    name: string
+    type: string
+    content: any
+    creator?: string
+  }): Promise<any> {
     return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.CREATE), data)
   }
 
   // Update term
-  async updateTerm(id: number, data: {
-    term?: string
-    definition?: string
-    sqlExpression?: string
-    category?: string
-    aliases?: string[]
-  }): Promise<GlossaryTerm> {
+  async updateGlossaryTerm(id: number, data: {
+    name?: string
+    type?: string
+    content?: any
+  }): Promise<any> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.UPDATE, { id })
     return await api.put(buildApiUrl(url), data)
   }
 
   // Delete term
-  async deleteTerm(id: number): Promise<void> {
+  async deleteGlossaryTerm(id: number): Promise<void> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.DELETE, { id })
     return await api.delete(buildApiUrl(url))
   }
@@ -169,33 +165,26 @@ class MetadataService {
   // === Relation Configuration ===
 
   // Get all relation configurations
-  async getRelationConfigs(): Promise<RelationConfig[]> {
+  async getRelationConfigs(): Promise<any[]> {
     const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.RELATIONS.LIST))
-    return response.data || []
-  }
-
-  // Get relation config by ID
-  async getRelationConfig(id: string): Promise<RelationConfig> {
-    const url = replaceUrlParams(API_ENDPOINTS.METADATA.RELATIONS.DETAIL, { id })
-    const response = await api.get(buildApiUrl(url))
-    return response.data
+    return response.data?.data || []
   }
 
   // Create new relation config
   async createRelationConfig(data: {
-    relationFamily: string
-    relationSubfamily: string
-    relationDesc: string
-  }): Promise<RelationConfig> {
+    relation_family: string
+    relation_subfamily: string
+    relation_desc?: string
+  }): Promise<any> {
     return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.RELATIONS.CREATE), data)
   }
 
   // Update relation config
   async updateRelationConfig(id: string, data: {
-    relationFamily?: string
-    relationSubfamily?: string
-    relationDesc?: string
-  }): Promise<RelationConfig> {
+    relation_family?: string
+    relation_subfamily?: string
+    relation_desc?: string
+  }): Promise<any> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.RELATIONS.UPDATE, { id })
     return await api.put(buildApiUrl(url), data)
   }
@@ -203,6 +192,38 @@ class MetadataService {
   // Delete relation config
   async deleteRelationConfig(id: string): Promise<void> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.RELATIONS.DELETE, { id })
+    return await api.delete(buildApiUrl(url))
+  }
+
+  // === Prompt Templates ===
+
+  // Get all prompt templates
+  async getPromptTemplates(): Promise<any[]> {
+    const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.PROMPT_TEMPLATES.LIST))
+    return response.data?.data || []
+  }
+
+  // Create new prompt template
+  async createPromptTemplate(data: {
+    name: string
+    fields: string[]
+    template: string
+  }): Promise<any> {
+    return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.PROMPT_TEMPLATES.CREATE), data)
+  }
+
+  // Update prompt template
+  async updatePromptTemplate(id: number, data: {
+    name?: string
+    template?: string
+  }): Promise<any> {
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.PROMPT_TEMPLATES.UPDATE, { id })
+    return await api.put(buildApiUrl(url), data)
+  }
+
+  // Delete prompt template
+  async deletePromptTemplate(id: number): Promise<void> {
+    const url = replaceUrlParams(API_ENDPOINTS.METADATA.PROMPT_TEMPLATES.DELETE, { id })
     return await api.delete(buildApiUrl(url))
   }
 

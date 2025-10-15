@@ -64,7 +64,8 @@ export const API_ENDPOINTS = {
         CREATE: '/metadata/glossary/terms',  // 创建术语
         UPDATE: '/metadata/glossary/terms/:id',  // 更新术语
         DELETE: '/metadata/glossary/terms/:id',  // 删除术语
-        SEARCH: '/metadata/glossary/search' // 搜索术语
+        SEARCH: '/metadata/glossary/search', // 搜索术语
+        BY_TYPE: '/metadata/glossary/terms/type/:type'  // 按类型获取术语
       }
     },
 
@@ -75,6 +76,14 @@ export const API_ENDPOINTS = {
       CREATE: '/metadata/relation-configs',  // 创建关联配置
       UPDATE: '/metadata/relation-configs/:id',  // 更新关联配置
       DELETE: '/metadata/relation-configs/:id'  // 删除关联配置
+    },
+
+    // 提示词模板
+    PROMPT_TEMPLATES: {
+      LIST: '/metadata/prompt-templates',    // 获取提示词模板列表
+      CREATE: '/metadata/prompt-templates',  // 创建提示词模板
+      UPDATE: '/metadata/prompt-templates/:id',  // 更新提示词模板
+      DELETE: '/metadata/prompt-templates/:id'  // 删除提示词模板
     },
 
     // 数据主题

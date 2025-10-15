@@ -9,3 +9,4 @@
 
 
 metadata里边很多都是get_taosha_db_connection 然后干啥干啥，其实直接用execute_query就行，可以改一下
+chromadb切换到qdrant

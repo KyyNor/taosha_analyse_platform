@@ -5,12 +5,13 @@
 from typing import List, Optional
 
 from api.endpoint_models import TableMetadataRequest, TableMetadataUpdate, ColumnMetadataRequest, ColumnMetadataUpdate, \
-    GlossaryTermRequest, GlossaryTermUpdate, RelationFieldConfigRequest, RelationFieldConfigUpdate
+    GlossaryTermRequest, GlossaryTermUpdate, RelationFieldConfigRequest, RelationFieldConfigUpdate, \
+    PromptTemplateRequest, PromptTemplateUpdate
 from utils.logger import logger, get_logger, LoggerMixin
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from services import get_metadata_service, get_glossary_service, get_relation_field_config_service
+from services import get_metadata_service, get_glossary_service, get_relation_field_config_service, get_prompt_template_service
 
 
 # 创建路由器
@@ -162,14 +163,13 @@ async def add_term(request: GlossaryTermRequest):
     try:
         glossary_service = get_glossary_service()
         success = glossary_service.add_term(
-            request.term,
-            request.definition,
-            request.sql_expression,
-            request.category,
-            request.aliases
+            request.name,
+            request.type,
+            request.content,
+            request.creator
         )
         if success:
-            return {"success": True, "message": f"术语已添加: {request.term}"}
+            return {"success": True, "message": f"术语已添加: {request.name}"}
         else:
             raise HTTPException(status_code=400, detail="添加术语失败")
     except Exception as e:
@@ -184,10 +184,9 @@ async def update_term(term_id: int, request: GlossaryTermUpdate):
         glossary_service = get_glossary_service()
         success = glossary_service.update_term(
             term_id,
-            request.term,
-            request.definition,
-            request.sql_expression,
-            request.category
+            request.name,
+            request.type,
+            request.content
         )
         if success:
             return {"success": True, "message": f"术语已更新: ID {term_id}"}
@@ -210,6 +209,18 @@ async def delete_term(term_id: int):
             raise HTTPException(status_code=400, detail="删除术语失败")
     except Exception as e:
         logger.error(f"删除术语失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/glossary/terms/type/{term_type}")
+async def get_terms_by_type(term_type: str):
+    """根据类型获取术语"""
+    try:
+        glossary_service = get_glossary_service()
+        terms = glossary_service.get_terms_by_type(term_type)
+        return {"success": True, "data": terms}
+    except Exception as e:
+        logger.error(f"获取术语失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -305,4 +316,70 @@ async def get_relation_ids():
         return {"success": True, "data": relation_ids}
     except Exception as e:
         logger.error(f"获取关联ID列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# 提示词模板管理
+@router.get("/prompt-templates")
+async def get_all_prompt_templates():
+    """获取所有提示词模板"""
+    try:
+        template_service = get_prompt_template_service()
+        templates = template_service.get_templates()
+        return {"success": True, "data": templates}
+    except Exception as e:
+        logger.error(f"获取提示词模板失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/prompt-templates")
+async def add_prompt_template(request: PromptTemplateRequest):
+    """添加提示词模板"""
+    try:
+        template_service = get_prompt_template_service()
+        success = template_service.add_template(
+            request.name,
+            request.fields,
+            request.template
+        )
+        if success:
+            return {"success": True, "message": f"提示词模板已添加: {request.name}"}
+        else:
+            raise HTTPException(status_code=400, detail="添加提示词模板失败")
+    except Exception as e:
+        logger.error(f"添加提示词模板失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/prompt-templates/{template_id}")
+async def update_prompt_template(template_id: int, request: PromptTemplateUpdate):
+    """更新提示词模板"""
+    try:
+        template_service = get_prompt_template_service()
+        success = template_service.update_template(
+            template_id,
+            request.name,
+            request.template
+        )
+        if success:
+            return {"success": True, "message": f"提示词模板已更新: ID {template_id}"}
+        else:
+            raise HTTPException(status_code=400, detail="更新提示词模板失败")
+    except Exception as e:
+        logger.error(f"更新提示词模板失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/prompt-templates/{template_id}")
+async def delete_prompt_template(template_id: int):
+    """删除提示词模板"""
+    try:
+        template_service = get_prompt_template_service()
+        success = template_service.delete_template(template_id)
+        if success:
+            return {"success": True, "message": f"提示词模板已删除: ID {template_id}"}
+        else:
+            raise HTTPException(status_code=400, detail="删除提示词模板失败")
+    except Exception as e:
+        logger.error(f"删除提示词模板失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -73,6 +73,14 @@ const routes: RouteRecordRaw[] = [
             meta: {
               title: '数据主题 - 淘沙分析平台'
             }
+          },
+          {
+            path: 'prompt-templates',
+            name: 'MetadataPromptTemplates',
+            component: () => import('@/views/metadata/PromptTemplatesPage.vue'),
+            meta: {
+              title: '提示词配置 - 淘沙分析平台'
+            }
           }
         ]
       },

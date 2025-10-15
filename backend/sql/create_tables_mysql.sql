@@ -31,20 +31,23 @@ CREATE TABLE IF NOT EXISTS metadata_columns (
 
 CREATE TABLE IF NOT EXISTS glossary_terms (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    term VARCHAR(255) UNIQUE NOT NULL,
-    definition TEXT,
-    sql_expression TEXT,
-    category VARCHAR(100),
+    name VARCHAR(255) UNIQUE NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    content JSON NOT NULL,
+    creator VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS glossary_aliases (
+-- ==================== 提示词配置表 ====================
+
+CREATE TABLE IF NOT EXISTS prompt_templates (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    term_id INT NOT NULL,
-    alias VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) UNIQUE NOT NULL,
+    fields JSON NOT NULL,
+    template TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (term_id) REFERENCES glossary_terms(id) ON DELETE CASCADE
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 -- ==================== 关联字段配置表 ====================
@@ -122,9 +125,11 @@ CREATE INDEX IF NOT EXISTS idx_nlquery_steps_step ON nlquery_steps(task_id, step
 CREATE INDEX IF NOT EXISTS idx_user_feedback_session_id ON user_feedback(session_id);
 
 -- 术语表相关索引
-CREATE INDEX IF NOT EXISTS idx_glossary_terms_term ON glossary_terms(term);
-CREATE INDEX IF NOT EXISTS idx_glossary_aliases_term_id ON glossary_aliases(term_id);
-CREATE INDEX IF NOT EXISTS idx_glossary_aliases_alias ON glossary_aliases(alias);
+CREATE INDEX IF NOT EXISTS idx_glossary_terms_name ON glossary_terms(name);
+CREATE INDEX IF NOT EXISTS idx_glossary_terms_type ON glossary_terms(type);
+
+-- 提示词配置表相关索引
+CREATE INDEX IF NOT EXISTS idx_prompt_templates_name ON prompt_templates(name);
 
 -- 元数据表相关索引
 CREATE INDEX IF NOT EXISTS idx_metadata_tables_name ON metadata_tables(name);

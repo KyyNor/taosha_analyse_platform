@@ -43,18 +43,16 @@ class ColumnMetadataUpdate(BaseModel):
 
 
 class GlossaryTermRequest(BaseModel):
-    term: str
-    definition: str = ""
-    sql_expression: str = ""
-    category: str = ""
-    aliases: List[str] = []
+    name: str
+    type: str  # concept/sql_qa/dict_mapping
+    content: Dict[str, Any]
+    creator: str = ""
 
 
 class GlossaryTermUpdate(BaseModel):
-    term: Optional[str] = None
-    definition: Optional[str] = None
-    sql_expression: Optional[str] = None
-    category: Optional[str] = None
+    name: Optional[str] = None
+    type: Optional[str] = None
+    content: Optional[Dict[str, Any]] = None
 
 
 class RelationFieldConfigRequest(BaseModel):
@@ -67,6 +65,17 @@ class RelationFieldConfigUpdate(BaseModel):
     relation_family: Optional[str] = None
     relation_subfamily: Optional[str] = None
     relation_desc: Optional[str] = None
+
+
+class PromptTemplateRequest(BaseModel):
+    name: str
+    fields: List[str]
+    template: str
+
+
+class PromptTemplateUpdate(BaseModel):
+    name: Optional[str] = None
+    template: Optional[str] = None
 
 
 # === 查询历史相关模型 ===

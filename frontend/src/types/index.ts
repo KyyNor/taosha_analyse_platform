@@ -139,14 +139,12 @@ export interface ColumnMetadata {
 
 export interface GlossaryTerm {
   id: number
-  term: string
-  definition: string
-  sqlExpression?: string
-  category: string
-  aliases: string[]
-  userId?: number
-  createdAt: string
-  updatedAt: string
+  name: string
+  type: 'concept' | 'sql_qa' | 'dict_mapping'
+  content: any
+  creator?: string
+  created_at: string
+  updated_at: string
 }
 
 export interface RelationConfig {
