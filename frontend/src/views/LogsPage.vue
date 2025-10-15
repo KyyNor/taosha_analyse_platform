@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-6">
     <!-- Filters -->
-    <div class="flex flex-wrap gap-4 items-center bg-base-200 p-4 rounded-lg">
+    <div class="flex flex-wrap gap-4 items-center bg-base-200 p-4 rounded-lg shadow-md">
 
       <div class="form-control">
         <label class="label">
@@ -58,7 +58,7 @@
     </div>
 
     <!-- Logs Table -->
-    <div class="bg-base-100 rounded-lg shadow">
+    <div class="bg-base-100 rounded-lg shadow-md">
       <DataTable
         :data="logs"
         :columns="logColumns"

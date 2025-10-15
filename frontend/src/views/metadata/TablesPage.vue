@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-6">
     <!-- Filters -->
-    <div class="flex flex-wrap gap-4 items-center bg-base-200 p-4 rounded-lg">
+    <div class="flex flex-wrap gap-4 items-center bg-base-200 p-4 rounded-lg shadow-md">
       <div class="form-control flex-1 min-w-64">
         <label class="label">
           <span class="label-text">搜索</span>
@@ -38,7 +38,7 @@
     </div>
 
     <!-- Tables Table -->
-    <div class="overflow-x-auto">
+    <div class="overflow-x-auto bg-base-100 rounded-lg shadow-md">
       <DataTable
         :data="tables"
         :columns="tableColumns"
@@ -122,14 +122,14 @@
     </div>
 
     <!-- Table Detail Modal -->
-    <dialog
-      ref="tableDetailModal"
-      class="modal"
-      :open="showDetailModal"
+    <div
+      v-if="showDetailModal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      @click.self="handleBackdropClick"
     >
-      <div class="modal-box max-w-6xl max-h-[90vh] overflow-y-auto">
+      <div class="bg-base-100 rounded-lg w-11/12 max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         <!-- Header -->
-        <div class="flex justify-between items-center">
+        <div class="p-6 border-b border-base-300 flex justify-between items-center flex-shrink-0">
           <h3 class="font-bold text-lg">
             {{ isNewTable ? '添加表' : editingTable?.name || '表详情' }}
           </h3>
@@ -155,239 +155,222 @@
               </svg>
               编辑
             </button>
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm"
-              @click="closeDetailModal"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Table Info Section -->
-        <div class="mt-6">
-          <h4 class="font-semibold text-lg mb-4 pb-2 border-b border-base-300">表信息</h4>
-          <form class="space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">表名 *</span>
-                </label>
-                <input
-                  v-model="tableForm.name"
-                  type="text"
-                  placeholder="请输入表名"
-                  class="input input-bordered"
-                  :disabled="!isDetailEditMode && !isNewTable"
-                  required
-                >
-              </div>
-
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">表注释</span>
-                </label>
-                <textarea
-                  v-model="tableForm.comment"
-                  placeholder="请输入表注释"
-                  class="textarea textarea-bordered"
-                  rows="3"
-                  :disabled="!isDetailEditMode && !isNewTable"
-                />
-              </div>
             </div>
-          </form>
         </div>
 
-        <!-- Columns Section -->
-        <div class="mt-6">
-          <h4 class="font-semibold text-lg mb-4 pb-2 border-b border-base-300">字段信息</h4>
-          <div class="flex justify-between items-center mb-4">
-            <button
-              v-if="isDetailEditMode || isNewTable"
-              class="btn btn-primary btn-sm"
-              @click="addNewColumn"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              添加字段
-            </button>
+        <!-- Content Area -->
+        <div class="flex-1 overflow-y-auto p-6">
+          <!-- Table Info Section -->
+          <div class="mb-6">
+            <h4 class="font-semibold text-lg mb-4 pb-2 border-b border-base-300">表信息</h4>
+            <form class="space-y-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">表名 *</span>
+                  </label>
+                  <input
+                    v-model="tableForm.name"
+                    type="text"
+                    placeholder="请输入表名"
+                    class="input input-bordered"
+                    :disabled="!isDetailEditMode && !isNewTable"
+                    required
+                  >
+                </div>
+
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">表注释</span>
+                  </label>
+                  <textarea
+                    v-model="tableForm.comment"
+                    placeholder="请输入表注释"
+                    class="textarea textarea-bordered"
+                    rows="3"
+                    :disabled="!isDetailEditMode && !isNewTable"
+                  />
+                </div>
+              </div>
+            </form>
           </div>
 
-          <!-- Columns List -->
-          <div class="w-full overflow-x-auto">
-            <table class="table table-sm w-full">
-              <thead>
-                <tr>
-                  <th class="w-32">字段名</th>
-                  <th class="w-32">类型</th>
-                  <th class="w-48">注释</th>
-                  <th class="w-32">业务类型</th>
-                  <th class="w-32">关联ID</th>
-                  <th class="w-16">启用</th>
-                  <th v-if="isDetailEditMode || isNewTable" class="w-16">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(column, index) in columns"
-                  :key="column.id || index"
+          <!-- Columns Section -->
+          <div>
+            <h4 class="font-semibold text-lg mb-4 pb-2 border-b border-base-300">字段信息</h4>
+            <div class="flex justify-between items-center mb-4">
+              <button
+                v-if="isDetailEditMode || isNewTable"
+                class="btn btn-primary btn-sm"
+                @click="addNewColumn"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
                 >
-                  <td>
-                    <input
-                      v-if="isDetailEditMode || isNewTable"
-                      v-model="column.name"
-                      type="text"
-                      class="input input-bordered input-xs w-full"
-                      placeholder="字段名"
-                    >
-                    <span
-                      v-else
-                      class="font-mono text-sm block"
-                    >
-                      {{ column.name }}
-                    </span>
-                  </td>
-                  <td>
-                    <input
-                      v-if="isDetailEditMode || isNewTable"
-                      v-model="column.type"
-                      type="text"
-                      class="input input-bordered input-xs w-full"
-                      placeholder="数据类型"
-                    >
-                    <span
-                      v-else
-                      class="font-mono text-sm text-base-content/60 block"
-                    >
-                      {{ column.type }}
-                    </span>
-                  </td>
-                  <td>
-                    <input
-                      v-if="isDetailEditMode || isNewTable"
-                      v-model="column.comment"
-                      type="text"
-                      class="input input-bordered input-xs w-full"
-                      placeholder="字段注释"
-                    >
-                    <span
-                      v-else
-                      class="max-w-xs truncate block"
-                    >
-                      {{ column.comment || '-' }}
-                    </span>
-                  </td>
-                  <td>
-                    <input
-                      v-if="isDetailEditMode || isNewTable"
-                      v-model="column.businessType"
-                      type="text"
-                      class="input input-bordered input-xs w-full"
-                      placeholder="业务类型"
-                    >
-                    <span
-                      v-else
-                      class="text-sm block"
-                    >
-                      {{ column.businessType || '-' }}
-                    </span>
-                  </td>
-                  <td>
-                    <input
-                      v-if="isDetailEditMode || isNewTable"
-                      v-model="column.relationId"
-                      type="text"
-                      class="input input-bordered input-xs w-full"
-                      placeholder="关联ID"
-                    >
-                    <span v-else class="block">
-                      {{ column.relationId || '-' }}
-                    </span>
-                  </td>
-                  <td>
-                    <input
-                      v-if="isDetailEditMode || isNewTable"
-                      type="checkbox"
-                      class="checkbox checkbox-xs"
-                      v-model="column.isAvailable"
-                    >
-                    <input
-                      v-else
-                      type="checkbox"
-                      class="checkbox checkbox-xs"
-                      :checked="column.isAvailable"
-                      disabled
-                    >
-                  </td>
-                  <td v-if="isDetailEditMode || isNewTable">
-                    <div class="flex gap-1">
-                      <button
-                        class="btn btn-ghost btn-xs p-1"
-                        title="删除字段"
-                        @click="removeColumn(index)"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-3 w-3"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+                添加字段
+              </button>
+            </div>
 
-            <div
-              v-if="columns.length === 0"
-              class="text-center py-8 text-base-content/60"
-            >
-              {{ isDetailEditMode || isNewTable ? '暂无字段，点击"添加字段"按钮开始配置。' : '暂无字段信息' }}
+            <!-- Columns List -->
+            <div class="w-full overflow-x-auto">
+              <table class="table table-sm w-full">
+                <thead>
+                  <tr>
+                    <th class="w-32">字段名</th>
+                    <th class="w-32">类型</th>
+                    <th class="w-48">注释</th>
+                    <th class="w-32">业务类型</th>
+                    <th class="w-32">关联ID</th>
+                    <th class="w-16">启用</th>
+                    <th v-if="isDetailEditMode || isNewTable" class="w-16">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(column, index) in columns"
+                    :key="column.id || index"
+                  >
+                    <td>
+                      <input
+                        v-if="isDetailEditMode || isNewTable"
+                        v-model="column.name"
+                        type="text"
+                        class="input input-bordered input-xs w-full"
+                        placeholder="字段名"
+                      >
+                      <span
+                        v-else
+                        class="font-mono text-sm block"
+                      >
+                        {{ column.name }}
+                      </span>
+                    </td>
+                    <td>
+                      <input
+                        v-if="isDetailEditMode || isNewTable"
+                        v-model="column.type"
+                        type="text"
+                        class="input input-bordered input-xs w-full"
+                        placeholder="数据类型"
+                      >
+                      <span
+                        v-else
+                        class="font-mono text-sm text-base-content/60 block"
+                      >
+                        {{ column.type }}
+                      </span>
+                    </td>
+                    <td>
+                      <input
+                        v-if="isDetailEditMode || isNewTable"
+                        v-model="column.comment"
+                        type="text"
+                        class="input input-bordered input-xs w-full"
+                        placeholder="字段注释"
+                      >
+                      <span
+                        v-else
+                        class="max-w-xs truncate block"
+                      >
+                        {{ column.comment || '-' }}
+                      </span>
+                    </td>
+                    <td>
+                      <input
+                        v-if="isDetailEditMode || isNewTable"
+                        v-model="column.businessType"
+                        type="text"
+                        class="input input-bordered input-xs w-full"
+                        placeholder="业务类型"
+                      >
+                      <span
+                        v-else
+                        class="text-sm block"
+                      >
+                        {{ column.businessType || '-' }}
+                      </span>
+                    </td>
+                    <td>
+                      <input
+                        v-if="isDetailEditMode || isNewTable"
+                        v-model="column.relationId"
+                        type="text"
+                        class="input input-bordered input-xs w-full"
+                        placeholder="关联ID"
+                      >
+                      <span v-else class="block">
+                        {{ column.relationId || '-' }}
+                      </span>
+                    </td>
+                    <td>
+                      <input
+                        v-if="isDetailEditMode || isNewTable"
+                        type="checkbox"
+                        class="checkbox checkbox-xs"
+                        v-model="column.isAvailable"
+                      >
+                      <input
+                        v-else
+                        type="checkbox"
+                        class="checkbox checkbox-xs"
+                        :checked="column.isAvailable"
+                        disabled
+                      >
+                    </td>
+                    <td v-if="isDetailEditMode || isNewTable">
+                      <div class="flex gap-1">
+                        <button
+                          class="btn btn-ghost btn-xs p-1"
+                          title="删除字段"
+                          @click="removeColumn(index)"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-3 w-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div
+                v-if="columns.length === 0"
+                class="text-center py-8 text-base-content/60"
+              >
+                {{ isDetailEditMode || isNewTable ? '暂无字段，点击"添加字段"按钮开始配置。' : '暂无字段信息' }}
+              </div>
             </div>
           </div>
         </div>
 
         <!-- Modal Actions -->
-        <div class="modal-action">
+        <div class="p-6 border-t border-base-300 flex justify-end gap-2 flex-shrink-0">
           <button
             type="button"
-            class="btn btn-ghost"
+            class="btn btn-ghost shadow"
             @click="closeDetailModal"
           >
             {{ isDetailEditMode || isNewTable ? '取消' : '关闭' }}
@@ -407,17 +390,8 @@
           </button>
         </div>
       </div>
-      <form
-        method="dialog"
-        class="modal-backdrop"
-      >
-        <button @click="closeDetailModal">
-          close
-        </button>
-      </form>
-    </dialog>
-
     </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -577,6 +551,14 @@ const closeDetailModal = () => {
     name: '',
     comment: ''
   })
+}
+
+// Handle backdrop click
+const handleBackdropClick = () => {
+  // 只在非编辑模式下允许点击背景关闭
+  if (!isDetailEditMode.value && !isNewTable.value) {
+    closeDetailModal()
+  }
 }
 
 // Load columns for a table
