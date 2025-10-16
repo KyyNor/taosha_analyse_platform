@@ -161,12 +161,13 @@ async def get_all_terms():
 async def add_term(request: GlossaryTermRequest):
     """添加术语"""
     try:
+        creator: str = "api_user"
         glossary_service = get_glossary_service()
         success = glossary_service.add_term(
             request.name,
             request.type,
             request.content,
-            request.creator
+            creator
         )
         if success:
             return {"success": True, "message": f"术语已添加: {request.name}"}

@@ -469,8 +469,8 @@ class GlossaryService:
                         "type": term_type,
                         "content": content_data,
                         "creator": creator or "",
-                        "created_at": created_at.isoformat() if created_at else "",
-                        "updated_at": updated_at.isoformat() if updated_at else ""
+                        "created_at": created_at if created_at else "",
+                        "updated_at": updated_at if updated_at else ""
                     })
 
                 self._glossary = {"terms": terms}
@@ -616,8 +616,8 @@ class GlossaryService:
                     "type": term_type,
                     "content": content_data,
                     "creator": creator or "",
-                    "created_at": created_at.isoformat() if created_at else "",
-                    "updated_at": updated_at.isoformat() if updated_at else ""
+                    "created_at": created_at if created_at else "",
+                    "updated_at": updated_at if updated_at else ""
                 })
 
             return {"terms": terms}
@@ -659,8 +659,8 @@ class PromptTemplateService:
                         "name": name,
                         "fields": fields_data,
                         "template": template or "",
-                        "created_at": created_at.isoformat() if created_at else "",
-                        "updated_at": updated_at.isoformat() if updated_at else ""
+                        "created_at": created_at if created_at else "",
+                        "updated_at": updated_at if updated_at else ""
                     })
 
                 self._templates = {"templates": templates}
