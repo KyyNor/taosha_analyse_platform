@@ -130,7 +130,6 @@
     <div
       v-if="showFormModal"
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      @click.self="closeFormModal"
     >
       <div class="bg-base-100 rounded-lg w-11/12 max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <!-- Header -->
@@ -215,7 +214,7 @@
                 </button>
               </div>
               <label class="label">
-                <span class="label-text-alt">字段名将在模板中作为占位符使用，格式：{字段名}</span>
+                <span class="label-text-alt">字段名将在模板中作为占位符使用，格式：{{字段名}}</span>
               </label>
             </div>
 
@@ -248,12 +247,12 @@
               </label>
               <textarea
                 v-model="templateForm.template"
-                placeholder="请输入提示词模板，使用 {字段名} 作为占位符"
+                placeholder="请输入提示词模板，使用 {{字段名}} 作为占位符"
                 class="textarea textarea-bordered h-48"
                 required
               />
               <label class="label">
-                <span class="label-text-alt">使用 {字段名} 格式来标记占位符，例如：你好 {user_input}，这是我的回复。</span>
+                <span class="label-text-alt">使用 {{字段名}} 格式来标记占位符，例如：你好 {{user_input}}，这是我的回复。</span>
               </label>
             </div>
 
@@ -323,7 +322,6 @@
     <div
       v-if="showPreviewModal"
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      @click.self="closePreviewModal"
     >
       <div class="bg-base-100 rounded-lg w-11/12 max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         <!-- Header -->
@@ -495,7 +493,7 @@ const validationErrors = computed(() => {
   if (!templateForm.template) return errors
 
   // Extract placeholders from template
-  const placeholderRegex = /\{([^}]+)\}/g
+  const placeholderRegex = /\{\{([^}]+)\}\}/g
   const placeholders = new Set()
   let match
   while ((match = placeholderRegex.exec(templateForm.template)) !== null) {
@@ -628,8 +626,8 @@ const updateExample = () => {
 
   // Replace placeholders with example values
   Object.entries(exampleValues.value).forEach(([field, value]) => {
-    const regex = new RegExp(`\\{${field}\\}`, 'g')
-    result = result.replace(regex, value || `{${field}}`)
+    const regex = new RegExp(`\\{\\{${field}\\}\\}`, 'g')
+    result = result.replace(regex, value || `{{${field}}}`)
   })
 
   exampleResult.value = result

@@ -12,11 +12,12 @@ from typing import Optional
 # LangGraph imports
 from langgraph.graph import StateGraph, END
 
-from services.metadata_service.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service
+from services.metadata_service.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service, get_prompt_template_service
 from services.tracking_service.operation_tracking import tracker
 from services.query_engine import get_query_engine
 from services.service_models import BaseNodeLog, TaskState, TaskStateHelper
 from services.vanna_service.taosha_vanna_service import TaoshaVanna
+from services.prompt_template_renderer import PromptTemplateRenderer
 
 # Local imports
 from utils.config import settings
@@ -31,7 +32,11 @@ class NL2SQLService:
         self.metadata_service = get_metadata_service()
         self.glossary_service = get_glossary_service()
         self.relation_config_service = get_relation_field_config_service()
+        self.prompt_template_service = get_prompt_template_service()
         self.db_service = get_query_engine()
+
+        # 初始化提示词模板渲染器
+        self.template_renderer = PromptTemplateRenderer(self.prompt_template_service)
 
         # 构建统一的LangGraph工作流
         self.workflow = self._build_workflow()
@@ -82,67 +87,92 @@ class NL2SQLService:
                 )
                 return state
 
-            # 根据是否有SQL选择验证模式
+            # 根据是否有SQL选择验证模式和模板
+            current_date = datetime.now().strftime("%Y-%m-%d")
+
+            # 准备模板参数
+            template_params = {
+                "current_date": current_date,
+                "user_input": user_input,
+                "table_info": self._get_table_info_text(),
+                "glossary_info": self._get_glossary_text(),
+                "relation_config": self._get_relation_config_text()
+            }
+
+            # 根据流程类型选择模板
             if sql_query and flow_type == 'thorough':
                 # 深度流程：验证用户输入+SQL匹配度
-                current_date = datetime.now().strftime("%Y-%m-%d")
-                validation_prompt = f"""
-请结合生成的SQL查询，判断用户原始查询是否足够清晰，SQL是否准确反映了用户需求。
+                template_params["sql_query"] = sql_query
+                template_name = "input_validation_thorough"
+
+                # 默认模板（回退用）
+                default_template = """请结合生成的SQL查询，判断用户原始查询是否足够清晰，SQL是否准确反映了用户需求。
 
 用户原始查询: {user_input}
 
 生成的SQL查询: {sql_query}
 
 可用的表结构:
-{self._get_table_info_text()}
+{table_info}
 
 可用的术语:
-{self._get_glossary_text()}
+{glossary_info}
 
 字段关联配置:
-{self._get_relation_config_text()}
+{relation_config}
 
 请严格按照以下JSON格式返回结果，不要添加任何其他文字：
-{{
+{
     "is_clear": true/false,
     "reason": "判断的详细原因，结合SQL生成质量来评估",
     "sql_match": true/false,
     "suggestions": ["如果不够清晰，请提供3个具体的可查询示例"]
-}}
+}
 
 注意：
 1. 不仅要评估用户输入的清晰度，还要评估SQL是否准确反映了用户需求
 2. 如果SQL很好地满足了用户需求，即使输入不够完美也应该认为is_clear=true
-3. 如果SQL与用户需求有偏差，应该给出具体建议
-"""
+3. 如果SQL与用户需求有偏差，应该给出具体建议"""
             else:
                 # 快速流程：只验证用户输入清晰度
-                current_date = datetime.now().strftime("%Y-%m-%d")
-                validation_prompt = f"""
-请判断以下用户查询是否足够清晰，可以转换为SQL查询。
+                template_name = "input_validation_fast"
+
+                # 默认模板（回退用）
+                default_template = """请判断以下用户查询是否足够清晰，可以转换为SQL查询。
 
 当前日期: {current_date}
 
 用户查询: {user_input}
 
 可用的表结构:
-{self._get_table_info_text()}
+{table_info}
 
 可用的术语:
-{self._get_glossary_text()}
+{glossary_info}
 
 字段关联配置:
-{self._get_relation_config_text()}
+{relation_config}
 
 请严格按照以下JSON格式返回结果，不要添加任何其他文字：
-{{
+{
     "is_clear": true/false,
     "reason": "判断的详细原因",
     "suggestions": ["如果不清晰，请提供3个具体的可查询示例，直接使用表中的字段名和具体时间范围，例如：'最近30天手机销量统计'、'2024年1月各地区销售额对比'"]
-}}
+}
 
-注意：suggestions中应该是完整的、可以直接查询的问题示例，而不是修改建议。基于用户的模糊查询，结合可用的表结构，生成具体可执行的查询示例。
-"""
+注意：suggestions中应该是完整的、可以直接查询的问题示例，而不是修改建议。基于用户的模糊查询，结合可用的表结构，生成具体可执行的查询示例。"""
+
+            # 使用模板渲染器获取提示词
+            try:
+                validation_prompt = self.template_renderer.render_template(
+                    template_name=template_name,
+                    params=template_params,
+                    default_template=default_template
+                )
+                logger.info(f"使用模板 {template_name} 生成验证提示词")
+            except Exception as e:
+                logger.warning(f"模板渲染失败，使用默认模板: {e}")
+                validation_prompt = default_template.format(**template_params)
 
             try:
                 # 使用正确的消息格式
@@ -222,18 +252,63 @@ class NL2SQLService:
             
             # 构建输入内容：如果有错误信息，则包含错误反馈
             step_name = "生成查询语句"
-            
+
             # 这是重试情况，增强输入信息
             current_date = datetime.now().strftime("%Y-%m-%d")
-            
-            tips = ""
-            error_info = ""
+
+            # 根据是否有错误信息选择模板
             if error_message and previous_sql:
+                # 重试情况
                 step_name = "sql_retry"
-                error_info = f"之前生成的SQL执行失败，SQL: {previous_sql}，错误信息: {error_message}"
-                tips = "请生成一个新的SQL查询，避免之前的错误。"
-            
-            query_input = f"""原始用户查询: {user_input}
+                template_name = "sql_generation_retry"
+
+                # 准备重试模板参数
+                template_params = {
+                    "user_input": user_input,
+                    "current_date": current_date,
+                    "previous_sql": previous_sql,
+                    "error_message": error_message,
+                    "table_info": self._get_table_info_text()
+                }
+
+                # 默认重试模板（回退用）
+                default_template = """之前的SQL执行失败，请生成一个新的SQL查询。
+
+原始用户查询: {user_input}
+当前日期: {current_date}
+
+之前失败的SQL: {previous_sql}
+错误信息: {error_message}
+
+可用的表结构:
+{table_info}
+
+请基于错误信息生成一个新的SQL查询，避免相同的错误。
+
+重要提示:
+1. 字段的存储类型和业务类型可能不同，数值比较时请使用CAST转换为业务类型
+2. 关联不同表的字段时，请根据关联配置进行适当转换
+3. 所有表都需要使用别名，从t1开始，t1、t2、t3依次递增
+4. 所有字段都需要使用完整引用，例如t1.cust_no，不允许只写字段名
+5. 特别注意数据类型转换和NULL值处理
+
+请生成标准的SQL查询语句。"""
+            else:
+                # 正常生成情况
+                template_name = "sql_generation"
+
+                # 准备生成模板参数
+                template_params = {
+                    "current_date": current_date,
+                    "user_input": user_input,
+                    "error_info": "",
+                    "tips": ""
+                }
+
+                # 默认生成模板（回退用）
+                default_template = """请根据用户的自然语言查询生成对应的SQL语句。
+
+{user_input}
 当前日期: {current_date}
 
 {error_info}
@@ -243,7 +318,21 @@ class NL2SQLService:
 2. 关联不同表的字段时，请根据关联配置进行适当转换
 3. 所有表都需要使用别名，从t1开始，t1、t2、t3依次递增
 4. 所有字段都需要使用完整引用，例如t1.cust_no，不允许只写字段名
-{tips}"""
+{tips}
+
+请生成标准的SQL查询语句。"""
+
+            # 使用模板渲染器获取提示词
+            try:
+                query_input = self.template_renderer.render_template(
+                    template_name=template_name,
+                    params=template_params,
+                    default_template=default_template
+                )
+                logger.info(f"使用模板 {template_name} 生成SQL提示词")
+            except Exception as e:
+                logger.warning(f"模板渲染失败，使用默认模板: {e}")
+                query_input = default_template.format(**template_params)
 
             
             try:
