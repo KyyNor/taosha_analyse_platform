@@ -248,7 +248,7 @@
             <!-- 创建人字段隐藏，默认为 api_user -->
 
             <!-- Type-specific content -->
-            <div class="form-control w-full">
+            <div class="form-control w-full shadow-inner rounded-lg p-4 bg-base-100">
               <label class="label">
                 <span class="label-text font-semibold text-base">
                   {{ getContentLabel() }}
