@@ -103,7 +103,11 @@ python -c "from services.query_engine import get_query_engine; print(get_query_e
 
 ### Metadata Service (`backend/services/metadata_service/`)
 
-- `metadata_service.py`: 元数据管理服务
+- `metadata_service.py`: 元数据管理服务，支持术语表、关联配置和提示词模板管理
+
+### Prompt Template Renderer (`backend/services/`)
+
+- `prompt_template_renderer.py`: 提示词模板渲染服务，支持模板化提示词生成和占位符替换
 
 ### API Routes (`backend/api/`)
 
@@ -120,12 +124,19 @@ python -c "from services.query_engine import get_query_engine; print(get_query_e
 
 ### Frontend Components
 
-- `QueryForm.vue`: 查询表单组件，支持示例填充和查询模式切换
+- `QueryForm.vue`: 查询表单组件，支持示例填充、查询模式切换和表选择优化
 - `QueryProgress.vue`: 查询进度展示组件，支持实时进度更新和耗时显示
 - `QueryResultsTable.vue`: 查询结果表格组件，支持数据可视化和交互优化
 - `SidebarPanel.vue`: 侧边栏面板，包含查询历史和收藏功能
 - `FloatingBall.vue`: 悬浮球交互组件
 - `LogDetailModal.vue`: 日志详情弹窗组件，支持SQL语法高亮和执行步骤展示
+
+### Metadata Management Components
+
+- `GlossaryPage.vue`: 术语表管理页面，支持概念解释、SQL问答和字典转换三种类型
+- `RelationsPage.vue`: 关联配置管理页面，支持关系家族和子家族配置
+- `PromptTemplatesPage.vue`: 提示词模板管理页面，支持字段验证和模板预览
+- `TablesPage.vue`: 数据表管理页面，支持字段配置和关联ID选择
 
 ### Frontend Utility Libraries
 
@@ -178,10 +189,11 @@ python -c "from services.query_engine import get_query_engine; print(get_query_e
 ### Database Schema
 
 - **DuckDB**: 主要业务数据库，用于SQL查询执行
-- **SQLite**: 元数据数据库，存储表结构、业务术语和操作日志
+- **SQLite**: 元数据数据库，存储表结构、业务术语、关联配置和提示词模板
 - 支持表结构元数据管理
-- 业务术语表映射
-- 字段关联配置管理
+- 业务术语表管理（概念解释、SQL问答、字典转换三种类型）
+- 字段关联配置管理（关系家族和子家族）
+- 提示词模板管理（支持占位符验证和模板渲染）
 - 操作日志记录和任务状态追踪
 
 ## Environment Setup
@@ -260,6 +272,10 @@ TAOSHA_LOG_LEVEL=INFO
 - ✅ 操作追踪系统简化
 - ✅ 元数据数据库结构优化
 - ✅ 配置管理统一化
+- ✅ **提示词模板渲染服务**：新增模板化提示词生成和占位符替换功能
+- ✅ **术语表管理重构**：支持概念解释、SQL问答、字典转换三种类型
+- ✅ **关联配置管理**：实现完整的关系家族和子家族配置功能
+- ✅ **表选择组件优化**：修复数据绑定问题，优化UI展示格式
 
 ### Frontend Enhancements
 
@@ -274,6 +290,10 @@ TAOSHA_LOG_LEVEL=INFO
 - ✅ TypeScript类型系统完善
 - ✅ 智能文本格式化和时间处理工具函数
 - ✅ 查询结果表格数据可视化增强
+- ✅ **元数据管理界面重构**：术语表、关联配置、提示词模板三大管理页面
+- ✅ **表单组件优化**：关联ID字段改为下拉框选择，提升用户体验
+- ✅ **数据展示修复**：解决前端术语表数据显示问题，优化数据绑定逻辑
+- ✅ **TypeScript类型安全**：完善接口定义，提升代码类型安全性
 
 ### UI/UX Improvements
 
@@ -282,6 +302,8 @@ TAOSHA_LOG_LEVEL=INFO
 - ✅ 查询进度可视化效果
 - ✅ 用户和时间信息展示
 - ✅ 导航层级结构优化
+- ✅ **术语表录入界面美化**：重新设计表单布局，添加主色调边框和内阴影效果
+- ✅ **表选择显示优化**：中文名（英文名）格式显示，移除标签展示简化界面
 
 ### Technical Debt Reduction
 
@@ -290,8 +312,11 @@ TAOSHA_LOG_LEVEL=INFO
 - ✅ 配置系统标准化
 - ✅ 错误处理机制完善
 - ✅ 日志系统统一化
+- ✅ **API响应处理优化**：修复axios数据重复提取问题，统一API响应格式处理
+- ✅ **数据库结构优化**：删除冗余表结构，重新设计术语表和提示词模板表
+- ✅ **代码风格统一**：运行ESLint自动修复，统一组件结构和属性顺序
 
 ---
 
-## Documentation Update History
-- **2025-10-15**: 文档更新，整合commit c462db2的最新功能到现有章节中
+## Documentation Last Update
+上次更新时commit:cf5891b
