@@ -87,8 +87,8 @@
       <!-- Table View -->
       <div
         v-if="viewMode === 'table'"
-        class="overflow-x-auto"
         ref="tableContainer"
+        class="overflow-x-auto"
       >
         <!-- Fixed Header (only visible when table is scrolled) -->
         <div
@@ -97,7 +97,10 @@
           :style="fixedHeaderStyle"
         >
           <table class="table table-zebra w-full">
-            <thead class="bg-base-100 shadow-md" style="background-color: hsl(var(--b1)); opacity: 1 !important;">
+            <thead
+              class="bg-base-100 shadow-md"
+              style="background-color: hsl(var(--b1)); opacity: 1 !important;"
+            >
               <tr>
                 <th
                   v-for="column in data.columns"
@@ -151,7 +154,10 @@
         </div>
 
         <!-- Original Table -->
-        <table class="table table-zebra w-full" ref="originalTable">
+        <table
+          ref="originalTable"
+          class="table table-zebra w-full"
+        >
           <thead ref="tableHeader">
             <tr>
               <th

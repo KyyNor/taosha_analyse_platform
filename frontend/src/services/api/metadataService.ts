@@ -5,7 +5,7 @@ import type {
   ColumnMetadata,
   GlossaryTerm,
   RelationConfig,
-  DataTheme,
+  DataTheme
 } from '@types/index'
 
 class MetadataService {

@@ -77,8 +77,18 @@
           </button>
         </div>
         <div class="rounded-lg border">
-          <pre v-if="generatedSQL" class="language-sql text-sm shadow-inner" style="margin: 0 !important;"><code class="language-sql" v-html="highlightSql(generatedSQL)"></code></pre>
-          <pre v-else class="text-sm text-gray-400 m-0">无 SQL 代码</pre>
+          <pre
+            v-if="generatedSQL"
+            class="language-sql text-sm shadow-inner"
+            style="margin: 0 !important;"
+          ><code
+class="language-sql"
+                                                                                             v-html="highlightSql(generatedSQL)"
+/></pre>
+          <pre
+            v-else
+            class="text-sm text-gray-400 m-0"
+          >无 SQL 代码</pre>
         </div>
       </div>
 
@@ -126,13 +136,23 @@
               class="mt-2 p-3 bg-base-200 rounded-lg text-xs input-output-section input-section"
             >
               <div class="font-semibold text-primary mb-2 flex items-center gap-1">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
-                  <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 100 4h2a2 2 0 100 4h2a1 1 0 100 2 2 2 0 01-2 2H6a2 2 0 01-2-2V5z" clip-rule="evenodd"/>
+                <svg
+                  class="w-3 h-3"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                  <path
+                    fill-rule="evenodd"
+                    d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 100 4h2a2 2 0 100 4h2a1 1 0 100 2 2 2 0 01-2 2H6a2 2 0 01-2-2V5z"
+                    clip-rule="evenodd"
+                  />
                 </svg>
                 输入数据
               </div>
-              <div class="formatted-content text-base-content/80">{{ step.description }}</div>
+              <div class="formatted-content text-base-content/80">
+                {{ step.description }}
+              </div>
             </div>
 
             <!-- Output Section -->
@@ -141,13 +161,23 @@
               class="mt-2 p-3 bg-base-200 rounded-lg text-xs input-output-section output-section"
             >
               <div class="font-semibold text-success mb-2 flex items-center gap-1">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
-                  <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 100 2H6a2 2 0 100 4h2a2 2 0 100 4h2a1 1 0 100 2 2 2 0 01-2 2H6a2 2 0 01-2-2V5z" clip-rule="evenodd"/>
+                <svg
+                  class="w-3 h-3"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                  <path
+                    fill-rule="evenodd"
+                    d="M4 5a2 2 0 012-2 1 1 0 100 2H6a2 2 0 100 4h2a2 2 0 100 4h2a1 1 0 100 2 2 2 0 01-2 2H6a2 2 0 01-2-2V5z"
+                    clip-rule="evenodd"
+                  />
                 </svg>
                 输出结果
               </div>
-              <div class="formatted-content text-base-content/80">{{ step.details }}</div>
+              <div class="formatted-content text-base-content/80">
+                {{ step.details }}
+              </div>
             </div>
 
             <!-- Time Info -->
@@ -155,10 +185,16 @@
               v-if="step.startTime || step.completedAt"
               class="flex flex-wrap gap-2 mt-3"
             >
-              <div v-if="step.startTime" class="time-info text-xs">
+              <div
+                v-if="step.startTime"
+                class="time-info text-xs"
+              >
                 <span class="text-primary">⏰ 开始:</span> {{ step.startTime }}
               </div>
-              <div v-if="step.completedAt" class="time-info text-xs">
+              <div
+                v-if="step.completedAt"
+                class="time-info text-xs"
+              >
                 <span class="text-success">✅ 完成:</span> {{ step.completedAt }}
               </div>
             </div>

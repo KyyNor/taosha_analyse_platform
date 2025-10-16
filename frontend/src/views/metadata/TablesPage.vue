@@ -51,7 +51,6 @@
         :show-header="true"
         :column-settings="true"
       >
-
         <template #cell-name="{ value }">
           <div class="font-medium">
             {{ value }}
@@ -67,7 +66,7 @@
           </div>
         </template>
 
-  
+
         <template #actions="{ record }">
           <div class="flex gap-1">
             <button
@@ -155,14 +154,16 @@
               </svg>
               编辑
             </button>
-            </div>
+          </div>
         </div>
 
         <!-- Content Area -->
         <div class="flex-1 overflow-y-auto p-6">
           <!-- Table Info Section -->
           <div class="mb-6">
-            <h4 class="font-semibold text-lg mb-4 pb-2 border-b border-base-300">表信息</h4>
+            <h4 class="font-semibold text-lg mb-4 pb-2 border-b border-base-300">
+              表信息
+            </h4>
             <form class="space-y-4">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="form-control">
@@ -197,7 +198,9 @@
 
           <!-- Columns Section -->
           <div>
-            <h4 class="font-semibold text-lg mb-4 pb-2 border-b border-base-300">字段信息</h4>
+            <h4 class="font-semibold text-lg mb-4 pb-2 border-b border-base-300">
+              字段信息
+            </h4>
             <div class="flex justify-between items-center mb-4">
               <button
                 v-if="isDetailEditMode || isNewTable"
@@ -227,13 +230,30 @@
               <table class="table table-sm w-full">
                 <thead>
                   <tr>
-                    <th class="w-32">字段名</th>
-                    <th class="w-32">类型</th>
-                    <th class="w-48">注释</th>
-                    <th class="w-32">业务类型</th>
-                    <th class="w-32">关联ID</th>
-                    <th class="w-16">启用</th>
-                    <th v-if="isDetailEditMode || isNewTable" class="w-16">操作</th>
+                    <th class="w-32">
+                      字段名
+                    </th>
+                    <th class="w-32">
+                      类型
+                    </th>
+                    <th class="w-48">
+                      注释
+                    </th>
+                    <th class="w-32">
+                      业务类型
+                    </th>
+                    <th class="w-32">
+                      关联ID
+                    </th>
+                    <th class="w-16">
+                      启用
+                    </th>
+                    <th
+                      v-if="isDetailEditMode || isNewTable"
+                      class="w-16"
+                    >
+                      操作
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -309,16 +329,19 @@
                         class="input input-bordered input-xs w-full"
                         placeholder="关联ID"
                       >
-                      <span v-else class="block">
+                      <span
+                        v-else
+                        class="block"
+                      >
                         {{ column.relationId || '-' }}
                       </span>
                     </td>
                     <td>
                       <input
                         v-if="isDetailEditMode || isNewTable"
+                        v-model="column.isAvailable"
                         type="checkbox"
                         class="checkbox checkbox-xs"
-                        v-model="column.isAvailable"
                       >
                       <input
                         v-else

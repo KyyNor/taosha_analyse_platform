@@ -3,7 +3,9 @@
     <!-- Header -->
     <div class="flex justify-between items-center">
       <div>
-        <h2 class="text-xl font-semibold">关联配置管理</h2>
+        <h2 class="text-xl font-semibold">
+          关联配置管理
+        </h2>
         <p class="text-base-content/60">
           管理表之间的关联关系配置
         </p>

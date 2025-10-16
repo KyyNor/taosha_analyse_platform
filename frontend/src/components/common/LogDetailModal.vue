@@ -7,39 +7,66 @@
     <div class="bg-base-100 rounded-lg w-11/12 max-w-4xl max-h-[90vh] overflow-hidden">
       <!-- 弹框头部 -->
       <div class="bg-primary text-white p-4 flex justify-between items-center">
-        <h3 class="text-lg font-semibold">查询详情 - {{ taskId }}</h3>
+        <h3 class="text-lg font-semibold">
+          查询详情 - {{ taskId }}
+        </h3>
         <button
-          @click="handleClose"
           class="btn btn-sm btn-circle btn-ghost text-white hover:bg-white hover:bg-opacity-20"
+          @click="handleClose"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       </div>
 
       <!-- 弹框内容 -->
       <div class="overflow-y-auto max-h-[calc(90vh-64px)]">
-        <div v-if="isLoading" class="flex justify-center items-center p-8">
-          <span class="loading loading-spinner loading-lg"></span>
+        <div
+          v-if="isLoading"
+          class="flex justify-center items-center p-8"
+        >
+          <span class="loading loading-spinner loading-lg" />
         </div>
 
-        <div v-else-if="detailData.task" class="p-6">
+        <div
+          v-else-if="detailData.task"
+          class="p-6"
+        >
           <!-- 任务基本信息 -->
           <div class="mb-6">
-            <h4 class="text-lg font-semibold mb-4">任务信息</h4>
+            <h4 class="text-lg font-semibold mb-4">
+              任务信息
+            </h4>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-base-200 p-4 rounded-lg shadow-md">
               <div>
                 <label class="font-medium text-base-content/70">任务ID:</label>
-                <p class="font-mono text-sm text-base-content">{{ detailData.task.task_id }}</p>
+                <p class="font-mono text-sm text-base-content">
+                  {{ detailData.task.task_id }}
+                </p>
               </div>
               <div>
                 <label class="font-medium text-base-content/70">用户:</label>
-                <p class="text-base-content">{{ detailData.task.operator }}</p>
+                <p class="text-base-content">
+                  {{ detailData.task.operator }}
+                </p>
               </div>
               <div>
                 <label class="font-medium text-base-content/70">查询内容:</label>
-                <p class="text-sm text-base-content">{{ detailData.task.user_input }}</p>
+                <p class="text-sm text-base-content">
+                  {{ detailData.task.user_input }}
+                </p>
               </div>
               <div>
                 <label class="font-medium text-base-content/70">状态:</label>
@@ -59,22 +86,38 @@
               </div>
               <div>
                 <label class="font-medium text-base-content/70">开始时间:</label>
-                <p class="text-sm text-base-content">{{ formatTime(detailData.task.created_at) }}</p>
+                <p class="text-sm text-base-content">
+                  {{ formatTime(detailData.task.created_at) }}
+                </p>
               </div>
               <div>
                 <label class="font-medium text-base-content/70">结束时间:</label>
-                <p class="text-sm text-base-content">{{ detailData.task.completed_at ? formatTime(detailData.task.completed_at) : '进行中' }}</p>
+                <p class="text-sm text-base-content">
+                  {{ detailData.task.completed_at ? formatTime(detailData.task.completed_at) : '进行中' }}
+                </p>
               </div>
               <div>
                 <label class="font-medium text-base-content/70">SQL查询:</label>
                 <div class="rounded-lg text-xs overflow-x-auto border">
-                  <pre v-if="detailData.task.sql_query" class="language-sql shadow-inner" style="margin: 0 !important;"><code class="language-sql" v-html="highlightSql(detailData.task.sql_query)"></code></pre>
-                  <pre v-else class="text-base-content/50 m-0">无</pre>
+                  <pre
+                    v-if="detailData.task.sql_query"
+                    class="language-sql shadow-inner"
+                    style="margin: 0 !important;"
+                  ><code
+class="language-sql"
+                                                                                             v-html="highlightSql(detailData.task.sql_query)"
+/></pre>
+                  <pre
+                    v-else
+                    class="text-base-content/50 m-0"
+                  >无</pre>
                 </div>
               </div>
               <div>
                 <label class="font-medium text-base-content/70">执行结果:</label>
-                <p class="text-sm text-base-content">{{ detailData.task.execution_result?.length || 0 }} 条记录</p>
+                <p class="text-sm text-base-content">
+                  {{ detailData.task.execution_result?.length || 0 }} 条记录
+                </p>
               </div>
               <div v-if="detailData.task.clear_check_details && Object.keys(detailData.task.clear_check_details).length > 0">
                 <label class="font-medium text-base-content/70">输入验证结果:</label>
@@ -87,11 +130,19 @@
 
           <!-- 执行步骤日志 -->
           <div>
-            <h4 class="text-lg font-semibold mb-4">执行步骤</h4>
-            <div v-if="detailData.logs.length === 0" class="text-center py-8 text-base-content/60">
+            <h4 class="text-lg font-semibold mb-4">
+              执行步骤
+            </h4>
+            <div
+              v-if="detailData.logs.length === 0"
+              class="text-center py-8 text-base-content/60"
+            >
               暂无执行步骤日志
             </div>
-            <div v-else class="space-y-3">
+            <div
+              v-else
+              class="space-y-3"
+            >
               <div
                 v-for="(log, index) in detailData.logs"
                 :key="index"
@@ -116,9 +167,9 @@
                     <!-- 展开/收起按钮 -->
                     <button
                       v-if="hasDetails(log)"
-                      @click="toggleLogDetails(index)"
                       class="btn btn-ghost btn-xs p-1 hover:bg-base-200"
                       :title="expandedLogs[index] ? '收起详情' : '展开详情'"
+                      @click="toggleLogDetails(index)"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -155,23 +206,43 @@
                   class="space-y-2 border-t border-base-300 pt-2 mt-2"
                 >
                   <!-- 错误信息 - 跟随展开状态 -->
-                  <div v-if="log.error" class="text-error text-sm p-2 bg-error/10 rounded border border-error/20 shadow-inner">
-                    <div class="font-medium mb-1">错误信息:</div>
+                  <div
+                    v-if="log.error"
+                    class="text-error text-sm p-2 bg-error/10 rounded border border-error/20 shadow-inner"
+                  >
+                    <div class="font-medium mb-1">
+                      错误信息:
+                    </div>
                     <pre class="whitespace-pre-wrap text-xs">{{ formatText(log.error) }}</pre>
                   </div>
 
-                  <div v-if="log.prompt" class="text-sm">
-                    <div class="font-medium text-base-content/80 mb-1">提示词:</div>
+                  <div
+                    v-if="log.prompt"
+                    class="text-sm"
+                  >
+                    <div class="font-medium text-base-content/80 mb-1">
+                      提示词:
+                    </div>
                     <pre class="bg-base-200 p-2 rounded-lg text-xs overflow-x-auto shadow-inner">{{ formatText(log.prompt) }}</pre>
                   </div>
 
-                  <div v-if="log.input_data" class="text-sm">
-                    <div class="font-medium text-base-content/80 mb-1">输入数据:</div>
+                  <div
+                    v-if="log.input_data"
+                    class="text-sm"
+                  >
+                    <div class="font-medium text-base-content/80 mb-1">
+                      输入数据:
+                    </div>
                     <pre class="bg-base-200 p-2 rounded-lg text-xs overflow-x-auto shadow-inner">{{ formatText(log.input_data) }}</pre>
                   </div>
 
-                  <div v-if="log.model_output" class="text-sm">
-                    <div class="font-medium text-base-content/80 mb-1">模型输出:</div>
+                  <div
+                    v-if="log.model_output"
+                    class="text-sm"
+                  >
+                    <div class="font-medium text-base-content/80 mb-1">
+                      模型输出:
+                    </div>
                     <pre class="bg-base-200 p-2 rounded-lg text-xs overflow-x-auto shadow-inner">{{ formatText(log.model_output) }}</pre>
                   </div>
                 </div>
@@ -180,7 +251,10 @@
           </div>
         </div>
 
-        <div v-else class="p-8 text-center text-gray-500">
+        <div
+          v-else
+          class="p-8 text-center text-gray-500"
+        >
           加载详情失败
         </div>
       </div>

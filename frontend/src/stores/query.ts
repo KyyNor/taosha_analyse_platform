@@ -94,7 +94,7 @@ export const useQueryStore = defineStore('query', () => {
 
       // Create task object with new TaskState structure
       currentTask.value = {
-        task_id: task_id,
+        task_id,
         user_input: request.query,
         operator: request.operator,
         flow_type: request.flow_type || 'fast',

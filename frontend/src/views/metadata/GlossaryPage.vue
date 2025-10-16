@@ -24,10 +24,18 @@
           class="select select-bordered select-sm"
           @change="loadTerms"
         >
-          <option value="">全部</option>
-          <option value="concept">概念解释</option>
-          <option value="sql_qa">SQL问答</option>
-          <option value="dict_mapping">字典转换</option>
+          <option value="">
+            全部
+          </option>
+          <option value="concept">
+            概念解释
+          </option>
+          <option value="sql_qa">
+            SQL问答
+          </option>
+          <option value="dict_mapping">
+            字典转换
+          </option>
         </select>
       </div>
 
@@ -86,14 +94,22 @@
             </div>
             <div v-else-if="record.type === 'sql_qa'">
               <div class="text-sm">
-                <div class="font-semibold">问题: {{ value.question || '-' }}</div>
-                <div class="text-base-content/60">答案: {{ value.answer || '-' }}</div>
+                <div class="font-semibold">
+                  问题: {{ value.question || '-' }}
+                </div>
+                <div class="text-base-content/60">
+                  答案: {{ value.answer || '-' }}
+                </div>
               </div>
             </div>
             <div v-else-if="record.type === 'dict_mapping'">
               <div class="text-sm">
-                <div class="font-semibold">字段: {{ value.col_name || '-' }}</div>
-                <div class="text-base-content/60">映射: {{ value.dict_map?.length || 0 }} 项</div>
+                <div class="font-semibold">
+                  字段: {{ value.col_name || '-' }}
+                </div>
+                <div class="text-base-content/60">
+                  映射: {{ value.dict_map?.length || 0 }} 项
+                </div>
               </div>
             </div>
           </div>
@@ -213,10 +229,18 @@
                   :disabled="isEditMode"
                   required
                 >
-                  <option value="">请选择类型</option>
-                  <option value="concept">概念解释</option>
-                  <option value="sql_qa">SQL问答</option>
-                  <option value="dict_mapping">字典转换</option>
+                  <option value="">
+                    请选择类型
+                  </option>
+                  <option value="concept">
+                    概念解释
+                  </option>
+                  <option value="sql_qa">
+                    SQL问答
+                  </option>
+                  <option value="dict_mapping">
+                    字典转换
+                  </option>
                 </select>
               </div>
             </div>
@@ -224,115 +248,193 @@
             <!-- 创建人字段隐藏，默认为 api_user -->
 
             <!-- Type-specific content -->
-            <div class="form-control">
+            <div class="form-control w-full">
               <label class="label">
-                <span class="label-text font-semibold">
+                <span class="label-text font-semibold text-base">
                   {{ getContentLabel() }}
                 </span>
               </label>
 
               <!-- 概念解释 -->
-              <div v-if="termForm.type === 'concept'">
-                <textarea
-                  v-model="termForm.content.content"
-                  placeholder="请输入概念解释内容"
-                  class="textarea textarea-bordered h-32"
-                />
+              <div
+                v-if="termForm.type === 'concept'"
+                class="w-full"
+              >
+                <div class="form-control">
+                  <textarea
+                    v-model="termForm.content.content"
+                    placeholder="请输入概念解释内容，支持多行文本"
+                    class="textarea textarea-bordered textarea-primary w-full h-24 resize-none text-sm leading-relaxed"
+                  />
+                </div>
               </div>
 
               <!-- SQL问答 -->
-              <div v-else-if="termForm.type === 'sql_qa'" class="space-y-4">
-                <div>
+              <div
+                v-else-if="termForm.type === 'sql_qa'"
+                class="space-y-4 w-full"
+              >
+                <div class="w-full">
                   <label class="label">
-                    <span class="label-text">问题</span>
+                    <span class="label-text text-sm font-medium">问题</span>
                   </label>
-                  <input
-                    v-model="termForm.content.question"
-                    type="text"
-                    placeholder="请输入问题"
-                    class="input input-bordered"
-                  >
+                  <div class="form-control">
+                    <input
+                      v-model="termForm.content.question"
+                      type="text"
+                      placeholder="请输入问题，例如：如何查看用户信息？"
+                      class="input input-bordered input-primary w-full"
+                    >
+                  </div>
                 </div>
-                <div>
+                <div class="w-full">
                   <label class="label">
-                    <span class="label-text">答案</span>
+                    <span class="label-text text-sm font-medium">答案</span>
                   </label>
-                  <textarea
-                    v-model="termForm.content.answer"
-                    placeholder="请输入答案"
-                    class="textarea textarea-bordered h-24"
-                  />
+                  <div class="form-control">
+                    <textarea
+                      v-model="termForm.content.answer"
+                      placeholder="请输入答案，支持SQL语句和详细说明"
+                      class="textarea textarea-bordered textarea-primary w-full h-20 resize-none text-sm font-mono leading-relaxed"
+                    />
+                  </div>
                 </div>
-                <div>
+                <div class="w-full">
                   <label class="label">
-                    <span class="label-text">备注</span>
+                    <span class="label-text text-sm font-medium">备注</span>
                   </label>
-                  <input
-                    v-model="termForm.content.remark"
-                    type="text"
-                    placeholder="请输入备注"
-                    class="input input-bordered"
-                  >
+                  <div class="form-control">
+                    <input
+                      v-model="termForm.content.remark"
+                      type="text"
+                      placeholder="请输入备注信息（可选）"
+                      class="input input-bordered input-primary w-full"
+                    >
+                  </div>
                 </div>
               </div>
 
               <!-- 字典转换 -->
-              <div v-else-if="termForm.type === 'dict_mapping'" class="space-y-4">
-                <div>
+              <div
+                v-else-if="termForm.type === 'dict_mapping'"
+                class="space-y-4 w-full"
+              >
+                <div class="w-full">
                   <label class="label">
-                    <span class="label-text">字段名（多个字段用逗号分隔）</span>
+                    <span class="label-text text-sm font-medium">字段名</span>
+                    <span class="label-text-alt text-base-content/60">多个字段用逗号分隔</span>
                   </label>
-                  <input
-                    v-model="termForm.content.col_name"
-                    type="text"
-                    placeholder="例如: status,type"
-                    class="input input-bordered"
-                  >
-                </div>
-                <div>
-                  <label class="label">
-                    <span class="label-text">键值映射</span>
-                  </label>
-                  <div class="space-y-2">
-                    <div
-                      v-for="(mapping, index) in termForm.content.dict_map"
-                      :key="index"
-                      class="flex gap-2 items-center"
+                  <div class="form-control">
+                    <input
+                      v-model="termForm.content.col_name"
+                      type="text"
+                      placeholder="例如: status,type,level"
+                      class="input input-bordered input-primary w-full"
                     >
-                      <input
-                        v-model="mapping.key"
-                        type="text"
-                        placeholder="键"
-                        class="input input-bordered input-sm flex-1"
+                  </div>
+                </div>
+                <div class="w-full">
+                  <label class="label">
+                    <span class="label-text text-sm font-medium">键值映射</span>
+                    <span class="label-text-alt text-base-content/60">配置字段值的映射关系</span>
+                  </label>
+                  <div class="bg-base-200 rounded-lg p-4">
+                    <div class="space-y-3 max-h-48 overflow-y-auto">
+                      <div
+                        v-for="(mapping, index) in termForm.content.dict_map"
+                        :key="index"
+                        class="flex gap-3 items-center"
                       >
-                      <input
-                        v-model="mapping.value"
-                        type="text"
-                        placeholder="值"
-                        class="input input-bordered input-sm flex-1"
-                      >
+                        <div class="form-control flex-1">
+                          <input
+                            v-model="termForm.content.dict_map[index].key"
+                            type="text"
+                            placeholder="原值"
+                            class="input input-bordered input-sm flex-1 font-mono"
+                          >
+                        </div>
+                        <div class="text-base-content/60">
+                          →
+                        </div>
+                        <div class="form-control flex-1">
+                          <input
+                            v-model="termForm.content.dict_map[index].value"
+                            type="text"
+                            placeholder="映射值"
+                            class="input input-bordered input-sm flex-1 font-mono"
+                          >
+                        </div>
+                        <button
+                          type="button"
+                          class="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                          @click="removeMapping(index)"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-3 w-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-base-300">
                       <button
                         type="button"
-                        class="btn btn-ghost btn-xs text-error"
-                        @click="removeMapping(index)"
+                        class="btn btn-outline btn-sm w-full"
+                        @click="addMapping"
                       >
-                        删除
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          class="h-3 w-3 mr-1"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M12 4v16m8-8H4"
+                          />
+                        </svg>
+                        添加映射项
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      class="btn btn-outline btn-sm"
-                      @click="addMapping"
-                    >
-                      添加映射
-                    </button>
                   </div>
                 </div>
               </div>
 
               <!-- 未选择类型时的提示 -->
-              <div v-else class="text-base-content/60">
-                请先选择术语类型
+              <div
+                v-else
+                class="text-center py-8 text-base-content/60 bg-base-200 rounded-lg"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-12 w-12 mx-auto mb-3 opacity-50"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+                <p class="text-sm">
+                  请先选择术语类型以显示对应的输入表单
+                </p>
               </div>
             </div>
           </form>
@@ -388,7 +490,28 @@ const filters = reactive({
 })
 
 // Form
-const termForm = reactive({
+interface DictMapping {
+  key: string
+  value: string
+}
+
+interface TermFormContent {
+  content: string
+  question: string
+  answer: string
+  remark: string
+  col_name: string
+  dict_map: DictMapping[]
+}
+
+interface TermForm {
+  name: string
+  type: string
+  creator: string
+  content: TermFormContent
+}
+
+const termForm = reactive<TermForm>({
   name: '',
   type: '',
   creator: '',
@@ -485,6 +608,7 @@ const addMapping = () => {
 const removeMapping = (index: number) => {
   termForm.content.dict_map.splice(index, 1)
 }
+
 
 const resetForm = () => {
   Object.assign(termForm, {

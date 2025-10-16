@@ -99,7 +99,10 @@
                   v-for="table in filteredTables"
                   :key="table.id"
                 >
-                  <div class="flex items-center gap-2 p-1 hover:bg-base-200 rounded cursor-pointer" @click="toggleTableSelection(table.id)">
+                  <div
+                    class="flex items-center gap-2 p-1 hover:bg-base-200 rounded cursor-pointer"
+                    @click="toggleTableSelection(table.id)"
+                  >
                     <input
                       :id="`table-${table.id}`"
                       type="checkbox"

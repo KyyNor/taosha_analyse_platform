@@ -3,7 +3,9 @@
     <!-- Header -->
     <div class="flex justify-between items-center">
       <div>
-        <h2 class="text-xl font-semibold">提示词配置管理</h2>
+        <h2 class="text-xl font-semibold">
+          提示词配置管理
+        </h2>
         <p class="text-base-content/60">
           管理系统提示词模板配置
         </p>
@@ -119,26 +121,6 @@
                 />
               </svg>
             </button>
-            <button
-              class="btn btn-ghost btn-xs text-error"
-              title="删除"
-              @click="confirmDeleteTemplate(record)"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-3 w-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-            </button>
           </div>
         </template>
       </DataTable>
@@ -196,7 +178,10 @@
             </div>
 
             <!-- Fields (only for new templates) -->
-            <div v-if="!isEditMode" class="form-control">
+            <div
+              v-if="!isEditMode"
+              class="form-control"
+            >
               <label class="label">
                 <span class="label-text">字段名 *</span>
               </label>
@@ -215,8 +200,8 @@
                   <button
                     type="button"
                     class="btn btn-ghost btn-xs text-error"
-                    @click="removeField(index)"
                     :disabled="templateForm.fields.length <= 1"
+                    @click="removeField(index)"
                   >
                     删除
                   </button>
@@ -235,7 +220,10 @@
             </div>
 
             <!-- Fields Display (for edit mode) -->
-            <div v-else class="form-control">
+            <div
+              v-else
+              class="form-control"
+            >
               <label class="label">
                 <span class="label-text">字段名</span>
               </label>
@@ -270,7 +258,10 @@
             </div>
 
             <!-- Validation Errors -->
-            <div v-if="validationErrors.length > 0" class="alert alert-error">
+            <div
+              v-if="validationErrors.length > 0"
+              class="alert alert-error"
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="stroke-current shrink-0 h-6 w-6"
@@ -285,10 +276,17 @@
                 />
               </svg>
               <div>
-                <h3 class="font-bold">验证错误</h3>
+                <h3 class="font-bold">
+                  验证错误
+                </h3>
                 <div class="text-xs">
                   <ul class="list-disc list-inside">
-                    <li v-for="error in validationErrors" :key="error">{{ error }}</li>
+                    <li
+                      v-for="error in validationErrors"
+                      :key="error"
+                    >
+                      {{ error }}
+                    </li>
                   </ul>
                 </div>
               </div>
@@ -358,7 +356,9 @@
         <div class="flex-1 overflow-y-auto p-6 space-y-6">
           <!-- Fields -->
           <div>
-            <h4 class="font-semibold mb-3">字段列表</h4>
+            <h4 class="font-semibold mb-3">
+              字段列表
+            </h4>
             <div class="flex flex-wrap gap-2">
               <div
                 v-for="field in previewTemplate?.fields"
@@ -372,7 +372,9 @@
 
           <!-- Template -->
           <div>
-            <h4 class="font-semibold mb-3">模板内容</h4>
+            <h4 class="font-semibold mb-3">
+              模板内容
+            </h4>
             <div class="bg-base-200 p-4 rounded-lg">
               <pre class="whitespace-pre-wrap text-sm">{{ previewTemplate?.template }}</pre>
             </div>
@@ -380,10 +382,16 @@
 
           <!-- Example Usage -->
           <div>
-            <h4 class="font-semibold mb-3">示例使用</h4>
+            <h4 class="font-semibold mb-3">
+              示例使用
+            </h4>
             <div class="bg-base-200 p-4 rounded-lg">
               <div class="text-sm space-y-2">
-                <div v-for="field in previewTemplate?.fields" :key="field" class="flex items-center gap-2">
+                <div
+                  v-for="field in previewTemplate?.fields"
+                  :key="field"
+                  class="flex items-center gap-2"
+                >
                   <span class="font-mono">{{ field }}:</span>
                   <input
                     v-model="exampleValues[field]"
@@ -399,7 +407,9 @@
 
           <!-- Result -->
           <div v-if="exampleResult">
-            <h4 class="font-semibold mb-3">生成结果</h4>
+            <h4 class="font-semibold mb-3">
+              生成结果
+            </h4>
             <div class="bg-primary/10 p-4 rounded-lg border border-primary/20">
               <pre class="whitespace-pre-wrap text-sm">{{ exampleResult }}</pre>
             </div>
@@ -590,21 +600,6 @@ const saveTemplate = async () => {
   }
 }
 
-const confirmDeleteTemplate = (template: any) => {
-  if (confirm(`确定要删除提示词模板 "${template.name}" 吗？此操作不可恢复。`)) {
-    deleteTemplate(template)
-  }
-}
-
-const deleteTemplate = async (template: any) => {
-  try {
-    await metadataService.deletePromptTemplate(template.id)
-    success('提示词模板已删除')
-    await loadTemplates()
-  } catch (err) {
-    error('删除提示词模板失败')
-  }
-}
 
 const openPreviewModal = (template: any) => {
   previewTemplate.value = template

@@ -507,7 +507,7 @@ class GlossaryService:
         """根据类型获取术语"""
         return [term for term in self.get_terms() if term.get("type") == term_type]
     
-    def add_term(self, name: str, term_type: str, content: Dict[str, Any], creator: str = "api_user") -> bool:
+    def add_term(self, name: str, term_type: str, content: Dict[str, Any], creator: str) -> bool:
         """添加术语"""
         try:
             with self.db_manager.get_taosha_db_connection() as (conn, db_type):
