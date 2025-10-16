@@ -321,13 +321,22 @@
                       </span>
                     </td>
                     <td>
-                      <input
+                      <select
                         v-if="isDetailEditMode || isNewTable"
                         v-model="column.relationId"
-                        type="text"
-                        class="input input-bordered input-xs w-full"
-                        placeholder="关联ID"
+                        class="select select-bordered select-xs w-full"
                       >
+                        <option value="">
+                          无关联
+                        </option>
+                        <option
+                          v-for="relation in availableRelations"
+                          :key="relation.relation_id"
+                          :value="relation.relation_id"
+                        >
+                          {{ relation.relation_id }} ({{ relation.relation_desc || '无描述' }})
+                        </option>
+                      </select>
                       <span
                         v-else
                         class="block"
@@ -434,6 +443,7 @@ const editingTable = ref<any | null>(null)
 const isDetailEditMode = ref(false)
 const isNewTable = ref(false)
 const columns = ref<any[]>([])
+const availableRelations = ref<any[]>([])
 
 // Filters
 const filters = reactive({
@@ -461,6 +471,15 @@ const tableColumns = [
     visible: true
   }
 ]
+
+// Load available relations
+const loadRelations = async () => {
+  try {
+    availableRelations.value = await metadataService.getRelationConfigs()
+  } catch (err) {
+    error('加载关联配置失败')
+  }
+}
 
 // Debounced search
 let searchTimeout: number
@@ -695,5 +714,6 @@ const deleteTable = async (table: any) => {
 // Initialize
 onMounted(() => {
   loadTables()
+  loadRelations()
 })
 </script>
