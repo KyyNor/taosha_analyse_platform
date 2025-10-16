@@ -27,11 +27,11 @@ class MetadataService:
             with self.db_manager.get_taosha_db_connection() as (conn, db_type):
                 cursor = conn.cursor()
                 
-                cursor.execute("SELECT name, comment, is_available FROM metadata_tables ORDER BY name")
+                cursor.execute("SELECT id, name, comment, is_available, created_at, updated_at FROM metadata_tables ORDER BY name")
                 tables_data = cursor.fetchall()
-                
+
                 tables = []
-                for table_name, table_comment, is_available in tables_data:
+                for table_id, table_name, table_comment, is_available, created_at, updated_at in tables_data:
                     placeholder = self.db_manager.get_sql_placeholder(db_type)
                     cursor.execute(f"""
                         SELECT name, type, comment, is_available, business_type, relation_id 
@@ -53,9 +53,12 @@ class MetadataService:
                         })
                     
                     tables.append({
+                        "id": table_id,
                         "name": table_name,
                         "comment": table_comment or "",
                         "is_available": int(is_available or 0),
+                        "created_at": created_at or "",
+                        "updated_at": updated_at or "",
                         "columns": columns
                     })
                 
@@ -264,11 +267,11 @@ class MetadataService:
         with self.db_manager.get_taosha_db_connection() as (conn, db_type):
             cursor = conn.cursor()
             
-            cursor.execute("SELECT name, comment, is_available FROM metadata_tables ORDER BY name")
+            cursor.execute("SELECT id, name, comment, is_available, created_at, updated_at FROM metadata_tables ORDER BY name")
             tables_data = cursor.fetchall()
-            
+
             tables = []
-            for table_name, table_comment, is_available in tables_data:
+            for table_id, table_name, table_comment, is_available, created_at, updated_at in tables_data:
                 placeholder = self.db_manager.get_sql_placeholder(db_type)
                 cursor.execute(f"""
                     SELECT name, type, comment, is_available, business_type, relation_id 
@@ -290,9 +293,12 @@ class MetadataService:
                     })
                 
                 tables.append({
+                    "id": table_id,
                     "name": table_name,
                     "comment": table_comment or "",
                     "is_available": int(is_available or 0),
+                    "created_at": created_at or "",
+                    "updated_at": updated_at or "",
                     "columns": columns
                 })
             

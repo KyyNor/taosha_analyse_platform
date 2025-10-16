@@ -111,7 +111,7 @@
                       :disabled="loading"
                       @click.stop
                     >
-                    <span class="flex-1">{{ table.name }}</span>
+                    <span class="flex-1">{{ getTableDisplayName(table) }}</span>
                     <span class="badge badge-outline badge-xs">{{ table.dataSource }}</span>
                   </div>
                 </li>
@@ -124,27 +124,7 @@
               </ul>
             </div>
 
-            <!-- 已选择的表标签 -->
-            <div
-              v-if="formData.selectedTableIds.length > 0"
-              class="flex flex-wrap gap-1 mt-2"
-            >
-              <span
-                v-for="tableId in formData.selectedTableIds"
-                :key="tableId"
-                class="badge badge-primary badge-sm"
-              >
-                {{ getTableName(tableId) }}
-                <button
-                  type="button"
-                  class="ml-1"
-                  @click="removeTable(tableId)"
-                >
-                  ✕
-                </button>
-              </span>
             </div>
-          </div>
         </div>
 
         <!-- 第二列：查询问题输入 -->
@@ -380,6 +360,14 @@ const loadAvailableTables = async () => {
 const getTableName = (tableId: number) => {
   const table = availableTables.value.find(t => t.id === tableId)
   return table?.name || `Table ${tableId}`
+}
+
+// Get table display name with comment and name
+const getTableDisplayName = (table: TableMetadata) => {
+  if (table.comment && table.comment.trim()) {
+    return `${table.comment.trim()}（${table.name}）`
+  }
+  return table.name
 }
 
 // Remove table from selection

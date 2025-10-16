@@ -20,11 +20,24 @@ router = APIRouter(prefix="/metadata")
 
 # 表元数据管理
 @router.get("/tables")
-async def get_all_table_metadata():
+async def get_all_table_metadata(isAvailable: Optional[str] = None):
     """获取所有表元数据"""
     try:
         metadata_service = get_metadata_service()
-        tables = metadata_service.get_tables()
+
+        if isAvailable is not None:
+            # 根据isAvailable参数过滤表
+            if isAvailable == '1':
+                # 获取可用的表 (is_available = 0)
+                tables = metadata_service.get_available_tables()
+            else:
+                # 获取不可用的表 (is_available = 1)
+                all_tables = metadata_service.get_tables()
+                tables = [table for table in all_tables if table.get('is_available', 0) != 0]
+        else:
+            # 获取所有表
+            tables = metadata_service.get_tables()
+
         return {"success": True, "data": tables}
     except Exception as e:
         logger.error(f"获取表元数据失败: {e}")
