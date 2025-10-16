@@ -120,14 +120,14 @@ class MetadataService {
   // Get all terms
   async getGlossaryTerms(): Promise<any[]> {
     const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.LIST))
-    return response.data?.data || []
+    return response.data || []
   }
 
   // Get terms by type
   async getGlossaryTermsByType(type: string): Promise<any[]> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.GLOSSARY.TERMS.BY_TYPE, { type })
     const response = await api.get(buildApiUrl(url))
-    return response.data?.data || []
+    return response.data || []
   }
 
   // Search terms
@@ -167,7 +167,7 @@ class MetadataService {
   // Get all relation configurations
   async getRelationConfigs(): Promise<any[]> {
     const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.RELATIONS.LIST))
-    return response.data?.data || []
+    return response.data || []
   }
 
   // Create new relation config
@@ -200,7 +200,7 @@ class MetadataService {
   // Get all prompt templates
   async getPromptTemplates(): Promise<any[]> {
     const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.PROMPT_TEMPLATES.LIST))
-    return response.data?.data || []
+    return response.data || []
   }
 
   // Create new prompt template
