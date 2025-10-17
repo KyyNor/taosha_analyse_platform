@@ -63,6 +63,30 @@ CREATE TABLE IF NOT EXISTS relation_field_config (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ==================== 数据主题表 ====================
+
+CREATE TABLE IF NOT EXISTS data_themes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    theme_name TEXT UNIQUE NOT NULL,
+    theme_description TEXT DEFAULT '',
+    theme_type TEXT NOT NULL DEFAULT 'normal',
+    department TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ==================== 主题表关联关系表 ====================
+
+CREATE TABLE IF NOT EXISTS theme_table_relations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    theme_id INTEGER NOT NULL,
+    table_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (theme_id) REFERENCES data_themes(id) ON DELETE CASCADE,
+    FOREIGN KEY (table_id) REFERENCES metadata_tables(id) ON DELETE CASCADE,
+    UNIQUE(theme_id, table_id)
+);
+
 -- ==================== 操作追踪表 ====================
 
 -- NL查询会话记录表
@@ -141,3 +165,10 @@ CREATE INDEX IF NOT EXISTS idx_metadata_columns_relation_id ON metadata_columns(
 -- 关联字段配置索引
 CREATE INDEX IF NOT EXISTS idx_relation_field_config_relation_id ON relation_field_config(relation_id);
 CREATE INDEX IF NOT EXISTS idx_relation_field_config_family ON relation_field_config(relation_family, relation_subfamily);
+
+-- 数据主题相关索引
+CREATE INDEX IF NOT EXISTS idx_data_themes_name ON data_themes(theme_name);
+CREATE INDEX IF NOT EXISTS idx_data_themes_type ON data_themes(theme_type);
+CREATE INDEX IF NOT EXISTS idx_data_themes_department ON data_themes(department);
+CREATE INDEX IF NOT EXISTS idx_theme_table_relations_theme_id ON theme_table_relations(theme_id);
+CREATE INDEX IF NOT EXISTS idx_theme_table_relations_table_id ON theme_table_relations(table_id);

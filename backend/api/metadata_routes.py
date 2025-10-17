@@ -6,12 +6,12 @@ from typing import List, Optional
 
 from api.endpoint_models import TableMetadataRequest, TableMetadataUpdate, ColumnMetadataRequest, ColumnMetadataUpdate, \
     GlossaryTermRequest, GlossaryTermUpdate, RelationFieldConfigRequest, RelationFieldConfigUpdate, \
-    PromptTemplateRequest, PromptTemplateUpdate
+    PromptTemplateRequest, PromptTemplateUpdate, DataThemeRequest, DataThemeUpdate, ThemeTableRelationRequest
 from utils.logger import logger, get_logger, LoggerMixin
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from services import get_metadata_service, get_glossary_service, get_relation_field_config_service, get_prompt_template_service
+from services import get_metadata_service, get_glossary_service, get_relation_field_config_service, get_prompt_template_service, get_data_theme_service
 
 
 # 创建路由器
@@ -396,4 +396,130 @@ async def delete_prompt_template(template_id: int):
             raise HTTPException(status_code=400, detail="删除提示词模板失败")
     except Exception as e:
         logger.error(f"删除提示词模板失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# 数据主题管理
+@router.get("/themes")
+async def get_all_themes():
+    """获取所有数据主题"""
+    try:
+        theme_service = get_data_theme_service()
+        themes = theme_service.get_all_themes()
+        return {"success": True, "data": themes}
+    except Exception as e:
+        logger.error(f"获取数据主题失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/themes/{theme_id}")
+async def get_theme(theme_id: int):
+    """获取指定数据主题"""
+    try:
+        theme_service = get_data_theme_service()
+        theme = theme_service.get_theme_by_id(theme_id)
+        if theme:
+            return {"success": True, "data": theme}
+        else:
+            raise HTTPException(status_code=404, detail="数据主题不存在")
+    except Exception as e:
+        logger.error(f"获取数据主题失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/themes")
+async def add_theme(request: DataThemeRequest):
+    """添加数据主题"""
+    try:
+        theme_service = get_data_theme_service()
+        success = theme_service.add_theme(
+            request.theme_name,
+            request.theme_description,
+            request.theme_type,
+            request.department
+        )
+        if success:
+            return {"success": True, "message": f"数据主题已添加: {request.theme_name}"}
+        else:
+            raise HTTPException(status_code=400, detail="添加数据主题失败")
+    except Exception as e:
+        logger.error(f"添加数据主题失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/themes/{theme_id}")
+async def update_theme(theme_id: int, request: DataThemeUpdate):
+    """更新数据主题"""
+    try:
+        theme_service = get_data_theme_service()
+        success = theme_service.update_theme(
+            theme_id,
+            request.theme_name,
+            request.theme_description,
+            request.theme_type,
+            request.department
+        )
+        if success:
+            return {"success": True, "message": f"数据主题已更新: ID {theme_id}"}
+        else:
+            raise HTTPException(status_code=400, detail="更新数据主题失败")
+    except Exception as e:
+        logger.error(f"更新数据主题失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/themes/{theme_id}")
+async def delete_theme(theme_id: int):
+    """删除数据主题"""
+    try:
+        theme_service = get_data_theme_service()
+        success = theme_service.delete_theme(theme_id)
+        if success:
+            return {"success": True, "message": f"数据主题已删除: ID {theme_id}"}
+        else:
+            raise HTTPException(status_code=400, detail="删除数据主题失败")
+    except Exception as e:
+        logger.error(f"删除数据主题失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/themes/{theme_id}/tables")
+async def get_theme_tables(theme_id: int):
+    """获取主题下的表"""
+    try:
+        theme_service = get_data_theme_service()
+        tables = theme_service.get_theme_tables(theme_id)
+        return {"success": True, "data": tables}
+    except Exception as e:
+        logger.error(f"获取主题表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/themes/{theme_id}/tables")
+async def add_table_to_theme(theme_id: int, request: ThemeTableRelationRequest):
+    """添加表到主题"""
+    try:
+        theme_service = get_data_theme_service()
+        success = theme_service.add_table_to_theme(theme_id, request.table_id)
+        if success:
+            return {"success": True, "message": f"表已添加到主题: 主题{theme_id}, 表{request.table_id}"}
+        else:
+            raise HTTPException(status_code=400, detail="添加表到主题失败")
+    except Exception as e:
+        logger.error(f"添加表到主题失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/themes/{theme_id}/tables/{table_id}")
+async def remove_table_from_theme(theme_id: int, table_id: int):
+    """从主题中移除表"""
+    try:
+        theme_service = get_data_theme_service()
+        success = theme_service.remove_table_from_theme(theme_id, table_id)
+        if success:
+            return {"success": True, "message": f"表已从主题中移除: 主题{theme_id}, 表{table_id}"}
+        else:
+            raise HTTPException(status_code=400, detail="从主题中移除表失败")
+    except Exception as e:
+        logger.error(f"从主题中移除表失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

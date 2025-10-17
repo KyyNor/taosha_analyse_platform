@@ -244,18 +244,20 @@ class MetadataService {
 
   // Create new theme
   async createTheme(data: {
-    themeName: string
-    themeDescription: string
-    themeType: 'public' | 'normal'
+    theme_name: string
+    theme_description: string
+    theme_type: 'public' | 'normal'
+    department: string
   }): Promise<DataTheme> {
     return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.THEMES.CREATE), data)
   }
 
   // Update theme
   async updateTheme(id: number, data: {
-    themeName?: string
-    themeDescription?: string
-    themeType?: 'public' | 'normal'
+    theme_name?: string
+    theme_description?: string
+    theme_type?: 'public' | 'normal'
+    department?: string
   }): Promise<DataTheme> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.THEMES.UPDATE, { id })
     return await api.put(buildApiUrl(url), data)
@@ -277,7 +279,7 @@ class MetadataService {
   // Add table to theme
   async addTableToTheme(themeId: number, tableId: number): Promise<void> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.THEMES.TABLES, { themeId })
-    return await api.post(buildApiUrl(url), { tableId })
+    return await api.post(buildApiUrl(url), { table_id: tableId })
   }
 
   // Remove table from theme

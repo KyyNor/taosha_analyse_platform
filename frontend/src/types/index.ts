@@ -158,11 +158,12 @@ export interface RelationConfig {
 
 export interface DataTheme {
   id: number
-  themeName: string
-  themeDescription: string
-  themeType: 'public' | 'normal'
-  createdAt: string
-  updatedAt: string
+  theme_name: string
+  theme_description: string
+  theme_type: 'public' | 'normal'
+  department: string
+  created_at: string
+  updated_at: string
 }
 
 // Favorites types

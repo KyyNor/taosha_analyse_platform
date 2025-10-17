@@ -826,11 +826,281 @@ class PromptTemplateService:
             return False
 
 
+class DataThemeService:
+    """数据主题管理服务"""
+
+    def __init__(self):
+        self.db_manager = get_database_manager()
+
+    def get_all_themes(self) -> List[Dict[str, Any]]:
+        """获取所有数据主题"""
+        try:
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, theme_name, theme_description, theme_type, department, created_at, updated_at
+                    FROM data_themes
+                    ORDER BY theme_type, theme_name
+                """)
+                themes_data = cursor.fetchall()
+
+                themes = []
+                for theme_id, theme_name, theme_description, theme_type, department, created_at, updated_at in themes_data:
+                    themes.append({
+                        "id": theme_id,
+                        "theme_name": theme_name,
+                        "theme_description": theme_description or "",
+                        "theme_type": theme_type,
+                        "department": department or "",
+                        "created_at": created_at if created_at else "",
+                        "updated_at": updated_at if updated_at else ""
+                    })
+
+                return themes
+
+        except Exception as e:
+            logger.error(f"获取数据主题失败: {e}")
+            return []
+
+    def get_theme_by_id(self, theme_id: int) -> Optional[Dict[str, Any]]:
+        """根据ID获取数据主题"""
+        try:
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
+                cursor = conn.cursor()
+                placeholder = self.db_manager.get_sql_placeholder(db_type)
+
+                cursor.execute(f"""
+                    SELECT id, theme_name, theme_description, theme_type, department, created_at, updated_at
+                    FROM data_themes
+                    WHERE id = {placeholder}
+                """, (theme_id,))
+                theme_data = cursor.fetchone()
+
+                if theme_data:
+                    theme_id, theme_name, theme_description, theme_type, department, created_at, updated_at = theme_data
+                    return {
+                        "id": theme_id,
+                        "theme_name": theme_name,
+                        "theme_description": theme_description or "",
+                        "theme_type": theme_type,
+                        "department": department or "",
+                        "created_at": created_at if created_at else "",
+                        "updated_at": updated_at if updated_at else ""
+                    }
+
+                return None
+
+        except Exception as e:
+            logger.error(f"获取数据主题失败: {e}")
+            return None
+
+    def add_theme(self, theme_name: str, theme_description: str = "", theme_type: str = "normal", department: str = "") -> bool:
+        """添加数据主题"""
+        try:
+            # 检查通用主题唯一性
+            if theme_type == "public":
+                existing_public = self.get_public_theme()
+                if existing_public:
+                    logger.error("通用主题已存在，只能创建一个")
+                    return False
+
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
+                cursor = conn.cursor()
+                placeholder = self.db_manager.get_sql_placeholder(db_type)
+
+                cursor.execute(f"""
+                    INSERT INTO data_themes (theme_name, theme_description, theme_type, department)
+                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
+                """, (theme_name, theme_description, theme_type, department))
+
+            logger.info(f"添加数据主题成功: {theme_name}")
+            return True
+
+        except Exception as e:
+            logger.error(f"添加数据主题失败: {e}")
+            return False
+
+    def update_theme(self, theme_id: int, theme_name: str = None, theme_description: str = None,
+                     theme_type: str = None, department: str = None) -> bool:
+        """更新数据主题"""
+        try:
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
+                cursor = conn.cursor()
+                placeholder = self.db_manager.get_sql_placeholder(db_type)
+
+                # 获取当前主题信息
+                current_theme = self.get_theme_by_id(theme_id)
+                if not current_theme:
+                    logger.error(f"主题不存在: ID {theme_id}")
+                    return False
+
+                # 检查通用主题唯一性
+                if theme_type == "public" and current_theme.get("theme_type") != "public":
+                    existing_public = self.get_public_theme()
+                    if existing_public and existing_public.get("id") != theme_id:
+                        logger.error("通用主题已存在，只能创建一个")
+                        return False
+
+                updates = []
+                params = []
+
+                if theme_name is not None:
+                    updates.append(f"theme_name = {placeholder}")
+                    params.append(theme_name)
+                if theme_description is not None:
+                    updates.append(f"theme_description = {placeholder}")
+                    params.append(theme_description)
+                if theme_type is not None:
+                    updates.append(f"theme_type = {placeholder}")
+                    params.append(theme_type)
+                if department is not None:
+                    updates.append(f"department = {placeholder}")
+                    params.append(department)
+
+                if updates:
+                    updates.append(f"updated_at = {placeholder}")
+                    params.append(datetime.now())
+                    params.append(theme_id)
+
+                    cursor.execute(
+                        f"UPDATE data_themes SET {', '.join(updates)} WHERE id = {placeholder}",
+                        params
+                    )
+
+            logger.info(f"更新数据主题成功: ID {theme_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"更新数据主题失败: {e}")
+            return False
+
+    def delete_theme(self, theme_id: int) -> bool:
+        """删除数据主题"""
+        try:
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
+                cursor = conn.cursor()
+                placeholder = self.db_manager.get_sql_placeholder(db_type)
+
+                cursor.execute(f"DELETE FROM data_themes WHERE id = {placeholder}", (theme_id,))
+
+            logger.info(f"删除数据主题成功: ID {theme_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"删除数据主题失败: {e}")
+            return False
+
+    def get_public_theme(self) -> Optional[Dict[str, Any]]:
+        """获取通用主题"""
+        try:
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, theme_name, theme_description, theme_type, department, created_at, updated_at
+                    FROM data_themes
+                    WHERE theme_type = 'public'
+                    LIMIT 1
+                """)
+                theme_data = cursor.fetchone()
+
+                if theme_data:
+                    theme_id, theme_name, theme_description, theme_type, department, created_at, updated_at = theme_data
+                    return {
+                        "id": theme_id,
+                        "theme_name": theme_name,
+                        "theme_description": theme_description or "",
+                        "theme_type": theme_type,
+                        "department": department or "",
+                        "created_at": created_at if created_at else "",
+                        "updated_at": updated_at if updated_at else ""
+                    }
+
+                return None
+
+        except Exception as e:
+            logger.error(f"获取通用主题失败: {e}")
+            return None
+
+    def get_theme_tables(self, theme_id: int) -> List[Dict[str, Any]]:
+        """获取主题下的表"""
+        try:
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
+                cursor = conn.cursor()
+                placeholder = self.db_manager.get_sql_placeholder(db_type)
+
+                cursor.execute(f"""
+                    SELECT t.id, t.name, t.comment, t.is_available, t.created_at, t.updated_at
+                    FROM metadata_tables t
+                    INNER JOIN theme_table_relations tr ON t.id = tr.table_id
+                    WHERE tr.theme_id = {placeholder}
+                    ORDER BY t.name
+                """, (theme_id,))
+                tables_data = cursor.fetchall()
+
+                tables = []
+                for table_id, table_name, table_comment, is_available, created_at, updated_at in tables_data:
+                    tables.append({
+                        "id": table_id,
+                        "name": table_name,
+                        "comment": table_comment or "",
+                        "is_available": int(is_available or 0),
+                        "created_at": created_at or "",
+                        "updated_at": updated_at or ""
+                    })
+
+                return tables
+
+        except Exception as e:
+            logger.error(f"获取主题表失败: {e}")
+            return []
+
+    def add_table_to_theme(self, theme_id: int, table_id: int) -> bool:
+        """添加表到主题"""
+        try:
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
+                cursor = conn.cursor()
+                placeholder = self.db_manager.get_sql_placeholder(db_type)
+
+                cursor.execute(f"""
+                    INSERT OR IGNORE INTO theme_table_relations (theme_id, table_id)
+                    VALUES ({placeholder}, {placeholder})
+                """, (theme_id, table_id))
+
+            logger.info(f"添加表到主题成功: 主题{theme_id}, 表{table_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"添加表到主题失败: {e}")
+            return False
+
+    def remove_table_from_theme(self, theme_id: int, table_id: int) -> bool:
+        """从主题中移除表"""
+        try:
+            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
+                cursor = conn.cursor()
+                placeholder = self.db_manager.get_sql_placeholder(db_type)
+
+                cursor.execute(f"""
+                    DELETE FROM theme_table_relations
+                    WHERE theme_id = {placeholder} AND table_id = {placeholder}
+                """, (theme_id, table_id))
+
+            logger.info(f"从主题中移除表成功: 主题{theme_id}, 表{table_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"从主题中移除表失败: {e}")
+            return False
+
+
 # 全局服务实例
 _metadata_service: Optional[MetadataService] = None
 _glossary_service: Optional[GlossaryService] = None
 _relation_field_config_service: Optional[RelationFieldConfigService] = None
 _prompt_template_service: Optional[PromptTemplateService] = None
+_data_theme_service: Optional[DataThemeService] = None
 
 def get_metadata_service() -> MetadataService:
     """获取元数据服务实例"""
@@ -859,3 +1129,10 @@ def get_prompt_template_service() -> PromptTemplateService:
     if _prompt_template_service is None:
         _prompt_template_service = PromptTemplateService()
     return _prompt_template_service
+
+def get_data_theme_service() -> DataThemeService:
+    """获取数据主题服务实例"""
+    global _data_theme_service
+    if _data_theme_service is None:
+        _data_theme_service = DataThemeService()
+    return _data_theme_service
