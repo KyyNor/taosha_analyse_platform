@@ -84,13 +84,13 @@ class MetadataService {
 
   // Create new column
   async createColumn(data: {
-    tableId: number
+    table_id: number
     name: string
     type: string
     comment: string
-    isAvailable: boolean
-    businessType: string
-    relationConfigId?: number
+    is_available: number
+    business_type: string
+    relation_config_id?: number
     sampleValues?: string[]
   }): Promise<ColumnMetadata> {
     return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.COLUMNS.CREATE), data)
@@ -101,9 +101,9 @@ class MetadataService {
     name?: string
     type?: string
     comment?: string
-    isAvailable?: boolean
-    businessType?: string
-    relationConfigId?: number
+    is_available?: number
+    business_type?: string
+    relation_config_id?: number
     sampleValues?: string[]
   }): Promise<ColumnMetadata> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.COLUMNS.UPDATE, { id })

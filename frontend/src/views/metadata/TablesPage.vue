@@ -681,13 +681,13 @@ const saveTableDetail = async () => {
     if (columns.value.length > 0) {
       for (const column of columns.value) {
         const columnData = {
-          tableId: tableId,
+          table_id: tableId,
           name: column.name,
           type: column.type,
           comment: column.comment,
-          isAvailable: column.isAvailable ? 0 : 1, // 转换为后端格式：0=启用，1=不启用
-          businessType: column.businessType,
-          relationConfigId: column.relationConfigId
+          is_available: column.isAvailable ? 0 : 1, // 转换为后端格式：0=启用，1=不启用
+          business_type: column.businessType,
+          relation_config_id: column.relationConfigId
         }
 
         if (typeof column.id === 'number' && column.id > 1000000) {
