@@ -108,18 +108,18 @@ class NL2SQLService:
                 # 默认模板（回退用）
                 default_template = """请结合生成的SQL查询，判断用户原始查询是否足够清晰，SQL是否准确反映了用户需求。
 
-用户原始查询: {user_input}
+用户原始查询: {{user_input}}
 
-生成的SQL查询: {sql_query}
+生成的SQL查询: {{sql_query}}
 
 可用的表结构:
-{table_info}
+{{table_info}}
 
 可用的术语:
-{glossary_info}
+{{glossary_info}}
 
 字段关联配置:
-{relation_config}
+{{relation_config}}
 
 请严格按照以下JSON格式返回结果，不要添加任何其他文字：
 {
@@ -140,18 +140,18 @@ class NL2SQLService:
                 # 默认模板（回退用）
                 default_template = """请判断以下用户查询是否足够清晰，可以转换为SQL查询。
 
-当前日期: {current_date}
+当前日期: {{current_date}}
 
-用户查询: {user_input}
+用户查询: {{user_input}}
 
 可用的表结构:
-{table_info}
+{{table_info}}
 
 可用的术语:
-{glossary_info}
+{{glossary_info}}
 
 字段关联配置:
-{relation_config}
+{{relation_config}}
 
 请严格按照以下JSON格式返回结果，不要添加任何其他文字：
 {
@@ -274,14 +274,14 @@ class NL2SQLService:
                 # 默认重试模板（回退用）
                 default_template = """之前的SQL执行失败，请生成一个新的SQL查询。
 
-原始用户查询: {user_input}
-当前日期: {current_date}
+原始用户查询: {{user_input}}
+当前日期: {{current_date}}
 
-之前失败的SQL: {previous_sql}
-错误信息: {error_message}
+之前失败的SQL: {{previous_sql}}
+错误信息: {{error_message}}
 
 可用的表结构:
-{table_info}
+{{table_info}}
 
 请基于错误信息生成一个新的SQL查询，避免相同的错误。
 
@@ -308,17 +308,17 @@ class NL2SQLService:
                 # 默认生成模板（回退用）
                 default_template = """请根据用户的自然语言查询生成对应的SQL语句。
 
-{user_input}
-当前日期: {current_date}
+{{user_input}}
+当前日期: {{current_date}}
 
-{error_info}
+{{error_info}}
 
 重要提示:
 1. 字段的存储类型和业务类型可能不同，数值比较时请使用CAST转换为业务类型
 2. 关联不同表的字段时，请根据关联配置进行适当转换
 3. 所有表都需要使用别名，从t1开始，t1、t2、t3依次递增
 4. 所有字段都需要使用完整引用，例如t1.cust_no，不允许只写字段名
-{tips}
+{{tips}}
 
 请生成标准的SQL查询语句。"""
 

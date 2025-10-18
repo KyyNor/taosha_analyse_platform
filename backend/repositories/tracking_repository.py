@@ -16,6 +16,30 @@ class NlQuerySessionRepository(BaseRepository[NlQuerySession]):
     def __init__(self):
         super().__init__(NlQuerySession)
 
+    def create(self, **kwargs) -> NlQuerySession:
+        """
+        创建新记录（重写以处理task_id作为主键）
+
+        Args:
+            **kwargs: 模型字段参数
+
+        Returns:
+            创建的模型实例
+        """
+        try:
+            with self.get_db_session() as db:
+                instance = self.model_class(**kwargs)
+                db.add(instance)
+                db.flush()  # 确保获取到主键值
+                db.refresh(instance)  # 刷新实例，获取数据库生成的值
+                # 将实例状态设置为持久化，避免会话关闭后访问出错
+                db.expunge(instance)  # 从会话中分离实例
+                logger.info(f"创建 {self.model_class.__name__} 记录成功: task_id={instance.task_id}")
+                return instance
+        except Exception as e:
+            logger.error(f"创建 {self.model_class.__name__} 记录失败: {e}")
+            raise
+
     def get_by_task_id(self, task_id: str) -> Optional[NlQuerySession]:
         """根据任务ID获取会话"""
         try:
@@ -121,20 +145,27 @@ class NlQuerySessionRepository(BaseRepository[NlQuerySession]):
             logger.error(f"搜索会话失败: {e}")
             raise
 
-    def update_status(self, task_id: str, status: str) -> bool:
-        """更新会话状态"""
+    def update_by_task_id(self, task_id: str, **kwargs) -> bool:
+        """根据task_id更新会话"""
         try:
             with self.get_db_session() as db:
                 session = db.query(NlQuerySession)\
                             .filter(NlQuerySession.task_id == task_id)\
                             .first()
                 if session:
-                    session.status = status
+                    for key, value in kwargs.items():
+                        if hasattr(session, key):
+                            setattr(session, key, value)
+                    logger.info(f"更新 {self.model_class.__name__} 记录成功: task_id={task_id}")
                     return True
                 return False
         except Exception as e:
-            logger.error(f"更新会话状态失败: {e}")
+            logger.error(f"更新会话失败: {e}")
             raise
+
+    def update_status(self, task_id: str, status: str) -> bool:
+        """更新会话状态"""
+        return self.update_by_task_id(task_id, status=status)
 
     def get_db_session(self):
         """获取数据库会话"""

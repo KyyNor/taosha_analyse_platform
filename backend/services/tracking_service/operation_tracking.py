@@ -94,6 +94,7 @@ class OperationTracker:
         # 获取或创建任务状态
         state = await self.cache.get(task_id)
         if not state:
+            logger.info("未从缓存中获取到任务进度")
             state = TaskState(
                 task_id=task_id,
                 user_input="",
@@ -108,7 +109,7 @@ class OperationTracker:
         state.current_step = step_name
         state.current_step_name = step_name
         state.progress = progress
-        logger.debug(f"更新任务 {task_id} 进度: {progress}%, 步骤: {step_name}")
+        logger.info(f"更新任务 {task_id} 进度: {progress}%, 步骤: {step_name}")
 
         if current_log:
             state.logs.append(current_log)
@@ -135,11 +136,12 @@ class OperationTracker:
         logger.info(f"{task_id} 更新任务进度，更新缓存")
         self.cache.set(task_id, state)
         logger.info(f"{task_id} 更新任务进度，更新缓存结束")
+        logger.info(state)
 
         # 写入数据库
         await self._write_to_db(state, write_step_log)
 
-    async def create_task(self, state: TaskState):
+    def create_task(self, state: TaskState):
         """创建新任务"""
 
         # 更新缓存
@@ -147,7 +149,7 @@ class OperationTracker:
         self.cache.set(state.task_id, state)
         logger.info(f"{state.task_id} 新建任务，更新缓存结束")
 
-        await self._write_session_to_db(state.task_id, state.operator)
+        self._write_session_to_db(state.task_id, state.operator)
 
     async def _write_to_db(self, state: TaskState, write_step_log: bool = True):
         """异步写入任务状态到数据库"""
@@ -177,8 +179,10 @@ class OperationTracker:
             # 检查会话是否存在
             existing_session = self.session_repo.get_by_task_id(state.task_id)
             if existing_session:
-                # 更新现有会话
-                self.session_repo.update(existing_session.id, **session_data)
+                # 更新现有会话（使用task_id而不是id）
+                # 从session_data中移除task_id，避免重复传递
+                update_data = {k: v for k, v in session_data.items() if k != 'task_id'}
+                self.session_repo.update_by_task_id(state.task_id, **update_data)
             else:
                 # 创建新会话
                 self.session_repo.create(**session_data)
@@ -217,9 +221,9 @@ class OperationTracker:
                 logger.debug(f"已写入步骤日志，任务ID: {state.task_id}")
             else:
                 if not write_step_log:
-                    logger.debug(f"任务 {state_id} 根据设置不写入步骤日志")
+                    logger.debug(f"任务 {state.task_id} 根据设置不写入步骤日志")
                 else:
-                    logger.debug(f"任务 {state_id} 没有日志需要写入")
+                    logger.debug(f"任务 {state.task_id} 没有日志需要写入")
 
             logger.debug(f"任务 {state.task_id} 状态已写入数据库")
 
