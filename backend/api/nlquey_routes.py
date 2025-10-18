@@ -4,13 +4,15 @@ API路由定义
 import asyncio
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
+from sqlalchemy.orm import Session
 
 from fastapi.encoders import jsonable_encoder
 
 from api.endpoint_models import QueryRequest
+from models.db_base import get_db
 from services.service_models import TaskState, BaseNodeLog
 from services.nlquery_service.async_query_service import get_async_query_service
-from services.tracking_service.operation_tracking import tracker
+from services.tracking_service.operation_tracking import tracker, OperationTracker
 from utils.logger import logger
 
 # 创建路由器
@@ -137,7 +139,8 @@ async def process_natural_language_query(request: QueryRequest):
 async def get_query_history(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页大小"),
-    status: str = Query(None, description="状态过滤")
+    status: str = Query(None, description="状态过滤"),
+    db: Session = Depends(get_db)
 ):
     """
     获取查询历史记录
@@ -146,8 +149,11 @@ async def get_query_history(
     try:
         logger.info(f"获取查询历史请求: page={page}, page_size={page_size}, status={status}")
 
+        # 创建新的tracker实例，传入db
+        request_tracker = OperationTracker(db)
+
         # 调用追踪服务获取历史记录
-        result = await tracker.get_query_history(
+        result = await request_tracker.get_query_history(
             page=page,
             page_size=page_size,
             status=status,
@@ -168,7 +174,7 @@ async def get_query_history(
 
 
 @router.get("/history/{task_id}")
-async def get_query_detail(task_id: str):
+async def get_query_detail(task_id: str, db: Session = Depends(get_db)):
     """
     获取查询详情
     返回List[BaseNodeLog]对象列表
@@ -176,8 +182,11 @@ async def get_query_detail(task_id: str):
     try:
         logger.info(f"获取查询详情请求: task_id={task_id}")
 
+        # 创建新的tracker实例，传入db
+        request_tracker = OperationTracker(db)
+
         # 调用追踪服务获取详情
-        result = await tracker.get_task_detail(task_id)
+        result = await request_tracker.get_task_detail(task_id)
 
         return result
 

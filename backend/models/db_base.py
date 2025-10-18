@@ -48,10 +48,19 @@ Base = declarative_base()
 
 # 数据库依赖项
 def get_db() -> Generator:
-    """获取数据库会话的依赖函数"""
+    """获取数据库会话的依赖函数（FastAPI依赖注入）
+
+    在请求结束时自动提交事务，如有异常则回滚。
+    这样所有API路由的数据修改都会被自动持久化。
+    """
     db = SessionLocal()
     try:
         yield db
+        db.commit()  # 请求成功时提交事务
+    except Exception:
+        db.rollback()  # 异常时回滚
+        logger.error(f"数据库事务回滚")
+        raise
     finally:
         db.close()
 
@@ -97,33 +106,3 @@ def reset_database():
     except Exception as e:
         logger.error(f"数据库重置失败: {e}")
         raise
-
-# 自动分离的会话上下文管理器
-@contextmanager
-def get_detached_session():
-    """获取自动分离的数据库会话
-
-    特点：
-    - 在会话关闭时自动expunge所有对象，避免DetachedInstanceError
-    - 返回的ORM对象可以在会话关闭后安全使用
-    - 无需手动调用db.expunge()
-
-    Usage:
-        with get_detached_session() as db:
-            result = db.query(User).filter_by(id=1).first()
-            # 会话关闭时自动分离所有对象
-            return result  # 安全可用
-    """
-    db = SessionLocal()
-    try:
-        yield db
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        logger.error(f"数据库事务失败: {e}")
-        raise
-    finally:
-        # 在会话关闭前自动分离所有对象
-        # 这样返回的ORM对象在会话外仍可安全使用
-        db.expunge_all()
-        db.close()
