@@ -49,10 +49,14 @@ async def add_table_metadata(request: TableMetadataRequest):
     """添加表元数据"""
     try:
         metadata_service = get_metadata_service()
-        success = metadata_service.add_table(request.name, request.comment, request.is_available)
-        if success:
-            # 重新加载元数据
-            return {"success": True, "message": f"表元数据已添加: {request.name}"}
+        created_table = metadata_service.add_table(request.name, request.comment, request.is_available)
+        if created_table:
+            # 返回创建的表对象
+            return {
+                "success": True,
+                "message": f"表元数据已添加: {request.name}",
+                "data": created_table
+            }
         else:
             raise HTTPException(status_code=400, detail="添加表元数据失败")
     except Exception as e:

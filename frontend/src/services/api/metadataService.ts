@@ -98,6 +98,7 @@ class MetadataService {
 
   // Update column
   async updateColumn(id: number, data: {
+    table_id?: number
     name?: string
     type?: string
     comment?: string

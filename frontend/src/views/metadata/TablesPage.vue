@@ -516,36 +516,8 @@ const openAddTable = () => {
   isDetailEditMode.value = true
   editingTable.value = null
 
-  // Add default columns for new table
-  columns.value = [
-    {
-      id: Date.now(),
-      name: 'id',
-      type: 'INTEGER',
-      comment: '主键ID',
-      businessType: 'identifier',
-      relationConfigId: null,
-      isAvailable: 0 // 0 代表启用
-    },
-    {
-      id: Date.now() + 1,
-      name: 'created_at',
-      type: 'TIMESTAMP',
-      comment: '创建时间',
-      businessType: 'time',
-      relationConfigId: null,
-      isAvailable: 0 // 0 代表启用
-    },
-    {
-      id: Date.now() + 2,
-      name: 'updated_at',
-      type: 'TIMESTAMP',
-      comment: '更新时间',
-      businessType: 'time',
-      relationConfigId: null,
-      isAvailable: 0 // 0 代表启用
-    }
-  ]
+  // Start with empty columns for new table
+  columns.value = []
 
   // Reset form
   Object.assign(tableForm, {
@@ -661,12 +633,12 @@ const saveTableDetail = async () => {
     let tableId: number
     if (isNewTable.value) {
       // Create new table
-      const newTable = await metadataService.createTable({
+      const response = await metadataService.createTable({
         name: tableForm.name,
         comment: tableForm.comment,
         isAvailable: true
       })
-      tableId = newTable.id
+      tableId = response.data.id  // 从data字段获取表ID
       success('表已创建')
     } else {
       // Update existing table
@@ -687,7 +659,7 @@ const saveTableDetail = async () => {
           comment: column.comment,
           is_available: column.isAvailable ? 0 : 1, // 转换为后端格式：0=启用，1=不启用
           business_type: column.businessType,
-          relation_config_id: column.relationConfigId
+          relation_config_id: column.relationConfigId || null
         }
 
         if (typeof column.id === 'number' && column.id > 1000000) {

@@ -43,10 +43,13 @@ class MetadataTableRepository(BaseRepository[MetadataTable]):
                            .filter(MetadataTable.id == table_id)\
                            .first()
                 if result:
-                    db.expunge(result)  # 从会话中分离表对象
-                    # 同时分离关联的列对象
-                    for column in result.columns:
-                        db.expunge(column)
+                    # 先分离关联的列对象
+                    if hasattr(result, 'columns') and result.columns:
+                        for column in result.columns:
+                            if column is not None:
+                                db.expunge(column)
+                    # 再分离表对象
+                    db.expunge(result)
                 return result
         except Exception as e:
             logger.error(f"获取表及其列信息失败: {e}")
@@ -61,10 +64,13 @@ class MetadataTableRepository(BaseRepository[MetadataTable]):
                             .all()
                 # 将所有对象从会话中分离，避免会话关闭后访问出错
                 for table in results:
+                    # 先分离关联的列对象
+                    if hasattr(table, 'columns') and table.columns:
+                        for column in table.columns:
+                            if column is not None:
+                                db.expunge(column)
+                    # 再分离表对象
                     db.expunge(table)
-                    # 同时分离关联的列对象
-                    for column in table.columns:
-                        db.expunge(column)
                 return results
         except Exception as e:
             logger.error(f"获取所有表及其列信息失败: {e}")

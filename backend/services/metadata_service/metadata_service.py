@@ -37,29 +37,40 @@ class MetadataService:
 
             tables = []
             for table in tables_with_columns:
+                # 在访问属性之前先获取所有需要的值，避免会话问题
+                table_id = table.id
+                table_name = table.name
+                table_comment = table.comment or ""
+                table_is_available = int(table.is_available or 0)
+                table_created_at = table.created_at.isoformat() if table.created_at else ""
+                table_updated_at = table.updated_at.isoformat() if table.updated_at else ""
+
+                # 获取列信息
+                columns_list = []
+                if hasattr(table, 'columns') and table.columns:
+                    for column in table.columns:
+                        if column is not None:
+                            column_dict = {
+                                "id": column.id,
+                                "name": column.name,
+                                "type": column.type,
+                                "comment": column.comment or "",
+                                "is_available": int(column.is_available or 0),
+                                "business_type": column.business_type or "",
+                                "relation_config_id": column.relation_config_id or ""
+                            }
+                            columns_list.append(column_dict)
+
                 # 转换为字典格式
                 table_dict = {
-                    "id": table.id,
-                    "name": table.name,
-                    "comment": table.comment or "",
-                    "is_available": int(table.is_available or 0),
-                    "created_at": table.created_at.isoformat() if table.created_at else "",
-                    "updated_at": table.updated_at.isoformat() if table.updated_at else "",
-                    "columns": []
+                    "id": table_id,
+                    "name": table_name,
+                    "comment": table_comment,
+                    "is_available": table_is_available,
+                    "created_at": table_created_at,
+                    "updated_at": table_updated_at,
+                    "columns": columns_list
                 }
-
-                # 添加列信息
-                for column in table.columns:
-                    column_dict = {
-                        "id": column.id,
-                        "name": column.name,
-                        "type": column.type,
-                        "comment": column.comment or "",
-                        "is_available": int(column.is_available or 0),
-                        "business_type": column.business_type or "",
-                        "relation_config_id": column.relation_config_id or ""
-                    }
-                    table_dict["columns"].append(column_dict)
 
                 tables.append(table_dict)
 
@@ -113,7 +124,7 @@ class MetadataService:
 
         return ddl_statements
 
-    def add_table(self, table_name: str, comment: str = "", is_available: int = 0) -> bool:
+    def add_table(self, table_name: str, comment: str = "", is_available: int = 0) -> Optional[Dict[str, Any]]:
         """添加表元数据"""
         try:
             table = self.table_repo.create(
@@ -124,12 +135,24 @@ class MetadataService:
 
             # 重新加载元数据
             self._load_metadata()
+
+            # 转换为字典格式返回
+            table_dict = {
+                "id": table.id,
+                "name": table.name,
+                "comment": table.comment or "",
+                "is_available": int(table.is_available or 0),
+                "created_at": table.created_at.isoformat() if table.created_at else "",
+                "updated_at": table.updated_at.isoformat() if table.updated_at else "",
+                "columns": []
+            }
+
             logger.info(f"添加表元数据成功: {table_name}")
-            return True
+            return table_dict
 
         except Exception as e:
             logger.error(f"添加表元数据失败: {e}")
-            return False
+            return None
 
     # 已废弃: 使用 update_table_by_id(table_id, comment, is_available) 替代
 
