@@ -1,5 +1,5 @@
 """
-操作追踪服务 - 简化版本，支持缓存和状态管理
+操作追踪服务 - SQLAlchemy Repository版本
 """
 
 import asyncio
@@ -8,7 +8,9 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 from cachetools import TTLCache
 from utils.logger import logger
-from utils.db_utils import get_database_manager
+from repositories import (
+    NlQuerySessionRepository, NlQueryStepRepository, UserFeedbackRepository
+)
 from services.service_models import TaskState, BaseNodeLog
 
 
@@ -67,7 +69,9 @@ class OperationTracker:
     """简化的操作追踪器"""
 
     def __init__(self):
-        self.db_manager = get_database_manager()
+        self.session_repo = NlQuerySessionRepository()
+        self.step_repo = NlQueryStepRepository()
+        self.feedback_repo = UserFeedbackRepository()
         self.cache = TaskCache()
 
     async def get_task_status(self, task_id: str) -> Optional[TaskState]:
@@ -135,7 +139,7 @@ class OperationTracker:
         # 写入数据库
         await self._write_to_db(state, write_step_log)
 
-    def create_task(self, state: TaskState):
+    async def create_task(self, state: TaskState):
         """创建新任务"""
 
         # 更新缓存
@@ -143,38 +147,42 @@ class OperationTracker:
         self.cache.set(state.task_id, state)
         logger.info(f"{state.task_id} 新建任务，更新缓存结束")
 
-        self._write_session_to_db(state.task_id, state.operator)
+        await self._write_session_to_db(state.task_id, state.operator)
 
     async def _write_to_db(self, state: TaskState, write_step_log: bool = True):
         """异步写入任务状态到数据库"""
         try:
             logger.debug(f"开始写入任务 {state.task_id} 到数据库，状态: {state.status}")
 
-            # 更新会话状态 - 使用UPSERT方式
-            self.db_manager.execute_query("""
-                INSERT OR REPLACE INTO nlquery_sessions
-                (task_id, user_input, operator, flow_type, status, current_step,
-                 progress, created_at, completed_at, sql_query, execution_result,
-                 clear_check_details, is_clear, error_message, retry_count, max_retries)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                state.task_id,
-                state.user_input,
-                state.operator,
-                state.flow_type,
-                state.status,
-                state.current_step,
-                state.progress,
-                state.created_at.strftime('%Y-%m-%d %H:%M:%S') if state.created_at else datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                state.completed_at.strftime('%Y-%m-%d %H:%M:%S') if state.completed_at else None,
-                state.sql_query,
-                json.dumps(state.execution_result) if state.execution_result else None,
-                json.dumps(state.clear_check_details) if state.clear_check_details else None,
-                int(state.is_clear),
-                state.error_message,
-                state.retry_count,
-                state.max_retries
-            ))
+            # 更新或创建会话状态
+            session_data = {
+                'task_id': state.task_id,
+                'user_input': state.user_input,
+                'operator': state.operator,
+                'flow_type': state.flow_type,
+                'status': state.status,
+                'current_step': state.current_step,
+                'progress': state.progress,
+                'created_at': state.created_at,
+                'completed_at': state.completed_at,
+                'sql_query': state.sql_query,
+                'execution_result': json.dumps(state.execution_result) if state.execution_result else None,
+                'clear_check_details': json.dumps(state.clear_check_details) if state.clear_check_details else None,
+                'is_clear': int(state.is_clear),
+                'error_message': state.error_message,
+                'retry_count': state.retry_count,
+                'max_retries': state.max_retries
+            }
+
+            # 检查会话是否存在
+            existing_session = self.session_repo.get_by_task_id(state.task_id)
+            if existing_session:
+                # 更新现有会话
+                self.session_repo.update(existing_session.id, **session_data)
+            else:
+                # 创建新会话
+                self.session_repo.create(**session_data)
+
             logger.debug(f"已更新会话状态，任务ID: {state.task_id}")
 
             # 写入步骤日志（只写入最新的一条，且根据 write_step_log 参数决定）
@@ -192,29 +200,26 @@ class OperationTracker:
 
                 logger.debug(f"准备写入步骤日志: step={latest_log.step}, success={latest_log.success}")
 
-                self.db_manager.execute_query("""
-                    INSERT INTO nlquery_steps
-                    (task_id, step, input_data, prompt, model_output, success, error,
-                     start_time, end_time, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    state.task_id,
-                    latest_log.step,
-                    latest_log.input_data,
-                    latest_log.prompt if hasattr(latest_log, 'prompt') else "",
-                    latest_log.model_output,
-                    int(latest_log.success),
-                    latest_log.error,
-                    latest_log.start_time.strftime('%Y-%m-%d %H:%M:%S') if latest_log.start_time else None,
-                    latest_log.end_time.strftime('%Y-%m-%d %H:%M:%S') if latest_log.end_time else None,
-                    datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                ))
+                step_data = {
+                    'task_id': state.task_id,
+                    'step': latest_log.step,
+                    'input_data': latest_log.input_data,
+                    'prompt': latest_log.prompt if hasattr(latest_log, 'prompt') else "",
+                    'model_output': latest_log.model_output,
+                    'success': int(latest_log.success),
+                    'error': latest_log.error,
+                    'start_time': latest_log.start_time,
+                    'end_time': latest_log.end_time,
+                    'created_at': datetime.now()
+                }
+
+                self.step_repo.create(**step_data)
                 logger.debug(f"已写入步骤日志，任务ID: {state.task_id}")
             else:
                 if not write_step_log:
-                    logger.debug(f"任务 {state.task_id} 根据设置不写入步骤日志")
+                    logger.debug(f"任务 {state_id} 根据设置不写入步骤日志")
                 else:
-                    logger.debug(f"任务 {state.task_id} 没有日志需要写入")
+                    logger.debug(f"任务 {state_id} 没有日志需要写入")
 
             logger.debug(f"任务 {state.task_id} 状态已写入数据库")
 
@@ -226,133 +231,89 @@ class OperationTracker:
     async def _write_session_to_db(self, task_id: str, operator: str = None):
         """异步写入会话记录到数据库"""
         try:
-            self.db_manager.execute_query("""
-                INSERT OR IGNORE INTO nlquery_sessions
-                (task_id, user_input, operator, flow_type, status, current_step,
-                 progress, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                task_id,
-                "",  # user_input 将在后续更新
-                operator,
-                "fast",  # 默认flow_type
-                "running",  # 默认status
-                "初始化",  # 默认current_step
-                0,  # 默认progress
-                datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            ))
+            session_data = {
+                'task_id': task_id,
+                'user_input': "",  # user_input 将在后续更新
+                'operator': operator,
+                'flow_type': "fast",  # 默认flow_type
+                'status': "running",  # 默认status
+                'current_step': "初始化",  # 默认current_step
+                'progress': 0,  # 默认progress
+                'created_at': datetime.now()
+            }
+
+            self.session_repo.create(**session_data)
         except Exception as e:
             logger.error(f"创建会话记录失败: {e}")
-
 
     async def get_query_history(self, page: int = 1, page_size: int = 20,
                                 status: str = None, operator: str = "api_user"):
         """获取查询历史记录"""
         try:
-            # 构建查询条件
-            where_conditions = ["operator = ?"]
-            params = [operator]
+            # 使用Repository的分页方法
+            result = self.session_repo.get_paginated_by_operator(
+                operator=operator,
+                page=page,
+                page_size=page_size,
+                status=status
+            )
 
-            if status:
-                where_conditions.append("status = ?")
-                params.append(status)
-
-            where_clause = " AND ".join(where_conditions)
-
-            # 查询总数
-            count_query = f"SELECT COUNT(*) as total FROM nlquery_sessions WHERE {where_clause}"
-            count_result = self.db_manager.execute_query(count_query, params, fetch="one", return_dict=False)
-            total = count_result[0] if count_result else 0
-
-            # 查询分页数据
-            offset = (page - 1) * page_size
-            query = f"""
-                SELECT
-                    task_id as id,
-                    user_input as query,
-                    status,
-                    created_at as created_at,
-                    completed_at as completed_at,
-                    sql_query as sql_query,
-                    execution_result as execution_result,
-                    error_message as error_message,
-                    operator as operator,
-                    flow_type as flow_type,
-                    current_step as current_step,
-                    progress as progress,
-                    is_clear as is_clear,
-                    retry_count as retry_count,
-                    max_retries as max_retries
-                FROM nlquery_sessions
-                WHERE {where_clause}
-                ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
-            """
-            params.extend([page_size, offset])
-
-            results = self.db_manager.execute_query(query, params, fetch="all")
-            
-            logger.info(f"操作人：{operator} 返回总条数：{total} 是否获取到分页结果：{results is None}")
-
-            # 转换数据为TaskState对象
+            # 转换为TaskState对象
             history_items = []
-            for result in results:
+            for session in result['items']:
                 try:
                     # 处理执行结果
                     execution_result = None
-                    if result.get('execution_result'):
+                    if session.execution_result:
                         try:
-                            execution_result = json.loads(result['execution_result']) if isinstance(result['execution_result'], str) else result['execution_result']
+                            execution_result = json.loads(session.execution_result) if isinstance(session.execution_result, str) else session.execution_result
                         except:
                             execution_result = []
 
                     # 创建TaskState对象
                     task_state = TaskState(
-                        task_id=result['id'],
-                        user_input=result['query'] or '',
-                        operator=result.get('operator'),
-                        flow_type=result.get('flow_type', 'fast'),
-                        status=result['status'],
-                        current_step=result.get('current_step', ''),
-                        progress=result.get('progress', 0),
-                        created_at=datetime.strptime(result['created_at'], '%Y-%m-%d %H:%M:%S') if result.get('created_at') else None,
-                        completed_at=datetime.strptime(result['completed_at'], '%Y-%m-%d %H:%M:%S') if result.get('completed_at') else None,
-                        sql_query=result.get('sql_query', ''),
+                        task_id=session.task_id,
+                        user_input=session.user_input or '',
+                        operator=session.operator,
+                        flow_type=session.flow_type or 'fast',
+                        status=session.status,
+                        current_step=session.current_step or '',
+                        progress=session.progress or 0,
+                        created_at=session.created_at,
+                        completed_at=session.completed_at,
+                        sql_query=session.sql_query or '',
                         execution_result=execution_result,
                         clear_check_details={},
-                        is_clear=bool(result.get('is_clear', 0)),
-                        error_message=result.get('error_message'),
-                        retry_count=result.get('retry_count', 0),
-                        max_retries=result.get('max_retries', 5),
+                        is_clear=bool(session.is_clear or 0),
+                        error_message=session.error_message,
+                        retry_count=session.retry_count or 0,
+                        max_retries=session.max_retries or 5,
                         logs=[],
                         current_step_log=None,
                         current_step_name=''
                     )
                     history_items.append(task_state)
                 except Exception as e:
-                    logger.error(f"转换TaskState对象失败: {e}, result: {result}")
+                    logger.error(f"转换TaskState对象失败: {e}, session: {session}")
                     # 如果转换失败，创建一个默认的TaskState
                     task_state = TaskState(
-                        task_id=result['id'],
-                        user_input=result['query'] or '',
-                        operator=result.get('operator'),
+                        task_id=session.task_id,
+                        user_input=session.user_input or '',
+                        operator=session.operator,
                         status='error',
                         error_message=f"数据转换失败: {str(e)}"
                     )
                     history_items.append(task_state)
 
-            # 构建分页信息
-            pagination = {
-                'page': page,
-                'pageSize': page_size,
-                'total': total,
-                'totalPages': (total + page_size - 1) // page_size
-            }
-
             return {
                 'success': True,
                 'data': history_items,
-                'pagination': pagination
+                'pagination': {
+                    'page': result['page'],
+                    'pageSize': result['page_size'],
+                    'total': result['total'],
+                    'totalPages': result['total_pages']
+                }
             }
 
         except Exception as e:
@@ -367,35 +328,22 @@ class OperationTracker:
     async def get_task_detail(self, task_id: str):
         """获取单个任务的步骤详情"""
         try:
-            # 只查询 nlquery_steps 表获取步骤日志
-            steps_query = """
-                SELECT step, input_data, prompt, model_output, success, error,
-                       start_time, end_time, created_at
-                FROM nlquery_steps
-                WHERE task_id = ?
-                ORDER BY created_at
-            """
-            steps = self.db_manager.execute_query(steps_query, [task_id], fetch="all")
+            # 获取步骤日志
+            steps = self.step_repo.get_by_task_id(task_id)
 
-            if not steps:
-                return {
-                    'success': True,
-                    'data': []
-                }
-
-            # 转换步骤为BaseNodeLog对象
+            # 转换为BaseNodeLog对象
             log_list = []
             for step in steps:
                 try:
                     node_log = BaseNodeLog(
-                        step=step['step'],
-                        input_data=step['input_data'] or '',
-                        prompt=step['prompt'] or '',
-                        model_output=step['model_output'] or '',
-                        success=bool(step['success']),
-                        error=step.get('error'),
-                        start_time=datetime.strptime(step['start_time'], '%Y-%m-%d %H:%M:%S') if step.get('start_time') else None,
-                        end_time=datetime.strptime(step['end_time'], '%Y-%m-%d %H:%M:%S') if step.get('end_time') else None
+                        step=step.step,
+                        input_data=step.input_data or '',
+                        prompt=step.prompt or '',
+                        model_output=step.model_output or '',
+                        success=bool(step.success),
+                        error=step.error,
+                        start_time=step.start_time,
+                        end_time=step.end_time
                     )
                     log_list.append(node_log)
                 except Exception as e:

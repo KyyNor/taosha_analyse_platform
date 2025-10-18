@@ -1,5 +1,5 @@
 """
-元数据和术语表管理服务
+元数据和术语表管理服务 - SQLAlchemy Repository版本
 """
 
 import json
@@ -8,97 +8,97 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import hashlib
 
-from utils.config import settings
-from utils.db_utils import get_database_manager
+from repositories import (
+    MetadataTableRepository, MetadataColumnRepository,
+    GlossaryTermRepository, PromptTemplateRepository,
+    RelationFieldConfigRepository, DataThemeRepository,
+    ThemeTableRelationRepository
+)
+from models.metadata_models import MetadataTable, MetadataColumn
+from models.glossary_models import GlossaryTerm, PromptTemplate
+from models.relation_models import RelationFieldConfig
+from models.theme_models import DataTheme, ThemeTableRelation
 
 
 class MetadataService:
     """元数据管理服务"""
-    
+
     def __init__(self):
-        self.db_manager = get_database_manager()
+        self.table_repo = MetadataTableRepository()
+        self.column_repo = MetadataColumnRepository()
         self._metadata = None
         self._metadata_hash = None
         self._load_metadata()
-    
+
     def _load_metadata(self) -> Dict[str, Any]:
         """从数据库加载元数据"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                
-                cursor.execute("SELECT id, name, comment, is_available, created_at, updated_at FROM metadata_tables ORDER BY name")
-                tables_data = cursor.fetchall()
+            tables_with_columns = self.table_repo.get_all_with_columns()
 
-                tables = []
-                for table_id, table_name, table_comment, is_available, created_at, updated_at in tables_data:
-                    placeholder = self.db_manager.get_sql_placeholder(db_type)
-                    cursor.execute(f"""
-                        SELECT name, type, comment, is_available, business_type, relation_id 
-                        FROM metadata_columns 
-                        WHERE table_name = {placeholder} 
-                        ORDER BY name
-                    """, (table_name,))
-                    columns_data = cursor.fetchall()
-                    
-                    columns = []
-                    for col_name, col_type, col_comment, col_is_available, business_type, relation_id in columns_data:
-                        columns.append({
-                            "name": col_name,
-                            "type": col_type,
-                            "comment": col_comment or "",
-                            "is_available": int(col_is_available or 0),
-                            "business_type": business_type or "",
-                            "relation_id": relation_id or ""
-                        })
-                    
-                    tables.append({
-                        "id": table_id,
-                        "name": table_name,
-                        "comment": table_comment or "",
-                        "is_available": int(is_available or 0),
-                        "created_at": created_at or "",
-                        "updated_at": updated_at or "",
-                        "columns": columns
-                    })
-                
-                self._metadata = {"tables": tables}
-                content_str = json.dumps(self._metadata, sort_keys=True, ensure_ascii=False)
-                self._metadata_hash = hashlib.md5(content_str.encode()).hexdigest()
-                
-                logger.info(f"元数据已从{db_type}数据库加载，共{len(tables)}张表")
-                
+            tables = []
+            for table in tables_with_columns:
+                # 转换为字典格式
+                table_dict = {
+                    "id": table.id,
+                    "name": table.name,
+                    "comment": table.comment or "",
+                    "is_available": int(table.is_available or 0),
+                    "created_at": table.created_at.isoformat() if table.created_at else "",
+                    "updated_at": table.updated_at.isoformat() if table.updated_at else "",
+                    "columns": []
+                }
+
+                # 添加列信息
+                for column in table.columns:
+                    column_dict = {
+                        "name": column.name,
+                        "type": column.type,
+                        "comment": column.comment or "",
+                        "is_available": int(column.is_available or 0),
+                        "business_type": column.business_type or "",
+                        "relation_config_id": column.relation_config_id or ""
+                    }
+                    table_dict["columns"].append(column_dict)
+
+                tables.append(table_dict)
+
+            self._metadata = {"tables": tables}
+            content_str = json.dumps(self._metadata, sort_keys=True, ensure_ascii=False)
+            self._metadata_hash = hashlib.md5(content_str.encode()).hexdigest()
+
+            logger.info(f"元数据已从数据库加载，共{len(tables)}张表")
+
         except Exception as e:
             logger.error(f"从数据库加载元数据失败: {e}")
             self._metadata = {"tables": []}
             self._metadata_hash = None
-    
+
     def get_metadata(self) -> Dict[str, Any]:
         """获取元数据"""
         return self._metadata or {"tables": []}
-    
+
     def get_tables(self) -> List[Dict[str, Any]]:
         """获取所有表信息"""
         return self.get_metadata().get("tables", [])
-    
+
     def get_table_info(self, table_name: str) -> Optional[Dict[str, Any]]:
         """获取指定表的信息"""
         for table in self.get_tables():
             if table.get("name") == table_name:
                 return table
         return None
-    
+
     def get_ddl_statements(self) -> List[str]:
         """生成建表语句"""
         ddl_statements = []
-        
+
         for table in self.get_tables():
             table_name = table.get("name")
             columns = table.get("columns", [])
-            
+
             if not table_name or not columns:
                 continue
-            
+
             # 构建建表语句
             column_definitions = []
             for col in columns:
@@ -106,398 +106,344 @@ class MetadataService:
                 if col.get('is_primary_key'):
                     col_def += " PRIMARY KEY"
                 column_definitions.append(col_def)
-            
+
             ddl = f"CREATE TABLE {table_name} (\n  " + ",\n  ".join(column_definitions) + "\n)"
             ddl_statements.append(ddl)
-        
+
         return ddl_statements
-    
+
     def add_table(self, table_name: str, comment: str = "", is_available: int = 0) -> bool:
         """添加表元数据"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-                
-                cursor.execute(
-                    f"INSERT INTO metadata_tables (name, comment, is_available) VALUES ({placeholder}, {placeholder}, {placeholder})",
-                    (table_name, comment, is_available)
-                )
-                
+            table = self.table_repo.create(
+                name=table_name,
+                comment=comment,
+                is_available=is_available
+            )
+
+            # 重新加载元数据
+            self._load_metadata()
             logger.info(f"添加表元数据成功: {table_name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"添加表元数据失败: {e}")
             return False
-    
+
     def update_table(self, table_name: str, comment: str = None, is_available: int = None) -> bool:
         """更新表元数据"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-                
-                updates = []
-                params = []
-                
-                if comment is not None:
-                    updates.append(f"comment = {placeholder}")
-                    params.append(comment)
-                if is_available is not None:
-                    updates.append(f"is_available = {placeholder}")
-                    params.append(is_available)
-                
-                updates.append(f"updated_at = {placeholder}")
-                params.append(datetime.now())
-                params.append(table_name)
-                
-                cursor.execute(
-                    f"UPDATE metadata_tables SET {', '.join(updates)} WHERE name = {placeholder}",
-                    params
-                )
-                
+            # 先找到表记录
+            table = self.table_repo.get_by_name(table_name)
+            if not table:
+                logger.error(f"表不存在: {table_name}")
+                return False
+
+            # 准备更新数据
+            update_data = {}
+            if comment is not None:
+                update_data['comment'] = comment
+            if is_available is not None:
+                update_data['is_available'] = is_available
+
+            if update_data:
+                self.table_repo.update(table.id, **update_data)
+                self._load_metadata()
+
             logger.info(f"更新表元数据成功: {table_name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"更新表元数据失败: {e}")
             return False
-    
+
     def delete_table(self, table_name: str) -> bool:
         """删除表元数据"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-                
-                cursor.execute(f"DELETE FROM metadata_tables WHERE name = {placeholder}", (table_name,))
-                
+            table = self.table_repo.get_by_name(table_name)
+            if not table:
+                logger.error(f"表不存在: {table_name}")
+                return False
+
+            self.table_repo.delete(table.id)
+            self._load_metadata()
+
             logger.info(f"删除表元数据成功: {table_name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"删除表元数据失败: {e}")
             return False
-    
-    def add_column(self, table_name: str, column_name: str, column_type: str, 
-                   comment: str = "", is_available: int = 0, business_type: str = "", relation_id: str = "") -> bool:
+
+    def add_column(self, table_name: str, column_name: str, column_type: str,
+                   comment: str = "", is_available: int = 0, business_type: str = "", relation_config_id: int = None) -> bool:
         """添加列元数据"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-                
-                cursor.execute(f"""
-                    INSERT INTO metadata_columns (table_name, name, type, comment, is_available, business_type, relation_id) 
-                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
-                """, (table_name, column_name, column_type, comment, is_available, business_type, relation_id))
-                
+            # 先找到表记录
+            table = self.table_repo.get_by_name(table_name)
+            if not table:
+                logger.error(f"表不存在: {table_name}")
+                return False
+
+            # 查找关联配置（如果有relation_config_id）
+            relation_config = None
+            if relation_config_id:
+                relation_config_repo = RelationFieldConfigRepository()
+                relation_config = relation_config_repo.get_by_id(relation_config_id)
+                if not relation_config:
+                    logger.warning(f"关联配置不存在: ID {relation_config_id}")
+                    relation_config_id = None
+
+            column = self.column_repo.create(
+                table_id=table.id,
+                name=column_name,
+                type=column_type,
+                comment=comment,
+                is_available=is_available,
+                business_type=business_type,
+                relation_config_id=relation_config_id
+            )
+
+            # 重新加载元数据
+            self._load_metadata()
             logger.info(f"添加列元数据成功: {table_name}.{column_name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"添加列元数据失败: {e}")
             return False
-    
+
     def update_column(self, table_name: str, column_name: str, column_type: str = None,
-                     comment: str = None, is_available: int = None, business_type: str = None, relation_id: str = None) -> bool:
+                     comment: str = None, is_available: int = None, business_type: str = None,
+                     relation_config_id: int = None) -> bool:
         """更新列元数据"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-                
-                updates = []
-                params = []
-                
-                if column_type is not None:
-                    updates.append(f"type = {placeholder}")
-                    params.append(column_type)
-                if comment is not None:
-                    updates.append(f"comment = {placeholder}")
-                    params.append(comment)
-                if is_available is not None:
-                    updates.append(f"is_available = {placeholder}")
-                    params.append(is_available)
-                if business_type is not None:
-                    updates.append(f"business_type = {placeholder}")
-                    params.append(business_type)
-                if relation_id is not None:
-                    updates.append(f"relation_id = {placeholder}")
-                    params.append(relation_id)
-                
-                updates.append(f"updated_at = {placeholder}")
-                params.append(datetime.now())
-                params.extend([table_name, column_name])
-                
-                cursor.execute(
-                    f"UPDATE metadata_columns SET {', '.join(updates)} WHERE table_name = {placeholder} AND name = {placeholder}",
-                    params
-                )
-                
+            # 先找到表记录
+            table = self.table_repo.get_by_name(table_name)
+            if not table:
+                logger.error(f"表不存在: {table_name}")
+                return False
+
+            # 找到列记录
+            column = self.column_repo.get_by_table_and_name(table.id, column_name)
+            if not column:
+                logger.error(f"列不存在: {table_name}.{column_name}")
+                return False
+
+            # 准备更新数据
+            update_data = {}
+            if column_type is not None:
+                update_data['type'] = column_type
+            if comment is not None:
+                update_data['comment'] = comment
+            if is_available is not None:
+                update_data['is_available'] = is_available
+            if business_type is not None:
+                update_data['business_type'] = business_type
+            if relation_config_id is not None:
+                update_data['relation_config_id'] = relation_config_id
+
+            if update_data:
+                self.column_repo.update(column.id, **update_data)
+                self._load_metadata()
+
             logger.info(f"更新列元数据成功: {table_name}.{column_name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"更新列元数据失败: {e}")
             return False
-    
+
     def delete_column(self, table_name: str, column_name: str) -> bool:
         """删除列元数据"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-                
-                cursor.execute(
-                    f"DELETE FROM metadata_columns WHERE table_name = {placeholder} AND name = {placeholder}",
-                    (table_name, column_name)
-                )
-                
+            # 先找到表记录
+            table = self.table_repo.get_by_name(table_name)
+            if not table:
+                logger.error(f"表不存在: {table_name}")
+                return False
+
+            # 找到列记录
+            column = self.column_repo.get_by_table_and_name(table.id, column_name)
+            if not column:
+                logger.error(f"列不存在: {table_name}.{column_name}")
+                return False
+
+            self.column_repo.delete(column.id)
+            self._load_metadata()
+
             logger.info(f"删除列元数据成功: {table_name}.{column_name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"删除列元数据失败: {e}")
             return False
-    
-    def _load_metadata_from_db(self) -> Dict[str, Any]:
-        """从数据库加载元数据（不更新实例状态）"""
-        with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-            cursor = conn.cursor()
-            
-            cursor.execute("SELECT id, name, comment, is_available, created_at, updated_at FROM metadata_tables ORDER BY name")
-            tables_data = cursor.fetchall()
 
-            tables = []
-            for table_id, table_name, table_comment, is_available, created_at, updated_at in tables_data:
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-                cursor.execute(f"""
-                    SELECT name, type, comment, is_available, business_type, relation_id 
-                    FROM metadata_columns 
-                    WHERE table_name = {placeholder} 
-                    ORDER BY name
-                """, (table_name,))
-                columns_data = cursor.fetchall()
-                
-                columns = []
-                for col_name, col_type, col_comment, col_is_available, business_type, relation_id in columns_data:
-                    columns.append({
-                        "name": col_name,
-                        "type": col_type,
-                        "comment": col_comment or "",
-                        "is_available": int(col_is_available or 0),
-                        "business_type": business_type or "",
-                        "relation_id": relation_id or ""
-                    })
-                
-                tables.append({
-                    "id": table_id,
-                    "name": table_name,
-                    "comment": table_comment or "",
-                    "is_available": int(is_available or 0),
-                    "created_at": created_at or "",
-                    "updated_at": updated_at or "",
-                    "columns": columns
-                })
-            
-            return {"tables": tables}
-    
     def get_available_tables(self) -> List[Dict[str, Any]]:
         """获取所有可用的表信息（is_available = 0）"""
         all_tables = self.get_tables()
         return [table for table in all_tables if table.get('is_available', 0) == 0]
 
+
 class RelationFieldConfigService:
     """关联字段配置管理服务"""
-    
+
     def __init__(self):
-        self.db_manager = get_database_manager()
-    
+        self.repo = RelationFieldConfigRepository()
+
     def get_all_relation_configs(self) -> List[Dict[str, Any]]:
         """获取所有关联字段配置"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT relation_id, relation_family, relation_subfamily, relation_desc
-                    FROM relation_field_config 
-                    ORDER BY relation_family, relation_subfamily
-                """)
-                configs_data = cursor.fetchall()
-                
-                configs = []
-                for relation_id, family, subfamily, desc in configs_data:
-                    configs.append({
-                        "relation_id": relation_id,
-                        "relation_family": family,
-                        "relation_subfamily": subfamily,
-                        "relation_desc": desc or ""
-                    })
-                
-                return configs
-                
+            configs = self.repo.get_all()
+            return [
+                {
+                    "id": config.id,
+                    "relation_id": config.relation_id,
+                    "relation_family": config.relation_family,
+                    "relation_subfamily": config.relation_subfamily,
+                    "relation_desc": config.relation_desc or ""
+                }
+                for config in configs
+            ]
         except Exception as e:
             logger.error(f"获取关联字段配置失败: {e}")
             return []
-    
+
     def add_relation_config(self, family: str, subfamily: str, desc: str = "") -> bool:
         """添加关联字段配置"""
         try:
-            relation_id = f"{family}|{subfamily}"
-            
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-                
-                cursor.execute(f"""
-                    INSERT INTO relation_field_config (relation_id, relation_family, relation_subfamily, relation_desc) 
-                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
-                """, (relation_id, family, subfamily, desc))
-                
-            logger.info(f"添加关联字段配置成功: {relation_id}")
+            config = self.repo.create(
+                relation_family=family,
+                relation_subfamily=subfamily,
+                relation_desc=desc
+            )
+
+            logger.info(f"添加关联字段配置成功: {family}|{subfamily}")
             return True
-            
+
         except Exception as e:
             logger.error(f"添加关联字段配置失败: {e}")
             return False
-    
+
     def update_relation_config(self, relation_id: str, family: str = None, subfamily: str = None, desc: str = None) -> bool:
         """更新关联字段配置"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-                
-                updates = []
-                params = []
-                
-                # 如果family或subfamily有变化，需要更新relation_id
-                new_relation_id = relation_id
-                if family is not None or subfamily is not None:
-                    # 获取当前的family和subfamily
-                    cursor.execute(
-                        f"SELECT relation_family, relation_subfamily FROM relation_field_config WHERE relation_id = {placeholder}",
-                        (relation_id,)
-                    )
-                    result = cursor.fetchone()
-                    if result:
-                        current_family, current_subfamily = result
-                        new_family = family if family is not None else current_family
-                        new_subfamily = subfamily if subfamily is not None else current_subfamily
-                        new_relation_id = f"{new_family}|{new_subfamily}"
-                        
-                        updates.append(f"relation_id = {placeholder}")
-                        params.append(new_relation_id)
-                        
-                        if family is not None:
-                            updates.append(f"relation_family = {placeholder}")
-                            params.append(family)
-                        if subfamily is not None:
-                            updates.append(f"relation_subfamily = {placeholder}")
-                            params.append(subfamily)
-                
-                if desc is not None:
-                    updates.append(f"relation_desc = {placeholder}")
-                    params.append(desc)
-                
-                if updates:
-                    params.append(relation_id)
-                    cursor.execute(
-                        f"UPDATE relation_field_config SET {', '.join(updates)} WHERE relation_id = {placeholder}",
-                        params
-                    )
-                
-            logger.info(f"更新关联字段配置成功: {relation_id} -> {new_relation_id}")
+            # 解析relation_id获取family和subfamily
+            parts = relation_id.split("|")
+            if len(parts) != 2:
+                logger.error(f"无效的relation_id格式: {relation_id}")
+                return False
+
+            current_family, current_subfamily = parts
+
+            # 查找现有配置
+            config = self.repo.get_by_family_subfamily(current_family, current_subfamily)
+            if not config:
+                logger.error(f"关联配置不存在: {relation_id}")
+                return False
+
+            # 准备更新数据
+            update_data = {}
+            if family is not None:
+                update_data['relation_family'] = family
+            if subfamily is not None:
+                update_data['relation_subfamily'] = subfamily
+            if desc is not None:
+                update_data['relation_desc'] = desc
+
+            if update_data:
+                self.repo.update(config.id, **update_data)
+
+            logger.info(f"更新关联字段配置成功: {relation_id}")
             return True
-            
+
         except Exception as e:
             logger.error(f"更新关联字段配置失败: {e}")
             return False
-    
+
     def delete_relation_config(self, relation_id: str) -> bool:
         """删除关联字段配置"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-                
-                cursor.execute(f"DELETE FROM relation_field_config WHERE relation_id = {placeholder}", (relation_id,))
-                
+            # 解析relation_id获取family和subfamily
+            parts = relation_id.split("|")
+            if len(parts) != 2:
+                logger.error(f"无效的relation_id格式: {relation_id}")
+                return False
+
+            family, subfamily = parts
+
+            # 查找现有配置
+            config = self.repo.get_by_family_subfamily(family, subfamily)
+            if not config:
+                logger.error(f"关联配置不存在: {relation_id}")
+                return False
+
+            self.repo.delete(config.id)
+
             logger.info(f"删除关联字段配置成功: {relation_id}")
             return True
-            
+
         except Exception as e:
             logger.error(f"删除关联字段配置失败: {e}")
             return False
-    
+
     def get_relation_ids(self) -> List[str]:
         """获取所有关联ID列表"""
-        configs = self.get_all_relation_configs()
-        return [config['relation_id'] for config in configs]
+        return self.repo.get_all_relation_ids()
+
 
 class GlossaryService:
     """术语表管理服务"""
-    
+
     def __init__(self):
-        self.db_manager = get_database_manager()
+        self.repo = GlossaryTermRepository()
         self._glossary = None
         self._glossary_hash = None
         self._load_glossary()
-    
+
     def _load_glossary(self) -> Dict[str, Any]:
         """从数据库加载术语表"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
+            terms = self.repo.get_all()
 
-                cursor.execute("""
-                    SELECT id, name, type, content, creator, created_at, updated_at
-                    FROM glossary_terms
-                    ORDER BY name
-                """)
-                terms_data = cursor.fetchall()
+            terms_list = []
+            for term in terms:
+                # 解析 JSON content
+                try:
+                    content_data = json.loads(term.content) if term.content else {}
+                except json.JSONDecodeError:
+                    content_data = {}
+                    logger.warning(f"术语 {term.name} 的 content 字段不是有效的 JSON 格式")
 
-                terms = []
-                for term_id, name, term_type, content, creator, created_at, updated_at in terms_data:
-                    # 解析 JSON content
-                    try:
-                        content_data = json.loads(content) if content else {}
-                    except json.JSONDecodeError:
-                        content_data = {}
-                        logger.warning(f"术语 {name} 的 content 字段不是有效的 JSON 格式")
+                terms_list.append({
+                    "id": term.id,
+                    "name": term.name,
+                    "type": term.type,
+                    "content": content_data,
+                    "creator": term.creator or "",
+                    "created_at": term.created_at.isoformat() if term.created_at else "",
+                    "updated_at": term.updated_at.isoformat() if term.updated_at else ""
+                })
 
-                    terms.append({
-                        "id": term_id,
-                        "name": name,
-                        "type": term_type,
-                        "content": content_data,
-                        "creator": creator or "",
-                        "created_at": created_at if created_at else "",
-                        "updated_at": updated_at if updated_at else ""
-                    })
+            self._glossary = {"terms": terms_list}
+            content_str = json.dumps(self._glossary, sort_keys=True, ensure_ascii=False)
+            self._glossary_hash = hashlib.md5(content_str.encode()).hexdigest()
 
-                self._glossary = {"terms": terms}
-                content_str = json.dumps(self._glossary, sort_keys=True, ensure_ascii=False)
-                self._glossary_hash = hashlib.md5(content_str.encode()).hexdigest()
-
-                logger.info(f"术语表已从{db_type}数据库加载，共{len(terms)}个术语")
+            logger.info(f"术语表已从数据库加载，共{len(terms_list)}个术语")
 
         except Exception as e:
             logger.error(f"从数据库加载术语表失败: {e}")
             self._glossary = {"terms": []}
             self._glossary_hash = None
-    
+
     def get_glossary(self) -> Dict[str, Any]:
         """获取术语表"""
         return self._glossary or {"terms": []}
-    
+
     def get_terms(self) -> List[Dict[str, Any]]:
         """获取所有术语"""
         return self.get_glossary().get("terms", [])
-    
+
     def find_term(self, query: str) -> Optional[Dict[str, Any]]:
         """根据查询找到匹配的术语"""
         query_lower = query.lower()
@@ -508,132 +454,79 @@ class GlossaryService:
                 return term
 
         return None
-    
+
     def get_terms_by_type(self, term_type: str) -> List[Dict[str, Any]]:
         """根据类型获取术语"""
         return [term for term in self.get_terms() if term.get("type") == term_type]
-    
+
     def add_term(self, name: str, term_type: str, content: Dict[str, Any], creator: str) -> bool:
         """添加术语"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
+            # 将 content 转换为 JSON 字符串
+            content_json = json.dumps(content, ensure_ascii=False)
 
-                # 将 content 转换为 JSON 字符串
-                content_json = json.dumps(content, ensure_ascii=False)
+            term = self.repo.create(
+                name=name,
+                type=term_type,
+                content=content_json,
+                creator=creator
+            )
 
-                cursor.execute(f"""
-                    INSERT INTO glossary_terms (name, type, content, creator)
-                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
-                """, (name, term_type, content_json, creator))
-
-            logger.info(f"添加术语成功: {name}")
             # 重新加载术语表
             self._load_glossary()
+            logger.info(f"添加术语成功: {name}")
             return True
 
         except Exception as e:
             logger.error(f"添加术语失败: {e}")
             return False
-    
+
     def update_term(self, term_id: int, name: str = None, term_type: str = None,
                    content: Dict[str, Any] = None) -> bool:
         """更新术语"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-                
-                updates = []
-                params = []
-                
-                if name is not None:
-                    updates.append(f"name = {placeholder}")
-                    params.append(name)
-                if term_type is not None:
-                    updates.append(f"type = {placeholder}")
-                    params.append(term_type)
-                if content is not None:
-                    updates.append(f"content = {placeholder}")
-                    content_json = json.dumps(content, ensure_ascii=False)
-                    params.append(content_json)
-                
-                updates.append(f"updated_at = {placeholder}")
-                params.append(datetime.now())
-                params.append(term_id)
-                
-                cursor.execute(
-                    f"UPDATE glossary_terms SET {', '.join(updates)} WHERE id = {placeholder}",
-                    params
-                )
-                
+            # 准备更新数据
+            update_data = {}
+            if name is not None:
+                update_data['name'] = name
+            if term_type is not None:
+                update_data['type'] = term_type
+            if content is not None:
+                content_json = json.dumps(content, ensure_ascii=False)
+                update_data['content'] = content_json
+
+            if update_data:
+                self.repo.update(term_id, **update_data)
+                # 重新加载术语表
+                self._load_glossary()
+
             logger.info(f"更新术语成功: ID {term_id}")
-            # 重新加载术语表
-            self._load_glossary()
             return True
-            
+
         except Exception as e:
             logger.error(f"更新术语失败: {e}")
             return False
-    
+
     def delete_term(self, term_id: int) -> bool:
         """删除术语"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-                
-                cursor.execute(f"DELETE FROM glossary_terms WHERE id = {placeholder}", (term_id,))
-                
-            logger.info(f"删除术语成功: ID {term_id}")
+            self.repo.delete(term_id)
             # 重新加载术语表
             self._load_glossary()
+
+            logger.info(f"删除术语成功: ID {term_id}")
             return True
-            
+
         except Exception as e:
             logger.error(f"删除术语失败: {e}")
             return False
-    
-    def _load_glossary_from_db(self) -> Dict[str, Any]:
-        """从数据库加载术语表（不更新实例状态）"""
-        with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-            cursor = conn.cursor()
-
-            cursor.execute("""
-                SELECT id, name, type, content, creator, created_at, updated_at
-                FROM glossary_terms
-                ORDER BY name
-            """)
-            terms_data = cursor.fetchall()
-
-            terms = []
-            for term_id, name, term_type, content, creator, created_at, updated_at in terms_data:
-                # 解析 JSON content
-                try:
-                    content_data = json.loads(content) if content else {}
-                except json.JSONDecodeError:
-                    content_data = {}
-                    logger.warning(f"术语 {name} 的 content 字段不是有效的 JSON 格式")
-
-                terms.append({
-                    "id": term_id,
-                    "name": name,
-                    "type": term_type,
-                    "content": content_data,
-                    "creator": creator or "",
-                    "created_at": created_at if created_at else "",
-                    "updated_at": updated_at if updated_at else ""
-                })
-
-            return {"terms": terms}
 
 
 class PromptTemplateService:
     """提示词模板管理服务"""
 
     def __init__(self):
-        self.db_manager = get_database_manager()
+        self.repo = PromptTemplateRepository()
         self._templates = None
         self._templates_hash = None
         self._load_templates()
@@ -641,39 +534,31 @@ class PromptTemplateService:
     def _load_templates(self) -> Dict[str, Any]:
         """从数据库加载提示词模板"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
+            templates = self.repo.get_all()
 
-                cursor.execute("""
-                    SELECT id, name, fields, template, created_at, updated_at
-                    FROM prompt_templates
-                    ORDER BY name
-                """)
-                templates_data = cursor.fetchall()
+            templates_list = []
+            for template in templates:
+                # 解析 JSON fields
+                try:
+                    fields_data = json.loads(template.fields) if template.fields else []
+                except json.JSONDecodeError:
+                    fields_data = []
+                    logger.warning(f"提示词模板 {template.name} 的 fields 字段不是有效的 JSON 格式")
 
-                templates = []
-                for template_id, name, fields, template, created_at, updated_at in templates_data:
-                    # 解析 JSON fields
-                    try:
-                        fields_data = json.loads(fields) if fields else []
-                    except json.JSONDecodeError:
-                        fields_data = []
-                        logger.warning(f"提示词模板 {name} 的 fields 字段不是有效的 JSON 格式")
+                templates_list.append({
+                    "id": template.id,
+                    "name": template.name,
+                    "fields": fields_data,
+                    "template": template.template or "",
+                    "created_at": template.created_at.isoformat() if template.created_at else "",
+                    "updated_at": template.updated_at.isoformat() if template.updated_at else ""
+                })
 
-                    templates.append({
-                        "id": template_id,
-                        "name": name,
-                        "fields": fields_data,
-                        "template": template or "",
-                        "created_at": created_at if created_at else "",
-                        "updated_at": updated_at if updated_at else ""
-                    })
+            self._templates = {"templates": templates_list}
+            content_str = json.dumps(self._templates, sort_keys=True, ensure_ascii=False)
+            self._templates_hash = hashlib.md5(content_str.encode()).hexdigest()
 
-                self._templates = {"templates": templates}
-                content_str = json.dumps(self._templates, sort_keys=True, ensure_ascii=False)
-                self._templates_hash = hashlib.md5(content_str.encode()).hexdigest()
-
-                logger.info(f"提示词模板已从{db_type}数据库加载，共{len(templates)}个模板")
+            logger.info(f"提示词模板已从数据库加载，共{len(templates_list)}个模板")
 
         except Exception as e:
             logger.error(f"从数据库加载提示词模板失败: {e}")
@@ -697,9 +582,9 @@ class PromptTemplateService:
 
     def get_template_by_name(self, name: str) -> Optional[Dict[str, Any]]:
         """根据名称获取提示词模板"""
-        for template in self.get_templates():
-            if template.get("name") == name:
-                return template
+        template = self.repo.get_by_name(name)
+        if template:
+            return self.get_template_by_id(template.id)
         return None
 
     def validate_template(self, fields: List[str], template: str) -> List[str]:
@@ -736,21 +621,18 @@ class PromptTemplateService:
                     logger.error(f"模板验证失败: {error}")
                 return False
 
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
+            # 将 fields 转换为 JSON 字符串
+            fields_json = json.dumps(fields, ensure_ascii=False)
 
-                # 将 fields 转换为 JSON 字符串
-                fields_json = json.dumps(fields, ensure_ascii=False)
+            template_obj = self.repo.create(
+                name=name,
+                fields=fields_json,
+                template=template
+            )
 
-                cursor.execute(f"""
-                    INSERT INTO prompt_templates (name, fields, template)
-                    VALUES ({placeholder}, {placeholder}, {placeholder})
-                """, (name, fields_json, template))
-
-            logger.info(f"添加提示词模板成功: {name}")
             # 重新加载模板
             self._load_templates()
+            logger.info(f"添加提示词模板成功: {name}")
             return True
 
         except Exception as e:
@@ -760,47 +642,33 @@ class PromptTemplateService:
     def update_template(self, template_id: int, name: str = None, template: str = None) -> bool:
         """更新提示词模板"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
+            # 获取当前模板信息
+            current_template = self.get_template_by_id(template_id)
+            if not current_template:
+                logger.error(f"模板不存在: ID {template_id}")
+                return False
 
-                # 获取当前模板信息
-                current_template = self.get_template_by_id(template_id)
-                if not current_template:
-                    logger.error(f"模板不存在: ID {template_id}")
+            # 准备更新数据
+            update_data = {}
+            if name is not None:
+                update_data['name'] = name
+
+            if template is not None:
+                # 验证模板（使用当前的字段列表）
+                errors = self.validate_template(current_template.get("fields", []), template)
+                if errors:
+                    for error in errors:
+                        logger.error(f"模板验证失败: {error}")
                     return False
 
-                updates = []
-                params = []
+                update_data['template'] = template
 
-                if name is not None:
-                    updates.append(f"name = {placeholder}")
-                    params.append(name)
-
-                if template is not None:
-                    # 验证模板（使用当前的字段列表）
-                    errors = self.validate_template(current_template.get("fields", []), template)
-                    if errors:
-                        for error in errors:
-                            logger.error(f"模板验证失败: {error}")
-                        return False
-
-                    updates.append(f"template = {placeholder}")
-                    params.append(template)
-
-                if updates:
-                    updates.append(f"updated_at = {placeholder}")
-                    params.append(datetime.now())
-                    params.append(template_id)
-
-                    cursor.execute(
-                        f"UPDATE prompt_templates SET {', '.join(updates)} WHERE id = {placeholder}",
-                        params
-                    )
+            if update_data:
+                self.repo.update(template_id, **update_data)
+                # 重新加载模板
+                self._load_templates()
 
             logger.info(f"更新提示词模板成功: ID {template_id}")
-            # 重新加载模板
-            self._load_templates()
             return True
 
         except Exception as e:
@@ -810,15 +678,11 @@ class PromptTemplateService:
     def delete_template(self, template_id: int) -> bool:
         """删除提示词模板"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-
-                cursor.execute(f"DELETE FROM prompt_templates WHERE id = {placeholder}", (template_id,))
-
-            logger.info(f"删除提示词模板成功: ID {template_id}")
+            self.repo.delete(template_id)
             # 重新加载模板
             self._load_templates()
+
+            logger.info(f"删除提示词模板成功: ID {template_id}")
             return True
 
         except Exception as e:
@@ -830,35 +694,26 @@ class DataThemeService:
     """数据主题管理服务"""
 
     def __init__(self):
-        self.db_manager = get_database_manager()
+        self.theme_repo = DataThemeRepository()
+        self.relation_repo = ThemeTableRelationRepository()
+        self.table_repo = MetadataTableRepository()
 
     def get_all_themes(self) -> List[Dict[str, Any]]:
         """获取所有数据主题"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-
-                cursor.execute("""
-                    SELECT id, theme_name, theme_description, theme_type, department, created_at, updated_at
-                    FROM data_themes
-                    ORDER BY theme_type, theme_name
-                """)
-                themes_data = cursor.fetchall()
-
-                themes = []
-                for theme_id, theme_name, theme_description, theme_type, department, created_at, updated_at in themes_data:
-                    themes.append({
-                        "id": theme_id,
-                        "theme_name": theme_name,
-                        "theme_description": theme_description or "",
-                        "theme_type": theme_type,
-                        "department": department or "",
-                        "created_at": created_at if created_at else "",
-                        "updated_at": updated_at if updated_at else ""
-                    })
-
-                return themes
-
+            themes = self.theme_repo.get_all()
+            return [
+                {
+                    "id": theme.id,
+                    "theme_name": theme.theme_name,
+                    "theme_description": theme.theme_description or "",
+                    "theme_type": theme.theme_type,
+                    "department": theme.department or "",
+                    "created_at": theme.created_at.isoformat() if theme.created_at else "",
+                    "updated_at": theme.updated_at.isoformat() if theme.updated_at else ""
+                }
+                for theme in themes
+            ]
         except Exception as e:
             logger.error(f"获取数据主题失败: {e}")
             return []
@@ -866,31 +721,29 @@ class DataThemeService:
     def get_theme_by_id(self, theme_id: int) -> Optional[Dict[str, Any]]:
         """根据ID获取数据主题"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
+            theme = self.theme_repo.get_by_id(theme_id)
+            if theme:
+                return {
+                    "id": theme.id,
+                    "theme_name": theme.theme_name,
+                    "theme_description": theme.theme_description or "",
+                    "theme_type": theme.theme_type,
+                    "department": theme.department or "",
+                    "created_at": theme.created_at.isoformat() if theme.created_at else "",
+                    "updated_at": theme.updated_at.isoformat() if theme.updated_at else ""
+                }
+            return None
+        except Exception as e:
+            logger.error(f"获取数据主题失败: {e}")
+            return None
 
-                cursor.execute(f"""
-                    SELECT id, theme_name, theme_description, theme_type, department, created_at, updated_at
-                    FROM data_themes
-                    WHERE id = {placeholder}
-                """, (theme_id,))
-                theme_data = cursor.fetchone()
-
-                if theme_data:
-                    theme_id, theme_name, theme_description, theme_type, department, created_at, updated_at = theme_data
-                    return {
-                        "id": theme_id,
-                        "theme_name": theme_name,
-                        "theme_description": theme_description or "",
-                        "theme_type": theme_type,
-                        "department": department or "",
-                        "created_at": created_at if created_at else "",
-                        "updated_at": updated_at if updated_at else ""
-                    }
-
-                return None
-
+    def get_theme_by_name(self, theme_name: str) -> Optional[Dict[str, Any]]:
+        """根据名称获取数据主题"""
+        try:
+            theme = self.theme_repo.get_by_name(theme_name)
+            if theme:
+                return self.get_theme_by_id(theme.id)
+            return None
         except Exception as e:
             logger.error(f"获取数据主题失败: {e}")
             return None
@@ -905,14 +758,12 @@ class DataThemeService:
                     logger.error("通用主题已存在，只能创建一个")
                     return False
 
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-
-                cursor.execute(f"""
-                    INSERT INTO data_themes (theme_name, theme_description, theme_type, department)
-                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
-                """, (theme_name, theme_description, theme_type, department))
+            theme = self.theme_repo.create(
+                theme_name=theme_name,
+                theme_description=theme_description,
+                theme_type=theme_type,
+                department=department
+            )
 
             logger.info(f"添加数据主题成功: {theme_name}")
             return True
@@ -925,48 +776,32 @@ class DataThemeService:
                      theme_type: str = None, department: str = None) -> bool:
         """更新数据主题"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
+            # 获取当前主题信息
+            current_theme = self.get_theme_by_id(theme_id)
+            if not current_theme:
+                logger.error(f"主题不存在: ID {theme_id}")
+                return False
 
-                # 获取当前主题信息
-                current_theme = self.get_theme_by_id(theme_id)
-                if not current_theme:
-                    logger.error(f"主题不存在: ID {theme_id}")
+            # 检查通用主题唯一性
+            if theme_type == "public" and current_theme.get("theme_type") != "public":
+                existing_public = self.get_public_theme()
+                if existing_public and existing_public.get("id") != theme_id:
+                    logger.error("通用主题已存在，只能创建一个")
                     return False
 
-                # 检查通用主题唯一性
-                if theme_type == "public" and current_theme.get("theme_type") != "public":
-                    existing_public = self.get_public_theme()
-                    if existing_public and existing_public.get("id") != theme_id:
-                        logger.error("通用主题已存在，只能创建一个")
-                        return False
+            # 准备更新数据
+            update_data = {}
+            if theme_name is not None:
+                update_data['theme_name'] = theme_name
+            if theme_description is not None:
+                update_data['theme_description'] = theme_description
+            if theme_type is not None:
+                update_data['theme_type'] = theme_type
+            if department is not None:
+                update_data['department'] = department
 
-                updates = []
-                params = []
-
-                if theme_name is not None:
-                    updates.append(f"theme_name = {placeholder}")
-                    params.append(theme_name)
-                if theme_description is not None:
-                    updates.append(f"theme_description = {placeholder}")
-                    params.append(theme_description)
-                if theme_type is not None:
-                    updates.append(f"theme_type = {placeholder}")
-                    params.append(theme_type)
-                if department is not None:
-                    updates.append(f"department = {placeholder}")
-                    params.append(department)
-
-                if updates:
-                    updates.append(f"updated_at = {placeholder}")
-                    params.append(datetime.now())
-                    params.append(theme_id)
-
-                    cursor.execute(
-                        f"UPDATE data_themes SET {', '.join(updates)} WHERE id = {placeholder}",
-                        params
-                    )
+            if update_data:
+                self.theme_repo.update(theme_id, **update_data)
 
             logger.info(f"更新数据主题成功: ID {theme_id}")
             return True
@@ -978,12 +813,7 @@ class DataThemeService:
     def delete_theme(self, theme_id: int) -> bool:
         """删除数据主题"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-
-                cursor.execute(f"DELETE FROM data_themes WHERE id = {placeholder}", (theme_id,))
-
+            self.theme_repo.delete(theme_id)
             logger.info(f"删除数据主题成功: ID {theme_id}")
             return True
 
@@ -994,31 +824,10 @@ class DataThemeService:
     def get_public_theme(self) -> Optional[Dict[str, Any]]:
         """获取通用主题"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-
-                cursor.execute("""
-                    SELECT id, theme_name, theme_description, theme_type, department, created_at, updated_at
-                    FROM data_themes
-                    WHERE theme_type = 'public'
-                    LIMIT 1
-                """)
-                theme_data = cursor.fetchone()
-
-                if theme_data:
-                    theme_id, theme_name, theme_description, theme_type, department, created_at, updated_at = theme_data
-                    return {
-                        "id": theme_id,
-                        "theme_name": theme_name,
-                        "theme_description": theme_description or "",
-                        "theme_type": theme_type,
-                        "department": department or "",
-                        "created_at": created_at if created_at else "",
-                        "updated_at": updated_at if updated_at else ""
-                    }
-
-                return None
-
+            theme = self.theme_repo.get_public_theme()
+            if theme:
+                return self.get_theme_by_id(theme.id)
+            return None
         except Exception as e:
             logger.error(f"获取通用主题失败: {e}")
             return None
@@ -1026,32 +835,22 @@ class DataThemeService:
     def get_theme_tables(self, theme_id: int) -> List[Dict[str, Any]]:
         """获取主题下的表"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
+            relations = self.relation_repo.get_by_theme_id(theme_id)
 
-                cursor.execute(f"""
-                    SELECT t.id, t.name, t.comment, t.is_available, t.created_at, t.updated_at
-                    FROM metadata_tables t
-                    INNER JOIN theme_table_relations tr ON t.id = tr.table_id
-                    WHERE tr.theme_id = {placeholder}
-                    ORDER BY t.name
-                """, (theme_id,))
-                tables_data = cursor.fetchall()
-
-                tables = []
-                for table_id, table_name, table_comment, is_available, created_at, updated_at in tables_data:
+            tables = []
+            for relation in relations:
+                table = self.table_repo.get_by_id(relation.table_id)
+                if table:
                     tables.append({
-                        "id": table_id,
-                        "name": table_name,
-                        "comment": table_comment or "",
-                        "is_available": int(is_available or 0),
-                        "created_at": created_at or "",
-                        "updated_at": updated_at or ""
+                        "id": table.id,
+                        "name": table.name,
+                        "comment": table.comment or "",
+                        "is_available": int(table.is_available or 0),
+                        "created_at": table.created_at.isoformat() if table.created_at else "",
+                        "updated_at": table.updated_at.isoformat() if table.updated_at else ""
                     })
 
-                return tables
-
+            return tables
         except Exception as e:
             logger.error(f"获取主题表失败: {e}")
             return []
@@ -1059,15 +858,19 @@ class DataThemeService:
     def add_table_to_theme(self, theme_id: int, table_id: int) -> bool:
         """添加表到主题"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
+            # 检查表是否存在
+            table = self.table_repo.get_by_id(table_id)
+            if not table:
+                logger.error(f"表不存在: ID {table_id}")
+                return False
 
-                cursor.execute(f"""
-                    INSERT OR IGNORE INTO theme_table_relations (theme_id, table_id)
-                    VALUES ({placeholder}, {placeholder})
-                """, (theme_id, table_id))
+            # 检查关联是否已存在
+            existing_relation = self.relation_repo.get_relation(theme_id, table_id)
+            if existing_relation:
+                logger.info(f"表已存在于主题中: 主题{theme_id}, 表{table_id}")
+                return True
 
+            self.relation_repo.add_table_to_theme(theme_id, table_id)
             logger.info(f"添加表到主题成功: 主题{theme_id}, 表{table_id}")
             return True
 
@@ -1078,17 +881,10 @@ class DataThemeService:
     def remove_table_from_theme(self, theme_id: int, table_id: int) -> bool:
         """从主题中移除表"""
         try:
-            with self.db_manager.get_taosha_db_connection() as (conn, db_type):
-                cursor = conn.cursor()
-                placeholder = self.db_manager.get_sql_placeholder(db_type)
-
-                cursor.execute(f"""
-                    DELETE FROM theme_table_relations
-                    WHERE theme_id = {placeholder} AND table_id = {placeholder}
-                """, (theme_id, table_id))
-
-            logger.info(f"从主题中移除表成功: 主题{theme_id}, 表{table_id}")
-            return True
+            success = self.relation_repo.remove_table_from_theme(theme_id, table_id)
+            if success:
+                logger.info(f"从主题中移除表成功: 主题{theme_id}, 表{table_id}")
+            return success
 
         except Exception as e:
             logger.error(f"从主题中移除表失败: {e}")

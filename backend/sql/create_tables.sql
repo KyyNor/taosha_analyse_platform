@@ -15,17 +15,18 @@ CREATE TABLE IF NOT EXISTS metadata_tables (
 
 CREATE TABLE IF NOT EXISTS metadata_columns (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    table_name TEXT NOT NULL,
+    table_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     type TEXT NOT NULL,
     comment TEXT,
     is_available INTEGER DEFAULT 0,
     business_type TEXT DEFAULT '',
-    relation_id TEXT DEFAULT '',
+    relation_config_id INTEGER DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (table_name) REFERENCES metadata_tables(name) ON DELETE CASCADE,
-    UNIQUE(table_name, name)
+    FOREIGN KEY (table_id) REFERENCES metadata_tables(id) ON DELETE CASCADE,
+    FOREIGN KEY (relation_config_id) REFERENCES relation_field_config(id) ON DELETE SET NULL,
+    UNIQUE(table_id, name)
 );
 
 -- ==================== 术语表 ====================
@@ -55,12 +56,12 @@ CREATE TABLE IF NOT EXISTS prompt_templates (
 
 CREATE TABLE IF NOT EXISTS relation_field_config (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    relation_id TEXT UNIQUE NOT NULL,
     relation_family TEXT NOT NULL,
     relation_subfamily TEXT NOT NULL,
     relation_desc TEXT DEFAULT '',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(relation_family, relation_subfamily)
 );
 
 -- ==================== 数据主题表 ====================
@@ -158,12 +159,11 @@ CREATE INDEX IF NOT EXISTS idx_prompt_templates_name ON prompt_templates(name);
 
 -- 元数据表相关索引
 CREATE INDEX IF NOT EXISTS idx_metadata_tables_name ON metadata_tables(name);
-CREATE INDEX IF NOT EXISTS idx_metadata_columns_table_name ON metadata_columns(table_name);
-CREATE INDEX IF NOT EXISTS idx_metadata_columns_table_name_name ON metadata_columns(table_name, name);
-CREATE INDEX IF NOT EXISTS idx_metadata_columns_relation_id ON metadata_columns(relation_id);
+CREATE INDEX IF NOT EXISTS idx_metadata_columns_table_id ON metadata_columns(table_id);
+CREATE INDEX IF NOT EXISTS idx_metadata_columns_table_id_name ON metadata_columns(table_id, name);
+CREATE INDEX IF NOT EXISTS idx_metadata_columns_relation_config_id ON metadata_columns(relation_config_id);
 
 -- 关联字段配置索引
-CREATE INDEX IF NOT EXISTS idx_relation_field_config_relation_id ON relation_field_config(relation_id);
 CREATE INDEX IF NOT EXISTS idx_relation_field_config_family ON relation_field_config(relation_family, relation_subfamily);
 
 -- 数据主题相关索引
