@@ -25,7 +25,7 @@ class TableMetadataUpdate(BaseModel):
 
 
 class ColumnMetadataRequest(BaseModel):
-    table_name: str
+    table_id: int
     name: str
     type: str
     comment: str = ""
@@ -35,6 +35,7 @@ class ColumnMetadataRequest(BaseModel):
 
 
 class ColumnMetadataUpdate(BaseModel):
+    name: Optional[str] = None
     type: Optional[str] = None
     comment: Optional[str] = None
     is_available: Optional[int] = None

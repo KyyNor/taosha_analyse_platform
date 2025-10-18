@@ -98,8 +98,36 @@ async def add_column_metadata(request: ColumnMetadataRequest):
     """添加列元数据"""
     try:
         metadata_service = get_metadata_service()
-        success = metadata_service.add_column(
-            request.table_name,  # 向后兼容，内部会转换为table_id
+        created_column = metadata_service.add_column_by_id(
+            request.table_id,
+            request.name,
+            request.type,
+            request.comment,
+            request.is_available,
+            request.business_type,
+            request.relation_config_id
+        )
+        if created_column:
+            # 重新加载元数据
+            return {
+                "success": True,
+                "message": f"列元数据已添加: 表ID {request.table_id}.{request.name}",
+                "data": created_column
+            }
+        else:
+            raise HTTPException(status_code=400, detail="添加列元数据失败")
+    except Exception as e:
+        logger.error(f"添加列元数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/columns/{column_id}")
+async def update_column_metadata(column_id: int, request: ColumnMetadataUpdate):
+    """更新列元数据"""
+    try:
+        metadata_service = get_metadata_service()
+        success = metadata_service.update_column_by_id(
+            column_id,
             request.name,
             request.type,
             request.comment,
@@ -109,31 +137,7 @@ async def add_column_metadata(request: ColumnMetadataRequest):
         )
         if success:
             # 重新加载元数据
-            return {"success": True, "message": f"列元数据已添加: {request.table_name}.{request.name}"}
-        else:
-            raise HTTPException(status_code=400, detail="添加列元数据失败")
-    except Exception as e:
-        logger.error(f"添加列元数据失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.put("/columns/{table_id}/{column_name}")
-async def update_column_metadata(table_id: int, column_name: str, request: ColumnMetadataUpdate):
-    """更新列元数据"""
-    try:
-        metadata_service = get_metadata_service()
-        success = metadata_service.update_column_by_table_id(
-            table_id,
-            column_name,
-            request.type,
-            request.comment,
-            request.is_available,
-            request.business_type,
-            request.relation_config_id  # 更新字段名
-        )
-        if success:
-            # 重新加载元数据
-            return {"success": True, "message": f"列元数据已更新: 表ID {table_id}.{column_name}"}
+            return {"success": True, "message": f"列元数据已更新: ID {column_id}"}
         else:
             raise HTTPException(status_code=400, detail="更新列元数据失败")
     except Exception as e:
@@ -141,15 +145,15 @@ async def update_column_metadata(table_id: int, column_name: str, request: Colum
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/columns/{table_id}/{column_name}")
-async def delete_column_metadata(table_id: int, column_name: str):
+@router.delete("/columns/{column_id}")
+async def delete_column_metadata(column_id: int):
     """删除列元数据"""
     try:
         metadata_service = get_metadata_service()
-        success = metadata_service.delete_column_by_table_id(table_id, column_name)
+        success = metadata_service.delete_column_by_id(column_id)
         if success:
             # 重新加载元数据
-            return {"success": True, "message": f"列元数据已删除: 表ID {table_id}.{column_name}"}
+            return {"success": True, "message": f"列元数据已删除: ID {column_id}"}
         else:
             raise HTTPException(status_code=400, detail="删除列元数据失败")
     except Exception as e:

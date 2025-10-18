@@ -84,13 +84,13 @@ class MetadataService {
 
   // Create new column
   async createColumn(data: {
-    tableName: string
+    tableId: number
     name: string
     type: string
     comment: string
     isAvailable: boolean
     businessType: string
-    relationId?: string
+    relationConfigId?: number
     sampleValues?: string[]
   }): Promise<ColumnMetadata> {
     return await api.post(buildApiUrl(API_ENDPOINTS.METADATA.COLUMNS.CREATE), data)
@@ -98,11 +98,12 @@ class MetadataService {
 
   // Update column
   async updateColumn(id: number, data: {
+    name?: string
     type?: string
     comment?: string
     isAvailable?: boolean
     businessType?: string
-    relationId?: string
+    relationConfigId?: number
     sampleValues?: string[]
   }): Promise<ColumnMetadata> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.COLUMNS.UPDATE, { id })
@@ -180,7 +181,7 @@ class MetadataService {
   }
 
   // Update relation config
-  async updateRelationConfig(id: string, data: {
+  async updateRelationConfig(id: number, data: {
     relation_family?: string
     relation_subfamily?: string
     relation_desc?: string
@@ -190,7 +191,7 @@ class MetadataService {
   }
 
   // Delete relation config
-  async deleteRelationConfig(id: string): Promise<void> {
+  async deleteRelationConfig(id: number): Promise<void> {
     const url = replaceUrlParams(API_ENDPOINTS.METADATA.RELATIONS.DELETE, { id })
     return await api.delete(buildApiUrl(url))
   }

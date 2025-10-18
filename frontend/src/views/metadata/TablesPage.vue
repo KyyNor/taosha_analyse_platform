@@ -323,7 +323,7 @@
                     <td>
                       <select
                         v-if="isDetailEditMode || isNewTable"
-                        v-model="column.relationId"
+                        v-model="column.relationConfigId"
                         class="select select-bordered select-xs w-full"
                       >
                         <option value="">
@@ -331,17 +331,17 @@
                         </option>
                         <option
                           v-for="relation in availableRelations"
-                          :key="relation.relation_id"
-                          :value="relation.relation_id"
+                          :key="relation.id"
+                          :value="relation.id"
                         >
-                          {{ relation.relation_id }} ({{ relation.relation_desc || '无描述' }})
+                          {{ relation.id }} ({{ relation.relation_desc || '无描述' }})
                         </option>
                       </select>
                       <span
                         v-else
                         class="block"
                       >
-                        {{ column.relationId || '-' }}
+                        {{ column.relationConfigId || '-' }}
                       </span>
                     </td>
                     <td>
@@ -524,7 +524,7 @@ const openAddTable = () => {
       type: 'INTEGER',
       comment: '主键ID',
       businessType: 'identifier',
-      relationId: '',
+      relationConfigId: null,
       isAvailable: 0 // 0 代表启用
     },
     {
@@ -533,7 +533,7 @@ const openAddTable = () => {
       type: 'TIMESTAMP',
       comment: '创建时间',
       businessType: 'time',
-      relationId: '',
+      relationConfigId: null,
       isAvailable: 0 // 0 代表启用
     },
     {
@@ -542,7 +542,7 @@ const openAddTable = () => {
       type: 'TIMESTAMP',
       comment: '更新时间',
       businessType: 'time',
-      relationId: '',
+      relationConfigId: null,
       isAvailable: 0 // 0 代表启用
     }
   ]
@@ -615,12 +615,12 @@ const loadColumns = async (table?: any) => {
     if (currentTable && (currentTable as any).columns) {
       // Transform API response to match our component format
       columns.value = (currentTable as any).columns.map((column: any, index: number) => ({
-        id: index + 1, // Generate temporary ID
+        id: column.id || index + 1, // Use real column ID if available
         name: column.name,
         type: column.type,
         comment: column.comment,
         businessType: column.business_type,
-        relationId: column.relation_id,
+        relationConfigId: column.relation_config_id,
         isAvailable: column.is_available === undefined ? true : column.is_available === 0
       }))
     } else {
@@ -639,7 +639,7 @@ const addNewColumn = () => {
     type: 'VARCHAR',
     comment: '',
     businessType: '',
-    relationId: '',
+    relationConfigId: null,
     isAvailable: 0 // 0 代表启用
   }
   columns.value.push(newColumn)
@@ -658,29 +658,46 @@ const saveTableDetail = async () => {
   try {
     saving.value = true
 
+    let tableId: number
     if (isNewTable.value) {
       // Create new table
-      await metadataService.createTable({
+      const newTable = await metadataService.createTable({
         name: tableForm.name,
         comment: tableForm.comment,
         isAvailable: true
       })
+      tableId = newTable.id
       success('表已创建')
     } else {
       // Update existing table
       await metadataService.updateTable(editingTable.value.id, {
         comment: tableForm.comment
       })
+      tableId = editingTable.value.id
       success('表已更新')
     }
 
-    // Save columns (convert isAvailable values to backend format)
+    // Save columns using new API
     if (columns.value.length > 0) {
-      const columnsData = columns.value.map(column => ({
-        ...column,
-        is_available: column.isAvailable ? 0 : 1 // 转换为后端格式：0=启用，1=不启用
-      }))
-      // In real implementation, call metadataService.saveColumns(columnsData)
+      for (const column of columns.value) {
+        const columnData = {
+          tableId: tableId,
+          name: column.name,
+          type: column.type,
+          comment: column.comment,
+          isAvailable: column.isAvailable ? 0 : 1, // 转换为后端格式：0=启用，1=不启用
+          businessType: column.businessType,
+          relationConfigId: column.relationConfigId
+        }
+
+        if (typeof column.id === 'number' && column.id > 1000000) {
+          // New column (temporary ID), create it
+          await metadataService.createColumn(columnData)
+        } else if (typeof column.id === 'number') {
+          // Existing column, update it
+          await metadataService.updateColumn(column.id, columnData)
+        }
+      }
       success('字段配置已保存')
     }
 

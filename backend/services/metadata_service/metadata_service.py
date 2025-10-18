@@ -51,6 +51,7 @@ class MetadataService:
                 # 添加列信息
                 for column in table.columns:
                     column_dict = {
+                        "id": column.id,
                         "name": column.name,
                         "type": column.type,
                         "comment": column.comment or "",
@@ -168,18 +169,17 @@ class MetadataService:
             logger.error(f"删除表元数据失败: {e}")
             return False
 
-    def add_column(self, table_name: str, column_name: str, column_type: str,
-                   comment: str = "", is_available: int = 0, business_type: str = "", relation_config_id: int = None) -> bool:
-        """添加列元数据（向后兼容，按表名）"""
+    def add_column_by_id(self, table_id: int, column_name: str, column_type: str,
+                          comment: str = "", is_available: int = 0, business_type: str = "", relation_config_id: int = None) -> Optional[Dict[str, Any]]:
+        """添加列元数据（按表ID）"""
         try:
-            # 先找到表记录
-            table = self.table_repo.get_by_name(table_name)
+            # 检查表是否存在
+            table = self.table_repo.get_by_id(table_id)
             if not table:
-                logger.error(f"表不存在: {table_name}")
-                return False
+                logger.error(f"表不存在: ID {table_id}")
+                return None
 
             # 查找关联配置（如果有relation_config_id）
-            relation_config = None
             if relation_config_id:
                 relation_config_repo = RelationFieldConfigRepository()
                 relation_config = relation_config_repo.get_by_id(relation_config_id)
@@ -188,7 +188,7 @@ class MetadataService:
                     relation_config_id = None
 
             column = self.column_repo.create(
-                table_id=table.id,
+                table_id=table_id,
                 name=column_name,
                 type=column_type,
                 comment=comment,
@@ -199,8 +199,41 @@ class MetadataService:
 
             # 重新加载元数据
             self._load_metadata()
-            logger.info(f"添加列元数据成功: {table_name}.{column_name}")
-            return True
+
+            # 转换为字典格式返回
+            column_dict = {
+                "id": column.id,
+                "table_id": column.table_id,
+                "name": column.name,
+                "type": column.type,
+                "comment": column.comment or "",
+                "is_available": int(column.is_available or 0),
+                "business_type": column.business_type or "",
+                "relation_config_id": column.relation_config_id
+            }
+
+            logger.info(f"添加列元数据成功: 表ID {table_id}.{column_name}")
+            return column_dict
+
+        except Exception as e:
+            logger.error(f"添加列元数据失败: {e}")
+            return None
+
+    def add_column(self, table_name: str, column_name: str, column_type: str,
+                   comment: str = "", is_available: int = 0, business_type: str = "", relation_config_id: int = None) -> bool:
+        """添加列元数据（向后兼容，按表名）"""
+        try:
+            # 先找到表记录
+            table = self.table_repo.get_by_name(table_name)
+            if not table:
+                logger.error(f"表不存在: {table_name}")
+                return False
+
+            result = self.add_column_by_id(
+                table.id, column_name, column_type, comment,
+                is_available, business_type, relation_config_id
+            )
+            return result is not True
 
         except Exception as e:
             logger.error(f"添加列元数据失败: {e}")
@@ -241,6 +274,50 @@ class MetadataService:
 
         except Exception as e:
             logger.error(f"更新列元数据失败: {e}")
+            return False
+
+    def update_column_by_id(self, column_id: int, name: str = None, column_type: str = None,
+                           comment: str = None, is_available: int = None, business_type: str = None,
+                           relation_config_id: int = None) -> bool:
+        """更新列元数据（按列ID）"""
+        try:
+            # 准备更新数据
+            update_data = {}
+            if name is not None:
+                update_data['name'] = name
+            if column_type is not None:
+                update_data['type'] = column_type
+            if comment is not None:
+                update_data['comment'] = comment
+            if is_available is not None:
+                update_data['is_available'] = is_available
+            if business_type is not None:
+                update_data['business_type'] = business_type
+            if relation_config_id is not None:
+                update_data['relation_config_id'] = relation_config_id
+
+            if update_data:
+                self.column_repo.update(column_id, **update_data)
+                self._load_metadata()
+
+            logger.info(f"更新列元数据成功: ID {column_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"更新列元数据失败: {e}")
+            return False
+
+    def delete_column_by_id(self, column_id: int) -> bool:
+        """删除列元数据（按列ID）"""
+        try:
+            self.column_repo.delete(column_id)
+            self._load_metadata()
+
+            logger.info(f"删除列元数据成功: ID {column_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"删除列元数据失败: {e}")
             return False
 
     # 已废弃: 使用 delete_column_by_table_id(table_id, column_name) 替代
