@@ -7,6 +7,7 @@ import json
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from cachetools import TTLCache
+from sqlalchemy.orm import Session
 from utils.logger import logger
 from repositories import (
     NlQuerySessionRepository, NlQueryStepRepository, UserFeedbackRepository
@@ -68,10 +69,17 @@ class TaskCache:
 class OperationTracker:
     """简化的操作追踪器"""
 
-    def __init__(self):
-        self.session_repo = NlQuerySessionRepository()
-        self.step_repo = NlQueryStepRepository()
-        self.feedback_repo = UserFeedbackRepository()
+    def __init__(self, db: Optional[Session] = None):
+        self.db = db
+        if db:
+            self.session_repo = NlQuerySessionRepository(db)
+            self.step_repo = NlQueryStepRepository(db)
+            self.feedback_repo = UserFeedbackRepository(db)
+        else:
+            # Lazy initialization - will be set when db is provided
+            self.session_repo = None
+            self.step_repo = None
+            self.feedback_repo = None
         self.cache = TaskCache()
 
     async def get_task_status(self, task_id: str) -> Optional[TaskState]:

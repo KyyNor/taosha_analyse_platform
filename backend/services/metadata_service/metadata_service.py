@@ -7,6 +7,7 @@ from utils.logger import logger
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import hashlib
+from sqlalchemy.orm import Session
 
 from repositories import (
     MetadataTableRepository, MetadataColumnRepository,
@@ -23,9 +24,10 @@ from models.theme_models import DataTheme, ThemeTableRelation
 class MetadataService:
     """元数据管理服务"""
 
-    def __init__(self):
-        self.table_repo = MetadataTableRepository()
-        self.column_repo = MetadataColumnRepository()
+    def __init__(self, db: Session):
+        self.db = db
+        self.table_repo = MetadataTableRepository(db)
+        self.column_repo = MetadataColumnRepository(db)
         self._metadata = None
         self._metadata_hash = None
         self._load_metadata()
@@ -204,7 +206,7 @@ class MetadataService:
 
             # 查找关联配置（如果有relation_config_id）
             if relation_config_id:
-                relation_config_repo = RelationFieldConfigRepository()
+                relation_config_repo = RelationFieldConfigRepository(self.db)
                 relation_config = relation_config_repo.get_by_id(relation_config_id)
                 if not relation_config:
                     logger.warning(f"关联配置不存在: ID {relation_config_id}")
@@ -373,8 +375,9 @@ class MetadataService:
 class RelationFieldConfigService:
     """关联字段配置管理服务"""
 
-    def __init__(self):
-        self.repo = RelationFieldConfigRepository()
+    def __init__(self, db: Session):
+        self.db = db
+        self.repo = RelationFieldConfigRepository(db)
 
     def get_all_relation_configs(self) -> List[Dict[str, Any]]:
         """获取所有关联字段配置"""
@@ -454,8 +457,9 @@ class RelationFieldConfigService:
 class GlossaryService:
     """术语表管理服务"""
 
-    def __init__(self):
-        self.repo = GlossaryTermRepository()
+    def __init__(self, db: Session):
+        self.db = db
+        self.repo = GlossaryTermRepository(db)
         self._glossary = None
         self._glossary_hash = None
         self._load_glossary()
@@ -584,8 +588,9 @@ class GlossaryService:
 class PromptTemplateService:
     """提示词模板管理服务"""
 
-    def __init__(self):
-        self.repo = PromptTemplateRepository()
+    def __init__(self, db: Session):
+        self.db = db
+        self.repo = PromptTemplateRepository(db)
         self._templates = None
         self._templates_hash = None
         self._load_templates()
@@ -752,10 +757,11 @@ class PromptTemplateService:
 class DataThemeService:
     """数据主题管理服务"""
 
-    def __init__(self):
-        self.theme_repo = DataThemeRepository()
-        self.relation_repo = ThemeTableRelationRepository()
-        self.table_repo = MetadataTableRepository()
+    def __init__(self, db: Session):
+        self.db = db
+        self.theme_repo = DataThemeRepository(db)
+        self.relation_repo = ThemeTableRelationRepository(db)
+        self.table_repo = MetadataTableRepository(db)
 
     def get_all_themes(self) -> List[Dict[str, Any]]:
         """获取所有数据主题"""
@@ -968,37 +974,57 @@ _relation_field_config_service: Optional[RelationFieldConfigService] = None
 _prompt_template_service: Optional[PromptTemplateService] = None
 _data_theme_service: Optional[DataThemeService] = None
 
-def get_metadata_service() -> MetadataService:
+def get_metadata_service(db: Optional[Session] = None) -> MetadataService:
     """获取元数据服务实例"""
+    if db:
+        # 如果提供了db，直接返回新实例
+        return MetadataService(db)
     global _metadata_service
     if _metadata_service is None:
-        _metadata_service = MetadataService()
+        from models.db_base import SessionLocal
+        _metadata_service = MetadataService(SessionLocal())
     return _metadata_service
 
-def get_glossary_service() -> GlossaryService:
+def get_glossary_service(db: Optional[Session] = None) -> GlossaryService:
     """获取术语表服务实例"""
+    if db:
+        # 如果提供了db，直接返回新实例
+        return GlossaryService(db)
     global _glossary_service
     if _glossary_service is None:
-        _glossary_service = GlossaryService()
+        from models.db_base import SessionLocal
+        _glossary_service = GlossaryService(SessionLocal())
     return _glossary_service
 
-def get_relation_field_config_service() -> RelationFieldConfigService:
+def get_relation_field_config_service(db: Optional[Session] = None) -> RelationFieldConfigService:
     """获取关联字段配置服务实例"""
+    if db:
+        # 如果提供了db，直接返回新实例
+        return RelationFieldConfigService(db)
     global _relation_field_config_service
     if _relation_field_config_service is None:
-        _relation_field_config_service = RelationFieldConfigService()
+        from models.db_base import SessionLocal
+        _relation_field_config_service = RelationFieldConfigService(SessionLocal())
     return _relation_field_config_service
 
-def get_prompt_template_service() -> PromptTemplateService:
+def get_prompt_template_service(db: Optional[Session] = None) -> PromptTemplateService:
     """获取提示词模板服务实例"""
+    if db:
+        # 如果提供了db，直接返回新实例
+        return PromptTemplateService(db)
     global _prompt_template_service
     if _prompt_template_service is None:
-        _prompt_template_service = PromptTemplateService()
+        from models.db_base import SessionLocal
+        _prompt_template_service = PromptTemplateService(SessionLocal())
     return _prompt_template_service
 
-def get_data_theme_service() -> DataThemeService:
+def get_data_theme_service(db: Optional[Session] = None) -> DataThemeService:
     """获取数据主题服务实例"""
+    if db:
+        # 如果提供了db，直接返回新实例
+        return DataThemeService(db)
     global _data_theme_service
     if _data_theme_service is None:
-        _data_theme_service = DataThemeService()
+        from models.db_base import SessionLocal
+        _data_theme_service = DataThemeService(SessionLocal())
     return _data_theme_service

@@ -8,9 +8,11 @@ from api.endpoint_models import TableMetadataRequest, TableMetadataUpdate, Colum
     GlossaryTermRequest, GlossaryTermUpdate, RelationFieldConfigRequest, RelationFieldConfigUpdate, \
     PromptTemplateRequest, PromptTemplateUpdate, DataThemeRequest, DataThemeUpdate, ThemeTableRelationRequest
 from utils.logger import logger, get_logger, LoggerMixin
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from models.db_base import get_db
 from services import get_metadata_service, get_glossary_service, get_relation_field_config_service, get_prompt_template_service, get_data_theme_service
 
 
@@ -20,10 +22,10 @@ router = APIRouter(prefix="/metadata")
 
 # 表元数据管理
 @router.get("/tables")
-async def get_all_table_metadata(isAvailable: Optional[str] = None):
+async def get_all_table_metadata(isAvailable: Optional[str] = None, db: Session = Depends(get_db)):
     """获取所有表元数据"""
     try:
-        metadata_service = get_metadata_service()
+        metadata_service = get_metadata_service(db)
 
         if isAvailable is not None:
             # 根据isAvailable参数过滤表
@@ -45,10 +47,10 @@ async def get_all_table_metadata(isAvailable: Optional[str] = None):
 
 
 @router.post("/tables")
-async def add_table_metadata(request: TableMetadataRequest):
+async def add_table_metadata(request: TableMetadataRequest, db: Session = Depends(get_db)):
     """添加表元数据"""
     try:
-        metadata_service = get_metadata_service()
+        metadata_service = get_metadata_service(db)
         created_table = metadata_service.add_table(request.name, request.comment, request.is_available)
         if created_table:
             # 返回创建的表对象
@@ -65,10 +67,10 @@ async def add_table_metadata(request: TableMetadataRequest):
 
 
 @router.put("/tables/{table_id}")
-async def update_table_metadata(table_id: int, request: TableMetadataUpdate):
+async def update_table_metadata(table_id: int, request: TableMetadataUpdate, db: Session = Depends(get_db)):
     """更新表元数据"""
     try:
-        metadata_service = get_metadata_service()
+        metadata_service = get_metadata_service(db)
         success = metadata_service.update_table_by_id(table_id, request.comment, request.is_available)
         if success:
             # 重新加载元数据
@@ -81,10 +83,10 @@ async def update_table_metadata(table_id: int, request: TableMetadataUpdate):
 
 
 @router.delete("/tables/{table_id}")
-async def delete_table_metadata(table_id: int):
+async def delete_table_metadata(table_id: int, db: Session = Depends(get_db)):
     """删除表元数据"""
     try:
-        metadata_service = get_metadata_service()
+        metadata_service = get_metadata_service(db)
         success = metadata_service.delete_table_by_id(table_id)
         if success:
             # 重新加载元数据
@@ -98,10 +100,10 @@ async def delete_table_metadata(table_id: int):
 
 # 列元数据管理
 @router.post("/columns")
-async def add_column_metadata(request: ColumnMetadataRequest):
+async def add_column_metadata(request: ColumnMetadataRequest, db: Session = Depends(get_db)):
     """添加列元数据"""
     try:
-        metadata_service = get_metadata_service()
+        metadata_service = get_metadata_service(db)
         created_column = metadata_service.add_column_by_id(
             request.table_id,
             request.name,
@@ -126,10 +128,10 @@ async def add_column_metadata(request: ColumnMetadataRequest):
 
 
 @router.put("/columns/{column_id}")
-async def update_column_metadata(column_id: int, request: ColumnMetadataUpdate):
+async def update_column_metadata(column_id: int, request: ColumnMetadataUpdate, db: Session = Depends(get_db)):
     """更新列元数据"""
     try:
-        metadata_service = get_metadata_service()
+        metadata_service = get_metadata_service(db)
         success = metadata_service.update_column_by_id(
             column_id,
             request.name,
@@ -150,10 +152,10 @@ async def update_column_metadata(column_id: int, request: ColumnMetadataUpdate):
 
 
 @router.delete("/columns/{column_id}")
-async def delete_column_metadata(column_id: int):
+async def delete_column_metadata(column_id: int, db: Session = Depends(get_db)):
     """删除列元数据"""
     try:
-        metadata_service = get_metadata_service()
+        metadata_service = get_metadata_service(db)
         success = metadata_service.delete_column_by_id(column_id)
         if success:
             # 重新加载元数据
@@ -167,10 +169,10 @@ async def delete_column_metadata(column_id: int):
 
 # 术语表管理
 @router.get("/glossary/terms")
-async def get_all_terms():
+async def get_all_terms(db: Session = Depends(get_db)):
     """获取所有术语"""
     try:
-        glossary_service = get_glossary_service()
+        glossary_service = get_glossary_service(db)
         terms = glossary_service.get_terms()
         return {"success": True, "data": terms}
     except Exception as e:
@@ -179,11 +181,11 @@ async def get_all_terms():
 
 
 @router.post("/glossary/terms")
-async def add_term(request: GlossaryTermRequest):
+async def add_term(request: GlossaryTermRequest, db: Session = Depends(get_db)):
     """添加术语"""
     try:
         creator: str = "api_user"
-        glossary_service = get_glossary_service()
+        glossary_service = get_glossary_service(db)
         success = glossary_service.add_term(
             request.name,
             request.type,
@@ -200,10 +202,10 @@ async def add_term(request: GlossaryTermRequest):
 
 
 @router.put("/glossary/terms/{term_id}")
-async def update_term(term_id: int, request: GlossaryTermUpdate):
+async def update_term(term_id: int, request: GlossaryTermUpdate, db: Session = Depends(get_db)):
     """更新术语"""
     try:
-        glossary_service = get_glossary_service()
+        glossary_service = get_glossary_service(db)
         success = glossary_service.update_term(
             term_id,
             request.name,
@@ -220,10 +222,10 @@ async def update_term(term_id: int, request: GlossaryTermUpdate):
 
 
 @router.delete("/glossary/terms/{term_id}")
-async def delete_term(term_id: int):
+async def delete_term(term_id: int, db: Session = Depends(get_db)):
     """删除术语"""
     try:
-        glossary_service = get_glossary_service()
+        glossary_service = get_glossary_service(db)
         success = glossary_service.delete_term(term_id)
         if success:
             return {"success": True, "message": f"术语已删除: ID {term_id}"}
@@ -235,10 +237,10 @@ async def delete_term(term_id: int):
 
 
 @router.get("/glossary/terms/type/{term_type}")
-async def get_terms_by_type(term_type: str):
+async def get_terms_by_type(term_type: str, db: Session = Depends(get_db)):
     """根据类型获取术语"""
     try:
-        glossary_service = get_glossary_service()
+        glossary_service = get_glossary_service(db)
         terms = glossary_service.get_terms_by_type(term_type)
         return {"success": True, "data": terms}
     except Exception as e:
@@ -247,10 +249,10 @@ async def get_terms_by_type(term_type: str):
 
 
 @router.get("/glossary/search")
-async def search_term(query: str):
+async def search_term(query: str, db: Session = Depends(get_db)):
     """搜索术语"""
     try:
-        glossary_service = get_glossary_service()
+        glossary_service = get_glossary_service(db)
         term = glossary_service.find_term(query)
         if term:
             return {"success": True, "data": term}
@@ -263,10 +265,10 @@ async def search_term(query: str):
 
 # 关联字段配置管理
 @router.get("/relation-configs")
-async def get_all_relation_configs():
+async def get_all_relation_configs(db: Session = Depends(get_db)):
     """获取所有关联字段配置"""
     try:
-        relation_service = get_relation_field_config_service()
+        relation_service = get_relation_field_config_service(db)
         configs = relation_service.get_all_relation_configs()
         return {"success": True, "data": configs}
     except Exception as e:
@@ -275,10 +277,10 @@ async def get_all_relation_configs():
 
 
 @router.post("/relation-configs")
-async def add_relation_config(request: RelationFieldConfigRequest):
+async def add_relation_config(request: RelationFieldConfigRequest, db: Session = Depends(get_db)):
     """添加关联字段配置"""
     try:
-        relation_service = get_relation_field_config_service()
+        relation_service = get_relation_field_config_service(db)
         created_config = relation_service.add_relation_config(
             request.relation_family,
             request.relation_subfamily,
@@ -298,10 +300,10 @@ async def add_relation_config(request: RelationFieldConfigRequest):
 
 
 @router.put("/relation-configs/{config_id}")
-async def update_relation_config(config_id: int, request: RelationFieldConfigUpdate):
+async def update_relation_config(config_id: int, request: RelationFieldConfigUpdate, db: Session = Depends(get_db)):
     """更新关联字段配置"""
     try:
-        relation_service = get_relation_field_config_service()
+        relation_service = get_relation_field_config_service(db)
         success = relation_service.update_relation_config(
             config_id,
             request.relation_family,
@@ -318,10 +320,10 @@ async def update_relation_config(config_id: int, request: RelationFieldConfigUpd
 
 
 @router.delete("/relation-configs/{config_id}")
-async def delete_relation_config(config_id: int):
+async def delete_relation_config(config_id: int, db: Session = Depends(get_db)):
     """删除关联字段配置"""
     try:
-        relation_service = get_relation_field_config_service()
+        relation_service = get_relation_field_config_service(db)
         success = relation_service.delete_relation_config(config_id)
         if success:
             return {"success": True, "message": f"关联字段配置已删除: ID {config_id}"}
@@ -337,10 +339,10 @@ async def delete_relation_config(config_id: int):
 
 # 提示词模板管理
 @router.get("/prompt-templates")
-async def get_all_prompt_templates():
+async def get_all_prompt_templates(db: Session = Depends(get_db)):
     """获取所有提示词模板"""
     try:
-        template_service = get_prompt_template_service()
+        template_service = get_prompt_template_service(db)
         templates = template_service.get_templates()
         return {"success": True, "data": templates}
     except Exception as e:
@@ -349,10 +351,10 @@ async def get_all_prompt_templates():
 
 
 @router.post("/prompt-templates")
-async def add_prompt_template(request: PromptTemplateRequest):
+async def add_prompt_template(request: PromptTemplateRequest, db: Session = Depends(get_db)):
     """添加提示词模板"""
     try:
-        template_service = get_prompt_template_service()
+        template_service = get_prompt_template_service(db)
         success = template_service.add_template(
             request.name,
             request.fields,
@@ -368,10 +370,10 @@ async def add_prompt_template(request: PromptTemplateRequest):
 
 
 @router.put("/prompt-templates/{template_id}")
-async def update_prompt_template(template_id: int, request: PromptTemplateUpdate):
+async def update_prompt_template(template_id: int, request: PromptTemplateUpdate, db: Session = Depends(get_db)):
     """更新提示词模板"""
     try:
-        template_service = get_prompt_template_service()
+        template_service = get_prompt_template_service(db)
         success = template_service.update_template(
             template_id,
             request.name,
@@ -387,10 +389,10 @@ async def update_prompt_template(template_id: int, request: PromptTemplateUpdate
 
 
 @router.delete("/prompt-templates/{template_id}")
-async def delete_prompt_template(template_id: int):
+async def delete_prompt_template(template_id: int, db: Session = Depends(get_db)):
     """删除提示词模板"""
     try:
-        template_service = get_prompt_template_service()
+        template_service = get_prompt_template_service(db)
         success = template_service.delete_template(template_id)
         if success:
             return {"success": True, "message": f"提示词模板已删除: ID {template_id}"}
@@ -403,10 +405,10 @@ async def delete_prompt_template(template_id: int):
 
 # 数据主题管理
 @router.get("/themes")
-async def get_all_themes():
+async def get_all_themes(db: Session = Depends(get_db)):
     """获取所有数据主题"""
     try:
-        theme_service = get_data_theme_service()
+        theme_service = get_data_theme_service(db)
         themes = theme_service.get_all_themes()
         return {"success": True, "data": themes}
     except Exception as e:
@@ -415,10 +417,10 @@ async def get_all_themes():
 
 
 @router.get("/themes/{theme_id}")
-async def get_theme(theme_id: int):
+async def get_theme(theme_id: int, db: Session = Depends(get_db)):
     """获取指定数据主题"""
     try:
-        theme_service = get_data_theme_service()
+        theme_service = get_data_theme_service(db)
         theme = theme_service.get_theme_by_id(theme_id)
         if theme:
             return {"success": True, "data": theme}
@@ -430,10 +432,10 @@ async def get_theme(theme_id: int):
 
 
 @router.post("/themes")
-async def add_theme(request: DataThemeRequest):
+async def add_theme(request: DataThemeRequest, db: Session = Depends(get_db)):
     """添加数据主题"""
     try:
-        theme_service = get_data_theme_service()
+        theme_service = get_data_theme_service(db)
         created_theme = theme_service.add_theme(
             request.theme_name,
             request.theme_description,
@@ -454,10 +456,10 @@ async def add_theme(request: DataThemeRequest):
 
 
 @router.put("/themes/{theme_id}")
-async def update_theme(theme_id: int, request: DataThemeUpdate):
+async def update_theme(theme_id: int, request: DataThemeUpdate, db: Session = Depends(get_db)):
     """更新数据主题"""
     try:
-        theme_service = get_data_theme_service()
+        theme_service = get_data_theme_service(db)
         success = theme_service.update_theme(
             theme_id,
             request.theme_name,
@@ -475,10 +477,10 @@ async def update_theme(theme_id: int, request: DataThemeUpdate):
 
 
 @router.delete("/themes/{theme_id}")
-async def delete_theme(theme_id: int):
+async def delete_theme(theme_id: int, db: Session = Depends(get_db)):
     """删除数据主题"""
     try:
-        theme_service = get_data_theme_service()
+        theme_service = get_data_theme_service(db)
         success = theme_service.delete_theme(theme_id)
         if success:
             return {"success": True, "message": f"数据主题已删除: ID {theme_id}"}
@@ -490,10 +492,10 @@ async def delete_theme(theme_id: int):
 
 
 @router.get("/themes/{theme_id}/tables")
-async def get_theme_tables(theme_id: int):
+async def get_theme_tables(theme_id: int, db: Session = Depends(get_db)):
     """获取主题下的表"""
     try:
-        theme_service = get_data_theme_service()
+        theme_service = get_data_theme_service(db)
         tables = theme_service.get_theme_tables(theme_id)
         return {"success": True, "data": tables}
     except Exception as e:
@@ -502,10 +504,10 @@ async def get_theme_tables(theme_id: int):
 
 
 @router.post("/themes/{theme_id}/tables")
-async def add_table_to_theme(theme_id: int, request: ThemeTableRelationRequest):
+async def add_table_to_theme(theme_id: int, request: ThemeTableRelationRequest, db: Session = Depends(get_db)):
     """添加表到主题"""
     try:
-        theme_service = get_data_theme_service()
+        theme_service = get_data_theme_service(db)
         success = theme_service.add_table_to_theme(theme_id, request.table_id)
         if success:
             return {"success": True, "message": f"表已添加到主题: 主题{theme_id}, 表{request.table_id}"}
@@ -517,10 +519,10 @@ async def add_table_to_theme(theme_id: int, request: ThemeTableRelationRequest):
 
 
 @router.delete("/themes/{theme_id}/tables/{table_id}")
-async def remove_table_from_theme(theme_id: int, table_id: int):
+async def remove_table_from_theme(theme_id: int, table_id: int, db: Session = Depends(get_db)):
     """从主题中移除表"""
     try:
-        theme_service = get_data_theme_service()
+        theme_service = get_data_theme_service(db)
         success = theme_service.remove_table_from_theme(theme_id, table_id)
         if success:
             return {"success": True, "message": f"表已从主题中移除: 主题{theme_id}, 表{table_id}"}

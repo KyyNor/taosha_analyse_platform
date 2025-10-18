@@ -6,7 +6,6 @@ from typing import TypeVar, Generic, List, Optional, Dict, Any, Type
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, asc
 from sqlalchemy.exc import SQLAlchemyError
-from models.db_base import get_detached_session
 from utils.logger import logger
 
 # 泛型类型变量
@@ -16,14 +15,16 @@ T = TypeVar('T')
 class BaseRepository(Generic[T]):
     """通用Repository基类"""
 
-    def __init__(self, model_class: Type[T]):
+    def __init__(self, model_class: Type[T], db: Session):
         """
         初始化Repository
 
         Args:
             model_class: SQLAlchemy模型类
+            db: 必须的数据库会话对象，由调用方提供和管理
         """
         self.model_class = model_class
+        self.db = db
 
     def create(self, **kwargs) -> T:
         """
@@ -36,13 +37,23 @@ class BaseRepository(Generic[T]):
             创建的模型实例
         """
         try:
-            with get_detached_session() as db:
+            if self.db:
+                # 使用注入的 session，由调用方管理生命周期
                 instance = self.model_class(**kwargs)
-                db.add(instance)
-                db.flush()  # 确保获取到ID
-                db.refresh(instance)  # 刷新实例，获取数据库生成的值
+                self.db.add(instance)
+                self.db.flush()
+                self.db.refresh(instance)
                 logger.info(f"创建 {self.model_class.__name__} 记录成功: ID={instance.id}")
                 return instance
+            else:
+                # 创建新 session，自己管理生命周期
+                with get_db_session() as db:
+                    instance = self.model_class(**kwargs)
+                    db.add(instance)
+                    db.flush()
+                    db.refresh(instance)
+                    logger.info(f"创建 {self.model_class.__name__} 记录成功: ID={instance.id}")
+                    return instance
         except SQLAlchemyError as e:
             logger.error(f"创建 {self.model_class.__name__} 记录失败: {e}")
             raise
@@ -58,9 +69,8 @@ class BaseRepository(Generic[T]):
             模型实例或None
         """
         try:
-            with get_detached_session() as db:
-                instance = db.query(self.model_class).filter(self.model_class.id == id).first()
-                return instance
+            instance = self.db.query(self.model_class).filter(self.model_class.id == id).first()
+            return instance
         except SQLAlchemyError as e:
             logger.error(f"获取 {self.model_class.__name__} 记录失败: {e}")
             raise
@@ -76,16 +86,15 @@ class BaseRepository(Generic[T]):
             模型实例列表
         """
         try:
-            with get_detached_session() as db:
-                query = db.query(self.model_class)
+            query = self.db.query(self.model_class)
 
-                # 应用过滤条件
-                for key, value in filters.items():
-                    if hasattr(self.model_class, key):
-                        query = query.filter(getattr(self.model_class, key) == value)
+            # 应用过滤条件
+            for key, value in filters.items():
+                if hasattr(self.model_class, key):
+                    query = query.filter(getattr(self.model_class, key) == value)
 
-                results = query.all()
-                return results
+            results = query.all()
+            return results
         except SQLAlchemyError as e:
             logger.error(f"获取 {self.model_class.__name__} 记录列表失败: {e}")
             raise
@@ -102,17 +111,16 @@ class BaseRepository(Generic[T]):
             更新后的模型实例或None
         """
         try:
-            with get_detached_session() as db:
-                instance = db.query(self.model_class).filter(self.model_class.id == id).first()
-                if instance:
-                    for key, value in kwargs.items():
-                        if hasattr(instance, key):
-                            setattr(instance, key, value)
-                    db.flush()
-                    db.refresh(instance)
-                    logger.info(f"更新 {self.model_class.__name__} 记录成功: ID={id}")
-                    return instance
-                return None
+            instance = self.db.query(self.model_class).filter(self.model_class.id == id).first()
+            if instance:
+                for key, value in kwargs.items():
+                    if hasattr(instance, key):
+                        setattr(instance, key, value)
+                self.db.flush()
+                self.db.refresh(instance)
+                logger.info(f"更新 {self.model_class.__name__} 记录成功: ID={id}")
+                return instance
+            return None
         except SQLAlchemyError as e:
             logger.error(f"更新 {self.model_class.__name__} 记录失败: {e}")
             raise
@@ -128,13 +136,12 @@ class BaseRepository(Generic[T]):
             是否删除成功
         """
         try:
-            with get_detached_session() as db:
-                instance = db.query(self.model_class).filter(self.model_class.id == id).first()
-                if instance:
-                    db.delete(instance)
-                    logger.info(f"删除 {self.model_class.__name__} 记录成功: ID={id}")
-                    return True
-                return False
+            instance = self.db.query(self.model_class).filter(self.model_class.id == id).first()
+            if instance:
+                self.db.delete(instance)
+                logger.info(f"删除 {self.model_class.__name__} 记录成功: ID={id}")
+                return True
+            return False
         except SQLAlchemyError as e:
             logger.error(f"删除 {self.model_class.__name__} 记录失败: {e}")
             raise
@@ -150,15 +157,14 @@ class BaseRepository(Generic[T]):
             记录数量
         """
         try:
-            with get_detached_session() as db:
-                query = db.query(self.model_class)
+            query = self.db.query(self.model_class)
 
-                # 应用过滤条件
-                for key, value in filters.items():
-                    if hasattr(self.model_class, key):
-                        query = query.filter(getattr(self.model_class, key) == value)
+            # 应用过滤条件
+            for key, value in filters.items():
+                if hasattr(self.model_class, key):
+                    query = query.filter(getattr(self.model_class, key) == value)
 
-                return query.count()
+            return query.count()
         except SQLAlchemyError as e:
             logger.error(f"统计 {self.model_class.__name__} 记录数量失败: {e}")
             raise
@@ -174,15 +180,14 @@ class BaseRepository(Generic[T]):
             是否存在
         """
         try:
-            with get_detached_session() as db:
-                query = db.query(self.model_class)
+            query = self.db.query(self.model_class)
 
-                # 应用过滤条件
-                for key, value in filters.items():
-                    if hasattr(self.model_class, key):
-                        query = query.filter(getattr(self.model_class, key) == value)
+            # 应用过滤条件
+            for key, value in filters.items():
+                if hasattr(self.model_class, key):
+                    query = query.filter(getattr(self.model_class, key) == value)
 
-                return query.first() is not None
+            return query.first() is not None
         except SQLAlchemyError as e:
             logger.error(f"检查 {self.model_class.__name__} 记录存在性失败: {e}")
             raise
@@ -200,28 +205,27 @@ class BaseRepository(Generic[T]):
             包含分页信息的字典
         """
         try:
-            with get_detached_session() as db:
-                query = db.query(self.model_class)
+            query = self.db.query(self.model_class)
 
-                # 应用过滤条件
-                for key, value in filters.items():
-                    if hasattr(self.model_class, key):
-                        query = query.filter(getattr(self.model_class, key) == value)
+            # 应用过滤条件
+            for key, value in filters.items():
+                if hasattr(self.model_class, key):
+                    query = query.filter(getattr(self.model_class, key) == value)
 
-                # 计算总数
-                total = query.count()
+            # 计算总数
+            total = query.count()
 
-                # 应用分页
-                offset = (page - 1) * page_size
-                items = query.offset(offset).limit(page_size).all()
+            # 应用分页
+            offset = (page - 1) * page_size
+            items = query.offset(offset).limit(page_size).all()
 
-                return {
-                    'items': items,
-                    'total': total,
-                    'page': page,
-                    'page_size': page_size,
-                    'total_pages': (total + page_size - 1) // page_size
-                }
+            return {
+                'items': items,
+                'total': total,
+                'page': page,
+                'page_size': page_size,
+                'total_pages': (total + page_size - 1) // page_size
+            }
         except SQLAlchemyError as e:
             logger.error(f"分页获取 {self.model_class.__name__} 记录失败: {e}")
             raise
