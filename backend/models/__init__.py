@@ -2,7 +2,7 @@
 SQLAlchemy数据模型层
 """
 
-from .base import Base, engine, SessionLocal
+from .db_base import Base, engine, SessionLocal
 from .metadata_models import (
     MetadataTable, MetadataColumn
 )

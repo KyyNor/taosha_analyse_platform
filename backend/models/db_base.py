@@ -97,3 +97,33 @@ def reset_database():
     except Exception as e:
         logger.error(f"数据库重置失败: {e}")
         raise
+
+# 自动分离的会话上下文管理器
+@contextmanager
+def get_detached_session():
+    """获取自动分离的数据库会话
+
+    特点：
+    - 在会话关闭时自动expunge所有对象，避免DetachedInstanceError
+    - 返回的ORM对象可以在会话关闭后安全使用
+    - 无需手动调用db.expunge()
+
+    Usage:
+        with get_detached_session() as db:
+            result = db.query(User).filter_by(id=1).first()
+            # 会话关闭时自动分离所有对象
+            return result  # 安全可用
+    """
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"数据库事务失败: {e}")
+        raise
+    finally:
+        # 在会话关闭前自动分离所有对象
+        # 这样返回的ORM对象在会话外仍可安全使用
+        db.expunge_all()
+        db.close()

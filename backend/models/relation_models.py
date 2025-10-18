@@ -5,7 +5,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, Text, Index
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from datetime import datetime
-from .base import Base
+from .db_base import Base
 
 
 class RelationFieldConfig(Base):

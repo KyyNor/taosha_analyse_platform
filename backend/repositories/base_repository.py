@@ -6,7 +6,7 @@ from typing import TypeVar, Generic, List, Optional, Dict, Any, Type
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, asc
 from sqlalchemy.exc import SQLAlchemyError
-from models.base import get_db_session
+from models.db_base import get_detached_session
 from utils.logger import logger
 
 # 泛型类型变量
@@ -36,13 +36,11 @@ class BaseRepository(Generic[T]):
             创建的模型实例
         """
         try:
-            with get_db_session() as db:
+            with get_detached_session() as db:
                 instance = self.model_class(**kwargs)
                 db.add(instance)
                 db.flush()  # 确保获取到ID
                 db.refresh(instance)  # 刷新实例，获取数据库生成的值
-                # 将实例状态设置为持久化，避免会话关闭后访问出错
-                db.expunge(instance)  # 从会话中分离实例
                 logger.info(f"创建 {self.model_class.__name__} 记录成功: ID={instance.id}")
                 return instance
         except SQLAlchemyError as e:
@@ -60,10 +58,8 @@ class BaseRepository(Generic[T]):
             模型实例或None
         """
         try:
-            with get_db_session() as db:
+            with get_detached_session() as db:
                 instance = db.query(self.model_class).filter(self.model_class.id == id).first()
-                if instance:
-                    db.expunge(instance)  # 从会话中分离实例
                 return instance
         except SQLAlchemyError as e:
             logger.error(f"获取 {self.model_class.__name__} 记录失败: {e}")
@@ -80,7 +76,7 @@ class BaseRepository(Generic[T]):
             模型实例列表
         """
         try:
-            with get_db_session() as db:
+            with get_detached_session() as db:
                 query = db.query(self.model_class)
 
                 # 应用过滤条件
@@ -89,9 +85,6 @@ class BaseRepository(Generic[T]):
                         query = query.filter(getattr(self.model_class, key) == value)
 
                 results = query.all()
-                # 将所有对象从会话中分离，避免会话关闭后访问出错
-                for obj in results:
-                    db.expunge(obj)
                 return results
         except SQLAlchemyError as e:
             logger.error(f"获取 {self.model_class.__name__} 记录列表失败: {e}")
@@ -109,7 +102,7 @@ class BaseRepository(Generic[T]):
             更新后的模型实例或None
         """
         try:
-            with get_db_session() as db:
+            with get_detached_session() as db:
                 instance = db.query(self.model_class).filter(self.model_class.id == id).first()
                 if instance:
                     for key, value in kwargs.items():
@@ -117,7 +110,6 @@ class BaseRepository(Generic[T]):
                             setattr(instance, key, value)
                     db.flush()
                     db.refresh(instance)
-                    db.expunge(instance)  # 从会话中分离实例
                     logger.info(f"更新 {self.model_class.__name__} 记录成功: ID={id}")
                     return instance
                 return None
@@ -136,7 +128,7 @@ class BaseRepository(Generic[T]):
             是否删除成功
         """
         try:
-            with get_db_session() as db:
+            with get_detached_session() as db:
                 instance = db.query(self.model_class).filter(self.model_class.id == id).first()
                 if instance:
                     db.delete(instance)
@@ -158,7 +150,7 @@ class BaseRepository(Generic[T]):
             记录数量
         """
         try:
-            with get_db_session() as db:
+            with get_detached_session() as db:
                 query = db.query(self.model_class)
 
                 # 应用过滤条件
@@ -182,7 +174,7 @@ class BaseRepository(Generic[T]):
             是否存在
         """
         try:
-            with get_db_session() as db:
+            with get_detached_session() as db:
                 query = db.query(self.model_class)
 
                 # 应用过滤条件
@@ -208,7 +200,7 @@ class BaseRepository(Generic[T]):
             包含分页信息的字典
         """
         try:
-            with get_db_session() as db:
+            with get_detached_session() as db:
                 query = db.query(self.model_class)
 
                 # 应用过滤条件

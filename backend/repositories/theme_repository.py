@@ -6,6 +6,7 @@ from typing import List, Optional
 from sqlalchemy.orm import joinedload
 from sqlalchemy import and_, or_
 from utils.logger import logger
+from models.db_base import get_detached_session
 from .base_repository import BaseRepository
 from models.theme_models import DataTheme, ThemeTableRelation
 
@@ -19,10 +20,8 @@ class DataThemeRepository(BaseRepository[DataTheme]):
     def get_by_name(self, name: str) -> Optional[DataTheme]:
         """根据主题名称获取记录"""
         try:
-            with self.get_db_session() as db:
+            with get_detached_session() as db:
                 result = db.query(DataTheme).filter(DataTheme.theme_name == name).first()
-                if result:
-                    db.expunge(result)
                 return result
         except Exception as e:
             logger.error(f"根据名称获取数据主题失败: {e}")
@@ -31,10 +30,8 @@ class DataThemeRepository(BaseRepository[DataTheme]):
     def get_by_type(self, theme_type: str) -> List[DataTheme]:
         """根据主题类型获取列表"""
         try:
-            with self.get_db_session() as db:
+            with get_detached_session() as db:
                 results = db.query(DataTheme).filter(DataTheme.theme_type == theme_type).all()
-                for obj in results:
-                    db.expunge(obj)
                 return results
         except Exception as e:
             logger.error(f"根据类型获取数据主题失败: {e}")
@@ -43,7 +40,7 @@ class DataThemeRepository(BaseRepository[DataTheme]):
     def get_by_department(self, department: str) -> List[DataTheme]:
         """根据部门获取主题列表"""
         try:
-            with self.get_db_session() as db:
+            with get_detached_session() as db:
                 return db.query(DataTheme).filter(DataTheme.department == department).all()
         except Exception as e:
             logger.error(f"根据部门获取数据主题失败: {e}")
@@ -52,10 +49,8 @@ class DataThemeRepository(BaseRepository[DataTheme]):
     def get_public_theme(self) -> Optional[DataTheme]:
         """获取通用主题"""
         try:
-            with self.get_db_session() as db:
+            with get_detached_session() as db:
                 result = db.query(DataTheme).filter(DataTheme.theme_type == 'public').first()
-                if result:
-                    db.expunge(result)
                 return result
         except Exception as e:
             logger.error(f"获取通用主题失败: {e}")
@@ -64,7 +59,7 @@ class DataThemeRepository(BaseRepository[DataTheme]):
     def get_with_tables(self, theme_id: int) -> Optional[DataTheme]:
         """获取主题及其关联的表"""
         try:
-            with self.get_db_session() as db:
+            with get_detached_session() as db:
                 return db.query(DataTheme)\
                          .options(joinedload(DataTheme.table_relations))\
                          .filter(DataTheme.id == theme_id)\
@@ -76,7 +71,7 @@ class DataThemeRepository(BaseRepository[DataTheme]):
     def search_themes(self, query: str) -> List[DataTheme]:
         """搜索主题（按名称、描述或部门）"""
         try:
-            with self.get_db_session() as db:
+            with get_detached_session() as db:
                 return db.query(DataTheme)\
                          .filter(
                              or_(
@@ -90,10 +85,6 @@ class DataThemeRepository(BaseRepository[DataTheme]):
             logger.error(f"搜索数据主题失败: {e}")
             raise
 
-    def get_db_session(self):
-        """获取数据库会话"""
-        from models.base import get_db_session
-        return get_db_session()
 
 
 class ThemeTableRelationRepository(BaseRepository[ThemeTableRelation]):
@@ -105,13 +96,10 @@ class ThemeTableRelationRepository(BaseRepository[ThemeTableRelation]):
     def get_by_theme_id(self, theme_id: int) -> List[ThemeTableRelation]:
         """根据主题ID获取所有关联"""
         try:
-            with self.get_db_session() as db:
+            with get_detached_session() as db:
                 results = db.query(ThemeTableRelation)\
                             .filter(ThemeTableRelation.theme_id == theme_id)\
                             .all()
-                # 将所有对象从会话中分离，避免会话关闭后访问出错
-                for obj in results:
-                    db.expunge(obj)
                 return results
         except Exception as e:
             logger.error(f"根据主题ID获取关联关系失败: {e}")
@@ -120,13 +108,10 @@ class ThemeTableRelationRepository(BaseRepository[ThemeTableRelation]):
     def get_by_table_id(self, table_id: int) -> List[ThemeTableRelation]:
         """根据表ID获取所有关联"""
         try:
-            with self.get_db_session() as db:
+            with get_detached_session() as db:
                 results = db.query(ThemeTableRelation)\
                             .filter(ThemeTableRelation.table_id == table_id)\
                             .all()
-                # 将所有对象从会话中分离，避免会话关闭后访问出错
-                for obj in results:
-                    db.expunge(obj)
                 return results
         except Exception as e:
             logger.error(f"根据表ID获取关联关系失败: {e}")
@@ -135,7 +120,7 @@ class ThemeTableRelationRepository(BaseRepository[ThemeTableRelation]):
     def get_relation(self, theme_id: int, table_id: int) -> Optional[ThemeTableRelation]:
         """获取特定主题和表的关联关系"""
         try:
-            with self.get_db_session() as db:
+            with get_detached_session() as db:
                 result = db.query(ThemeTableRelation)\
                            .filter(
                                and_(
@@ -144,8 +129,6 @@ class ThemeTableRelationRepository(BaseRepository[ThemeTableRelation]):
                                )
                            )\
                            .first()
-                if result:
-                    db.expunge(result)
                 return result
         except Exception as e:
             logger.error(f"获取关联关系失败: {e}")
@@ -168,7 +151,7 @@ class ThemeTableRelationRepository(BaseRepository[ThemeTableRelation]):
     def remove_table_from_theme(self, theme_id: int, table_id: int) -> bool:
         """从主题中移除表"""
         try:
-            with self.get_db_session() as db:
+            with get_detached_session() as db:
                 relation = db.query(ThemeTableRelation)\
                               .filter(
                                   and_(
@@ -187,5 +170,5 @@ class ThemeTableRelationRepository(BaseRepository[ThemeTableRelation]):
 
     def get_db_session(self):
         """获取数据库会话"""
-        from models.base import get_db_session
+        from models.db_base import get_db_session
         return get_db_session()

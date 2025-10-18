@@ -5,7 +5,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text, Index
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from datetime import datetime
-from .base import Base
+from .db_base import Base
 
 # 避免循环导入，使用字符串引用
 if __name__ == "__main__":

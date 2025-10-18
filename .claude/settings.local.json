@@ -35,7 +35,9 @@
       "mcp__puppeteer__puppeteer_evaluate",
       "mcp__puppeteer__puppeteer_screenshot",
       "Bash(npm run type-check:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(move \"D:\\code\\taosha_analyse_platform\\backend\\models\\base.py\" \"D:\\code\\taosha_analyse_platform\\backend\\models\\db_base.py\")",
+      "Bash(cd:*)"
     ],
     "deny": [],
     "ask": [],
