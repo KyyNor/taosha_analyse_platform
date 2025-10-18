@@ -31,7 +31,7 @@ class ColumnMetadataRequest(BaseModel):
     comment: str = ""
     is_available: int = 0
     business_type: str = ""
-    relation_id: str = ""
+    relation_config_id: Optional[int] = None
 
 
 class ColumnMetadataUpdate(BaseModel):
@@ -39,7 +39,7 @@ class ColumnMetadataUpdate(BaseModel):
     comment: Optional[str] = None
     is_available: Optional[int] = None
     business_type: Optional[str] = None
-    relation_id: Optional[str] = None
+    relation_config_id: Optional[int] = None
 
 
 class GlossaryTermRequest(BaseModel):

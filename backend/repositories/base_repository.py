@@ -61,7 +61,10 @@ class BaseRepository(Generic[T]):
         """
         try:
             with get_db_session() as db:
-                return db.query(self.model_class).filter(self.model_class.id == id).first()
+                instance = db.query(self.model_class).filter(self.model_class.id == id).first()
+                if instance:
+                    db.expunge(instance)  # 从会话中分离实例
+                return instance
         except SQLAlchemyError as e:
             logger.error(f"获取 {self.model_class.__name__} 记录失败: {e}")
             raise
@@ -85,7 +88,11 @@ class BaseRepository(Generic[T]):
                     if hasattr(self.model_class, key):
                         query = query.filter(getattr(self.model_class, key) == value)
 
-                return query.all()
+                results = query.all()
+                # 将所有对象从会话中分离，避免会话关闭后访问出错
+                for obj in results:
+                    db.expunge(obj)
+                return results
         except SQLAlchemyError as e:
             logger.error(f"获取 {self.model_class.__name__} 记录列表失败: {e}")
             raise

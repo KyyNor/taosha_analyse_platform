@@ -38,10 +38,16 @@ class MetadataTableRepository(BaseRepository[MetadataTable]):
         """获取表及其所有列"""
         try:
             with self.get_db_session() as db:
-                return db.query(MetadataTable)\
-                         .options(joinedload(MetadataTable.columns))\
-                         .filter(MetadataTable.id == table_id)\
-                         .first()
+                result = db.query(MetadataTable)\
+                           .options(joinedload(MetadataTable.columns))\
+                           .filter(MetadataTable.id == table_id)\
+                           .first()
+                if result:
+                    db.expunge(result)  # 从会话中分离表对象
+                    # 同时分离关联的列对象
+                    for column in result.columns:
+                        db.expunge(column)
+                return result
         except Exception as e:
             logger.error(f"获取表及其列信息失败: {e}")
             raise
@@ -50,9 +56,16 @@ class MetadataTableRepository(BaseRepository[MetadataTable]):
         """获取所有表及其列信息"""
         try:
             with self.get_db_session() as db:
-                return db.query(MetadataTable)\
-                         .options(joinedload(MetadataTable.columns))\
-                         .all()
+                results = db.query(MetadataTable)\
+                            .options(joinedload(MetadataTable.columns))\
+                            .all()
+                # 将所有对象从会话中分离，避免会话关闭后访问出错
+                for table in results:
+                    db.expunge(table)
+                    # 同时分离关联的列对象
+                    for column in table.columns:
+                        db.expunge(column)
+                return results
         except Exception as e:
             logger.error(f"获取所有表及其列信息失败: {e}")
             raise

@@ -60,15 +60,15 @@ async def add_table_metadata(request: TableMetadataRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/tables/{table_name}")
-async def update_table_metadata(table_name: str, request: TableMetadataUpdate):
+@router.put("/tables/{table_id}")
+async def update_table_metadata(table_id: int, request: TableMetadataUpdate):
     """更新表元数据"""
     try:
         metadata_service = get_metadata_service()
-        success = metadata_service.update_table(table_name, request.comment, request.is_available)
+        success = metadata_service.update_table_by_id(table_id, request.comment, request.is_available)
         if success:
             # 重新加载元数据
-            return {"success": True, "message": f"表元数据已更新: {table_name}"}
+            return {"success": True, "message": f"表元数据已更新: ID {table_id}"}
         else:
             raise HTTPException(status_code=400, detail="更新表元数据失败")
     except Exception as e:
@@ -76,15 +76,15 @@ async def update_table_metadata(table_name: str, request: TableMetadataUpdate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/tables/{table_name}")
-async def delete_table_metadata(table_name: str):
+@router.delete("/tables/{table_id}")
+async def delete_table_metadata(table_id: int):
     """删除表元数据"""
     try:
         metadata_service = get_metadata_service()
-        success = metadata_service.delete_table(table_name)
+        success = metadata_service.delete_table_by_id(table_id)
         if success:
             # 重新加载元数据
-            return {"success": True, "message": f"表元数据已删除: {table_name}"}
+            return {"success": True, "message": f"表元数据已删除: ID {table_id}"}
         else:
             raise HTTPException(status_code=400, detail="删除表元数据失败")
     except Exception as e:
@@ -99,13 +99,13 @@ async def add_column_metadata(request: ColumnMetadataRequest):
     try:
         metadata_service = get_metadata_service()
         success = metadata_service.add_column(
-            request.table_name, 
-            request.name, 
+            request.table_name,  # 向后兼容，内部会转换为table_id
+            request.name,
             request.type,
             request.comment,
             request.is_available,
             request.business_type,
-            request.relation_id
+            request.relation_config_id
         )
         if success:
             # 重新加载元数据
@@ -117,23 +117,23 @@ async def add_column_metadata(request: ColumnMetadataRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/columns/{table_name}/{column_name}")
-async def update_column_metadata(table_name: str, column_name: str, request: ColumnMetadataUpdate):
+@router.put("/columns/{table_id}/{column_name}")
+async def update_column_metadata(table_id: int, column_name: str, request: ColumnMetadataUpdate):
     """更新列元数据"""
     try:
         metadata_service = get_metadata_service()
-        success = metadata_service.update_column(
-            table_name,
+        success = metadata_service.update_column_by_table_id(
+            table_id,
             column_name,
             request.type,
             request.comment,
             request.is_available,
             request.business_type,
-            request.relation_id
+            request.relation_config_id  # 更新字段名
         )
         if success:
             # 重新加载元数据
-            return {"success": True, "message": f"列元数据已更新: {table_name}.{column_name}"}
+            return {"success": True, "message": f"列元数据已更新: 表ID {table_id}.{column_name}"}
         else:
             raise HTTPException(status_code=400, detail="更新列元数据失败")
     except Exception as e:
@@ -141,15 +141,15 @@ async def update_column_metadata(table_name: str, column_name: str, request: Col
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/columns/{table_name}/{column_name}")
-async def delete_column_metadata(table_name: str, column_name: str):
+@router.delete("/columns/{table_id}/{column_name}")
+async def delete_column_metadata(table_id: int, column_name: str):
     """删除列元数据"""
     try:
         metadata_service = get_metadata_service()
-        success = metadata_service.delete_column(table_name, column_name)
+        success = metadata_service.delete_column_by_table_id(table_id, column_name)
         if success:
             # 重新加载元数据
-            return {"success": True, "message": f"列元数据已删除: {table_name}.{column_name}"}
+            return {"success": True, "message": f"列元数据已删除: 表ID {table_id}.{column_name}"}
         else:
             raise HTTPException(status_code=400, detail="删除列元数据失败")
     except Exception as e:
@@ -271,14 +271,17 @@ async def add_relation_config(request: RelationFieldConfigRequest):
     """添加关联字段配置"""
     try:
         relation_service = get_relation_field_config_service()
-        success = relation_service.add_relation_config(
+        created_config = relation_service.add_relation_config(
             request.relation_family,
             request.relation_subfamily,
             request.relation_desc
         )
-        if success:
-            relation_id = f"{request.relation_family}|{request.relation_subfamily}"
-            return {"success": True, "message": f"关联字段配置已添加: {relation_id}"}
+        if created_config:
+            return {
+                "success": True,
+                "message": f"关联字段配置已添加: {request.relation_family}|{request.relation_subfamily}",
+                "data": created_config
+            }
         else:
             raise HTTPException(status_code=400, detail="添加关联字段配置失败")
     except Exception as e:
@@ -286,19 +289,19 @@ async def add_relation_config(request: RelationFieldConfigRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/relation-configs/{relation_id}")
-async def update_relation_config(relation_id: str, request: RelationFieldConfigUpdate):
+@router.put("/relation-configs/{config_id}")
+async def update_relation_config(config_id: int, request: RelationFieldConfigUpdate):
     """更新关联字段配置"""
     try:
         relation_service = get_relation_field_config_service()
         success = relation_service.update_relation_config(
-            relation_id,
+            config_id,
             request.relation_family,
             request.relation_subfamily,
             request.relation_desc
         )
         if success:
-            return {"success": True, "message": f"关联字段配置已更新: {relation_id}"}
+            return {"success": True, "message": f"关联字段配置已更新: ID {config_id}"}
         else:
             raise HTTPException(status_code=400, detail="更新关联字段配置失败")
     except Exception as e:
@@ -306,14 +309,14 @@ async def update_relation_config(relation_id: str, request: RelationFieldConfigU
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/relation-configs/{relation_id}")
-async def delete_relation_config(relation_id: str):
+@router.delete("/relation-configs/{config_id}")
+async def delete_relation_config(config_id: int):
     """删除关联字段配置"""
     try:
         relation_service = get_relation_field_config_service()
-        success = relation_service.delete_relation_config(relation_id)
+        success = relation_service.delete_relation_config(config_id)
         if success:
-            return {"success": True, "message": f"关联字段配置已删除: {relation_id}"}
+            return {"success": True, "message": f"关联字段配置已删除: ID {config_id}"}
         else:
             raise HTTPException(status_code=400, detail="删除关联字段配置失败")
     except Exception as e:
@@ -321,16 +324,7 @@ async def delete_relation_config(relation_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/relation-configs/ids")
-async def get_relation_ids():
-    """获取所有关联ID列表"""
-    try:
-        relation_service = get_relation_field_config_service()
-        relation_ids = relation_service.get_relation_ids()
-        return {"success": True, "data": relation_ids}
-    except Exception as e:
-        logger.error(f"获取关联ID列表失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# 已移除: 不再需要关联ID列表接口，直接使用数字ID
 
 
 # 提示词模板管理
@@ -432,14 +426,18 @@ async def add_theme(request: DataThemeRequest):
     """添加数据主题"""
     try:
         theme_service = get_data_theme_service()
-        success = theme_service.add_theme(
+        created_theme = theme_service.add_theme(
             request.theme_name,
             request.theme_description,
             request.theme_type,
             request.department
         )
-        if success:
-            return {"success": True, "message": f"数据主题已添加: {request.theme_name}"}
+        if created_theme:
+            return {
+                "success": True,
+                "message": f"数据主题已添加: {request.theme_name}",
+                "data": created_theme
+            }
         else:
             raise HTTPException(status_code=400, detail="添加数据主题失败")
     except Exception as e:

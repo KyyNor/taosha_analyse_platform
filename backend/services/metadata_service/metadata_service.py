@@ -130,15 +130,11 @@ class MetadataService:
             logger.error(f"添加表元数据失败: {e}")
             return False
 
-    def update_table(self, table_name: str, comment: str = None, is_available: int = None) -> bool:
-        """更新表元数据"""
-        try:
-            # 先找到表记录
-            table = self.table_repo.get_by_name(table_name)
-            if not table:
-                logger.error(f"表不存在: {table_name}")
-                return False
+    # 已废弃: 使用 update_table_by_id(table_id, comment, is_available) 替代
 
+    def update_table_by_id(self, table_id: int, comment: str = None, is_available: int = None) -> bool:
+        """更新表元数据（按ID）"""
+        try:
             # 准备更新数据
             update_data = {}
             if comment is not None:
@@ -147,28 +143,25 @@ class MetadataService:
                 update_data['is_available'] = is_available
 
             if update_data:
-                self.table_repo.update(table.id, **update_data)
+                self.table_repo.update(table_id, **update_data)
                 self._load_metadata()
 
-            logger.info(f"更新表元数据成功: {table_name}")
+            logger.info(f"更新表元数据成功: ID {table_id}")
             return True
 
         except Exception as e:
             logger.error(f"更新表元数据失败: {e}")
             return False
 
-    def delete_table(self, table_name: str) -> bool:
-        """删除表元数据"""
-        try:
-            table = self.table_repo.get_by_name(table_name)
-            if not table:
-                logger.error(f"表不存在: {table_name}")
-                return False
+    # 已废弃: 使用 delete_table_by_id(table_id) 替代
 
-            self.table_repo.delete(table.id)
+    def delete_table_by_id(self, table_id: int) -> bool:
+        """删除表元数据（按ID）"""
+        try:
+            self.table_repo.delete(table_id)
             self._load_metadata()
 
-            logger.info(f"删除表元数据成功: {table_name}")
+            logger.info(f"删除表元数据成功: ID {table_id}")
             return True
 
         except Exception as e:
@@ -177,7 +170,7 @@ class MetadataService:
 
     def add_column(self, table_name: str, column_name: str, column_type: str,
                    comment: str = "", is_available: int = 0, business_type: str = "", relation_config_id: int = None) -> bool:
-        """添加列元数据"""
+        """添加列元数据（向后兼容，按表名）"""
         try:
             # 先找到表记录
             table = self.table_repo.get_by_name(table_name)
@@ -213,21 +206,17 @@ class MetadataService:
             logger.error(f"添加列元数据失败: {e}")
             return False
 
-    def update_column(self, table_name: str, column_name: str, column_type: str = None,
-                     comment: str = None, is_available: int = None, business_type: str = None,
-                     relation_config_id: int = None) -> bool:
-        """更新列元数据"""
-        try:
-            # 先找到表记录
-            table = self.table_repo.get_by_name(table_name)
-            if not table:
-                logger.error(f"表不存在: {table_name}")
-                return False
+    # 已废弃: 使用 update_column_by_table_id(table_id, column_name, ...) 替代
 
+    def update_column_by_table_id(self, table_id: int, column_name: str, column_type: str = None,
+                                  comment: str = None, is_available: int = None, business_type: str = None,
+                                  relation_config_id: int = None) -> bool:
+        """更新列元数据（按表ID）"""
+        try:
             # 找到列记录
-            column = self.column_repo.get_by_table_and_name(table.id, column_name)
+            column = self.column_repo.get_by_table_and_name(table_id, column_name)
             if not column:
-                logger.error(f"列不存在: {table_name}.{column_name}")
+                logger.error(f"列不存在: 表ID {table_id}.{column_name}")
                 return False
 
             # 准备更新数据
@@ -247,32 +236,28 @@ class MetadataService:
                 self.column_repo.update(column.id, **update_data)
                 self._load_metadata()
 
-            logger.info(f"更新列元数据成功: {table_name}.{column_name}")
+            logger.info(f"更新列元数据成功: 表ID {table_id}.{column_name}")
             return True
 
         except Exception as e:
             logger.error(f"更新列元数据失败: {e}")
             return False
 
-    def delete_column(self, table_name: str, column_name: str) -> bool:
-        """删除列元数据"""
-        try:
-            # 先找到表记录
-            table = self.table_repo.get_by_name(table_name)
-            if not table:
-                logger.error(f"表不存在: {table_name}")
-                return False
+    # 已废弃: 使用 delete_column_by_table_id(table_id, column_name) 替代
 
+    def delete_column_by_table_id(self, table_id: int, column_name: str) -> bool:
+        """删除列元数据（按表ID）"""
+        try:
             # 找到列记录
-            column = self.column_repo.get_by_table_and_name(table.id, column_name)
+            column = self.column_repo.get_by_table_and_name(table_id, column_name)
             if not column:
-                logger.error(f"列不存在: {table_name}.{column_name}")
+                logger.error(f"列不存在: 表ID {table_id}.{column_name}")
                 return False
 
             self.column_repo.delete(column.id)
             self._load_metadata()
 
-            logger.info(f"删除列元数据成功: {table_name}.{column_name}")
+            logger.info(f"删除列元数据成功: 表ID {table_id}.{column_name}")
             return True
 
         except Exception as e:
@@ -298,7 +283,6 @@ class RelationFieldConfigService:
             return [
                 {
                     "id": config.id,
-                    "relation_id": config.relation_id,
                     "relation_family": config.relation_family,
                     "relation_subfamily": config.relation_subfamily,
                     "relation_desc": config.relation_desc or ""
@@ -309,7 +293,7 @@ class RelationFieldConfigService:
             logger.error(f"获取关联字段配置失败: {e}")
             return []
 
-    def add_relation_config(self, family: str, subfamily: str, desc: str = "") -> bool:
+    def add_relation_config(self, family: str, subfamily: str, desc: str = "") -> Optional[Dict[str, Any]]:
         """添加关联字段配置"""
         try:
             config = self.repo.create(
@@ -318,30 +302,24 @@ class RelationFieldConfigService:
                 relation_desc=desc
             )
 
+            # 转换为字典格式返回
+            config_dict = {
+                "id": config.id,
+                "relation_family": config.relation_family,
+                "relation_subfamily": config.relation_subfamily,
+                "relation_desc": config.relation_desc or ""
+            }
+
             logger.info(f"添加关联字段配置成功: {family}|{subfamily}")
-            return True
+            return config_dict
 
         except Exception as e:
             logger.error(f"添加关联字段配置失败: {e}")
-            return False
+            return None
 
-    def update_relation_config(self, relation_id: str, family: str = None, subfamily: str = None, desc: str = None) -> bool:
+    def update_relation_config(self, config_id: int, family: str = None, subfamily: str = None, desc: str = None) -> bool:
         """更新关联字段配置"""
         try:
-            # 解析relation_id获取family和subfamily
-            parts = relation_id.split("|")
-            if len(parts) != 2:
-                logger.error(f"无效的relation_id格式: {relation_id}")
-                return False
-
-            current_family, current_subfamily = parts
-
-            # 查找现有配置
-            config = self.repo.get_by_family_subfamily(current_family, current_subfamily)
-            if not config:
-                logger.error(f"关联配置不存在: {relation_id}")
-                return False
-
             # 准备更新数据
             update_data = {}
             if family is not None:
@@ -352,44 +330,25 @@ class RelationFieldConfigService:
                 update_data['relation_desc'] = desc
 
             if update_data:
-                self.repo.update(config.id, **update_data)
+                self.repo.update(config_id, **update_data)
 
-            logger.info(f"更新关联字段配置成功: {relation_id}")
+            logger.info(f"更新关联字段配置成功: ID {config_id}")
             return True
 
         except Exception as e:
             logger.error(f"更新关联字段配置失败: {e}")
             return False
 
-    def delete_relation_config(self, relation_id: str) -> bool:
+    def delete_relation_config(self, config_id: int) -> bool:
         """删除关联字段配置"""
         try:
-            # 解析relation_id获取family和subfamily
-            parts = relation_id.split("|")
-            if len(parts) != 2:
-                logger.error(f"无效的relation_id格式: {relation_id}")
-                return False
-
-            family, subfamily = parts
-
-            # 查找现有配置
-            config = self.repo.get_by_family_subfamily(family, subfamily)
-            if not config:
-                logger.error(f"关联配置不存在: {relation_id}")
-                return False
-
-            self.repo.delete(config.id)
-
-            logger.info(f"删除关联字段配置成功: {relation_id}")
+            self.repo.delete(config_id)
+            logger.info(f"删除关联字段配置成功: ID {config_id}")
             return True
 
         except Exception as e:
             logger.error(f"删除关联字段配置失败: {e}")
             return False
-
-    def get_relation_ids(self) -> List[str]:
-        """获取所有关联ID列表"""
-        return self.repo.get_all_relation_ids()
 
 
 class GlossaryService:
@@ -748,7 +707,7 @@ class DataThemeService:
             logger.error(f"获取数据主题失败: {e}")
             return None
 
-    def add_theme(self, theme_name: str, theme_description: str = "", theme_type: str = "normal", department: str = "") -> bool:
+    def add_theme(self, theme_name: str, theme_description: str = "", theme_type: str = "normal", department: str = "") -> Optional[Dict[str, Any]]:
         """添加数据主题"""
         try:
             # 检查通用主题唯一性
@@ -756,7 +715,7 @@ class DataThemeService:
                 existing_public = self.get_public_theme()
                 if existing_public:
                     logger.error("通用主题已存在，只能创建一个")
-                    return False
+                    return None
 
             theme = self.theme_repo.create(
                 theme_name=theme_name,
@@ -765,12 +724,23 @@ class DataThemeService:
                 department=department
             )
 
+            # 转换为字典格式返回
+            theme_dict = {
+                "id": theme.id,
+                "theme_name": theme.theme_name,
+                "theme_description": theme.theme_description or "",
+                "theme_type": theme.theme_type,
+                "department": theme.department or "",
+                "created_at": theme.created_at.isoformat() if theme.created_at else "",
+                "updated_at": theme.updated_at.isoformat() if theme.updated_at else ""
+            }
+
             logger.info(f"添加数据主题成功: {theme_name}")
-            return True
+            return theme_dict
 
         except Exception as e:
             logger.error(f"添加数据主题失败: {e}")
-            return False
+            return None
 
     def update_theme(self, theme_id: int, theme_name: str = None, theme_description: str = None,
                      theme_type: str = None, department: str = None) -> bool:

@@ -1,4 +1,5 @@
 -- 淘沙分析平台 - MySQL 数据库建表脚本
+-- 支持 MySQL 和 SQLite
 
 -- ==================== 元数据表 ====================
 
@@ -14,17 +15,18 @@ CREATE TABLE IF NOT EXISTS metadata_tables (
 
 CREATE TABLE IF NOT EXISTS metadata_columns (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    table_name VARCHAR(255) NOT NULL,
+    table_id INT NOT NULL,
     name VARCHAR(255) NOT NULL,
     type VARCHAR(100) NOT NULL,
     comment TEXT,
     is_available INT DEFAULT 0,
     business_type VARCHAR(100) DEFAULT '',
-    relation_id VARCHAR(255) DEFAULT '',
+    relation_config_id INT DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (table_name) REFERENCES metadata_tables(name) ON DELETE CASCADE,
-    UNIQUE KEY unique_table_column (table_name, name)
+    FOREIGN KEY (table_id) REFERENCES metadata_tables(id) ON DELETE CASCADE,
+    FOREIGN KEY (relation_config_id) REFERENCES relation_field_config(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_table_column (table_id, name)
 );
 
 -- ==================== 术语表 ====================
@@ -54,12 +56,36 @@ CREATE TABLE IF NOT EXISTS prompt_templates (
 
 CREATE TABLE IF NOT EXISTS relation_field_config (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    relation_id VARCHAR(255) UNIQUE NOT NULL,
     relation_family VARCHAR(255) NOT NULL,
     relation_subfamily VARCHAR(255) NOT NULL,
     relation_desc TEXT DEFAULT '',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_relation (relation_family, relation_subfamily)
+);
+
+-- ==================== 数据主题表 ====================
+
+CREATE TABLE IF NOT EXISTS data_themes (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    theme_name VARCHAR(255) UNIQUE NOT NULL,
+    theme_description TEXT DEFAULT '',
+    theme_type VARCHAR(50) NOT NULL DEFAULT 'normal',
+    department VARCHAR(100) DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ==================== 主题表关联关系表 ====================
+
+CREATE TABLE IF NOT EXISTS theme_table_relations (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    theme_id INT NOT NULL,
+    table_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (theme_id) REFERENCES data_themes(id) ON DELETE CASCADE,
+    FOREIGN KEY (table_id) REFERENCES metadata_tables(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_theme_table (theme_id, table_id)
 );
 
 -- ==================== 操作追踪表 ====================
@@ -133,10 +159,16 @@ CREATE INDEX IF NOT EXISTS idx_prompt_templates_name ON prompt_templates(name);
 
 -- 元数据表相关索引
 CREATE INDEX IF NOT EXISTS idx_metadata_tables_name ON metadata_tables(name);
-CREATE INDEX IF NOT EXISTS idx_metadata_columns_table_name ON metadata_columns(table_name);
-CREATE INDEX IF NOT EXISTS idx_metadata_columns_table_name_name ON metadata_columns(table_name, name);
-CREATE INDEX IF NOT EXISTS idx_metadata_columns_relation_id ON metadata_columns(relation_id);
+CREATE INDEX IF NOT EXISTS idx_metadata_columns_table_id ON metadata_columns(table_id);
+CREATE INDEX IF NOT EXISTS idx_metadata_columns_table_id_name ON metadata_columns(table_id, name);
+CREATE INDEX IF NOT EXISTS idx_metadata_columns_relation_config_id ON metadata_columns(relation_config_id);
 
 -- 关联字段配置索引
-CREATE INDEX IF NOT EXISTS idx_relation_field_config_relation_id ON relation_field_config(relation_id);
 CREATE INDEX IF NOT EXISTS idx_relation_field_config_family ON relation_field_config(relation_family, relation_subfamily);
+
+-- 数据主题相关索引
+CREATE INDEX IF NOT EXISTS idx_data_themes_name ON data_themes(theme_name);
+CREATE INDEX IF NOT EXISTS idx_data_themes_type ON data_themes(theme_type);
+CREATE INDEX IF NOT EXISTS idx_data_themes_department ON data_themes(department);
+CREATE INDEX IF NOT EXISTS idx_theme_table_relations_theme_id ON theme_table_relations(theme_id);
+CREATE INDEX IF NOT EXISTS idx_theme_table_relations_table_id ON theme_table_relations(table_id);

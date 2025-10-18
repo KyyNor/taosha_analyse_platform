@@ -20,7 +20,10 @@ class DataThemeRepository(BaseRepository[DataTheme]):
         """根据主题名称获取记录"""
         try:
             with self.get_db_session() as db:
-                return db.query(DataTheme).filter(DataTheme.theme_name == name).first()
+                result = db.query(DataTheme).filter(DataTheme.theme_name == name).first()
+                if result:
+                    db.expunge(result)
+                return result
         except Exception as e:
             logger.error(f"根据名称获取数据主题失败: {e}")
             raise
@@ -29,7 +32,10 @@ class DataThemeRepository(BaseRepository[DataTheme]):
         """根据主题类型获取列表"""
         try:
             with self.get_db_session() as db:
-                return db.query(DataTheme).filter(DataTheme.theme_type == theme_type).all()
+                results = db.query(DataTheme).filter(DataTheme.theme_type == theme_type).all()
+                for obj in results:
+                    db.expunge(obj)
+                return results
         except Exception as e:
             logger.error(f"根据类型获取数据主题失败: {e}")
             raise
@@ -47,7 +53,10 @@ class DataThemeRepository(BaseRepository[DataTheme]):
         """获取通用主题"""
         try:
             with self.get_db_session() as db:
-                return db.query(DataTheme).filter(DataTheme.theme_type == 'public').first()
+                result = db.query(DataTheme).filter(DataTheme.theme_type == 'public').first()
+                if result:
+                    db.expunge(result)
+                return result
         except Exception as e:
             logger.error(f"获取通用主题失败: {e}")
             raise
@@ -97,9 +106,13 @@ class ThemeTableRelationRepository(BaseRepository[ThemeTableRelation]):
         """根据主题ID获取所有关联"""
         try:
             with self.get_db_session() as db:
-                return db.query(ThemeTableRelation)\
-                         .filter(ThemeTableRelation.theme_id == theme_id)\
-                         .all()
+                results = db.query(ThemeTableRelation)\
+                            .filter(ThemeTableRelation.theme_id == theme_id)\
+                            .all()
+                # 将所有对象从会话中分离，避免会话关闭后访问出错
+                for obj in results:
+                    db.expunge(obj)
+                return results
         except Exception as e:
             logger.error(f"根据主题ID获取关联关系失败: {e}")
             raise
@@ -108,9 +121,13 @@ class ThemeTableRelationRepository(BaseRepository[ThemeTableRelation]):
         """根据表ID获取所有关联"""
         try:
             with self.get_db_session() as db:
-                return db.query(ThemeTableRelation)\
-                         .filter(ThemeTableRelation.table_id == table_id)\
-                         .all()
+                results = db.query(ThemeTableRelation)\
+                            .filter(ThemeTableRelation.table_id == table_id)\
+                            .all()
+                # 将所有对象从会话中分离，避免会话关闭后访问出错
+                for obj in results:
+                    db.expunge(obj)
+                return results
         except Exception as e:
             logger.error(f"根据表ID获取关联关系失败: {e}")
             raise
@@ -119,14 +136,17 @@ class ThemeTableRelationRepository(BaseRepository[ThemeTableRelation]):
         """获取特定主题和表的关联关系"""
         try:
             with self.get_db_session() as db:
-                return db.query(ThemeTableRelation)\
-                         .filter(
-                             and_(
-                                 ThemeTableRelation.theme_id == theme_id,
-                                 ThemeTableRelation.table_id == table_id
-                             )
-                         )\
-                         .first()
+                result = db.query(ThemeTableRelation)\
+                           .filter(
+                               and_(
+                                   ThemeTableRelation.theme_id == theme_id,
+                                   ThemeTableRelation.table_id == table_id
+                               )
+                           )\
+                           .first()
+                if result:
+                    db.expunge(result)
+                return result
         except Exception as e:
             logger.error(f"获取关联关系失败: {e}")
             raise
@@ -134,18 +154,13 @@ class ThemeTableRelationRepository(BaseRepository[ThemeTableRelation]):
     def add_table_to_theme(self, theme_id: int, table_id: int) -> ThemeTableRelation:
         """添加表到主题（如果不存在的话）"""
         try:
-            with self.get_db_session() as db:
-                # 检查是否已存在
-                existing = self.get_relation(theme_id, table_id)
-                if existing:
-                    return existing
+            # 检查是否已存在
+            existing = self.get_relation(theme_id, table_id)
+            if existing:
+                return existing
 
-                # 创建新关联
-                relation = ThemeTableRelation(theme_id=theme_id, table_id=table_id)
-                db.add(relation)
-                db.flush()
-                db.refresh(relation)
-                return relation
+            # 使用基础Repository的create方法
+            return self.create(theme_id=theme_id, table_id=table_id)
         except Exception as e:
             logger.error(f"添加表到主题失败: {e}")
             raise
