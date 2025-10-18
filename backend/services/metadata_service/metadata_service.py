@@ -6,7 +6,6 @@ import json
 from utils.logger import logger
 from typing import Dict, List, Any, Optional
 from datetime import datetime
-import hashlib
 from sqlalchemy.orm import Session
 
 from repositories import (
@@ -28,12 +27,9 @@ class MetadataService:
         self.db = db
         self.table_repo = MetadataTableRepository(db)
         self.column_repo = MetadataColumnRepository(db)
-        self._metadata = None
-        self._metadata_hash = None
-        self._load_metadata()
 
-    def _load_metadata(self) -> Dict[str, Any]:
-        """从数据库加载元数据"""
+    def _build_metadata_dict(self) -> Dict[str, Any]:
+        """从数据库动态构建元数据字典"""
         try:
             tables_with_columns = self.table_repo.get_all_with_columns()
 
@@ -76,20 +72,16 @@ class MetadataService:
 
                 tables.append(table_dict)
 
-            self._metadata = {"tables": tables}
-            content_str = json.dumps(self._metadata, sort_keys=True, ensure_ascii=False)
-            self._metadata_hash = hashlib.md5(content_str.encode()).hexdigest()
-
-            logger.info(f"元数据已从数据库加载，共{len(tables)}张表")
+            logger.debug(f"元数据已从数据库加载，共{len(tables)}张表")
+            return {"tables": tables}
 
         except Exception as e:
             logger.error(f"从数据库加载元数据失败: {e}")
-            self._metadata = {"tables": []}
-            self._metadata_hash = None
+            return {"tables": []}
 
     def get_metadata(self) -> Dict[str, Any]:
-        """获取元数据"""
-        return self._metadata or {"tables": []}
+        """获取元数据（直接从数据库查询）"""
+        return self._build_metadata_dict()
 
     def get_tables(self) -> List[Dict[str, Any]]:
         """获取所有表信息"""
@@ -135,9 +127,6 @@ class MetadataService:
                 is_available=is_available
             )
 
-            # 重新加载元数据
-            self._load_metadata()
-
             # 转换为字典格式返回
             table_dict = {
                 "id": table.id,
@@ -170,7 +159,6 @@ class MetadataService:
 
             if update_data:
                 self.table_repo.update(table_id, **update_data)
-                self._load_metadata()
 
             logger.info(f"更新表元数据成功: ID {table_id}")
             return True
@@ -185,7 +173,6 @@ class MetadataService:
         """删除表元数据（按ID）"""
         try:
             self.table_repo.delete(table_id)
-            self._load_metadata()
 
             logger.info(f"删除表元数据成功: ID {table_id}")
             return True
@@ -221,9 +208,6 @@ class MetadataService:
                 business_type=business_type,
                 relation_config_id=relation_config_id
             )
-
-            # 重新加载元数据
-            self._load_metadata()
 
             # 转换为字典格式返回
             column_dict = {
@@ -292,7 +276,6 @@ class MetadataService:
 
             if update_data:
                 self.column_repo.update(column.id, **update_data)
-                self._load_metadata()
 
             logger.info(f"更新列元数据成功: 表ID {table_id}.{column_name}")
             return True
@@ -323,7 +306,6 @@ class MetadataService:
 
             if update_data:
                 self.column_repo.update(column_id, **update_data)
-                self._load_metadata()
 
             logger.info(f"更新列元数据成功: ID {column_id}")
             return True
@@ -336,7 +318,6 @@ class MetadataService:
         """删除列元数据（按列ID）"""
         try:
             self.column_repo.delete(column_id)
-            self._load_metadata()
 
             logger.info(f"删除列元数据成功: ID {column_id}")
             return True
@@ -357,7 +338,6 @@ class MetadataService:
                 return False
 
             self.column_repo.delete(column.id)
-            self._load_metadata()
 
             logger.info(f"删除列元数据成功: 表ID {table_id}.{column_name}")
             return True
@@ -460,12 +440,9 @@ class GlossaryService:
     def __init__(self, db: Session):
         self.db = db
         self.repo = GlossaryTermRepository(db)
-        self._glossary = None
-        self._glossary_hash = None
-        self._load_glossary()
 
-    def _load_glossary(self) -> Dict[str, Any]:
-        """从数据库加载术语表"""
+    def _build_glossary_dict(self) -> Dict[str, Any]:
+        """从数据库动态构建术语表字典"""
         try:
             terms = self.repo.get_all()
 
@@ -488,20 +465,16 @@ class GlossaryService:
                     "updated_at": term.updated_at.isoformat() if term.updated_at else ""
                 })
 
-            self._glossary = {"terms": terms_list}
-            content_str = json.dumps(self._glossary, sort_keys=True, ensure_ascii=False)
-            self._glossary_hash = hashlib.md5(content_str.encode()).hexdigest()
-
-            logger.info(f"术语表已从数据库加载，共{len(terms_list)}个术语")
+            logger.debug(f"术语表已从数据库加载，共{len(terms_list)}个术语")
+            return {"terms": terms_list}
 
         except Exception as e:
             logger.error(f"从数据库加载术语表失败: {e}")
-            self._glossary = {"terms": []}
-            self._glossary_hash = None
+            return {"terms": []}
 
     def get_glossary(self) -> Dict[str, Any]:
-        """获取术语表"""
-        return self._glossary or {"terms": []}
+        """获取术语表（直接从数据库查询）"""
+        return self._build_glossary_dict()
 
     def get_terms(self) -> List[Dict[str, Any]]:
         """获取所有术语"""
@@ -535,8 +508,6 @@ class GlossaryService:
                 creator=creator
             )
 
-            # 重新加载术语表
-            self._load_glossary()
             logger.info(f"添加术语成功: {name}")
             return True
 
@@ -560,8 +531,6 @@ class GlossaryService:
 
             if update_data:
                 self.repo.update(term_id, **update_data)
-                # 重新加载术语表
-                self._load_glossary()
 
             logger.info(f"更新术语成功: ID {term_id}")
             return True
@@ -574,8 +543,6 @@ class GlossaryService:
         """删除术语"""
         try:
             self.repo.delete(term_id)
-            # 重新加载术语表
-            self._load_glossary()
 
             logger.info(f"删除术语成功: ID {term_id}")
             return True
@@ -591,12 +558,9 @@ class PromptTemplateService:
     def __init__(self, db: Session):
         self.db = db
         self.repo = PromptTemplateRepository(db)
-        self._templates = None
-        self._templates_hash = None
-        self._load_templates()
 
-    def _load_templates(self) -> Dict[str, Any]:
-        """从数据库加载提示词模板"""
+    def _build_templates_dict(self) -> Dict[str, Any]:
+        """从数据库动态构建提示词模板字典"""
         try:
             templates = self.repo.get_all()
 
@@ -618,24 +582,20 @@ class PromptTemplateService:
                     "updated_at": template.updated_at.isoformat() if template.updated_at else ""
                 })
 
-            self._templates = {"templates": templates_list}
-            content_str = json.dumps(self._templates, sort_keys=True, ensure_ascii=False)
-            self._templates_hash = hashlib.md5(content_str.encode()).hexdigest()
-
-            logger.info(f"提示词模板已从数据库加载，共{len(templates_list)}个模板")
+            logger.debug(f"提示词模板已从数据库加载，共{len(templates_list)}个模板")
+            return {"templates": templates_list}
 
         except Exception as e:
             logger.error(f"从数据库加载提示词模板失败: {e}")
-            self._templates = {"templates": []}
-            self._templates_hash = None
+            return {"templates": []}
 
     def get_templates(self) -> List[Dict[str, Any]]:
         """获取所有提示词模板"""
         return self.get_templates_data().get("templates", [])
 
     def get_templates_data(self) -> Dict[str, Any]:
-        """获取提示词模板数据"""
-        return self._templates or {"templates": []}
+        """获取提示词模板数据（直接从数据库查询）"""
+        return self._build_templates_dict()
 
     def get_template_by_id(self, template_id: int) -> Optional[Dict[str, Any]]:
         """根据ID获取提示词模板"""
@@ -694,8 +654,6 @@ class PromptTemplateService:
                 template=template
             )
 
-            # 重新加载模板
-            self._load_templates()
             logger.info(f"添加提示词模板成功: {name}")
             return True
 
@@ -729,8 +687,6 @@ class PromptTemplateService:
 
             if update_data:
                 self.repo.update(template_id, **update_data)
-                # 重新加载模板
-                self._load_templates()
 
             logger.info(f"更新提示词模板成功: ID {template_id}")
             return True
@@ -743,8 +699,6 @@ class PromptTemplateService:
         """删除提示词模板"""
         try:
             self.repo.delete(template_id)
-            # 重新加载模板
-            self._load_templates()
 
             logger.info(f"删除提示词模板成功: ID {template_id}")
             return True

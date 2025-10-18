@@ -37,7 +37,8 @@
       "Bash(npm run type-check:*)",
       "Bash(timeout:*)",
       "Bash(move \"D:\\code\\taosha_analyse_platform\\backend\\models\\base.py\" \"D:\\code\\taosha_analyse_platform\\backend\\models\\db_base.py\")",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": [],
