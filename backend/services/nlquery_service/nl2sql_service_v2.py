@@ -397,8 +397,8 @@ class NL2SQLServiceV2:
 
         return workflow.compile()
 
-    def query(self, user_input: str, flow_type: str = "fast",
-              relation_id: Optional[str] = None,
+    def query(self, user_input: str, initial_state, 
+              flow_type: str = "fast", relation_id: Optional[str] = None,
               table_names: Optional[list] = None) -> Dict[str, Any]:
         """执行自然语言查询
 
@@ -413,15 +413,6 @@ class NL2SQLServiceV2:
         """
         try:
             logger.info(f"执行NL2SQL查询: {user_input[:100]}...")
-
-            # 创建初始状态
-            initial_state = TaskState(
-                user_input=user_input,
-                flow_type=flow_type,
-                relation_id=relation_id,
-                table_names=table_names or [],
-                created_at=datetime.now()
-            )
 
             # 执行工作流
             result = self.workflow.invoke(initial_state)
@@ -513,20 +504,27 @@ class NL2SQLServiceV2:
         Returns:
             查询结果字典
         """
+        
+        logger.info("查询流程v2")
         try:
-            # 直接调用query方法，返回结果
-            result = self.query(user_input=user_input, flow_type=flow_type)
+            if tracker is None:
+                raise ValueError("tracker参数是必须的，请通过依赖注入传入OperationTracker实例")
 
-            # 如果提供了tracker，记录结果
-            if tracker:
-                try:
-                    # 记录成功的查询结果
-                    if result.get("success"):
-                        logger.info(f"任务 {task_id} 查询成功: {user_input[:50]}...")
-                    else:
-                        logger.warning(f"任务 {task_id} 查询失败: {result.get('error', 'Unknown error')}")
-                except Exception as e:
-                    logger.warning(f"记录任务结果失败: {e}")
+            logger.info(f"开始处理查询流程 用户输入：{user_input}，任务ID：{task_id}，操作人：{operator}，流程类型：{flow_type}")
+
+            # 创建统一的任务状态
+            task_state = TaskStateHelper.create_default(
+                task_id=task_id,
+                user_input=user_input,
+                flow_type=flow_type,
+                max_retries=max_retries,
+                operator=operator
+            )
+            
+            tracker.create_task(task_state)
+            
+            # 直接调用query方法，返回结果
+            result = self.query(user_input=user_input, flow_type=flow_type, initial_state=task_state)
 
             return result
 
