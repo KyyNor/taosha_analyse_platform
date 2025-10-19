@@ -281,6 +281,12 @@ TAOSHA_LOG_LEVEL=INFO
 - ✅ **数据主题管理功能**：完整实现主题和表关联管理，支持一般主题和通用主题两种类型
 - ✅ **时间时区问题修复**：统一使用本地时间，解决UTC时差8小时问题
 - ✅ **Repository模式数据访问层**：完成SQLAlchemy ORM架构重构，实现标准化数据访问接口
+- ✅ **LLM Service模块化**：新增BaseLLMService和NLQueryLLMService，解耦LLM功能逻辑
+- ✅ **Training Service完整实现**：支持训练数据管理、会话管理、验证结果记录等核心功能
+- ✅ **NL2SQLServiceV2增强**：集成Vector Store、Context Builder、LLM Service、Training Service的完整工作流
+- ✅ **LangGraph工作流架构**：5节点工作流（知识库检查、上下文检索、SQL生成、SQL验证、结果解释）
+- ✅ **VectorStoreFactory延迟加载**：实现字符串模块路径和动态导入，解决依赖冲突问题
+- ✅ **OpenAI客户端管理**：动态创建和配置OpenAI客户端，支持自定义API端点和模型配置
 
 ### Frontend Enhancements
 
@@ -314,7 +320,7 @@ TAOSHA_LOG_LEVEL=INFO
 
 ### Testing & Quality Assurance
 
-- ✅ **完整测试框架建立**：新增117个测试用例，覆盖核心功能
+- ✅ **完整测试框架建立**：新增130+个测试用例，覆盖核心功能
 - ✅ **测试目录结构重组**：统一管理到testcases/目录，支持单元测试、集成测试、API测试
 - ✅ **查询引擎测试**：DuckDBService完整功能测试，QueryEngineFactory工厂模式测试
 - ✅ **Repository层测试**：BaseRepository通用CRUD测试，数据错误处理和事务测试
@@ -322,6 +328,9 @@ TAOSHA_LOG_LEVEL=INFO
 - ✅ **API接口测试**：自然语言查询API测试，WebSocket实时进度推送测试
 - ✅ **中文显示修复**：修复Windows环境下测试中文乱码问题
 - ✅ **测试覆盖率提升**：核心业务逻辑85%→90%，服务层80%→85%，Repository层0%→80%，API层0%→75%
+- ✅ **LLM Service单元测试**：30个测试覆盖SQL生成、重试、验证、解释等功能
+- ✅ **Training Service单元测试**：19个测试覆盖训练数据和会话管理
+- ✅ **NL2SQL V2集成测试**：15个测试验证完整工作流和模块集成
 
 ### Technical Debt Reduction
 
@@ -338,4 +347,4 @@ TAOSHA_LOG_LEVEL=INFO
 ---
 
 ## Documentation Last Update
-上次更新时commit:a493a36
+上次更新时commit:402e622 - 完成Vanna替换的阶段5和阶段6（NL2SQL Service V2集成和完整测试验证）
