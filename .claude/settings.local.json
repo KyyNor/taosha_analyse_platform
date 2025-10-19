@@ -38,7 +38,8 @@
       "Bash(timeout:*)",
       "Bash(move \"D:\\code\\taosha_analyse_platform\\backend\\models\\base.py\" \"D:\\code\\taosha_analyse_platform\\backend\\models\\db_base.py\")",
       "Bash(cd:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": [],
