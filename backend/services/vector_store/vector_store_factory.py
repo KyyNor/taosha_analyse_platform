@@ -4,8 +4,6 @@
 
 from typing import Dict, Any, Optional
 from services.vector_store.base import VectorStore
-from services.vector_store.chromadb_store import ChromaDBStore
-from services.vector_store.qdrant_store import QdrantStore
 from utils.logger import logger
 
 
@@ -13,13 +11,28 @@ class VectorStoreFactory:
     """向量存储工厂类
 
     支持工厂模式，可以通过配置一键切换不同的向量库实现
+    使用延迟导入避免依赖问题
     """
 
     # 支持的向量库类型
     SUPPORTED_STORES = {
-        "chromadb": ChromaDBStore,
-        "qdrant": QdrantStore
+        "chromadb": "services.vector_store.chromadb_store:ChromaDBStore",
+        "qdrant": "services.vector_store.qdrant_store:QdrantStore"
     }
+
+    @staticmethod
+    def _load_class(module_path: str):
+        """动态加载类
+
+        Args:
+            module_path: 模块路径 (格式: "module.path:ClassName")
+
+        Returns:
+            加载的类
+        """
+        module_name, class_name = module_path.split(":")
+        module = __import__(module_name, fromlist=[class_name])
+        return getattr(module, class_name)
 
     @staticmethod
     def create(store_type: str,
@@ -65,7 +78,9 @@ class VectorStoreFactory:
             config = {}
 
         try:
-            store_class = VectorStoreFactory.SUPPORTED_STORES[store_type]
+            # 使用延迟加载获取类
+            module_path = VectorStoreFactory.SUPPORTED_STORES[store_type]
+            store_class = VectorStoreFactory._load_class(module_path)
 
             if store_type == "chromadb":
                 return VectorStoreFactory._create_chromadb(
@@ -87,7 +102,7 @@ class VectorStoreFactory:
     @staticmethod
     def _create_chromadb(store_class,
                          embedding_func,
-                         config: Dict[str, Any]) -> ChromaDBStore:
+                         config: Dict[str, Any]) -> VectorStore:
         """创建 ChromaDB 实例
 
         Args:
@@ -118,7 +133,7 @@ class VectorStoreFactory:
     @staticmethod
     def _create_qdrant(store_class,
                        embedding_func,
-                       config: Dict[str, Any]) -> QdrantStore:
+                       config: Dict[str, Any]) -> VectorStore:
         """创建 Qdrant 实例
 
         Args:

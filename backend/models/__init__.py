@@ -18,6 +18,9 @@ from .tracking_models import (
 from .theme_models import (
     DataTheme, ThemeTableRelation
 )
+from .training_models import (
+    TrainingData, TrainingSession, TrainingMetrics, SQLValidationResult
+)
 
 __all__ = [
     # 基础配置
@@ -44,4 +47,10 @@ __all__ = [
     # 主题模型
     "DataTheme",
     "ThemeTableRelation",
+
+    # 训练模型
+    "TrainingData",
+    "TrainingSession",
+    "TrainingMetrics",
+    "SQLValidationResult",
 ]

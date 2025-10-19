@@ -18,6 +18,9 @@ from .tracking_repository import (
 from .theme_repository import (
     DataThemeRepository, ThemeTableRelationRepository
 )
+from .training_repository import (
+    TrainingDataRepository, TrainingSessionRepository, TrainingMetricsRepository, SQLValidationResultRepository
+)
 
 __all__ = [
     # 基础Repository
@@ -42,4 +45,10 @@ __all__ = [
     # 主题Repository
     "DataThemeRepository",
     "ThemeTableRelationRepository",
+
+    # 训练Repository
+    "TrainingDataRepository",
+    "TrainingSessionRepository",
+    "TrainingMetricsRepository",
+    "SQLValidationResultRepository",
 ]
