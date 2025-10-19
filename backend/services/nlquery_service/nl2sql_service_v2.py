@@ -30,6 +30,25 @@ from utils.progress_decorator import track_node_progress
 from sqlalchemy.orm import Session
 
 
+# 全局NL2SQLServiceV2实例缓存
+_nl2sql_service_v2_instance = None
+
+
+def get_nl2sql_service_v2(db_session: Optional[Session] = None) -> 'NL2SQLServiceV2':
+    """获取NL2SQLServiceV2实例（单例模式）
+
+    Args:
+        db_session: 数据库会话（可选，用于Training Service）
+
+    Returns:
+        NL2SQLServiceV2实例
+    """
+    global _nl2sql_service_v2_instance
+    if _nl2sql_service_v2_instance is None:
+        _nl2sql_service_v2_instance = NL2SQLServiceV2(db_session=db_session)
+    return _nl2sql_service_v2_instance
+
+
 class NL2SQLServiceV2:
     """增强的NL2SQL服务 - 集成新的模块化服务"""
 
@@ -477,3 +496,44 @@ class NL2SQLServiceV2:
             stats["vector_store"] = {"documents": 0}
 
         return stats
+
+    def process_query(self, user_input: str, task_id: str, max_retries: int = 5,
+                     operator: str = "api_user", flow_type: str = "fast",
+                     tracker: Optional[Any] = None) -> Dict[str, Any]:
+        """兼容旧API的处理查询方法（用于AsyncQueryService）
+
+        Args:
+            user_input: 用户输入
+            task_id: 任务ID（用于追踪）
+            max_retries: 最大重试次数（保留参数以兼容旧API）
+            operator: 操作者（保留参数以兼容旧API）
+            flow_type: 流程类型
+            tracker: 操作追踪器（保留参数以兼容旧API）
+
+        Returns:
+            查询结果字典
+        """
+        try:
+            # 直接调用query方法，返回结果
+            result = self.query(user_input=user_input, flow_type=flow_type)
+
+            # 如果提供了tracker，记录结果
+            if tracker:
+                try:
+                    # 记录成功的查询结果
+                    if result.get("success"):
+                        logger.info(f"任务 {task_id} 查询成功: {user_input[:50]}...")
+                    else:
+                        logger.warning(f"任务 {task_id} 查询失败: {result.get('error', 'Unknown error')}")
+                except Exception as e:
+                    logger.warning(f"记录任务结果失败: {e}")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"处理查询失败: {e}\n{traceback.format_exc()}")
+            return {
+                "success": False,
+                "error": str(e),
+                "user_input": user_input
+            }
