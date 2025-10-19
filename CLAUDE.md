@@ -343,8 +343,15 @@ TAOSHA_LOG_LEVEL=INFO
 - ✅ **数据库结构优化**：删除冗余表结构，重新设计术语表和提示词模板表
 - ✅ **代码风格统一**：运行ESLint自动修复，统一组件结构和属性顺序
 - ✅ **无用代码清理**：移除废弃的按名称查询接口，统一使用ID-based操作
+- ✅ **NL2SQLServiceV2工作流架构修复**：
+  - 恢复完整的flow_type条件路由逻辑（fast/thorough流程差异执行）
+  - 实现SQL执行失败的重试机制（execute_sql → generate_sql）
+  - 修复LLM服务方法调用 - 使用validate_input_clarity正确方法
+  - 修复TaskState字段类型问题（clear_check_details为字典，添加sql_explanation字段）
+  - 添加4个comprehensive工作流流程类型路由测试
+  - 全部19个集成测试通过验证
 
 ---
 
 ## Documentation Last Update
-上次更新时commit:402e622 - 完成Vanna替换的阶段5和阶段6（NL2SQL Service V2集成和完整测试验证）
+上次更新时commit:2f96839 - 修复NL2SQLServiceV2工作流架构，恢复完整的flow_type逻辑和重试机制
