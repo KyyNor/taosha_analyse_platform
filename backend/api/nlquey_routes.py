@@ -12,7 +12,8 @@ from api.endpoint_models import QueryRequest
 from models.db_base import get_db
 from services.service_models import TaskState, BaseNodeLog
 from services.nlquery_service.async_query_service import get_async_query_service
-from services.tracking_service.operation_tracking import tracker, OperationTracker
+from services.tracking_service.operation_tracking import OperationTracker
+from services.tracking_service.tracker_cache import tracker_cache
 from utils.logger import logger
 
 # 创建路由器
@@ -47,23 +48,28 @@ async def ws_task_process(websocket: WebSocket):
 
             # 如果有当前任务，推送状态
             if current_task_id:
-                task_result = await tracker.get_task_status(current_task_id)
+                # WebSocket直接从全局缓存读取状态，不需要数据库会话
+                cached_state = tracker_cache.get_task_state(current_task_id)
 
-                if task_result:
-                    # 构建响应数据（使用统一的状态格式）
-                    response = {
-                        "code": 0,
-                        "data": task_result,
-                        "error_msg": ""
-                    }
+                if cached_state:
+                    # 将字典转换为TaskState对象
+                    task_result = TaskState(**cached_state)
 
-                    await websocket.send_json(jsonable_encoder(response))
+                    if task_result:
+                        # 构建响应数据（使用统一的状态格式）
+                        response = {
+                            "code": 0,
+                            "data": task_result,
+                            "error_msg": ""
+                        }
 
-                    # 检查任务是否完成
-                    if task_result.status in ["success", "failed"]:
-                        logger.info(f"任务 {current_task_id} 已完成，状态: {task_result.status}")
-                        # 任务完成后，清空当前任务，但保持连接等待新任务
-                        current_task_id = None
+                        await websocket.send_json(jsonable_encoder(response))
+
+                        # 检查任务是否完成
+                        if task_result.status in ["success", "failed"]:
+                            logger.info(f"任务 {current_task_id} 已完成，状态: {task_result.status}")
+                            # 任务完成后，清空当前任务，但保持连接等待新任务
+                            current_task_id = None
                 else:
                     # 任务不存在
                     await websocket.send_json({
@@ -94,7 +100,10 @@ async def ws_task_process(websocket: WebSocket):
             pass
 
 @router.post("/submit")
-async def process_natural_language_query(request: QueryRequest):
+async def process_natural_language_query(
+    request: QueryRequest,
+    db: Session = Depends(get_db)
+):
     """
     异步处理自然语言查询
 
@@ -102,6 +111,9 @@ async def process_natural_language_query(request: QueryRequest):
     """
     try:
         logger.info(f"接收查询请求: {request.query}，执行流程：{request.flow_type}")
+
+        # 创建带数据库会话的OperationTracker实例
+        tracker = OperationTracker(db)
 
         # 获取异步查询服务
         async_query_service = get_async_query_service()
@@ -112,7 +124,8 @@ async def process_natural_language_query(request: QueryRequest):
             user_input=request.query,
             operator=operator,
             flow_type=request.flow_type,
-            max_retries=request.max_retries
+            max_retries=request.max_retries,
+            tracker=tracker  # 传递tracker实例
         )
 
         logger.info(f"异步任务已创建: {task_id}")

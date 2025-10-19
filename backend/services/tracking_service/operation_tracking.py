@@ -13,6 +13,7 @@ from repositories import (
     NlQuerySessionRepository, NlQueryStepRepository, UserFeedbackRepository
 )
 from services.service_models import TaskState, BaseNodeLog
+from .tracker_cache import tracker_cache
 
 
 class TaskCache:
@@ -69,25 +70,28 @@ class TaskCache:
 class OperationTracker:
     """简化的操作追踪器"""
 
-    def __init__(self, db: Optional[Session] = None):
+    def __init__(self, db: Session):
+        """
+        初始化操作追踪器
+
+        Args:
+            db: SQLAlchemy数据库会话
+        """
         self.db = db
-        if db:
-            self.session_repo = NlQuerySessionRepository(db)
-            self.step_repo = NlQueryStepRepository(db)
-            self.feedback_repo = UserFeedbackRepository(db)
-        else:
-            # Lazy initialization - will be set when db is provided
-            self.session_repo = None
-            self.step_repo = None
-            self.feedback_repo = None
-        self.cache = TaskCache()
+        # 立即初始化所有repository
+        self.session_repo = NlQuerySessionRepository(db)
+        self.step_repo = NlQueryStepRepository(db)
+        self.feedback_repo = UserFeedbackRepository(db)
+        # 使用全局缓存实例
+        self.cache = tracker_cache
 
     async def get_task_status(self, task_id: str) -> Optional[TaskState]:
         """获取任务状态（只从内存缓存获取）"""
         # 只查缓存，不查数据库
-        cached_state = await self.cache.get(task_id)
-        if cached_state:
-            return cached_state
+        cached_state_dict = self.cache.get_task_state(task_id)
+        if cached_state_dict:
+            # 将字典转换为TaskState对象
+            return TaskState(**cached_state_dict)
 
         # 缓存未命中，直接返回None
         logger.debug(f"任务 {task_id} 在缓存中未找到")
@@ -100,8 +104,10 @@ class OperationTracker:
                                  write_step_log: bool = True):
         """更新任务进度（更新缓存，异步写数据库）"""
         # 获取或创建任务状态
-        state = await self.cache.get(task_id)
-        if not state:
+        cached_state_dict = self.cache.get_task_state(task_id)
+        if cached_state_dict:
+            state = TaskState(**cached_state_dict)
+        else:
             logger.info("未从缓存中获取到任务进度")
             state = TaskState(
                 task_id=task_id,
@@ -140,9 +146,28 @@ class OperationTracker:
         if sql_query:
             state.sql_query = sql_query
 
-        # 更新缓存
+        # 更新缓存 - 将TaskState对象转换为字典
         logger.info(f"{task_id} 更新任务进度，更新缓存")
-        self.cache.set(task_id, state)
+        state_dict = {
+            'task_id': state.task_id,
+            'user_input': state.user_input,
+            'operator': state.operator,
+            'flow_type': state.flow_type,
+            'status': state.status,
+            'current_step': state.current_step,
+            'progress': state.progress,
+            'created_at': state.created_at,
+            'completed_at': state.completed_at,
+            'logs': state.logs,
+            'error_message': state.error_message,
+            'execution_result': state.execution_result,
+            'sql_query': state.sql_query,
+            'clear_check_details': state.clear_check_details,
+            'is_clear': state.is_clear,
+            'retry_count': state.retry_count,
+            'max_retries': state.max_retries
+        }
+        self.cache.set_task_state(task_id, state_dict)
         logger.info(f"{task_id} 更新任务进度，更新缓存结束")
         logger.info(state)
 
@@ -152,9 +177,28 @@ class OperationTracker:
     def create_task(self, state: TaskState):
         """创建新任务"""
 
-        # 更新缓存
+        # 更新缓存 - 将TaskState对象转换为字典
         logger.info(f"{state.task_id} 新建任务，更新缓存")
-        self.cache.set(state.task_id, state)
+        state_dict = {
+            'task_id': state.task_id,
+            'user_input': state.user_input,
+            'operator': state.operator,
+            'flow_type': state.flow_type,
+            'status': state.status,
+            'current_step': state.current_step,
+            'progress': state.progress,
+            'created_at': state.created_at,
+            'completed_at': state.completed_at,
+            'logs': state.logs,
+            'error_message': state.error_message,
+            'execution_result': state.execution_result,
+            'sql_query': state.sql_query,
+            'clear_check_details': state.clear_check_details,
+            'is_clear': state.is_clear,
+            'retry_count': state.retry_count,
+            'max_retries': state.max_retries
+        }
+        self.cache.set_task_state(state.task_id, state_dict)
         logger.info(f"{state.task_id} 新建任务，更新缓存结束")
 
         self._write_session_to_db(state.task_id, state.operator)
@@ -374,5 +418,5 @@ class OperationTracker:
             }
 
 
-# 全局追踪器实例
-tracker = OperationTracker()
+# 注意：不再使用全局tracker实例，改为依赖注入模式
+# tracker = OperationTracker()  # 已移除，请使用依赖注入

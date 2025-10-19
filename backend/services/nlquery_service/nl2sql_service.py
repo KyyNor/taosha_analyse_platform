@@ -13,7 +13,7 @@ from typing import Optional
 from langgraph.graph import StateGraph, END
 
 from services.metadata_service.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service, get_prompt_template_service
-from services.tracking_service.operation_tracking import tracker
+from services.tracking_service.operation_tracking import OperationTracker
 from services.query_engine import get_query_engine
 from services.service_models import BaseNodeLog, TaskState, TaskStateHelper
 from services.vanna_service.taosha_vanna_service import TaoshaVanna
@@ -689,13 +689,17 @@ class NL2SQLService:
         
         return "\n".join(config_lines)
     
-    def process_query(self, user_input: str, task_id, max_retries: int = 5, operator: str = None, flow_type: str = "fast") -> TaskState:
+    def process_query(self, user_input: str, task_id, max_retries: int = 5, operator: str = None, flow_type: str = "fast", tracker: OperationTracker = None) -> TaskState:
         """
         处理用户查询
         :param flow_type: 流程类型，"fast"=先验证后生成SQL，"thorough"=先生成SQL后验证
+        :param tracker: OperationTracker实例，必须通过依赖注入传入
         """
+        if tracker is None:
+            raise ValueError("tracker参数是必须的，请通过依赖注入传入OperationTracker实例")
+
         logger.info(f"开始处理查询流程 用户输入：{user_input}，任务ID：{task_id}，操作人：{operator}，流程类型：{flow_type}")
-        
+
         # 创建统一的任务状态
         task_state = TaskStateHelper.create_default(
             task_id=task_id,
