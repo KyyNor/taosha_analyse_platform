@@ -1,8 +1,8 @@
 #!/bin/bash
 # 淘沙分析平台 - 测试启动脚本（Linux/Mac）
 
-# 获取脚本所在目录
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# 获取项目根目录
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )"
 cd "$SCRIPT_DIR"
 
 # 检查pytest是否安装

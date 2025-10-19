@@ -1,10 +1,11 @@
 @echo off
+chcp 65001 > nul
 REM 淘沙分析平台 - 测试启动脚本（Windows）
 
 setlocal enabledelayedexpansion
 
-REM 进入后端目录
-cd /d %~dp0
+REM 进入项目根目录
+cd /d %~dp0\..
 
 REM 检查pytest是否安装
 python -m pytest --version >nul 2>&1
