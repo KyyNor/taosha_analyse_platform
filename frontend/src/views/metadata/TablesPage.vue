@@ -334,14 +334,14 @@
                           :key="relation.id"
                           :value="relation.id"
                         >
-                          {{ relation.id }} ({{ relation.relation_desc || '无描述' }})
+                          {{ relation.relation_id }} ({{ relation.relation_desc || '无描述' }})
                         </option>
                       </select>
                       <span
                         v-else
                         class="block"
                       >
-                        {{ column.relationConfigId || '-' }}
+                        {{ getRelationDisplayText(column.relationConfigId) || '-' }}
                       </span>
                     </td>
                     <td>
@@ -698,6 +698,13 @@ const deleteTable = async (table: any) => {
   } catch (err) {
     error('删除表失败')
   }
+}
+
+// Get relation display text by ID
+const getRelationDisplayText = (relationId: number | null) => {
+  if (!relationId) return ''
+  const relation = availableRelations.value.find(r => r.id === relationId)
+  return relation ? relation.relation_id : ''
 }
 
 // Initialize

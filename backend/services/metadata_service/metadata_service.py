@@ -366,6 +366,7 @@ class RelationFieldConfigService:
             return [
                 {
                     "id": config.id,
+                    "relation_id": f"{config.relation_family}|{config.relation_subfamily}",  # 拼接的关联ID，用于前端显示
                     "relation_family": config.relation_family,
                     "relation_subfamily": config.relation_subfamily,
                     "relation_desc": config.relation_desc or ""
@@ -388,6 +389,7 @@ class RelationFieldConfigService:
             # 转换为字典格式返回
             config_dict = {
                 "id": config.id,
+                "relation_id": f"{config.relation_family}|{config.relation_subfamily}",  # 拼接的关联ID，用于前端显示
                 "relation_family": config.relation_family,
                 "relation_subfamily": config.relation_subfamily,
                 "relation_desc": config.relation_desc or ""
