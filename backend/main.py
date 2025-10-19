@@ -26,17 +26,16 @@ async def lifespan(app: FastAPI):
     logger.info("=== 淘沙分析平台启动中 ===")
 
     try:
-        # 创建数据库会话并初始化MetadataService
-        with get_db_session() as db:
-            metadata_service = MetadataService(db)
-            logger.info("元数据服务初始化完成")
-            # 将服务实例存储到应用状态中，供API路由使用
-            app.state.metadata_service = metadata_service
+        # # 创建数据库会话并初始化MetadataService
+        # with get_db_session() as db:
+        #     metadata_service = MetadataService(db)
+        #     logger.info("元数据服务初始化完成")
+        #     # 将服务实例存储到应用状态中，供API路由使用
+        #     app.state.metadata_service = metadata_service
 
         # 初始化查询引擎服务
         query_engine = get_query_engine()
-        tables = query_engine.get_tables()
-        logger.info(f"查询引擎初始化完成，发现 {len(tables)} 个表: {tables}")
+        logger.info(f"查询引擎初始化完成")
 
         # 初始化异步查询服务
         async_query_service = get_async_query_service()
