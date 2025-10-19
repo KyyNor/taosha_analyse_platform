@@ -55,7 +55,7 @@ class NlQueryStep(Base):
     error: Mapped[str] = mapped_column(Text, nullable=True)
     start_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     end_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
     # 关系定义
     session: Mapped["NlQuerySession"] = relationship("NlQuerySession", back_populates="steps")
@@ -75,7 +75,7 @@ class UserFeedback(Base):
     feedback_sentiment: Mapped[str] = mapped_column(String(50), nullable=False)
     feedback_content: Mapped[str] = mapped_column(Text, nullable=False)
     feedback_user: Mapped[str] = mapped_column(String(100), default="")
-    feedback_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    feedback_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
     # 关系定义
     session: Mapped["NlQuerySession"] = relationship("NlQuerySession", back_populates="feedbacks")

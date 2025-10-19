@@ -17,8 +17,8 @@ class DataTheme(Base):
     theme_description: Mapped[str] = mapped_column(Text, default="")
     theme_type: Mapped[str] = mapped_column(String(50), default="normal", index=True)  # normal, public
     department: Mapped[str] = mapped_column(String(255), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     # 关系定义
     table_relations: Mapped[list["ThemeTableRelation"]] = relationship(
@@ -36,7 +36,7 @@ class ThemeTableRelation(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     theme_id: Mapped[int] = mapped_column(Integer, ForeignKey("data_themes.id"), nullable=False, index=True)
     table_id: Mapped[int] = mapped_column(Integer, ForeignKey("metadata_tables.id"), nullable=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
     # 复合唯一索引
     __table_args__ = (

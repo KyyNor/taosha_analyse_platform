@@ -16,8 +16,8 @@ class RelationFieldConfig(Base):
     relation_family: Mapped[str] = mapped_column(String(255), nullable=False)
     relation_subfamily: Mapped[str] = mapped_column(String(255), nullable=False)
     relation_desc: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     # 复合索引
     __table_args__ = (

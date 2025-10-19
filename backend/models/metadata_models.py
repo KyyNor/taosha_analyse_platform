@@ -21,8 +21,8 @@ class MetadataTable(Base):
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     comment: Mapped[str] = mapped_column(Text, default="")
     is_available: Mapped[int] = mapped_column(Integer, default=0)  # 0=可用，1=不可用
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     # 关系定义
     columns: Mapped[list["MetadataColumn"]] = relationship(
@@ -48,8 +48,8 @@ class MetadataColumn(Base):
     is_available: Mapped[int] = mapped_column(Integer, default=0)  # 0=可用，1=不可用
     business_type: Mapped[str] = mapped_column(String(255), default="")
     relation_config_id: Mapped[int] = mapped_column(Integer, ForeignKey("relation_field_config.id"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     # 复合唯一索引
     __table_args__ = (

@@ -17,8 +17,8 @@ class GlossaryTerm(Base):
     type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)  # concept_explanation, sql_qa, dictionary_conversion
     content: Mapped[str] = mapped_column(Text, nullable=False)  # JSON格式的术语内容
     creator: Mapped[str] = mapped_column(String(100), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     def __repr__(self):
         return f"<GlossaryTerm(id={self.id}, name='{self.name}', type='{self.type}')>"
@@ -32,8 +32,8 @@ class PromptTemplate(Base):
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     fields: Mapped[str] = mapped_column(Text, nullable=False)  # JSON格式的字段列表
     template: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     def __repr__(self):
         return f"<PromptTemplate(id={self.id}, name='{self.name}')>"

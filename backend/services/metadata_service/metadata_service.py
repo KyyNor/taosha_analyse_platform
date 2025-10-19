@@ -40,8 +40,8 @@ class MetadataService:
                 table_name = table.name
                 table_comment = table.comment or ""
                 table_is_available = int(table.is_available or 0)
-                table_created_at = table.created_at.isoformat() if table.created_at else ""
-                table_updated_at = table.updated_at.isoformat() if table.updated_at else ""
+                table_created_at = table.created_at
+                table_updated_at = table.updated_at
 
                 # 获取列信息
                 columns_list = []
@@ -133,8 +133,8 @@ class MetadataService:
                 "name": table.name,
                 "comment": table.comment or "",
                 "is_available": int(table.is_available or 0),
-                "created_at": table.created_at.isoformat() if table.created_at else "",
-                "updated_at": table.updated_at.isoformat() if table.updated_at else "",
+                "created_at": table.created_at,
+                "updated_at": table.updated_at,
                 "columns": []
             }
 
@@ -461,8 +461,8 @@ class GlossaryService:
                     "type": term.type,
                     "content": content_data,
                     "creator": term.creator or "",
-                    "created_at": term.created_at.isoformat() if term.created_at else "",
-                    "updated_at": term.updated_at.isoformat() if term.updated_at else ""
+                    "created_at": term.created_at,
+                    "updated_at": term.updated_at
                 })
 
             logger.debug(f"术语表已从数据库加载，共{len(terms_list)}个术语")
@@ -578,8 +578,8 @@ class PromptTemplateService:
                     "name": template.name,
                     "fields": fields_data,
                     "template": template.template or "",
-                    "created_at": template.created_at.isoformat() if template.created_at else "",
-                    "updated_at": template.updated_at.isoformat() if template.updated_at else ""
+                    "created_at": template.created_at,
+                    "updated_at": template.updated_at
                 })
 
             logger.debug(f"提示词模板已从数据库加载，共{len(templates_list)}个模板")
@@ -728,8 +728,8 @@ class DataThemeService:
                     "theme_description": theme.theme_description or "",
                     "theme_type": theme.theme_type,
                     "department": theme.department or "",
-                    "created_at": theme.created_at.isoformat() if theme.created_at else "",
-                    "updated_at": theme.updated_at.isoformat() if theme.updated_at else ""
+                    "created_at": theme.created_at,
+                    "updated_at": theme.updated_at
                 }
                 for theme in themes
             ]
@@ -748,8 +748,8 @@ class DataThemeService:
                     "theme_description": theme.theme_description or "",
                     "theme_type": theme.theme_type,
                     "department": theme.department or "",
-                    "created_at": theme.created_at.isoformat() if theme.created_at else "",
-                    "updated_at": theme.updated_at.isoformat() if theme.updated_at else ""
+                    "created_at": theme.created_at,
+                    "updated_at": theme.updated_at
                 }
             return None
         except Exception as e:
@@ -791,8 +791,8 @@ class DataThemeService:
                 "theme_description": theme.theme_description or "",
                 "theme_type": theme.theme_type,
                 "department": theme.department or "",
-                "created_at": theme.created_at.isoformat() if theme.created_at else "",
-                "updated_at": theme.updated_at.isoformat() if theme.updated_at else ""
+                "created_at": theme.created_at,
+                "updated_at": theme.updated_at
             }
 
             logger.info(f"添加数据主题成功: {theme_name}")
@@ -876,8 +876,8 @@ class DataThemeService:
                         "name": table.name,
                         "comment": table.comment or "",
                         "is_available": int(table.is_available or 0),
-                        "created_at": table.created_at.isoformat() if table.created_at else "",
-                        "updated_at": table.updated_at.isoformat() if table.updated_at else ""
+                        "created_at": table.created_at,
+                        "updated_at": table.updated_at
                     })
 
             return tables
