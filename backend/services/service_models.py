@@ -42,6 +42,7 @@ class TaskState(BaseModel):
     execution_result: Optional[list[dict]] = None
     clear_check_details: Dict[str, Any] = None
     is_clear: bool = False
+    sql_explanation: str = ""
 
     # 错误和重试
     error_message: Optional[str] = None
@@ -89,6 +90,7 @@ class TaskStateHelper:
             execution_result=None,
             clear_check_details={},
             is_clear=False,
+            sql_explanation='',
             error_message=None,
             retry_count=0,
             max_retries=max_retries,

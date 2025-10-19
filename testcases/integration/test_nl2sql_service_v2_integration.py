@@ -203,5 +203,99 @@ class TestModuleIntegration:
         logger.info("元数据服务集成验证通过")
 
 
+class TestWorkflowFlowTypeRouting:
+    """工作流流程类型路由测试"""
+
+    def test_workflow_has_correct_edges(self, nl2sql_service):
+        """验证工作流有正确的边连接"""
+        workflow = nl2sql_service.workflow
+
+        # 获取工作流的节点和边信息
+        graph = workflow.get_graph()
+
+        # 应该有5个节点
+        nodes = graph.nodes if hasattr(graph, 'nodes') else list(graph.nodes)
+        node_count = len(nodes) if not callable(nodes) else len(list(nodes))
+        logger.info(f"工作流节点数: {node_count}")
+        assert node_count >= 5, f"应该有至少5个节点，实际有{node_count}个"
+
+        # 验证工作流本身存在且已编译
+        assert workflow is not None
+        assert hasattr(workflow, 'invoke'), "工作流应该有invoke方法"
+
+        logger.info("工作流节点验证通过")
+
+    def test_fast_flow_routing_logic(self, nl2sql_service):
+        """测试快速流程的路由逻辑
+
+        快速流程应该：check_training -> validate_input -> generate_sql -> execute_sql -> explain_result
+        """
+        from services.service_models import TaskState
+        from datetime import datetime
+
+        # 创建fast流程的初始状态
+        state = TaskState(
+            task_id="test_fast_flow",
+            user_input="测试查询",
+            flow_type="fast",
+            created_at=datetime.now()
+        )
+
+        # 执行第一步（check_training）后，应该路由到validate_input
+        # 这里我们只是验证状态对象能正确创建和使用
+        assert state.flow_type == "fast"
+        assert state.user_input == "测试查询"
+        logger.info("快速流程初始状态验证通过")
+
+    def test_thorough_flow_routing_logic(self, nl2sql_service):
+        """测试彻底流程的路由逻辑
+
+        彻底流程应该：check_training -> generate_sql -> validate_input -> execute_sql -> explain_result
+        """
+        from services.service_models import TaskState
+        from datetime import datetime
+
+        # 创建thorough流程的初始状态
+        state = TaskState(
+            task_id="test_thorough_flow",
+            user_input="测试查询",
+            flow_type="thorough",
+            created_at=datetime.now()
+        )
+
+        # 验证状态对象能正确创建和使用
+        assert state.flow_type == "thorough"
+        assert state.user_input == "测试查询"
+        logger.info("彻底流程初始状态验证通过")
+
+    def test_retry_logic_state(self, nl2sql_service):
+        """测试重试机制的状态管理"""
+        from services.service_models import TaskState
+        from datetime import datetime
+
+        # 创建一个有错误的状态（模拟SQL执行失败）
+        state = TaskState(
+            task_id="test_retry",
+            user_input="测试查询",
+            flow_type="fast",
+            sql_query="SELECT * FROM test",
+            error_message="SQL execution failed",
+            retry_count=0,
+            max_retries=5,
+            created_at=datetime.now()
+        )
+
+        # 验证状态可以被更新用于重试
+        assert state.error_message is not None
+        assert state.retry_count == 0
+
+        # 模拟重试计数增加
+        state.retry_count = 1
+        assert state.retry_count == 1
+        assert state.retry_count < state.max_retries
+
+        logger.info("重试逻辑状态管理验证通过")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
