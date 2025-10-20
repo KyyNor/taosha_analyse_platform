@@ -5,7 +5,9 @@
 import json
 from typing import List, Dict, Optional, Any
 
+from openai import OpenAI
 from utils.logger import logger
+from utils.config import settings
 
 
 class BaseLLMService:
@@ -14,7 +16,7 @@ class BaseLLMService:
     提供对 OpenAI 兼容 API 的原始调用能力（无任何业务逻辑）
     """
 
-    def __init__(self, llm_client, config: Dict[str, Any]):
+    def __init__(self, llm_client = None, config: Dict[str, Any] = None):
         """初始化基础 LLM 服务
 
         Args:
@@ -24,11 +26,29 @@ class BaseLLMService:
                 - temperature: 温度参数（默认 0.1）
                 - max_tokens: 最大令牌数（可选）
         """
-        self.client = llm_client
-        self.config = config
 
-        logger.info(f"LLM 服务初始化: model={config.get('model')}, "
-                   f"temperature={config.get('temperature', 0.1)}")
+        if llm_client is None:
+            openai_client = OpenAI(
+                api_key=settings.openai_api_key,
+                base_url=settings.openai_base_url,
+
+            )
+            self.client = openai_client
+        else:
+            self.client = llm_client
+
+        if config is None:
+            llm_config = {
+                "model": settings.openai_model,
+                "temperature": settings.openai_temperature,
+                "max_tokens": 2000
+            }
+            self.config = llm_config
+        else:
+            self.config = config
+
+        logger.info(f"LLM 服务初始化: model={self.config.get('model')}, "
+                   f"temperature={self.config.get('temperature', 0.1)}")
 
     def call(self,
             messages: List[Dict[str, str]],

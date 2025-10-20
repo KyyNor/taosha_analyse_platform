@@ -1,456 +1,386 @@
 """
-自然语言转SQL服务 - LangGraph + Vanna 实现
+增强的NL2SQL服务 - 集成Vector Store、Context Builder、LLM Service、Training Service
+使用新的模块化架构替代Vanna
 """
 
-import hashlib
 import json
 import traceback
 from datetime import datetime
+from typing import Optional, Dict, Any
+from openai import OpenAI
 
-from typing import Optional
-
-# LangGraph imports
 from langgraph.graph import StateGraph, END
 
-from services.metadata_service.metadata_service import get_metadata_service, get_glossary_service, get_relation_field_config_service, get_prompt_template_service
+from services.vector_store import VectorStoreFactory, NLQueryContextBuilder
+from services.llm_service import NLQueryLLMService
+from services.training_service import TrainingService
+from services.metadata_service.metadata_service import (
+    get_metadata_service, get_prompt_template_service
+)
 from services.tracking_service.operation_tracking import OperationTracker
 from services.query_engine import get_query_engine
 from services.service_models import BaseNodeLog, TaskState, TaskStateHelper
-from services.vanna_service.taosha_vanna_service import TaoshaVanna
-from services.prompt_template_renderer import PromptTemplateRenderer
 
-# Local imports
 from utils.config import settings
 from utils.logger import logger
 from utils.progress_decorator import track_node_progress
 
+from sqlalchemy.orm import Session
+
+
+# 全局NL2SQLServiceV2实例缓存
+_nl2sql_service_instance = None
+
+
+def get_nl2sql_service(db_session: Optional[Session] = None) -> 'NL2SQLService':
+    """获取NL2SQLServiceV2实例（单例模式）
+
+    Args:
+        db_session: 数据库会话（可选，用于Training Service）
+
+    Returns:
+        NL2SQLServiceV2实例
+    """
+    global _nl2sql_service_instance
+    if _nl2sql_service_instance is None:
+        _nl2sql_service_instance = NL2SQLService(db_session=db_session)
+    return _nl2sql_service_instance
+
+
 class NL2SQLService:
-    """自然语言转SQL服务"""
-    
-    def __init__(self):
-        self.vanna = TaoshaVanna()
-        self.metadata_service = get_metadata_service()
-        self.glossary_service = get_glossary_service()
-        self.relation_config_service = get_relation_field_config_service()
-        self.prompt_template_service = get_prompt_template_service()
-        self.db_service = get_query_engine()
+    """增强的NL2SQL服务 - 集成新的模块化服务"""
 
-        # 初始化提示词模板渲染器
-        self.template_renderer = PromptTemplateRenderer(self.prompt_template_service)
+    def __init__(self, db_session: Optional[Session] = None):
+        """初始化NL2SQL服务V2
 
-        # 构建统一的LangGraph工作流
-        self.workflow = self._build_workflow()
-
-        logger.info("NL2SQL服务初始化完成")
-    
-    def _build_workflow(self) -> StateGraph:
-        """构建统一的LangGraph工作流，支持多种流程类型"""
-        
-        @track_node_progress("知识库更新")
-        def check_training_needed(state: TaskState) -> TaskState:
-            """检查是否需要重新训练Vanna"""
-
-            logger.info(state)
-
-            # 需要重新训练
-            self._train_vanna()
-
-            state.current_step_log = BaseNodeLog(
-                step="知识库更新",
-                input_data="metadata/glossary check",
-                prompt="",
-                model_output="training completed",
-                success=True
+        Args:
+            db_session: 数据库会话（可选，用于Training Service）
+        """
+        # 初始化向量存储和上下文构建器
+        try:
+            # 尝试创建Qdrant向量存储
+            self.vector_store = VectorStoreFactory.create("qdrant", None, {})
+            self.context_builder = NLQueryContextBuilder(
+                vector_store=self.vector_store,
+                embedding_func=None
+            )
+        except Exception as e:
+            logger.warning(f"向量存储初始化失败，使用ChromaDB: {e}")
+            # 降级到ChromaDB
+            self.vector_store = VectorStoreFactory.create("chromadb", None, {})
+            self.context_builder = NLQueryContextBuilder(
+                vector_store=self.vector_store,
+                embedding_func=None
             )
 
-            return state
-        
-        @track_node_progress("用户输入验证")
-        def validate_input_clarity(state: TaskState) -> TaskState:
-            """验证输入是否清晰，支持两种模式：纯输入验证 和 SQL+输入匹配验证"""
-            user_input = state.user_input
-            step_name = '用户输入验证'
-            sql_query = getattr(state, 'sql_query', '')  # 可能存在也可能不存在
-            flow_type = getattr(state, 'flow_type', 'fast')
+        template_service = get_prompt_template_service(db_session)
+        self.llm_service = NLQueryLLMService(
+            template_service=template_service
+        )
 
-            # 检查API配置
-            if not settings.openai_api_key:
-                logger.warning("大模型API密钥未配置，跳过输入验证")
-                state.is_clear = True
+        # 初始化Training Service（如果提供了数据库会话）
+        self.training_service = None
+        if db_session:
+            self.training_service = TrainingService(db_session)
+
+        # 初始化其他服务
+        self.metadata_service = get_metadata_service()
+        self.db_service = get_query_engine()
+
+        # 构建工作流
+        self.workflow = self._build_workflow()
+
+        logger.info("NL2SQLServiceV2 初始化完成（新的模块化架构）")
+
+    def _build_workflow(self) -> StateGraph:
+        """构建LangGraph工作流（与原nl2sql_service.py逻辑一致）"""
+
+        @track_node_progress("知识库检查")
+        def check_training_needed(state: TaskState) -> TaskState:
+            """检查是否需要重新训练模型"""
+            try:
+                # 检查Training Service是否可用
+                if self.training_service:
+                    stats = self.training_service.get_training_data_statistics()
+                    logger.info(f"训练数据统计: {stats}")
+                else:
+                    logger.info("Training Service未初始化")
+
+                state.current_step_log = BaseNodeLog(
+                    step="知识库检查",
+                    input_data="knowledge base check",
+                    prompt="",
+                    model_output="knowledge base ready",
+                    success=True
+                )
+                return state
+
+            except Exception as e:
+                logger.error(f"知识库检查失败: {e}")
+                state.current_step_log = BaseNodeLog(
+                    step="知识库检查",
+                    input_data="",
+                    prompt="",
+                    model_output="",
+                    success=False,
+                    error=str(e)
+                )
+                return state
+
+        @track_node_progress("检查输入清晰度")
+        def validate_input(state: TaskState) -> TaskState:
+            """验证输入是否清晰（fast流程）或在thorough流程中验证SQL"""
+            try:
+                user_input = state.user_input
+                flow_type = getattr(state, 'flow_type', 'fast')
+                sql_query = getattr(state, 'sql_query', '')
+
+                # 确定验证类型
+                if flow_type == 'thorough' and sql_query:
+                    # thorough流程：验证SQL和输入是否匹配
+                    step_name = "SQL验证"
+                    input_for_validation = f"user:{user_input}\nsql:{sql_query}"
+                    # 构建上下文（从元数据服务获取）
+                    context = ""
+                    try:
+                        tables = self.metadata_service.get_all_tables()
+                        context = json.dumps([{"table": t.table_name, "columns": [c.column_name for c in t.columns]}
+                                           for t in tables], ensure_ascii=False)
+                    except:
+                        pass
+                else:
+                    # fast流程或第一次验证：验证输入清晰度
+                    step_name = "处理输入"
+                    input_for_validation = user_input
+                    context = ""
+
+                # 使用LLM验证（调用正确的方法名）
+                validation_result = self.llm_service.validate_input_clarity(
+                    user_input=user_input,
+                    context=context,
+                    sql_query=sql_query if sql_query else "",
+                    flow_type=flow_type
+                )
+
+                state.is_clear = validation_result.get("is_clear", False)
+                state.clear_check_details = {
+                    "details": validation_result.get("details", ""),
+                    "suggestions": validation_result.get("suggestions", []),
+                    "confidence": validation_result.get("confidence", 0.0)
+                }
+                state.current_step_log = BaseNodeLog(
+                    step=step_name,
+                    input_data=input_for_validation,
+                    prompt="",
+                    model_output="Clear" if state.is_clear else "Not clear",
+                    success=state.is_clear
+                )
+                return state
+
+            except Exception as e:
+                logger.error(f"输入验证失败: {e}")
+                state.is_clear = False
+                state.error_message = str(e)
+                state.current_step_log = BaseNodeLog(
+                    step="检查输入清晰度",
+                    input_data="",
+                    prompt="",
+                    model_output="",
+                    success=False,
+                    error=str(e)
+                )
+                return state
+
+        @track_node_progress("生成查询语句")
+        def generate_sql(state: TaskState) -> TaskState:
+            """使用LLM Service生成SQL"""
+            try:
+                user_input = state.user_input
+                error_message = getattr(state, 'error_message', None)
+                previous_sql = getattr(state, 'sql_query', '')
+                retry_count = getattr(state, 'retry_count', 0)
+
+                # 根据是否有错误决定使用生成还是重试
+                if error_message and previous_sql:
+                    result = self.llm_service.retry_sql_generation(
+                        user_input=user_input,
+                        previous_sql=previous_sql,
+                        error_message=error_message,
+                        temperature=0.3
+                    )
+                    step_name = "SQL重试生成"
+                else:
+                    result = self.llm_service.generate_sql(
+                        user_input=user_input,
+                        context="",
+                        temperature=0.1
+                    )
+                    step_name = "生成查询语句"
+
+                if result["success"]:
+                    state.sql_query = result["sql"]
+                    success = True
+                    state.error_message = None
+                    state.retry_count = 0
+                else:
+                    state.error_message = result.get("error", "SQL生成失败")
+                    success = False
+
                 state.current_step_log = BaseNodeLog(
                     step=step_name,
                     input_data=user_input,
                     prompt="",
-                    model_output="",
-                    success=False,
-                    error="大模型API密钥未配置，跳过输入验证"
+                    model_output=state.sql_query if success else state.error_message,
+                    success=success
                 )
                 return state
 
-            # 根据是否有SQL选择验证模式和模板
-            current_date = datetime.now().strftime("%Y-%m-%d")
-
-            # 准备模板参数
-            template_params = {
-                "current_date": current_date,
-                "user_input": user_input,
-                "table_info": self._get_table_info_text(),
-                "glossary_info": self._get_glossary_text(),
-                "relation_config": self._get_relation_config_text()
-            }
-
-            # 根据流程类型选择模板
-            if sql_query and flow_type == 'thorough':
-                # 深度流程：验证用户输入+SQL匹配度
-                template_params["sql_query"] = sql_query
-                template_name = "input_validation_thorough"
-
-                # 默认模板（回退用）
-                default_template = """请结合生成的SQL查询，判断用户原始查询是否足够清晰，SQL是否准确反映了用户需求。
-
-用户原始查询: {{user_input}}
-
-生成的SQL查询: {{sql_query}}
-
-可用的表结构:
-{{table_info}}
-
-可用的术语:
-{{glossary_info}}
-
-字段关联配置:
-{{relation_config}}
-
-请严格按照以下JSON格式返回结果，不要添加任何其他文字：
-{
-    "is_clear": true/false,
-    "reason": "判断的详细原因，结合SQL生成质量来评估",
-    "sql_match": true/false,
-    "suggestions": ["如果不够清晰，请提供3个具体的可查询示例"]
-}
-
-注意：
-1. 不仅要评估用户输入的清晰度，还要评估SQL是否准确反映了用户需求
-2. 如果SQL很好地满足了用户需求，即使输入不够完美也应该认为is_clear=true
-3. 如果SQL与用户需求有偏差，应该给出具体建议"""
-            else:
-                # 快速流程：只验证用户输入清晰度
-                template_name = "input_validation_fast"
-
-                # 默认模板（回退用）
-                default_template = """请判断以下用户查询是否足够清晰，可以转换为SQL查询。
-
-当前日期: {{current_date}}
-
-用户查询: {{user_input}}
-
-可用的表结构:
-{{table_info}}
-
-可用的术语:
-{{glossary_info}}
-
-字段关联配置:
-{{relation_config}}
-
-请严格按照以下JSON格式返回结果，不要添加任何其他文字：
-{
-    "is_clear": true/false,
-    "reason": "判断的详细原因",
-    "suggestions": ["如果不清晰，请提供3个具体的可查询示例，直接使用表中的字段名和具体时间范围，例如：'最近30天手机销量统计'、'2024年1月各地区销售额对比'"]
-}
-
-注意：suggestions中应该是完整的、可以直接查询的问题示例，而不是修改建议。基于用户的模糊查询，结合可用的表结构，生成具体可执行的查询示例。"""
-
-            # 使用模板渲染器获取提示词
-            try:
-                validation_prompt = self.template_renderer.render_template(
-                    template_name=template_name,
-                    params=template_params,
-                    default_template=default_template
-                )
-                logger.info(f"使用模板 {template_name} 生成验证提示词")
             except Exception as e:
-                logger.warning(f"模板渲染失败，使用默认模板: {e}")
-                validation_prompt = default_template.format(**template_params)
-
-            try:
-                # 使用正确的消息格式
-                messages = [{"role": "user", "content": validation_prompt}]
-                response = self.vanna.submit_prompt(messages)
-                
-                # 确保response是字符串
-                if not isinstance(response, str):
-                    logger.warning(f"Unexpected response type: {type(response)}, content: {response}")
-                    response = str(response) if response else ""
-                
-                # 解析JSON响应
-                try:
-                    # 尝试解析JSON
-                    validation_result = json.loads(response.strip())
-                    is_clear = validation_result.get('is_clear', True)
-                    reason = validation_result.get('reason', '')
-                    suggestions = validation_result.get('suggestions', [])
-
-                    # 构建更详细的处理输入
-                    clear_check_details = {
-                        'is_clear': is_clear,
-                        'reason': reason,
-                        'suggestions': suggestions
-                    }
-
-                    # 如果是SQL验证模式，添加额外的字段
-                    if sql_query and flow_type == 'thorough':
-                        clear_check_details['sql_match'] = validation_result.get('sql_match', True)
-                        clear_check_details['validation_type'] = 'sql_based'
-                    else:
-                        clear_check_details['validation_type'] = 'input_only'
-
-                except json.JSONDecodeError as json_error:
-                    is_clear = False
-                    clear_check_details = {
-                        'is_clear': is_clear,
-                        'reason': f"无法解析模型响应为JSON: {str(json_error)}",
-                        'suggestions': [],
-                        'validation_type': step_name
-                    }
-
-                state.is_clear = is_clear
-                state.clear_check_details = clear_check_details
-
+                logger.error(f"SQL生成失败: {e}")
+                state.error_message = str(e)
                 state.current_step_log = BaseNodeLog(
-                    step=step_name,
-                    input_data=user_input if not sql_query else f"user:{user_input}\nsql:{sql_query}",
-                    prompt=validation_prompt,
-                    model_output=response,
-                    success=True,
-                )
-            except Exception as e:
-                error_traceback = traceback.format_exc()
-                logger.error(f"Input validation failed with traceback:\n{error_traceback}")
-
-                state.is_clear = False
-                state.error_message = f"输入验证失败: {str(e)}"
-                state.current_step_log = BaseNodeLog(
-                    step=step_name,
-                    input_data=user_input if not sql_query else f"user:{user_input}\nsql:{sql_query}",
-                    prompt=validation_prompt,
+                    step="生成查询语句",
+                    input_data=state.user_input,
+                    prompt="",
                     model_output="",
                     success=False,
-                    error=f"{str(e)}\nTraceback:\n{error_traceback}"
+                    error=str(e)
                 )
+                return state
 
-            return state
-        
-        @track_node_progress("生成查询语句")
-        def generate_sql(state: TaskState) -> TaskState:
-            """生成SQL查询（包含错误重试逻辑）"""
-            user_input = state.user_input
-            error_message = getattr(state, 'error_message', None)
-            previous_sql = getattr(state, 'sql_query', '')
-            retry_count = getattr(state, 'retry_count', 0)
-            
-            # 构建输入内容：如果有错误信息，则包含错误反馈
-            step_name = "生成查询语句"
-
-            # 这是重试情况，增强输入信息
-            current_date = datetime.now().strftime("%Y-%m-%d")
-
-            # 根据是否有错误信息选择模板
-            if error_message and previous_sql:
-                # 重试情况
-                step_name = "sql_retry"
-                template_name = "sql_generation_retry"
-
-                # 准备重试模板参数
-                template_params = {
-                    "user_input": user_input,
-                    "current_date": current_date,
-                    "previous_sql": previous_sql,
-                    "error_message": error_message,
-                    "table_info": self._get_table_info_text()
-                }
-
-                # 默认重试模板（回退用）
-                default_template = """之前的SQL执行失败，请生成一个新的SQL查询。
-
-原始用户查询: {{user_input}}
-当前日期: {{current_date}}
-
-之前失败的SQL: {{previous_sql}}
-错误信息: {{error_message}}
-
-可用的表结构:
-{{table_info}}
-
-请基于错误信息生成一个新的SQL查询，避免相同的错误。
-
-重要提示:
-1. 字段的存储类型和业务类型可能不同，数值比较时请使用CAST转换为业务类型
-2. 关联不同表的字段时，请根据关联配置进行适当转换
-3. 所有表都需要使用别名，从t1开始，t1、t2、t3依次递增
-4. 所有字段都需要使用完整引用，例如t1.cust_no，不允许只写字段名
-5. 特别注意数据类型转换和NULL值处理
-
-请生成标准的SQL查询语句。"""
-            else:
-                # 正常生成情况
-                template_name = "sql_generation"
-
-                # 准备生成模板参数
-                template_params = {
-                    "current_date": current_date,
-                    "user_input": user_input,
-                    "error_info": "",
-                    "tips": ""
-                }
-
-                # 默认生成模板（回退用）
-                default_template = """请根据用户的自然语言查询生成对应的SQL语句。
-
-{{user_input}}
-当前日期: {{current_date}}
-
-{{error_info}}
-
-重要提示:
-1. 字段的存储类型和业务类型可能不同，数值比较时请使用CAST转换为业务类型
-2. 关联不同表的字段时，请根据关联配置进行适当转换
-3. 所有表都需要使用别名，从t1开始，t1、t2、t3依次递增
-4. 所有字段都需要使用完整引用，例如t1.cust_no，不允许只写字段名
-{{tips}}
-
-请生成标准的SQL查询语句。"""
-
-            # 使用模板渲染器获取提示词
-            try:
-                query_input = self.template_renderer.render_template(
-                    template_name=template_name,
-                    params=template_params,
-                    default_template=default_template
-                )
-                logger.info(f"使用模板 {template_name} 生成SQL提示词")
-            except Exception as e:
-                logger.warning(f"模板渲染失败，使用默认模板: {e}")
-                query_input = default_template.format(**template_params)
-
-            
-            try:
-                # 使用Vanna生成SQL（会自动检索向量数据库上下文）
-                sql_query = self.vanna.generate_sql(query_input)
-                
-                state.sql_query = sql_query
-                state.error_message = None  # 清除错误信息
-                state.current_step_log = BaseNodeLog(
-                    step=step_name,
-                    input_data=query_input,
-                    prompt=query_input,
-                    model_output=sql_query,
-                    success=True,
-                )
-
-            except Exception as e:
-                error_traceback = traceback.format_exc()
-
-                if retry_count > 0:
-                    state.error_message = f"SQL重试失败: {str(e)}"
-                else:
-                    state.error_message = f"SQL生成失败: {str(e)}"
-
-                state.current_step_log = BaseNodeLog(
-                    step=step_name,
-                    input_data=query_input,
-                    prompt=query_input,
-                    model_output="",
-                    success=False,
-                    error=f"{str(e)}\nTraceback:\n{error_traceback}"
-                )
-            
-            return state
-        
-        @track_node_progress("执行查询语句")
+        @track_node_progress("执行SQL")
         def execute_sql(state: TaskState) -> TaskState:
-            """执行SQL查询"""
-            sql_query = getattr(state, 'sql_query', '')
-            step_name = "执行查询语句"
-
-            if not sql_query:
-                state.error_message = "没有可执行的SQL查询"
-                return state
-            
+            """执行生成的SQL"""
             try:
-                # 执行SQL查询
-                result = self.db_service.execute_query(sql_query)
+                sql_query = getattr(state, 'sql_query', '')
+                if not sql_query:
+                    state.error_message = "没有生成SQL"
+                    state.current_step_log = BaseNodeLog(
+                        step="执行SQL",
+                        input_data="",
+                        prompt="",
+                        model_output="",
+                        success=False,
+                        error="没有生成SQL"
+                    )
+                    return state
 
-                state.current_step_log = BaseNodeLog(
-                    step=step_name,
-                    input_data=sql_query,
-                    prompt="data_engine.execute_query",
-                    model_output=f"返回 {len(result)} 行数据",
-                    success=True,
-                )
-                
-                state.execution_result = result.to_dict(orient="records")
+                # 尝试执行SQL
+                try:
+                    result = self.db_service.execute(sql_query)
+                    state.execution_result = result
+                    state.error_message = None
+                    state.current_step_log = BaseNodeLog(
+                        step="执行SQL",
+                        input_data=sql_query,
+                        prompt="",
+                        model_output=f"Success: {len(result) if result else 0} rows",
+                        success=True
+                    )
+
+                    # 如果有Training Service，记录成功的结果
+                    if self.training_service:
+                        try:
+                            self.training_service.record_validation_result(
+                                training_data_id=None,
+                                original_sql=sql_query,
+                                executed_sql=sql_query,
+                                is_valid=True,
+                                execution_status="success",
+                                row_count=len(result) if result else 0
+                            )
+                        except Exception as e:
+                            logger.warning(f"记录验证结果失败: {e}")
+
+                except Exception as exec_error:
+                    state.error_message = str(exec_error)
+                    state.current_step_log = BaseNodeLog(
+                        step="执行SQL",
+                        input_data=sql_query,
+                        prompt="",
+                        model_output="",
+                        success=False,
+                        error=str(exec_error)
+                    )
+
+                    # 记录失败的验证
+                    if self.training_service:
+                        try:
+                            self.training_service.record_validation_result(
+                                training_data_id=None,
+                                original_sql=sql_query,
+                                executed_sql=sql_query,
+                                is_valid=False,
+                                error_message=str(exec_error),
+                                execution_status="error"
+                            )
+                        except Exception as e:
+                            logger.warning(f"记录失败结果失败: {e}")
+
+                return state
 
             except Exception as e:
-                error_traceback = traceback.format_exc()
-                # 增加重试计数
-                retry_count = getattr(state, 'retry_count', 0) + 1
-                state.retry_count = retry_count
-                state.error_message = f"SQL执行失败: {str(e)}"
+                logger.error(f"执行SQL失败: {e}")
+                state.error_message = str(e)
                 state.current_step_log = BaseNodeLog(
-                    step=step_name,
-                    input_data=sql_query,
-                    prompt="data_engine.execute_query",
+                    step="执行SQL",
+                    input_data="",
+                    prompt="",
                     model_output="",
                     success=False,
-                    error=f"{str(e)}\nTraceback:\n{error_traceback}"
+                    error=str(e)
                 )
-            
-            return state
+                return state
 
-        def should_retry(state: TaskState) -> str:
-            """判断是否应该重试"""
-            retry_count = getattr(state, 'retry_count', 0)
-            max_retries = getattr(state, 'max_retries', 2)
-            has_error = getattr(state, 'error_message', None) is not None
+        @track_node_progress("解释结果")
+        def explain_result(state: TaskState) -> TaskState:
+            """解释SQL查询和执行结果"""
+            try:
+                sql_query = getattr(state, 'sql_query', '')
+                user_input = state.user_input
 
-            if has_error and retry_count < max_retries:
-                return "retry"
-            elif getattr(state, 'execution_result', None) is not None:
-                return "success"
-            else:
-                return "failed"
-        
-        
-        # 构建工作流图
-        workflow = StateGraph(TaskState)
-        
-        # 添加节点
-        workflow.add_node("check_training", check_training_needed)
-        workflow.add_node("validate_input", validate_input_clarity)
-        workflow.add_node("generate_sql", generate_sql)
-        workflow.add_node("execute_sql", execute_sql)
+                if sql_query:
+                    explanation_result = self.llm_service.explain_sql(
+                        sql_query=sql_query,
+                        user_input=user_input,
+                        temperature=0.2
+                    )
 
-        # 添加边
-        workflow.set_entry_point("check_training")
+                    if explanation_result["success"]:
+                        state.sql_explanation = explanation_result["explanation"]
+                    else:
+                        state.sql_explanation = "无法生成解释"
+                else:
+                    state.sql_explanation = ""
 
-        # 根据流程类型路由到不同的验证/生成路径
+                state.current_step_log = BaseNodeLog(
+                    step="解释结果",
+                    input_data=sql_query,
+                    prompt="",
+                    model_output=state.sql_explanation if getattr(state, 'sql_explanation', '') else "无解释",
+                    success=True
+                )
+                return state
+
+            except Exception as e:
+                logger.error(f"解释生成失败: {e}")
+                state.sql_explanation = ""
+                state.current_step_log = BaseNodeLog(
+                    step="解释结果",
+                    input_data="",
+                    prompt="",
+                    model_output="",
+                    success=False,
+                    error=str(e)
+                )
+                return state
+
+        # 路由逻辑函数（与原流程一致）
         def route_by_flow_type(state: TaskState) -> str:
             """根据流程类型决定下一步"""
             flow_type = getattr(state, 'flow_type', 'fast')
             return flow_type
 
-        workflow.add_conditional_edges(
-            "check_training",
-            route_by_flow_type,
-            {
-                "fast": "validate_input",        # 快速流程：先验证后生成
-                "thorough": "generate_sql"      # 深度流程：先生成后验证
-            }
-        )
-
-        # 验证节点的路由逻辑
         def route_after_validation(state: TaskState) -> str:
             """验证后的路由逻辑"""
             if not getattr(state, 'is_clear', None):
@@ -467,17 +397,6 @@ class NL2SQLService:
                 # 深度流程：已经有SQL，验证通过后执行
                 return "execute_sql"
 
-        workflow.add_conditional_edges(
-            "validate_input",
-            route_after_validation,
-            {
-                "generate_sql": "generate_sql",
-                "execute_sql": "execute_sql",
-                "failed": END
-            }
-        )
-
-        # 生成SQL后的路由逻辑
         def route_after_generate_sql(state: TaskState) -> str:
             """生成SQL后的路由逻辑"""
             flow_type = getattr(state, 'flow_type', 'fast')
@@ -488,6 +407,55 @@ class NL2SQLService:
                 # 快速流程：直接执行SQL
                 return "execute_sql"
 
+        def should_retry(state: TaskState) -> str:
+            """重试逻辑：如果失败且可以重试，回到generate_sql"""
+            error_message = getattr(state, 'error_message', None)
+            retry_count = getattr(state, 'retry_count', 0)
+            max_retries = getattr(state, 'max_retries', 5)
+
+            if error_message and retry_count < max_retries:
+                state.retry_count = retry_count + 1
+                return "retry"
+            elif error_message:
+                return "failed"
+            else:
+                return "success"
+
+        # 构建工作流图
+        workflow = StateGraph(TaskState)
+
+        # 添加节点
+        workflow.add_node("check_training", check_training_needed)
+        workflow.add_node("validate_input", validate_input)
+        workflow.add_node("generate_sql", generate_sql)
+        workflow.add_node("execute_sql", execute_sql)
+        workflow.add_node("explain_result", explain_result)
+
+        # 添加边
+        workflow.set_entry_point("check_training")
+
+        # check_training根据flow_type路由
+        workflow.add_conditional_edges(
+            "check_training",
+            route_by_flow_type,
+            {
+                "fast": "validate_input",        # 快速流程：先验证后生成
+                "thorough": "generate_sql"      # 深度流程：先生成后验证
+            }
+        )
+
+        # validate_input的路由
+        workflow.add_conditional_edges(
+            "validate_input",
+            route_after_validation,
+            {
+                "generate_sql": "generate_sql",
+                "execute_sql": "execute_sql",
+                "failed": END
+            }
+        )
+
+        # generate_sql的路由
         workflow.add_conditional_edges(
             "generate_sql",
             route_after_generate_sql,
@@ -497,232 +465,205 @@ class NL2SQLService:
             }
         )
 
-        # 重试逻辑：如果失败且可以重试，回到generate_sql
+        # execute_sql的路由（重试逻辑）
         workflow.add_conditional_edges(
             "execute_sql",
             should_retry,
             {
-                "success": END,
-                "failed": END,
-                "retry": "generate_sql"  # 回到generate_sql节点进行重试
+                "retry": "generate_sql",
+                "success": "explain_result",
+                "failed": "explain_result"
             }
         )
 
+        # explain_result到结束
+        workflow.add_edge("explain_result", END)
+
         return workflow.compile()
-    
-    def _train_vanna(self):
-        """训练Vanna模型（使用文档描述方式）"""
-        logger.info("开始使用可用元数据、词汇表和关系配置训练Vanna模型...")
-        
-        # 1. 训练表结构描述（只使用可用的表和列）
-        available_tables = self.metadata_service.get_available_tables()
-        for table in available_tables:
-            table_name = table.get('name')
-            table_comment = table.get('comment', '')
-            columns = table.get('columns', [])
-            
-            # 只包含可用的列
-            available_columns = [col for col in columns if col.get('is_available', 0) == 0]
-            
-            if available_columns:
-                # 构建表结构文档
-                doc_lines = [f"表名：{table_name}"]
-                if table_comment:
-                    doc_lines.append(f"表描述：{table_comment}")
-                
-                doc_lines.append("字段信息：")
-                for col in available_columns:
-                    storage_type = col.get('type', '')
-                    business_type = col.get('business_type', '') or storage_type
-                    comment = col.get('comment', '')
-                    relation_id = col.get('relation_id', '')
-                    
-                    col_desc = f"  - {col.get('name')}：存储类型({storage_type})，业务类型({business_type})"
-                    if comment:
-                        col_desc += f"，描述({comment})"
-                    if relation_id:
-                        col_desc += f"，关联ID({relation_id})"
-                    doc_lines.append(col_desc)
-                
-                documentation = "\n".join(doc_lines)
-                self.vanna.train(documentation=documentation)
-        
-        # 2. 训练字段类型处理规则
-        current_date = datetime.now().strftime("%Y-%m-%d")
-        type_handling_doc = f"""
-字段类型处理规则：
-当前日期: {current_date}
 
-1. 由于历史原因，字段的存储类型和业务类型可能不一致
-2. 在进行数值比较、计算、排序等逻辑操作时，必须使用CAST函数将字段转换为业务类型
-3. 示例：
-   - 如果字段amount存储类型为VARCHAR，业务类型为DECIMAL
-   - 比较时应使用：WHERE CAST(amount AS DECIMAL) > 100
-   - 排序时应使用：ORDER BY CAST(amount AS DECIMAL) DESC
-4. 在生成SQL时，请始终优先考虑业务类型进行类型转换
-5. 时间相关查询时，请参考当前日期({current_date})来处理"今天"、"本月"、"最近30天"等时间描述
+    def query(self, user_input: str, flow_type: str = "fast",
+              relation_id: Optional[str] = None,
+              table_names: Optional[list] = None) -> Dict[str, Any]:
+        """执行自然语言查询
+
+        Args:
+            user_input: 用户的自然语言查询
+            flow_type: 流程类型（fast或thorough）
+            relation_id: 可选的关联ID
+            table_names: 可选的表名列表
+
+        Returns:
+            查询结果字典
         """
-        self.vanna.train(documentation=type_handling_doc)
-        
-        # 3. 训练关联配置信息
-        relation_configs = self.relation_config_service.get_all_relation_configs()
-        if relation_configs:
-            relation_doc_lines = ["字段关联配置："]
-            relation_doc_lines.append("在多个表中的字段可以相互关联，但存在格式差异，需要根据关联ID进行适当的转换。")
-            
-            for config in relation_configs:
-                relation_id = config.get('relation_id')
-                family = config.get('relation_family')
-                subfamily = config.get('relation_subfamily')
-                desc = config.get('relation_desc', '')
-                
-                config_desc = f"  - 关联ID: {relation_id} (关联族: {family}, 关联子族: {subfamily})"
-                if desc:
-                    config_desc += f"\n    关联规则: {desc}"
-                relation_doc_lines.append(config_desc)
-            
-            relation_doc_lines.append("\n关联使用示例：")
-            relation_doc_lines.append("- 当需要关联不同表的相同关联族字段时，请根据关联配置中的规则进行字段转换")
-            relation_doc_lines.append("- 例如cust_no|17和cust_no|16关联需要left(col_name,16)")
-            relation_doc_lines.append("- 例如cust_no|16和cust_no|cn_start关联需要right(col_name,16)")
-            
-            relation_documentation = "\n".join(relation_doc_lines)
-            self.vanna.train(documentation=relation_documentation)
-        
-        # 4. 训练术语表映射
-        terms = self.glossary_service.get_terms()
-        for term in terms:
-            # 只处理概念解释和SQL问答类型的术语
-            if term.get('type') in ['concept', 'sql_qa']:
-                term_name = term.get('name', '')
-                content = term.get('content', {})
+        try:
+            logger.info(f"执行NL2SQL查询: {user_input[:100]}...")
 
-                if term.get('type') == 'sql_qa' and content.get('answer'):
-                    # SQL问答类型，使用答案作为SQL
-                    question = content.get('question', f"什么是{term_name}")
-                    sql = content.get('answer', '')
-                    self.vanna.train(question=question, sql=sql)
-                elif term.get('type') == 'concept' and content.get('content'):
-                    # 概念解释类型，将解释内容作为问答对训练
-                    question = f"什么是{term_name}"
-                    answer = content.get('content', '')
-                    self.vanna.train(question=question, sql=f"SELECT '{answer}' AS {term_name}")
-        
-        # 5. 生成训练hash
-        metadata_str = str(self.metadata_service.get_metadata())
-        glossary_str = str(self.glossary_service.get_glossary())
-        relation_str = str(self.relation_config_service.get_all_relation_configs())
-        combined_str = metadata_str + glossary_str + relation_str
-        self.vanna.training_hash = hashlib.md5(combined_str.encode()).hexdigest()
-        
-        logger.info("Vanna模型训练完成")
-    
-    def _get_table_info_text(self) -> str:
-        """获取可用表信息的文本描述（只包含 is_available = 0 的表和列）"""
-        tables = self.metadata_service.get_available_tables()  # 只获取可用表
-        info_lines = []
-        
-        for table in tables:
-            table_name = table.get('name', '')
-            table_comment = table.get('comment', '')
-            info_lines.append(f"表 {table_name}: {table_comment}")
-            
-            columns = table.get('columns', [])
-            # 只包含可用的列
-            available_columns = [col for col in columns if col.get('is_available', 0) == 0]
-            for col in available_columns:
-                # 优先使用业务类型，如果没有则使用存储类型
-                col_type = col.get('business_type') or col.get('type')
-                col_info = f"  - {col.get('name')} ({col_type}): {col.get('comment', '')}"
-                if col.get('relation_id'):
-                    col_info += f" [关联ID: {col.get('relation_id')}]"
-                info_lines.append(col_info)
-        
-        return "\n".join(info_lines)
-    
-    def _get_glossary_text(self) -> str:
-        """获取术语表的文本描述"""
-        terms = self.glossary_service.get_terms()
-        term_lines = []
-        
-        for term in terms:
-            term_name = term.get('name', '')
-            term_type = term.get('type', '')
-            content = term.get('content', {})
+            # 创建初始状态
+            initial_state = TaskState(
+                task_id="inline_query",  # 非追踪模式下的任务ID
+                user_input=user_input,
+                flow_type=flow_type,
+                created_at=datetime.now()
+            )
 
-            if term_type == 'concept':
-                content_text = content.get('content', '')
-                term_line = f"- {term_name} (概念解释): {content_text}"
-            elif term_type == 'sql_qa':
-                question = content.get('question', '')
-                answer = content.get('answer', '')
-                term_line = f"- {term_name} (SQL问答): {question} - {answer}"
-            elif term_type == 'dict_mapping':
-                col_name = content.get('col_name', '')
-                dict_map_count = len(content.get('dict_map', []))
-                term_line = f"- {term_name} (字典转换): 字段({col_name})，映射项({dict_map_count}个)"
+            # 执行工作流
+            result = self.workflow.invoke(initial_state)
+
+            # 将结果转换为TaskState对象（如果是dict）
+            if isinstance(result, dict):
+                result = TaskState(**result)
+
+            # 构建返回结果
+            error_msg = getattr(result, 'error_message', None)
+            return {
+                "success": error_msg is None,
+                "user_input": user_input,
+                "sql_query": getattr(result, 'sql_query', ''),
+                "execution_result": getattr(result, 'execution_result', None) if error_msg is None else None,
+                "is_valid": error_msg is None,
+                "explanation": getattr(result, 'sql_explanation', ''),
+                "error": error_msg
+            }
+
+        except Exception as e:
+            logger.error(f"NL2SQL查询失败: {e}\n{traceback.format_exc()}")
+            return {
+                "success": False,
+                "error": str(e),
+                "user_input": user_input
+            }
+
+    def process_query(self, user_input: str, task_id: str, max_retries: int = 5,
+                     operator: str = "api_user", flow_type: str = "fast",
+                     tracker: Optional[Any] = None) -> Dict[str, Any]:
+        """兼容旧API的处理查询方法（用于AsyncQueryService）
+
+        Args:
+            user_input: 用户输入
+            task_id: 任务ID（用于追踪）
+            max_retries: 最大重试次数
+            operator: 操作者
+            flow_type: 流程类型
+            tracker: 操作追踪器
+
+        Returns:
+            查询结果字典
+        """
+        try:
+            logger.info(f"查询流程V2: 任务ID={task_id}, 用户输入={user_input[:50]}, 流程类型={flow_type}")
+
+            if tracker is None:
+                raise ValueError("tracker参数是必须的，请通过依赖注入传入OperationTracker实例")
+
+            # 创建统一的任务状态
+            task_state = TaskStateHelper.create_default(
+                task_id=task_id,
+                user_input=user_input,
+                flow_type=flow_type,
+                max_retries=max_retries,
+                operator=operator
+            )
+
+            tracker.create_task(task_state)
+
+            # 执行工作流
+            result = self.workflow.invoke(task_state)
+
+            # 将结果转换为TaskState对象（如果是dict）
+            if isinstance(result, dict):
+                result = TaskState(**result)
+
+            # 更新追踪器
+            error_msg = getattr(result, 'error_message', None)
+            if error_msg:
+                tracker.update_task_progress(
+                    task_id=task_id,
+                    progress=100,
+                    step_name="查询失败",
+                    error=error_msg,
+                    final_status="failed",
+                    write_step_log=False
+                )
             else:
-                term_line = f"- {term_name}: {content}"
+                tracker.update_task_progress(
+                    task_id=task_id,
+                    progress=100,
+                    step_name="查询完成",
+                    final_status="success",
+                    write_step_log=False
+                )
 
-            term_lines.append(term_line)
-        
-        return "\n".join(term_lines)
-    
-    def _get_relation_config_text(self) -> str:
-        """获取关联配置的文本描述"""
-        configs = self.relation_config_service.get_all_relation_configs()
-        config_lines = []
-        
-        for config in configs:
-            relation_id = config.get('relation_id', '')
-            family = config.get('relation_family', '')
-            subfamily = config.get('relation_subfamily', '')
-            desc = config.get('relation_desc', '')
-            
-            config_line = f"- {relation_id} (关联族: {family}, 子族: {subfamily})"
-            if desc:
-                config_line += f": {desc}"
-            config_lines.append(config_line)
-        
-        if not config_lines:
-            return "暂无关联配置"
-        
-        return "\n".join(config_lines)
-    
-    def process_query(self, user_input: str, task_id, max_retries: int = 5, operator: str = None, flow_type: str = "fast", tracker: OperationTracker = None) -> TaskState:
+            return {
+                "success": error_msg is None,
+                "user_input": user_input,
+                "sql_query": getattr(result, 'sql_query', ''),
+                "execution_result": getattr(result, 'execution_result', None) if error_msg is None else None,
+                "is_valid": error_msg is None,
+                "explanation": getattr(result, 'sql_explanation', ''),
+                "error": error_msg
+            }
+
+        except Exception as e:
+            logger.error(f"处理查询失败: {e}\n{traceback.format_exc()}")
+            if tracker:
+                try:
+                    tracker.update_task_progress(
+                        task_id=task_id,
+                        progress=0,
+                        step_name="处理失败",
+                        error=str(e),
+                        final_status="failed",
+                        write_step_log=False
+                    )
+                except:
+                    pass
+
+            return {
+                "success": False,
+                "error": str(e),
+                "user_input": user_input
+            }
+
+    def add_training_data(self, question: str, sql: str, **kwargs) -> bool:
+        """添加训练数据
+
+        Args:
+            question: 自然语言问题
+            sql: 对应的SQL
+            **kwargs: 其他参数
+
+        Returns:
+            是否成功
         """
-        处理用户查询
-        :param flow_type: 流程类型，"fast"=先验证后生成SQL，"thorough"=先生成SQL后验证
-        :param tracker: OperationTracker实例，必须通过依赖注入传入
-        """
-        if tracker is None:
-            raise ValueError("tracker参数是必须的，请通过依赖注入传入OperationTracker实例")
+        if not self.training_service:
+            logger.warning("Training Service未初始化")
+            return False
 
-        logger.info(f"开始处理查询流程 用户输入：{user_input}，任务ID：{task_id}，操作人：{operator}，流程类型：{flow_type}")
+        try:
+            result = self.training_service.add_training_data(
+                question=question,
+                sql=sql,
+                **kwargs
+            )
+            return result is not None
+        except Exception as e:
+            logger.error(f"添加训练数据失败: {e}")
+            return False
 
-        # 创建统一的任务状态
-        task_state = TaskStateHelper.create_default(
-            task_id=task_id,
-            user_input=user_input,
-            flow_type=flow_type,
-            max_retries=max_retries,
-            operator=operator
-        )
+    def get_statistics(self) -> Dict[str, Any]:
+        """获取系统统计信息"""
+        stats = {}
 
-        tracker.create_task(task_state)
+        # 获取训练数据统计
+        if self.training_service:
+            stats["training_data"] = self.training_service.get_training_data_statistics()
+            stats["validation"] = self.training_service.get_validation_statistics()
 
-        # 执行工作流（直接使用TaskState）
-        final_state = self.workflow.invoke(task_state)
+        # 获取向量库统计
+        try:
+            count = self.vector_store.count()
+            stats["vector_store"] = {"documents": count}
+        except:
+            stats["vector_store"] = {"documents": 0}
 
-        # 返回统一格式
-        return final_state
-
-# 全局服务实例
-_nl2sql_service: Optional[NL2SQLService] = None
-
-def get_nl2sql_service() -> NL2SQLService:
-    """获取NL2SQL服务实例"""
-    global _nl2sql_service
-    if _nl2sql_service is None:
-        _nl2sql_service = NL2SQLService()
-    return _nl2sql_service
+        return stats

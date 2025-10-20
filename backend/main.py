@@ -14,7 +14,6 @@ from api.nlquey_routes import router as nlquey_router
 from api.metadata_routes import router as metadata_router
 from api.user_routes import router as user_router
 from services.query_engine import get_query_engine
-from services.nlquery_service.nl2sql_service import get_nl2sql_service
 from services.nlquery_service.async_query_service import get_async_query_service
 from services.metadata_service.metadata_service import MetadataService
 from models.db_base import get_db_session
@@ -42,8 +41,8 @@ async def lifespan(app: FastAPI):
         logger.info("异步查询服务初始化完成")
 
         # 初始化NL2SQL服务（这会触发Vanna训练）
-        nl2sql_service = get_nl2sql_service()
-        logger.info("NL2SQL服务初始化完成")
+        # nl2sql_service = get_nl2sql_service()
+        # logger.info("NL2SQL服务初始化完成")
 
         logger.info("=== 淘沙分析平台启动成功 ===")
 

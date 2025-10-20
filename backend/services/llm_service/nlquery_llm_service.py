@@ -5,7 +5,7 @@ NL2SQL 专用的 LLM 服务 - 业务级别的 SQL 生成和验证
 import json
 from typing import Dict, List, Optional, Any, Tuple
 from .base_llm_service import BaseLLMService
-from services.prompt_template_renderer import PromptTemplateRenderer
+from utils.prompt_template_renderer import PromptTemplateRenderer
 from utils.logger import logger
 
 
@@ -16,7 +16,7 @@ class NLQueryLLMService(BaseLLMService):
     扩展 BaseLLMService 的基础能力，添加业务逻辑
     """
 
-    def __init__(self, llm_client, config: Dict[str, Any],
+    def __init__(self, llm_client = None, config: Dict[str, Any] = None,
                  template_service=None):
         """初始化 NLQueryLLMService
 
@@ -246,7 +246,7 @@ class NLQueryLLMService(BaseLLMService):
 
             try:
                 system_prompt = self.template_renderer.render_template(
-                    "input_validation", prompt_params, default_template
+                    f"input_validation_{flow_type}", prompt_params, default_template
                 )
             except Exception as e:
                 logger.warning(f"验证模板渲染失败，使用默认模板: {e}")

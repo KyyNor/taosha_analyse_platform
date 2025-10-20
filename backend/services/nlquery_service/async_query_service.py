@@ -6,9 +6,9 @@ import asyncio
 import uuid
 from typing import Optional, Set
 from utils.logger import logger
-from services import get_nl2sql_service, get_nl2sql_service_v2
 from services.tracking_service.operation_tracking import OperationTracker
 from models.db_base import get_db, SessionLocal
+from .nl2sql_service import get_nl2sql_service
 
 
 _background_tasks: Set[asyncio.Task] = set()
@@ -17,22 +17,13 @@ _background_tasks: Set[asyncio.Task] = set()
 class AsyncQueryService:
     """异步查询服务类"""
 
-    def __init__(self, use_v2: bool = True):
+    def __init__(self):
         """初始化异步查询服务
-
-        Args:
-            use_v2: 是否使用NL2SQLServiceV2（新架构），默认为True
         """
-        self.use_v2 = use_v2
-        if use_v2:
-            # 使用新的模块化架构
-            db_session = SessionLocal()
-            self.nl2sql_service = get_nl2sql_service_v2(db_session=db_session)
-            logger.info("AsyncQueryService 使用 NL2SQLServiceV2（新的模块化架构）")
-        else:
-            # 使用旧的Vanna架构
-            self.nl2sql_service = get_nl2sql_service()
-            logger.info("AsyncQueryService 使用 NL2SQLService（传统Vanna架构）")
+        # 使用新的模块化架构
+        db_session = SessionLocal()
+        self.nl2sql_service = get_nl2sql_service(db_session=db_session)
+        logger.info("AsyncQueryService 使用 NL2SQLServiceV2（新的模块化架构）")
 
     async def submit_query(self, user_input: str, operator: str = "api_user",
                           flow_type: str = "fast", max_retries: int = 5, tracker: OperationTracker = None) -> str:
@@ -135,16 +126,13 @@ class AsyncQueryService:
 _async_query_service: Optional[AsyncQueryService] = None
 
 
-def get_async_query_service(use_v2: bool = True) -> AsyncQueryService:
+def get_async_query_service() -> AsyncQueryService:
     """获取异步查询服务实例
-
-    Args:
-        use_v2: 是否使用NL2SQLServiceV2（新架构），默认为True
 
     Returns:
         AsyncQueryService实例
     """
     global _async_query_service
     if _async_query_service is None:
-        _async_query_service = AsyncQueryService(use_v2=use_v2)
+        _async_query_service = AsyncQueryService()
     return _async_query_service
