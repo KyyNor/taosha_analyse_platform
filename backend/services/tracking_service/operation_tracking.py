@@ -63,7 +63,8 @@ class OperationTracker:
                 status="running",
                 current_step=step_name,
                 progress=progress,
-                created_at=datetime.now()
+                created_at=datetime.now(),
+                messages=[]  # 提供空的messages列表
             )
 
         # 更新状态
@@ -96,6 +97,20 @@ class OperationTracker:
 
         # 更新缓存 - 将TaskState对象转换为字典
         logger.info(f"{task_id} 更新任务进度，更新缓存")
+        # 序列化messages字段为字典列表
+        messages_serialized = []
+        if state.messages:
+            for msg in state.messages:
+                if hasattr(msg, 'type') and hasattr(msg, 'content'):
+                    # 这是LangChain消息对象
+                    messages_serialized.append({
+                        'type': msg.type,
+                        'content': msg.content
+                    })
+                else:
+                    # 这是其他格式的消息
+                    messages_serialized.append(str(msg))
+
         state_dict = {
             'task_id': state.task_id,
             'user_input': state.user_input,
@@ -114,7 +129,8 @@ class OperationTracker:
             'clear_check_details': state.clear_check_details,
             'is_clear': state.is_clear,
             'retry_count': state.retry_count,
-            'max_retries': state.max_retries
+            'max_retries': state.max_retries,
+            'messages': messages_serialized
         }
         self.cache.set_task_state(task_id, state_dict)
         logger.info(f"{task_id} 更新任务进度，更新缓存结束")
@@ -128,6 +144,20 @@ class OperationTracker:
 
         # 更新缓存 - 将TaskState对象转换为字典
         logger.info(f"{state.task_id} 新建任务，更新缓存")
+        # 序列化messages字段为字典列表
+        messages_serialized = []
+        if state.messages:
+            for msg in state.messages:
+                if hasattr(msg, 'type') and hasattr(msg, 'content'):
+                    # 这是LangChain消息对象
+                    messages_serialized.append({
+                        'type': msg.type,
+                        'content': msg.content
+                    })
+                else:
+                    # 这是其他格式的消息
+                    messages_serialized.append(str(msg))
+
         state_dict = {
             'task_id': state.task_id,
             'user_input': state.user_input,
@@ -146,12 +176,27 @@ class OperationTracker:
             'clear_check_details': state.clear_check_details,
             'is_clear': state.is_clear,
             'retry_count': state.retry_count,
-            'max_retries': state.max_retries
+            'max_retries': state.max_retries,
+            'messages': messages_serialized
         }
         self.cache.set_task_state(state.task_id, state_dict)
         logger.info(f"{state.task_id} 新建任务，更新缓存结束")
 
-        self._write_session_to_db(state.task_id, state.operator)
+        # 注意：create_task是同步方法，但_write_session_to_db是异步的
+        # 这里需要处理异步调用，可以使用asyncio.create_task或直接调用同步版本
+        import asyncio
+        try:
+            # 尝试获取事件循环，如果没有则创建新的
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # 如果循环正在运行，创建任务
+                asyncio.create_task(self._write_session_to_db(state.task_id, state.operator))
+            else:
+                # 如果循环没有运行，直接运行
+                loop.run_until_complete(self._write_session_to_db(state.task_id, state.operator))
+        except RuntimeError:
+            # 没有事件循环，创建新的
+            asyncio.run(self._write_session_to_db(state.task_id, state.operator))
 
     async def _write_to_db(self, state: TaskState, write_step_log: bool = True):
         """异步写入任务状态到数据库"""
@@ -298,7 +343,8 @@ class OperationTracker:
                         max_retries=session.max_retries or 5,
                         logs=[],
                         current_step_log=None,
-                        current_step_name=''
+                        current_step_name='',
+                        messages=[]  # 为历史数据提供空的messages列表
                     )
                     history_items.append(task_state)
                 except Exception as e:
@@ -309,7 +355,8 @@ class OperationTracker:
                         user_input=session.user_input or '',
                         operator=session.operator,
                         status='error',
-                        error_message=f"数据转换失败: {str(e)}"
+                        error_message=f"数据转换失败: {str(e)}",
+                        messages=[]  # 提供空的messages列表
                     )
                     history_items.append(task_state)
 

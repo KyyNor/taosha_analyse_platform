@@ -96,7 +96,8 @@ async def ws_task_process(websocket: WebSocket):
                 "data": None,
                 "error_msg": f"服务器错误: {str(e)}"
             })
-        except:
+        except Exception as send_error:
+            logger.error(f"发送错误消息失败: {send_error}")
             pass
 
 @router.post("/submit")

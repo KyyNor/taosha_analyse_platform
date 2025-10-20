@@ -3,7 +3,8 @@ NL2SQL 专用的 LLM 服务 - 业务级别的 SQL 生成和验证
 """
 
 import json
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, Union
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from .base_llm_service import BaseLLMService
 from utils.prompt_template_renderer import PromptTemplateRenderer
 from utils.logger import logger
@@ -35,7 +36,7 @@ class NLQueryLLMService(BaseLLMService):
     # ========== SQL 生成方法 ==========
 
     def generate_sql(self,
-                     input_messages: list,
+                     input_messages: List[Union[HumanMessage, AIMessage, SystemMessage]],
                      user_input: str,
                      context: str,
                      template_name: str = "sql_generation") -> Dict[str, Any]:
@@ -44,6 +45,7 @@ class NLQueryLLMService(BaseLLMService):
         使用提示词模板和上下文生成 SQL
 
         Args:
+            input_messages: ChatML格式的消息列表
             user_input: 用户的自然语言输入
             context: 数据库元数据和术语表上下文
             template_name: 提示词模板名称
@@ -80,14 +82,15 @@ class NLQueryLLMService(BaseLLMService):
                     context=context, user_input=user_input
                 )
 
-            # 2. 构建消息
-            input_messages.append({"role": "user", "content": system_prompt})
+            # 2. 构建ChatML格式的消息
+            messages = input_messages.copy() if input_messages else []
+            messages.append(HumanMessage(content=system_prompt))
 
             # 3. 调用 LLM 生成
-            response_text = self.client.invoke(input_messages)
+            response = self.client.invoke(messages)
 
             # 4. 解析响应
-            result = self._parse_sql_response(response_text)
+            result = self._parse_sql_response(response)
 
             if result.get("success"):
                 logger.info(f"SQL 生成成功: {result['sql'][:100]}...")
@@ -107,7 +110,7 @@ class NLQueryLLMService(BaseLLMService):
             }
 
     def retry_sql_generation(self,
-                           input_messages: list,
+                           input_messages: List[Union[HumanMessage, AIMessage, SystemMessage]],
                            user_input: str,
                            context: str,
                            previous_sql: str,
@@ -118,6 +121,7 @@ class NLQueryLLMService(BaseLLMService):
         当 SQL 执行失败或验证不通过时，使用错误信息提示 LLM 重新生成
 
         Args:
+            input_messages: ChatML格式的消息列表
             user_input: 用户的自然语言输入
             context: 数据库元数据和术语表上下文
             previous_sql: 之前失败的 SQL
@@ -160,14 +164,14 @@ class NLQueryLLMService(BaseLLMService):
                     error_message=error_message
                 )
 
-            # 2. 构建消息（提高温度以增加多样性）
-            input_messages.append({"role": "user", "content": system_prompt})
+            # 2. 构建ChatML格式的消息
+            messages = input_messages.copy() if input_messages else []
+            messages.append(HumanMessage(content=system_prompt))
 
-
-            response_text = self.client.invoke(input_messages)
+            response = self.client.invoke(messages)
 
             # 3. 解析响应
-            result = self._parse_sql_response(response_text)
+            result = self._parse_sql_response(response)
             result["retry_count"] = 1
 
             if result.get("success"):
@@ -189,7 +193,7 @@ class NLQueryLLMService(BaseLLMService):
             }
 
     def validate_input_clarity(self,
-                              input_messages: list,
+                              input_messages: List[Union[HumanMessage, AIMessage, SystemMessage]],
                               user_input: str,
                               context: str,
                               sql_query: str,
@@ -199,6 +203,7 @@ class NLQueryLLMService(BaseLLMService):
         在执行 SQL 前进行验证，确保 SQL 符合用户意图
 
         Args:
+            input_messages: ChatML格式的消息列表
             user_input: 用户的自然语言输入
             context: 数据库元数据和术语表上下文
             sql_query: 生成的 SQL 查询
@@ -239,17 +244,23 @@ class NLQueryLLMService(BaseLLMService):
                     sql_query=sql_query
                 )
 
-            # 2. 调用 LLM 进行验证
-            input_messages.append({"role": "user", "content": system_prompt})
+            # 2. 构建ChatML格式的消息
+            messages = input_messages.copy() if input_messages else []
+            messages.append(HumanMessage(content=system_prompt))
 
-            response_text = self.client.invoke(input_messages)
-
+            response = self.client.invoke(messages)
 
             # 3. 解析验证结果
-            if isinstance(response_text, dict):
-                validation_result = response_text
+            # 处理AIMessage对象
+            if hasattr(response, 'content'):
+                text_content = response.content
             else:
-                validation_result = json.loads(response_text)
+                text_content = response
+
+            if isinstance(text_content, dict):
+                validation_result = text_content
+            else:
+                validation_result = json.loads(text_content)
 
             logger.info(f"输入验证完成: is_clear={validation_result.get('is_clear')}")
 
@@ -285,7 +296,7 @@ class NLQueryLLMService(BaseLLMService):
     # ========== SQL 解释方法 ==========
 
     def explain_sql(self,
-                   input_messages: list,
+                   input_messages: List[Union[HumanMessage, AIMessage, SystemMessage]],
                    sql_query: str,
                    user_input: str = "",
                    template_name: str = "sql_explanation") -> Dict[str, Any]:
@@ -294,6 +305,7 @@ class NLQueryLLMService(BaseLLMService):
         为用户解释生成的 SQL 查询的含义
 
         Args:
+            input_messages: ChatML格式的消息列表
             sql_query: SQL 查询语句
             user_input: 用户的原始输入（可选）
             template_name: 提示词模板名称
@@ -327,19 +339,26 @@ class NLQueryLLMService(BaseLLMService):
                     sql_query=sql_query, user_input=user_input
                 )
 
-            # 2. 调用 LLM 解释
-            input_messages.append({"role": "user", "content": system_prompt})
+            # 2. 构建ChatML格式的消息
+            messages = input_messages.copy() if input_messages else []
+            messages.append(HumanMessage(content=system_prompt))
 
-            response_text = self.client.invoke(input_messages)
+            response = self.client.invoke(messages)
 
             logger.info("SQL 解释完成")
 
+            # 处理AIMessage对象
+            if hasattr(response, 'content'):
+                text_content = response.content
+            else:
+                text_content = response
+
             # 3. 生成摘要
-            summary = response_text[:100] + "..." if len(response_text) > 100 else response_text
+            summary = text_content[:100] + "..." if len(text_content) > 100 else text_content
 
             return {
                 "success": True,
-                "explanation": response_text,
+                "explanation": text_content,
                 "summary": summary
             }
 
@@ -354,13 +373,13 @@ class NLQueryLLMService(BaseLLMService):
 
     # ========== 内部工具方法 ==========
 
-    def _parse_sql_response(self, response_text: str) -> Dict[str, Any]:
+    def _parse_sql_response(self, response_text) -> Dict[str, Any]:
         """解析 LLM 生成的 SQL 响应
 
         尝试从响应中提取 SQL 和解释
 
         Args:
-            response_text: LLM 的原始响应文本
+            response_text: LLM 的响应文本或AIMessage对象
 
         Returns:
             {
@@ -372,9 +391,17 @@ class NLQueryLLMService(BaseLLMService):
             }
         """
         try:
+            # 处理AIMessage对象
+            if hasattr(response_text, 'content'):
+                # 这是LangChain的AIMessage对象
+                text_content = response_text.content
+            else:
+                # 这是字符串
+                text_content = response_text
+
             # 1. 尝试解析 JSON 格式（首选）
             try:
-                parsed = json.loads(response_text)
+                parsed = json.loads(text_content)
                 if isinstance(parsed, dict):
                     sql = parsed.get("sql", "").strip()
                     explanation = parsed.get("explanation", "")
@@ -402,7 +429,7 @@ class NLQueryLLMService(BaseLLMService):
 
             sql_text = None
             for pattern in sql_patterns:
-                matches = re.findall(pattern, response_text, re.IGNORECASE | re.DOTALL)
+                matches = re.findall(pattern, text_content, re.IGNORECASE | re.DOTALL)
                 if matches:
                     sql_text = matches[0].strip()
                     if sql_text and not sql_text.endswith(';'):
@@ -414,15 +441,15 @@ class NLQueryLLMService(BaseLLMService):
                 return {
                     "success": True,
                     "sql": sql_text.strip(),
-                    "explanation": response_text,
+                    "explanation": text_content,
                     "confidence": 0.7
                 }
 
             # 3. 直接使用整个响应作为 SQL（最后的尝试）
-            if response_text.strip():
+            if text_content.strip():
                 return {
                     "success": True,
-                    "sql": response_text.strip(),
+                    "sql": text_content.strip(),
                     "explanation": "",
                     "confidence": 0.5
                 }

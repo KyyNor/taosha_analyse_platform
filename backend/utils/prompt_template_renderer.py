@@ -66,8 +66,8 @@ class PromptTemplateRenderer:
             替换后的字符串
         """
         try:
-            # 使用正则表达式查找所有占位符 {{field_name}}
-            placeholders = re.findall(r'\{\{(\w+)\}\}', template)
+            # 使用正则表达式查找所有占位符 {field_name}
+            placeholders = re.findall(r'\{(\w+)\}', template)
 
             result = template
             missing_params = []

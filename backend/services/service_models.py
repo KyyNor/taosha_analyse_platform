@@ -30,7 +30,7 @@ class TaskState(BaseModel):
     user_input: str
     operator: Optional[str] = None
     flow_type: str = "fast"
-    messages: Annotated[list[HumanMessage | AIMessage], add_messages]
+    messages: Optional[List[Union[HumanMessage, AIMessage]]] = None
 
     # 进度信息
     status: str = "running"  # 'running', 'success', 'failed', 'completed'
@@ -67,6 +67,8 @@ class TaskState(BaseModel):
             self.logs = []
         if self.clear_check_details is None:
             self.clear_check_details = {}
+        if self.messages is None:
+            self.messages = []
 
 
 class TaskStateHelper:
