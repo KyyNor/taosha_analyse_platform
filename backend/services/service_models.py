@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Any, Optional, Union
+from typing import Annotated, Dict, List, Any, Optional, TypedDict, Union
 
-import pandas as pd
+from langchain_core.messages import HumanMessage, AIMessage
+from langgraph.graph import StateGraph, add_messages
 from pydantic import BaseModel
 
 from utils.logger import logger
@@ -29,6 +30,7 @@ class TaskState(BaseModel):
     user_input: str
     operator: Optional[str] = None
     flow_type: str = "fast"
+    messages: Annotated[list[HumanMessage | AIMessage], add_messages]
 
     # 进度信息
     status: str = "running"  # 'running', 'success', 'failed', 'completed'
@@ -84,6 +86,7 @@ class TaskStateHelper:
             user_input=user_input,
             operator=operator,
             flow_type=flow_type,
+            messages=[],
             status='running',
             current_step='初始化',
             progress=0,

@@ -178,6 +178,7 @@ class NL2SQLService:
                 # 使用LLM验证（调用正确的方法名）
                 validation_result = self.llm_service.validate_input_clarity(
                     user_input=user_input,
+                    input_messages=state.messages,
                     context=state.task_context,
                     sql_query=sql_query if sql_query else "",
                     flow_type=flow_type
@@ -225,17 +226,17 @@ class NL2SQLService:
                 if error_message and previous_sql:
                     result = self.llm_service.retry_sql_generation(
                         user_input=user_input,
+                        input_messages=state.messages,
                         previous_sql=previous_sql,
                         error_message=error_message,
                         context=state.task_context,
-                        temperature=0.3
                     )
                     step_name = "SQL重试生成"
                 else:
                     result = self.llm_service.generate_sql(
                         user_input=user_input,
+                        input_messages=state.messages,
                         context=state.task_context,
-                        temperature=0.1
                     )
                     step_name = "生成查询语句"
 
@@ -363,9 +364,9 @@ class NL2SQLService:
 
                 if sql_query:
                     explanation_result = self.llm_service.explain_sql(
+                        input_messages=state.messages,
                         sql_query=sql_query,
                         user_input=user_input,
-                        temperature=0.2
                     )
 
                     if explanation_result["success"]:

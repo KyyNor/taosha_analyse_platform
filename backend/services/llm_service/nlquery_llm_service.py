@@ -17,8 +17,7 @@ class NLQueryLLMService(BaseLLMService):
     扩展 BaseLLMService 的基础能力，添加业务逻辑
     """
 
-    def __init__(self, llm_client = None, config: Dict[str, Any] = None,
-                 template_service=None):
+    def __init__(self, llm_client = None, template_service=None):
         """初始化 NLQueryLLMService
 
         Args:
@@ -26,7 +25,7 @@ class NLQueryLLMService(BaseLLMService):
             config: 配置字典
             template_service: 提示词模板服务（可选）
         """
-        super().__init__(llm_client, config)
+        super().__init__(llm_client)
 
         self.template_renderer = PromptTemplateRenderer(template_service)
         self.template_service = template_service
@@ -36,10 +35,10 @@ class NLQueryLLMService(BaseLLMService):
     # ========== SQL 生成方法 ==========
 
     def generate_sql(self,
+                     input_messages: list,
                      user_input: str,
                      context: str,
-                     template_name: str = "sql_generation",
-                     temperature: Optional[float] = None) -> Dict[str, Any]:
+                     template_name: str = "sql_generation") -> Dict[str, Any]:
         """生成 SQL 查询 - 业务级别的 SQL 生成
 
         使用提示词模板和上下文生成 SQL
@@ -48,7 +47,6 @@ class NLQueryLLMService(BaseLLMService):
             user_input: 用户的自然语言输入
             context: 数据库元数据和术语表上下文
             template_name: 提示词模板名称
-            temperature: 温度参数（覆盖默认值）
 
         Returns:
             {
@@ -83,17 +81,10 @@ class NLQueryLLMService(BaseLLMService):
                 )
 
             # 2. 构建消息
-            messages = [
-                {"role": "system", "content": system_prompt}
-            ]
+            input_messages.append({"role": "user", "content": system_prompt})
 
             # 3. 调用 LLM 生成
-            temp = temperature if temperature is not None else self.config.get('temperature', 0.1)
-            response_text = self.call(
-                messages,
-                temperature=temp,
-                max_tokens=self.config.get('max_tokens', 2000)
-            )
+            response_text = self.client.invoke(input_messages)
 
             # 4. 解析响应
             result = self._parse_sql_response(response_text)
@@ -116,12 +107,12 @@ class NLQueryLLMService(BaseLLMService):
             }
 
     def retry_sql_generation(self,
+                           input_messages: list,
                            user_input: str,
                            context: str,
                            previous_sql: str,
                            error_message: str,
-                           template_name: str = "sql_generation_retry",
-                           temperature: Optional[float] = None) -> Dict[str, Any]:
+                           template_name: str = "sql_generation_retry") -> Dict[str, Any]:
         """重试 SQL 生成 - 基于错误反馈的 SQL 重新生成
 
         当 SQL 执行失败或验证不通过时，使用错误信息提示 LLM 重新生成
@@ -132,7 +123,6 @@ class NLQueryLLMService(BaseLLMService):
             previous_sql: 之前失败的 SQL
             error_message: 执行或验证的错误信息
             template_name: 提示词模板名称
-            temperature: 温度参数
 
         Returns:
             {
@@ -171,18 +161,10 @@ class NLQueryLLMService(BaseLLMService):
                 )
 
             # 2. 构建消息（提高温度以增加多样性）
-            messages = [
-                {"role": "system", "content": system_prompt}
-            ]
+            input_messages.append({"role": "user", "content": system_prompt})
 
-            # 使用更高的温度促进多样性
-            retry_temp = temperature if temperature is not None else 0.3
 
-            response_text = self.call(
-                messages,
-                temperature=retry_temp,
-                max_tokens=self.config.get('max_tokens', 2000)
-            )
+            response_text = self.client.invoke(input_messages)
 
             # 3. 解析响应
             result = self._parse_sql_response(response_text)
@@ -207,11 +189,11 @@ class NLQueryLLMService(BaseLLMService):
             }
 
     def validate_input_clarity(self,
+                              input_messages: list,
                               user_input: str,
                               context: str,
                               sql_query: str,
-                              flow_type: str = "fast",
-                              temperature: Optional[float] = None) -> Dict[str, Any]:
+                              flow_type: str = "fast") -> Dict[str, Any]:
         """验证输入清晰度 - 检查用户输入的清晰性和 SQL 的对应性
 
         在执行 SQL 前进行验证，确保 SQL 符合用户意图
@@ -221,7 +203,6 @@ class NLQueryLLMService(BaseLLMService):
             context: 数据库元数据和术语表上下文
             sql_query: 生成的 SQL 查询
             flow_type: 流程类型 ("fast" 或 "thorough")
-            temperature: 温度参数
 
         Returns:
             {
@@ -259,16 +240,10 @@ class NLQueryLLMService(BaseLLMService):
                 )
 
             # 2. 调用 LLM 进行验证
-            messages = [
-                {"role": "system", "content": system_prompt}
-            ]
+            input_messages.append({"role": "user", "content": system_prompt})
 
-            temp = temperature if temperature is not None else 0.1
+            response_text = self.client.invoke(input_messages)
 
-            response_text = self.call_with_json_mode(
-                messages,
-                temperature=temp
-            )
 
             # 3. 解析验证结果
             if isinstance(response_text, dict):
@@ -310,10 +285,10 @@ class NLQueryLLMService(BaseLLMService):
     # ========== SQL 解释方法 ==========
 
     def explain_sql(self,
+                   input_messages: list,
                    sql_query: str,
                    user_input: str = "",
-                   template_name: str = "sql_explanation",
-                   temperature: Optional[float] = None) -> Dict[str, Any]:
+                   template_name: str = "sql_explanation") -> Dict[str, Any]:
         """解释 SQL 查询含义
 
         为用户解释生成的 SQL 查询的含义
@@ -322,7 +297,6 @@ class NLQueryLLMService(BaseLLMService):
             sql_query: SQL 查询语句
             user_input: 用户的原始输入（可选）
             template_name: 提示词模板名称
-            temperature: 温度参数
 
         Returns:
             {
@@ -354,17 +328,9 @@ class NLQueryLLMService(BaseLLMService):
                 )
 
             # 2. 调用 LLM 解释
-            messages = [
-                {"role": "system", "content": system_prompt}
-            ]
+            input_messages.append({"role": "user", "content": system_prompt})
 
-            temp = temperature if temperature is not None else 0.2
-
-            response_text = self.call(
-                messages,
-                temperature=temp,
-                max_tokens=1000
-            )
+            response_text = self.client.invoke(input_messages)
 
             logger.info("SQL 解释完成")
 
