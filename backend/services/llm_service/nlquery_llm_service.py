@@ -120,7 +120,7 @@ class NLQueryLLMService(BaseLLMService):
                            context: str,
                            previous_sql: str,
                            error_message: str,
-                           template_name: str = "sql_retry",
+                           template_name: str = "sql_generation_retry",
                            temperature: Optional[float] = None) -> Dict[str, Any]:
         """重试 SQL 生成 - 基于错误反馈的 SQL 重新生成
 

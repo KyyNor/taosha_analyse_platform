@@ -288,7 +288,7 @@ class OperationTracker:
                         progress=session.progress or 0,
                         created_at=session.created_at,
                         completed_at=session.completed_at,
-                        task_context=session.task_context,
+                        task_context=session.task_context or '',
                         sql_query=session.sql_query or '',
                         execution_result=execution_result,
                         clear_check_details={},

@@ -257,8 +257,8 @@ class NL2SQLService:
 
                 # 尝试执行SQL
                 try:
-                    result = self.db_service.execute(sql_query)
-                    state.execution_result = result
+                    result = self.db_service.execute_query(sql_query)
+                    state.execution_result = result.to_dict('records')
                     state.error_message = None
                     state.current_step_log = BaseNodeLog(
                         step="执行SQL",
