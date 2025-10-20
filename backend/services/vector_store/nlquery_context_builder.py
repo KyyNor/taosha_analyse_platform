@@ -4,6 +4,7 @@ NL2SQL 专用的上下文构建器 - 业务级别的检索和上下文组织
 
 from typing import List, Dict, Optional
 from services.vector_store.base import VectorStore
+from services.vector_store.vector_store_factory import get_vector_store
 from services.metadata_service.metadata_service import (
     get_metadata_service,
     get_glossary_service,
@@ -19,29 +20,25 @@ class NLQueryContextBuilder:
     """
 
     def __init__(self,
-                 vector_store: VectorStore,
-                 embedding_func,
                  metadata_service=None,
                  glossary_service=None,
                  relation_config_service=None):
         """初始化上下文构建器
 
         Args:
-            vector_store: VectorStore 实例
-            embedding_func: Embedding 函数
             metadata_service: 元数据服务（可选，未提供则自动获取）
             glossary_service: 术语服务（可选，未提供则自动获取）
             relation_config_service: 关联配置服务（可选，未提供则自动获取）
         """
-        self.vector_store = vector_store
-        self.embedding_func = embedding_func
+        # 使用全局 VectorStore 实例
+        self.vector_store = get_vector_store()
 
         # 如果未提供服务，则获取全局实例
         self.metadata_service = metadata_service or get_metadata_service()
         self.glossary_service = glossary_service or get_glossary_service()
         self.relation_config_service = relation_config_service or get_relation_field_config_service()
 
-        logger.info("NLQuery Context Builder 初始化完成")
+        logger.info("NLQuery Context Builder 初始化完成，使用全局 VectorStore 实例")
 
     # ========== 方法1：纯向量检索 ==========
 
@@ -92,7 +89,8 @@ class NLQueryContextBuilder:
                 context_parts.append(self._format_other_section(other_docs))
 
             context = "\n\n".join(context_parts)
-            logger.debug(f"向量检索完成，返回 {len(search_results)} 个结果")
+            logger.info(context)
+            logger.info(f"向量检索完成，返回 {len(search_results)} 个结果")
             return context
 
         except Exception as e:

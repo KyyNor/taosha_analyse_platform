@@ -135,7 +135,7 @@ def main():
 
     logger.info(f"启动 {settings.app_name} v{settings.app_version}")
     logger.info(f"数据库路径: {settings.duckdb_path}")
-    logger.info(f"ChromaDB路径: {settings.chromadb_path}")
+    logger.info(f"ChromaDB路径: {settings.vector_store_type}")
     
     # 启动服务器
     uvicorn.run(

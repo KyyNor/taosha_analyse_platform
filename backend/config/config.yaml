@@ -11,7 +11,6 @@ query_engine:
   dir: "./database"
   service_type: "duckdb"  # duckdb 或 spark
   duckdb_path: "./database/taosha.duckdb"
-  chromadb_path: "./database/chromadb"
 
 # 元数据配置
 taosha_db:
@@ -46,6 +45,12 @@ embedding:
   cache_size: 1000  # embedding缓存大小
   model: "Qwen/Qwen3-Embedding-0.6B"  # OpenAI embedding模型名称
   dimensions: 1024  # embedding维度
+
+# 向量存储配置
+vector_store:
+  store_type: "chromadb"  # chromadb 或 qdrant
+  collection_name: "taosha_knowledge"
+  persist_dir: "./database/chromadb"
 
 # 日志配置
 logging:

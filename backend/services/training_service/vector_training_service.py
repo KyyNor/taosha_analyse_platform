@@ -44,10 +44,11 @@ class VectorTrainingService:
         self.glossary_service = get_glossary_service()
         self.relation_service = get_relation_field_config_service()
 
-        # 初始化向量存储
+        # 使用全局向量存储实例
         try:
-            self.vector_store = VectorStoreFactory.create("chromadb", None, {})
-            logger.info("向量存储初始化成功")
+            from services.vector_store.vector_store_factory import get_vector_store
+            self.vector_store = get_vector_store()
+            logger.info("向量存储初始化成功，使用全局实例")
         except Exception as e:
             logger.error(f"向量存储初始化失败: {e}")
             raise
@@ -99,8 +100,8 @@ class VectorTrainingService:
 
             # 清空现有向量数据
             try:
-                self.vector_store.clear()
-                logger.info("已清空现有向量数据")
+                # self.vector_store.clear()
+                logger.info("已清空现有向量数据 (todo)")
             except Exception as e:
                 logger.warning(f"清空向量数据失败: {e}")
 
@@ -227,7 +228,7 @@ class VectorTrainingService:
         metadatas = []
 
         try:
-            glossaries = self.glossary_service.get_all_glossaries()
+            glossaries = self.glossary_service.get_terms()
 
             for glossary in glossaries:
                 term = glossary.get("term", "")
@@ -272,7 +273,7 @@ class VectorTrainingService:
         metadatas = []
 
         try:
-            relations = self.relation_service.get_all_relations()
+            relations = self.relation_service.get_all_relation_configs()
 
             for relation in relations:
                 relation_id = relation.get("relation_id", "")

@@ -62,7 +62,6 @@ class ConfigManager:
             # 数据库配置
             database_dir: Path = Path(self._config_data.get('database', {}).get('dir', './database'))
             duckdb_path: str = self._config_data.get('database', {}).get('duckdb_path', './database/taosha.duckdb')
-            chromadb_path: str = self._config_data.get('database', {}).get('chromadb_path', './database/chromadb')
 
             # 元数据配置
             taosha_db_db_type: str = self._config_data.get('taosha_db', {}).get('db_type', 'sqlite')
@@ -95,6 +94,11 @@ class ConfigManager:
             embedding_model_path: Optional[str] = self._config_data.get('embedding', {}).get('model_path')
             embedding_device: str = self._config_data.get('embedding', {}).get('device', 'cpu')
             embedding_cache_size: int = self._config_data.get('embedding', {}).get('cache_size', 1000)
+
+            # 向量存储配置
+            vector_store_type: str = self._config_data.get('vector_store', {}).get('store_type', 'chromadb')
+            vector_store_collection_name: str = self._config_data.get('vector_store', {}).get('collection_name', 'taosha_knowledge')
+            vector_store_persist_dir: str = self._config_data.get('vector_store', {}).get('persist_dir', './database/chromadb')
 
             # 日志配置
             log_level: str = self._config_data.get('logging', {}).get('level', 'INFO')

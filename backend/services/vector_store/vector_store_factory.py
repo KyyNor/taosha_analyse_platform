@@ -1,10 +1,13 @@
 """
-向量存储工厂类 - 支持一键切换向量库
+向量存储工厂类 - 支持一键切换向量库，提供全局唯一实例
 """
 
 from typing import Dict, Any, Optional
+
+from services.llm_service.embedding_service import get_chroma_embedding_function
 from services.vector_store.base import VectorStore
 from utils.logger import logger
+from utils.config import settings
 
 
 class VectorStoreFactory:
@@ -12,6 +15,7 @@ class VectorStoreFactory:
 
     支持工厂模式，可以通过配置一键切换不同的向量库实现
     使用延迟导入避免依赖问题
+    提供全局唯一实例管理
     """
 
     # 支持的向量库类型
@@ -19,6 +23,10 @@ class VectorStoreFactory:
         "chromadb": "services.vector_store.chromadb_store:ChromaDBStore",
         "qdrant": "services.vector_store.qdrant_store:QdrantStore"
     }
+
+    # 全局实例
+    _vector_store: Optional[VectorStore] = None
+    _initialized: bool = False
 
     @staticmethod
     def _load_class(module_path: str):
@@ -36,13 +44,11 @@ class VectorStoreFactory:
 
     @staticmethod
     def create(store_type: str,
-               embedding_func,
                config: Dict[str, Any] = None) -> VectorStore:
         """创建向量存储实例
 
         Args:
             store_type: 向量库类型 ("chromadb" 或 "qdrant")
-            embedding_func: Embedding 函数实例
             config: 配置字典，包含库特定的参数
 
         Returns:
@@ -83,12 +89,16 @@ class VectorStoreFactory:
             store_class = VectorStoreFactory._load_class(module_path)
 
             if store_type == "chromadb":
+                # 创建 embedding 函数
+                embedding_function = get_chroma_embedding_function()
+
                 return VectorStoreFactory._create_chromadb(
                     store_class,
-                    embedding_func,
+                    embedding_function,
                     config
                 )
             elif store_type == "qdrant":
+                embedding_func = None
                 return VectorStoreFactory._create_qdrant(
                     store_class,
                     embedding_func,
@@ -169,3 +179,77 @@ class VectorStoreFactory:
             支持的向量库类型列表
         """
         return list(VectorStoreFactory.SUPPORTED_STORES.keys())
+
+    # 全局实例管理方法
+    @classmethod
+    def get_vector_store(cls) -> VectorStore:
+        """获取全局 VectorStore 实例
+
+        如果实例未初始化，会根据配置文件自动初始化
+
+        Returns:
+            VectorStore 全局实例
+        """
+        if cls._vector_store is None or not cls._initialized:
+            cls._initialize_from_config()
+        return cls._vector_store
+
+    @classmethod
+    def _initialize_from_config(cls):
+        """根据配置文件初始化全局 VectorStore 实例
+
+        Raises:
+            RuntimeError: 初始化失败时抛出
+        """
+        try:
+            logger.info("开始初始化全局 VectorStore 实例")
+
+            # 获取向量存储配置
+            # 先尝试从 settings 读取，如果没有则从 config.yaml 读取
+            store_type = getattr(settings, 'vector_store_type', 'chromadb')
+            collection_name = getattr(settings, 'vector_store_collection_name', 'taosha_knowledge')
+            persist_dir = getattr(settings, 'vector_store_persist_dir', './database/chromadb')
+
+            # 如果 settings 中没有，尝试从配置文件读取
+            if not hasattr(settings, 'vector_store_type'):
+                try:
+                    from utils.config import get_config
+                    config = get_config()
+                    vector_store_config = config.get('vector_store', {})
+                    store_type = vector_store_config.get('store_type', 'chromadb')
+                    collection_name = vector_store_config.get('collection_name', 'taosha_knowledge')
+                    persist_dir = vector_store_config.get('persist_dir', './database/chromadb')
+                except Exception as e:
+                    logger.warning(f"从配置文件读取向量存储配置失败，使用默认值: {e}")
+
+            # 构建配置字典
+            config = {
+                "collection_name": collection_name,
+                "persist_dir": persist_dir
+            }
+
+            # 创建 VectorStore 实例
+            cls._vector_store = cls.create(store_type, config)
+            cls._initialized = True
+
+            logger.info(f"全局 VectorStore 实例初始化成功: store_type={store_type}, collection_name={collection_name}")
+
+        except Exception as e:
+            logger.error(f"初始化全局 VectorStore 实例失败: {e}")
+            raise RuntimeError(f"全局 VectorStore 初始化失败: {e}")
+
+    @classmethod
+    def reset(cls):
+        """重置全局实例（主要用于测试）"""
+        cls._vector_store = None
+        cls._initialized = False
+        logger.info("全局 VectorStore 实例已重置")
+
+
+def get_vector_store() -> VectorStore:
+    """获取全局 VectorStore 实例的便捷函数
+
+    Returns:
+        VectorStore 全局实例
+    """
+    return VectorStoreFactory.get_vector_store()

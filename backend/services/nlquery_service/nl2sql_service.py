@@ -54,22 +54,15 @@ class NL2SQLService:
         Args:
             db_session: 数据库会话（可选，用于Training Service）
         """
-        # 初始化向量存储和上下文构建器
+        # 使用全局向量存储实例和上下文构建器
         try:
-            # 尝试创建Qdrant向量存储
-            self.vector_store = VectorStoreFactory.create("qdrant", None, {})
-            self.context_builder = NLQueryContextBuilder(
-                vector_store=self.vector_store,
-                embedding_func=None
-            )
+            from services.vector_store.vector_store_factory import get_vector_store
+            self.vector_store = get_vector_store()
+            self.context_builder = NLQueryContextBuilder()
+            logger.info("向量存储和上下文构建器初始化成功，使用全局实例")
         except Exception as e:
-            logger.warning(f"向量存储初始化失败，使用ChromaDB: {e}")
-            # 降级到ChromaDB
-            self.vector_store = VectorStoreFactory.create("chromadb", None, {})
-            self.context_builder = NLQueryContextBuilder(
-                vector_store=self.vector_store,
-                embedding_func=None
-            )
+            logger.error(f"向量存储初始化失败: {e}")
+            raise
 
         template_service = get_prompt_template_service(db_session)
         self.llm_service = NLQueryLLMService(
@@ -98,11 +91,11 @@ class NL2SQLService:
             """检查是否需要重新训练模型"""
             try:
                 # 检查Training Service是否可用
-                if self.training_service:
-                    stats = self.training_service.get_training_data_statistics()
-                    logger.info(f"训练数据统计: {stats}")
-                else:
-                    logger.info("Training Service未初始化")
+                # if self.training_service:
+                #     stats = self.training_service.get_training_data_statistics()
+                #     logger.info(f"训练数据统计: {stats}")
+                # else:
+                #     logger.info("Training Service未初始化")
 
                 state.current_step_log = BaseNodeLog(
                     step="知识库检查",
@@ -405,11 +398,7 @@ class NL2SQLService:
         def route_by_flow_type(state: TaskState) -> str:
             """根据流程类型决定下一步"""
             flow_type = getattr(state, 'flow_type', 'fast')
-            return "build_context"  # 统一先构建上下文
-
-        def route_after_context(state: TaskState) -> str:
-            """构建上下文后的路由逻辑"""
-            return "validate_input"  # 上下文构建完成后进行输入验证
+            return flow_type  # 统一先构建上下文
 
         def route_after_validation(state: TaskState) -> str:
             """验证后的路由逻辑"""
@@ -425,16 +414,6 @@ class NL2SQLService:
                 return "generate_sql"
             else:
                 # 深度流程：已经有SQL，验证通过后执行
-                return "execute_sql"
-
-        def route_after_generate_sql(state: TaskState) -> str:
-            """生成SQL后的路由逻辑"""
-            flow_type = getattr(state, 'flow_type', 'fast')
-            if flow_type == 'thorough':
-                # 深度流程：生成SQL后需要验证
-                return "validate_input"
-            else:
-                # 快速流程：直接执行SQL
                 return "execute_sql"
 
         def should_retry(state: TaskState) -> str:
@@ -464,23 +443,15 @@ class NL2SQLService:
 
         # 添加边
         workflow.set_entry_point("check_training")
-
-        # check_training -> build_context
-        workflow.add_conditional_edges(
-            "check_training",
-            route_by_flow_type,
-            {
-                "fast": "build_context",
-                "thorough": "build_context"
-            }
-        )
+        workflow.add_edge("check_training", "build_context")
 
         # build_context -> validate_input
         workflow.add_conditional_edges(
             "build_context",
-            route_after_context,
+            route_by_flow_type,
             {
-                "validate_input": "validate_input"
+                "fast": "validate_input",
+                "thorough": "generate_sql"
             }
         )
 
@@ -498,10 +469,10 @@ class NL2SQLService:
         # generate_sql的路由
         workflow.add_conditional_edges(
             "generate_sql",
-            route_after_generate_sql,
+            route_by_flow_type,
             {
-                "validate_input": "validate_input",
-                "execute_sql": "execute_sql"
+                "fast": "execute_sql",
+                "thorough": "validate_input"
             }
         )
 
