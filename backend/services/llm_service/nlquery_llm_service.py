@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from .base_llm_service import BaseLLMService
 from utils.prompt_template_renderer import PromptTemplateRenderer
 from utils.logger import logger
+from datetime import datetime
 
 
 class NLQueryLLMService(BaseLLMService):
@@ -64,7 +65,8 @@ class NLQueryLLMService(BaseLLMService):
             # 1. 构建提示词
             prompt_params = {
                 "user_input": user_input,
-                "context": context
+                "context": context,
+                "current_date": datetime.now().strftime("%Y-%m-%d")
             }
 
             # 尝试从模板生成，如果失败则使用默认提示词

@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS nlquery_sessions (
     progress INT DEFAULT 0,
     created_at TIMESTAMP NOT NULL,
     completed_at TIMESTAMP NULL,
+    task_context TEXT NULL,
     sql_query TEXT,
     execution_result JSON,
     clear_check_details JSON,

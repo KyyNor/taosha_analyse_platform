@@ -15,58 +15,6 @@ from repositories import (
 from services.service_models import TaskState, BaseNodeLog
 from .tracker_cache import tracker_cache
 
-
-class TaskCache:
-    """任务状态缓存管理 - 使用 cachetools"""
-
-    def __init__(self, max_size: int = 100, ttl_seconds: int = 24 * 3600):
-        self._cache = TTLCache(maxsize=max_size, ttl=ttl_seconds)
-        logger.info(f"任务缓存初始化完成: max_size={max_size}, ttl={ttl_seconds}秒")
-
-    async def get(self, task_id: str) -> Optional[TaskState]:
-        """获取缓存中的任务状态"""
-        try:
-            state = self._cache.get(task_id)
-            return state
-        except Exception as e:
-            logger.error(f"从缓存获取任务状态失败: {e}")
-            return None
-
-    def set(self, task_id: str, state: TaskState):
-        """设置任务状态到缓存"""
-        try:
-            self._cache[task_id] = state
-        except Exception as e:
-            logger.error(f"设置任务状态到缓存失败: {e}")
-
-    async def remove(self, task_id: str):
-        """从缓存中删除任务"""
-        try:
-            self._cache.pop(task_id, None)
-        except Exception as e:
-            logger.error(f"从缓存删除任务失败: {e}")
-
-    def clear(self):
-        """清空缓存"""
-        try:
-            self._cache.clear()
-            logger.info("任务缓存已清空")
-        except Exception as e:
-            logger.error(f"清空缓存失败: {e}")
-
-    def info(self) -> Dict[str, Any]:
-        """获取缓存信息"""
-        try:
-            return {
-                "maxsize": self._cache.maxsize,
-                "currsize": len(self._cache),
-                "ttl": getattr(self._cache, 'ttl', 'N/A')
-            }
-        except Exception as e:
-            logger.error(f"获取缓存信息失败: {e}")
-            return {}
-
-
 class OperationTracker:
     """简化的操作追踪器"""
 
@@ -158,6 +106,7 @@ class OperationTracker:
             'progress': state.progress,
             'created_at': state.created_at,
             'completed_at': state.completed_at,
+            'task_context': state.task_context,
             'logs': state.logs,
             'error_message': state.error_message,
             'execution_result': state.execution_result,
@@ -189,6 +138,7 @@ class OperationTracker:
             'progress': state.progress,
             'created_at': state.created_at,
             'completed_at': state.completed_at,
+            'task_context': state.task_context,
             'logs': state.logs,
             'error_message': state.error_message,
             'execution_result': state.execution_result,
@@ -219,6 +169,7 @@ class OperationTracker:
                 'progress': state.progress,
                 'created_at': state.created_at,
                 'completed_at': state.completed_at,
+                'task_context': state.task_context,
                 'sql_query': state.sql_query,
                 'execution_result': json.dumps(state.execution_result) if state.execution_result else None,
                 'clear_check_details': json.dumps(state.clear_check_details) if state.clear_check_details else None,
@@ -337,6 +288,7 @@ class OperationTracker:
                         progress=session.progress or 0,
                         created_at=session.created_at,
                         completed_at=session.completed_at,
+                        task_context=session.task_context,
                         sql_query=session.sql_query or '',
                         execution_result=execution_result,
                         clear_check_details={},
@@ -416,7 +368,3 @@ class OperationTracker:
                 'success': False,
                 'error': str(e)
             }
-
-
-# 注意：不再使用全局tracker实例，改为依赖注入模式
-# tracker = OperationTracker()  # 已移除，请使用依赖注入

@@ -21,6 +21,7 @@ class NlQuerySession(Base):
     progress: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     completed_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    task_context: Mapped[str] = mapped_column(Text, nullable=True)
     sql_query: Mapped[str] = mapped_column(Text, nullable=True)
     execution_result: Mapped[str] = mapped_column(Text, nullable=True)  # JSON格式
     clear_check_details: Mapped[str] = mapped_column(Text, nullable=True)  # JSON格式

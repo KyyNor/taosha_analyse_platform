@@ -17,11 +17,9 @@ from services.training_service import TrainingService
 from services.metadata_service.metadata_service import (
     get_metadata_service, get_prompt_template_service
 )
-from services.tracking_service.operation_tracking import OperationTracker
 from services.query_engine import get_query_engine
 from services.service_models import BaseNodeLog, TaskState, TaskStateHelper
 
-from utils.config import settings
 from utils.logger import logger
 from utils.progress_decorator import track_node_progress
 
@@ -140,24 +138,15 @@ class NL2SQLService:
                     # thorough流程：验证SQL和输入是否匹配
                     step_name = "SQL验证"
                     input_for_validation = f"user:{user_input}\nsql:{sql_query}"
-                    # 构建上下文（从元数据服务获取）
-                    context = ""
-                    try:
-                        tables = self.metadata_service.get_all_tables()
-                        context = json.dumps([{"table": t.table_name, "columns": [c.column_name for c in t.columns]}
-                                           for t in tables], ensure_ascii=False)
-                    except:
-                        pass
                 else:
                     # fast流程或第一次验证：验证输入清晰度
                     step_name = "处理输入"
                     input_for_validation = user_input
-                    context = ""
 
                 # 使用LLM验证（调用正确的方法名）
                 validation_result = self.llm_service.validate_input_clarity(
                     user_input=user_input,
-                    context=context,
+                    context=state.task_context,
                     sql_query=sql_query if sql_query else "",
                     flow_type=flow_type
                 )
@@ -206,13 +195,14 @@ class NL2SQLService:
                         user_input=user_input,
                         previous_sql=previous_sql,
                         error_message=error_message,
+                        context=state.task_context,
                         temperature=0.3
                     )
                     step_name = "SQL重试生成"
                 else:
                     result = self.llm_service.generate_sql(
                         user_input=user_input,
-                        context="",
+                        context=state.task_context,
                         temperature=0.1
                     )
                     step_name = "生成查询语句"

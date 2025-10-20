@@ -37,6 +37,9 @@ class TaskState(BaseModel):
     created_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
+    # 上下文信息
+    task_context: str = ""
+
     # 业务数据
     sql_query: str = ""
     execution_result: Optional[list[dict]] = None
@@ -85,6 +88,7 @@ class TaskStateHelper:
             current_step='初始化',
             progress=0,
             created_at=datetime.now(),
+            task_context='',
             completed_at=None,
             sql_query='',
             execution_result=None,

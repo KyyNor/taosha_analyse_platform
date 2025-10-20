@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS nlquery_sessions (
     progress INTEGER DEFAULT 0,
     created_at DATETIME NOT NULL,
     completed_at DATETIME,
+    task_context DATETIME,
     sql_query TEXT,
     execution_result TEXT,
     clear_check_details TEXT,
