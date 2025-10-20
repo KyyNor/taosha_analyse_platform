@@ -5,8 +5,8 @@ NL2SQL 专用的 LLM 服务 - 业务级别的 SQL 生成和验证
 import json
 from typing import Dict, List, Optional, Any, Tuple, Union
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.prompts import PromptTemplate
 from .base_llm_service import BaseLLMService
-from utils.prompt_template_renderer import PromptTemplateRenderer
 from utils.logger import logger
 from datetime import datetime
 
@@ -28,7 +28,6 @@ class NLQueryLLMService(BaseLLMService):
         """
         super().__init__(llm_client)
 
-        self.template_renderer = PromptTemplateRenderer(template_service)
         self.template_service = template_service
 
         logger.info("NLQueryLLMService 初始化完成")
@@ -73,12 +72,12 @@ class NLQueryLLMService(BaseLLMService):
             default_template = self._get_default_sql_generation_template()
 
             try:
-                system_prompt = self.template_renderer.render_template(
+                system_prompt = self._render_template_from_db(
                     template_name, prompt_params, default_template
                 )
             except Exception as e:
                 logger.warning(f"模板渲染失败，使用默认模板: {e}")
-                system_prompt = self._get_default_sql_generation_template().format(
+                system_prompt = default_template.format(
                     context=context, user_input=user_input
                 )
 
@@ -152,7 +151,7 @@ class NLQueryLLMService(BaseLLMService):
             default_template = self._get_default_sql_retry_template()
 
             try:
-                system_prompt = self.template_renderer.render_template(
+                system_prompt = self._render_template_from_db(
                     template_name, prompt_params, default_template
                 )
             except Exception as e:
@@ -227,13 +226,14 @@ class NLQueryLLMService(BaseLLMService):
                 "user_input": user_input,
                 "context": context,
                 "sql_query": sql_query,
-                "flow_type": flow_type
+                "flow_type": flow_type,
+                "current_date": datetime.now().strftime("%Y-%m-%d")
             }
 
             default_template = self._get_default_validation_template()
 
             try:
-                system_prompt = self.template_renderer.render_template(
+                system_prompt = self._render_template_from_db(
                     f"input_validation_{flow_type}", prompt_params, default_template
                 )
             except Exception as e:
@@ -330,7 +330,7 @@ class NLQueryLLMService(BaseLLMService):
             default_template = self._get_default_sql_explanation_template()
 
             try:
-                system_prompt = self.template_renderer.render_template(
+                system_prompt = self._render_template_from_db(
                     template_name, prompt_params, default_template
                 )
             except Exception as e:
@@ -372,6 +372,43 @@ class NLQueryLLMService(BaseLLMService):
             }
 
     # ========== 内部工具方法 ==========
+
+    def _render_template_from_db(self, template_name: str, params: Dict[str, Any],
+                                 default_template: str) -> str:
+        """从数据库渲染模板，使用LangChain的PromptTemplate
+
+        Args:
+            template_name: 模板名称
+            params: 模板参数字典
+            default_template: 默认模板字符串
+
+        Returns:
+            渲染后的提示词字符串
+        """
+        try:
+            # 尝试从数据库获取模板
+            template_content = None
+            if self.template_service:
+                template_data = self.template_service.get_template_by_name(template_name)
+                if template_data:
+                    template_content = template_data.get('template', '')
+                    logger.info(f"使用数据库模板: {template_name}")
+
+            # 如果没有找到模板，使用默认模板
+            if not template_content:
+                template_content = default_template
+                logger.warning(f"数据库中未找到模板 '{template_name}'，使用默认模板")
+
+            # 使用LangChain的PromptTemplate进行渲染
+            prompt_template = PromptTemplate.from_template(template_content)
+            rendered_prompt = prompt_template.format(**params)
+
+            logger.info(f"模板渲染成功: {template_name}，参数数量: {len(params)}")
+            return rendered_prompt
+
+        except Exception as e:
+            logger.error(f"模板渲染失败: {template_name}, 错误: {e}")
+            raise
 
     def _parse_sql_response(self, response_text) -> Dict[str, Any]:
         """解析 LLM 生成的 SQL 响应

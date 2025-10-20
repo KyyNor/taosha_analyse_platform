@@ -29,8 +29,7 @@ class TestNL2SQLFlow:
             get_glossary_service=Mock(),
             get_relation_field_config_service=Mock(),
             get_prompt_template_service=Mock(),
-            get_query_engine=Mock(),
-            PromptTemplateRenderer=Mock
+            get_query_engine=Mock()
         ):
             yield
 
@@ -411,8 +410,7 @@ class TestAsyncQueryServiceIntegration:
             get_glossary_service=Mock(),
             get_relation_field_config_service=Mock(),
             get_prompt_template_service=Mock(),
-            get_query_engine=Mock(),
-            PromptTemplateRenderer=Mock
+            get_query_engine=Mock()
         ):
             # 创建服务实例进行步骤验证
             service = NL2SQLService()
