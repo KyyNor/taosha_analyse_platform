@@ -125,6 +125,42 @@ class NL2SQLService:
                 )
                 return state
 
+        @track_node_progress("构建查询上下文")
+        def build_context(state: TaskState) -> TaskState:
+            """构建查询上下文 - 从向量数据库检索相关信息"""
+            try:
+                user_input = state.user_input
+
+                # 使用向量检索构建上下文
+                context = self.context_builder.retrieve_by_semantic_search(
+                    user_input=user_input,
+                    top_k=10
+                )
+
+                state.task_context = context
+
+                state.current_step_log = BaseNodeLog(
+                    step="构建查询上下文",
+                    input_data=user_input,
+                    prompt="",
+                    model_output=f"Context built with {len(context)} characters",
+                    success=True
+                )
+                return state
+
+            except Exception as e:
+                logger.error(f"构建查询上下文失败: {e}")
+                state.task_context = ""
+                state.current_step_log = BaseNodeLog(
+                    step="构建查询上下文",
+                    input_data="",
+                    prompt="",
+                    model_output="",
+                    success=False,
+                    error=str(e)
+                )
+                return state
+
         @track_node_progress("检查输入清晰度")
         def validate_input(state: TaskState) -> TaskState:
             """验证输入是否清晰（fast流程）或在thorough流程中验证SQL"""
@@ -369,7 +405,11 @@ class NL2SQLService:
         def route_by_flow_type(state: TaskState) -> str:
             """根据流程类型决定下一步"""
             flow_type = getattr(state, 'flow_type', 'fast')
-            return flow_type
+            return "build_context"  # 统一先构建上下文
+
+        def route_after_context(state: TaskState) -> str:
+            """构建上下文后的路由逻辑"""
+            return "validate_input"  # 上下文构建完成后进行输入验证
 
         def route_after_validation(state: TaskState) -> str:
             """验证后的路由逻辑"""
@@ -416,6 +456,7 @@ class NL2SQLService:
 
         # 添加节点
         workflow.add_node("check_training", check_training_needed)
+        workflow.add_node("build_context", build_context)
         workflow.add_node("validate_input", validate_input)
         workflow.add_node("generate_sql", generate_sql)
         workflow.add_node("execute_sql", execute_sql)
@@ -424,13 +465,22 @@ class NL2SQLService:
         # 添加边
         workflow.set_entry_point("check_training")
 
-        # check_training根据flow_type路由
+        # check_training -> build_context
         workflow.add_conditional_edges(
             "check_training",
             route_by_flow_type,
             {
-                "fast": "validate_input",        # 快速流程：先验证后生成
-                "thorough": "generate_sql"      # 深度流程：先生成后验证
+                "fast": "build_context",
+                "thorough": "build_context"
+            }
+        )
+
+        # build_context -> validate_input
+        workflow.add_conditional_edges(
+            "build_context",
+            route_after_context,
+            {
+                "validate_input": "validate_input"
             }
         )
 

@@ -15,6 +15,27 @@ from api.metadata_routes import router as metadata_router
 from api.user_routes import router as user_router
 from services.query_engine import get_query_engine
 from services.nlquery_service.async_query_service import get_async_query_service
+from models.db_base import get_db_session
+from services.training_service.vector_training_service import VectorTrainingService
+
+
+async def _train_vector_database_async(vector_training_service: VectorTrainingService):
+    """异步执行向量数据库训练
+
+    Args:
+        vector_training_service: 向量训练服务实例
+    """
+    try:
+        logger.info("开始执行向量数据库训练...")
+        result = vector_training_service.train_vector_database("应用启动时的向量数据库初始化")
+
+        if result["success"]:
+            logger.info(f"向量数据库训练成功: {result}")
+        else:
+            logger.error(f"向量数据库训练失败: {result.get('error', 'Unknown error')}")
+
+    except Exception as e:
+        logger.error(f"异步向量数据库训练异常: {e}", exc_info=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,6 +51,16 @@ async def lifespan(app: FastAPI):
         # 初始化异步查询服务
         async_query_service = get_async_query_service()
         logger.info("异步查询服务初始化完成")
+
+        # 初始化向量数据库训练服务
+        with get_db_session() as db:
+            vector_training_service = VectorTrainingService(db)
+
+            # 异步执行向量数据库训练
+            import asyncio
+            asyncio.create_task(_train_vector_database_async(vector_training_service))
+
+            logger.info("向量数据库训练服务初始化完成，开始后台训练...")
 
         logger.info("=== 淘沙分析平台启动成功 ===")
 
