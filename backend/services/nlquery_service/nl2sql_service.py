@@ -7,7 +7,9 @@ import json
 import traceback
 from datetime import datetime
 from typing import Optional, Dict, Any
-from openai import OpenAI
+
+from langfuse import get_client
+from langfuse.langchain import CallbackHandler
 
 from langgraph.graph import StateGraph, END
 
@@ -19,6 +21,7 @@ from services.metadata_service.metadata_service import (
 )
 from services.query_engine import get_query_engine
 from services.service_models import BaseNodeLog, TaskState, TaskStateHelper
+from utils.config import settings
 
 from utils.logger import logger
 from utils.progress_decorator import track_node_progress
@@ -490,7 +493,20 @@ class NL2SQLService:
         # explain_result到结束
         workflow.add_edge("explain_result", END)
 
-        return workflow.compile()
+        import os
+        os.environ["LANGFUSE_PUBLIC_KEY"] = settings.langfuse_public_key
+        os.environ["LANGFUSE_SECRET_KEY"] = settings.langfuse_secret_key
+        os.environ["LANGFUSE_HOST"] = settings.langfuse_host
+        langfuse = get_client()
+
+        # Verify connection
+        if langfuse.auth_check():
+            print("Langfuse client is authenticated and ready!")
+        else:
+            print("Authentication failed. Please check your credentials and host.")
+
+        langfuse_handler = CallbackHandler()
+        return workflow.compile().with_config({"callbacks": [langfuse_handler]})
 
     def query(self, user_input: str, flow_type: str = "fast",
               relation_id: Optional[str] = None,

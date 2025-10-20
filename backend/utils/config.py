@@ -106,6 +106,10 @@ class ConfigManager:
             log_retention: str = self._config_data.get('logging', {}).get('retention', '7 days')
             log_compression: str = self._config_data.get('logging', {}).get('compression', 'gz')
 
+            langfuse_public_key: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY")
+            langfuse_secret_key: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY")
+            langfuse_host: Optional[str] = os.getenv("LANGFUSE_HOST")
+
             class Config:
                 env_prefix = self._config_data.get('env_prefix', 'TAOSHA_')
                 case_sensitive = False
