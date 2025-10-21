@@ -145,7 +145,8 @@ class NLQueryLLMService(BaseLLMService):
                 "user_input": user_input,
                 "context": context,
                 "previous_sql": previous_sql,
-                "error_message": error_message
+                "error_message": error_message,
+                "current_date": datetime.now().strftime("%Y-%m-%d")
             }
 
             default_template = self._get_default_sql_retry_template()

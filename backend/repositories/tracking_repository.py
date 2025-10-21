@@ -29,7 +29,7 @@ class NlQuerySessionRepository(BaseRepository[NlQuerySession]):
         try:
             instance = self.model_class(**kwargs)
             self.db.add(instance)
-            self.db.flush()  # 确保获取到主键值
+            self.db.commit()  # 确保获取到主键值
             self.db.refresh(instance)  # 刷新实例，获取数据库生成的值
             logger.info(f"创建 {self.model_class.__name__} 记录成功: task_id={instance.task_id}")
             return instance

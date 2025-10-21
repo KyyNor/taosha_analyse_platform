@@ -209,7 +209,7 @@ class TrainingService:
         """
         try:
             self.training_repo.delete(training_id)
-            self.db.flush()  # 确保删除被提交到数据库
+            self.db.commit()  # 确保删除被提交到数据库
             logger.info(f"删除训练数据 {training_id} 成功")
             return True
         except Exception as e:

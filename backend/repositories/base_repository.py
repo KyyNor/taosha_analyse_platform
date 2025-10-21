@@ -6,6 +6,7 @@ from typing import TypeVar, Generic, List, Optional, Dict, Any, Type
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, asc
 from sqlalchemy.exc import SQLAlchemyError
+from models.db_base import get_db_session
 from utils.logger import logger
 
 # 泛型类型变量
@@ -41,7 +42,7 @@ class BaseRepository(Generic[T]):
                 # 使用注入的 session，由调用方管理生命周期
                 instance = self.model_class(**kwargs)
                 self.db.add(instance)
-                self.db.flush()
+                self.db.commit()
                 self.db.refresh(instance)
                 logger.info(f"创建 {self.model_class.__name__} 记录成功: ID={instance.id}")
                 return instance
@@ -50,7 +51,7 @@ class BaseRepository(Generic[T]):
                 with get_db_session() as db:
                     instance = self.model_class(**kwargs)
                     db.add(instance)
-                    db.flush()
+                    db.commit()
                     db.refresh(instance)
                     logger.info(f"创建 {self.model_class.__name__} 记录成功: ID={instance.id}")
                     return instance
@@ -116,7 +117,7 @@ class BaseRepository(Generic[T]):
                 for key, value in kwargs.items():
                     if hasattr(instance, key):
                         setattr(instance, key, value)
-                self.db.flush()
+                self.db.commit()
                 self.db.refresh(instance)
                 logger.info(f"更新 {self.model_class.__name__} 记录成功: ID={id}")
                 return instance
