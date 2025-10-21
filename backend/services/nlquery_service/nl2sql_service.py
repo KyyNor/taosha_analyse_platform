@@ -297,7 +297,7 @@ class NL2SQLService:
                         step="执行SQL",
                         input_data=sql_query,
                         prompt="",
-                        model_output=f"Success: {len(result) if result else 0} rows",
+                        model_output=f"Success: {len(state.execution_result) if state.execution_result else 0} rows",
                         success=True
                     )
 
@@ -310,7 +310,7 @@ class NL2SQLService:
                                 executed_sql=sql_query,
                                 is_valid=True,
                                 execution_status="success",
-                                row_count=len(result) if result else 0
+                                row_count=len(state.execution_result) if state.execution_result else 0
                             )
                         except Exception as e:
                             logger.warning(f"记录验证结果失败: {e}")
