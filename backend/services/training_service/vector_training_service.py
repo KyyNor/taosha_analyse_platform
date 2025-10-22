@@ -1,32 +1,26 @@
 """
-向量数据库训练服务 - 负责将元数据训练到向量数据库中
+向量数据库训练服务 - 增量训练版本
 """
 
 import json
 import time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from utils.logger import logger
-from repositories.training_repository import (
-    TrainingSessionRepository,
-    TrainingMetricsRepository
-)
+from repositories.training_repository import TrainingRecordRepository
+from repositories.metadata_repository import MetadataTableRepository, MetadataColumnRepository
+from repositories.glossary_repository import GlossaryTermRepository, PromptTemplateRepository
+from repositories.relation_repository import RelationFieldConfigRepository
 from services.vector_store import VectorStoreFactory
-from services.metadata_service.metadata_service import (
-    get_metadata_service,
-    get_glossary_service,
-    get_relation_field_config_service
-)
 
 
 class VectorTrainingService:
-    """向量数据库训练服务
+    """向量数据库训练服务 - 增量训练版本
 
-    负责将元数据（表结构、术语表、关联配置）训练到向量数据库中，
-    并记录训练过程和统计信息到数据库。
+    实现基于修改时间的增量训练，只训练有变化的资源
     """
 
     def __init__(self, db: Session):
@@ -36,13 +30,14 @@ class VectorTrainingService:
             db: 数据库会话
         """
         self.db = db
-        self.session_repo = TrainingSessionRepository(db)
-        self.metrics_repo = TrainingMetricsRepository(db)
 
-        # 初始化元数据服务
-        self.metadata_service = get_metadata_service()
-        self.glossary_service = get_glossary_service()
-        self.relation_service = get_relation_field_config_service()
+        # 初始化Repository
+        self.training_repo = TrainingRecordRepository(db)
+        self.table_repo = MetadataTableRepository(db)
+        self.column_repo = MetadataColumnRepository(db)
+        self.glossary_repo = GlossaryTermRepository(db)
+        self.template_repo = PromptTemplateRepository(db)
+        self.relation_repo = RelationFieldConfigRepository(db)
 
         # 使用全局向量存储实例
         try:
@@ -53,8 +48,8 @@ class VectorTrainingService:
             logger.error(f"向量存储初始化失败: {e}")
             raise
 
-    def train_vector_database(self, session_name: str = "向量数据库初始化训练") -> Dict[str, Any]:
-        """训练向量数据库
+    def train_vector_database(self, session_name: str = "增量向量数据库训练") -> Dict[str, Any]:
+        """增量训练向量数据库
 
         Args:
             session_name: 训练会话名称
@@ -63,327 +58,563 @@ class VectorTrainingService:
             训练结果字典
         """
         try:
-            logger.info(f"开始向量数据库训练: {session_name}")
+            logger.info(f"开始增量向量数据库训练: {session_name}")
             start_time = time.time()
 
-            # 创建训练会话
-            session = self.session_repo.create(
-                session_name=session_name,
-                session_type="auto",
-                status="running",
-                notes="向量数据库元数据训练",
-                created_by="system"
-            )
-            session_id = session.id
+            # 获取所有需要训练的资源
+            resources_to_train = self._get_resources_needing_training()
 
-            # 更新开始时间
-            self.session_repo.update(session_id, started_at=datetime.now())
+            if not resources_to_train:
+                logger.info("没有需要训练的资源，训练完成")
+                return {
+                    "success": True,
+                    "message": "没有需要训练的资源",
+                    "trained_count": 0,
+                    "training_time": time.time() - start_time
+                }
 
-            # 获取所有元数据
-            documents = []
-            metadatas = []
-
-            # 1. 获取表结构信息
-            table_docs, table_metas = self._get_table_documents()
-            documents.extend(table_docs)
-            metadatas.extend(table_metas)
-
-            # 2. 获取术语表信息
-            glossary_docs, glossary_metas = self._get_glossary_documents()
-            documents.extend(glossary_docs)
-            metadatas.extend(glossary_metas)
-
-            # 3. 获取关联配置信息
-            relation_docs, relation_metas = self._get_relation_documents()
-            documents.extend(relation_docs)
-            metadatas.extend(relation_metas)
-
-            # 清空现有向量数据
-            try:
-                # self.vector_store.clear()
-                logger.info("已清空现有向量数据 (todo)")
-            except Exception as e:
-                logger.warning(f"清空向量数据失败: {e}")
-
-            # 添加到向量数据库
-            success_count = 0
+            # 按资源类型分组训练
+            trained_count = 0
             failed_count = 0
 
-            if documents:
-                try:
-                    ids = self.vector_store.add(documents=documents, metadatas=metadatas)
-                    success_count = len(ids)
-                    logger.info(f"成功添加 {success_count} 个文档到向量数据库")
-                except Exception as e:
-                    logger.error(f"添加文档到向量数据库失败: {e}")
-                    failed_count = len(documents)
+            # 1. 训练表资源（包含字段）
+            table_result = self._train_table_resources(resources_to_train.get("table", []))
+            trained_count += table_result["trained"]
+            failed_count += table_result["failed"]
 
-            # 计算训练时间
+            # 2. 训练术语表资源
+            glossary_result = self._train_glossary_resources(resources_to_train.get("glossary", []))
+            trained_count += glossary_result["trained"]
+            failed_count += glossary_result["failed"]
+
+            # 3. 训练提示词模板资源
+            template_result = self._train_template_resources(resources_to_train.get("prompt_template", []))
+            trained_count += template_result["trained"]
+            failed_count += template_result["failed"]
+
+            # 4. 训练关联配置资源
+            relation_result = self._train_relation_resources(resources_to_train.get("relation", []))
+            trained_count += relation_result["trained"]
+            failed_count += relation_result["failed"]
+
+            # 5. 清理无效资源的向量数据
+            self._cleanup_orphaned_vectors()
+
             training_time = time.time() - start_time
-
-            # 记录训练指标
-            self._record_training_metrics(session_id, {
-                "total_documents": len(documents),
-                "table_documents": len(table_docs),
-                "glossary_documents": len(glossary_docs),
-                "relation_documents": len(relation_docs),
-                "success_count": success_count,
-                "failed_count": failed_count,
-                "training_time": training_time
-            })
-
-            # 更新训练会话状态
-            success_rate = (success_count / len(documents)) if documents else 0.0
-            self.session_repo.complete_session(
-                session_id=session_id,
-                success_rate=success_rate,
-                avg_confidence=1.0,  # 向量训练的置信度设为1.0
-                training_time=training_time
-            )
 
             result = {
                 "success": failed_count == 0,
-                "session_id": session_id,
-                "total_documents": len(documents),
-                "success_count": success_count,
+                "message": f"增量训练完成，训练了 {trained_count} 个资源",
+                "trained_count": trained_count,
                 "failed_count": failed_count,
-                "training_time": training_time,
-                "success_rate": success_rate
+                "training_time": training_time
             }
 
-            logger.info(f"向量数据库训练完成: {result}")
+            logger.info(f"增量向量数据库训练完成: {result}")
             return result
 
         except Exception as e:
-            logger.error(f"向量数据库训练失败: {e}")
+            logger.error(f"增量向量数据库训练失败: {e}")
             return {
                 "success": False,
                 "error": str(e),
-                "session_id": session_id if 'session_id' in locals() else None
+                "trained_count": 0,
+                "failed_count": 0
             }
 
-    def _get_table_documents(self) -> tuple[List[str], List[Dict]]:
-        """获取表结构文档
+    def _get_resources_needing_training(self) -> Dict[str, List[Dict]]:
+        """获取需要训练的资源列表
 
         Returns:
-            (文档内容列表, 元数据列表)
+            按资源类型分组的需要训练的资源列表
         """
-        documents = []
-        metadatas = []
+        resources = {
+            "table": [],
+            "glossary": [],
+            "prompt_template": [],
+            "relation": []
+        }
 
         try:
-            tables = self.metadata_service.get_available_tables()
-
+            # 1. 检查表资源
+            tables = self.table_repo.get_all()
             for table in tables:
-                table_name = table.get("name", "")
-                table_comment = table.get("comment", "")
-                columns = table.get("columns", [])
+                # 获取表的最后修改时间（包含字段）
+                last_modified = self._get_table_last_modified_time(table.id)
 
-                # 构建表结构描述
-                doc_lines = [f"表名: {table_name}"]
-                if table_comment:
-                    doc_lines.append(f"表描述: {table_comment}")
+                if self.training_repo.needs_training("table", table.id, last_modified):
+                    resources["table"].append({
+                        "id": table.id,
+                        "name": table.name,
+                        "last_modified": last_modified
+                    })
 
-                doc_lines.append("字段信息:")
-                for col in columns:
-                    col_name = col.get("name", "")
-                    col_type = col.get("business_type") or col.get("type", "")
-                    col_comment = col.get("comment", "")
-                    relation_id = col.get("relation_id", "")
-
-                    col_line = f"  - {col_name} ({col_type})"
-                    if col_comment:
-                        col_line += f": {col_comment}"
-                    if relation_id:
-                        col_line += f" [关联ID: {relation_id}]"
-
-                    doc_lines.append(col_line)
-
-                document = "\n".join(doc_lines)
-                documents.append(document)
-
-                # 构建元数据
-                metadata = {
-                    "type": "table",
-                    "table_name": table_name,
-                    "column_count": len(columns),
-                    "source": "metadata_service"
-                }
-                metadatas.append(metadata)
-
-            logger.info(f"获取到 {len(tables)} 个表的文档")
-
-        except Exception as e:
-            logger.error(f"获取表文档失败: {e}")
-
-        return documents, metadatas
-
-    def _get_glossary_documents(self) -> tuple[List[str], List[Dict]]:
-        """获取术语表文档
-
-        Returns:
-            (文档内容列表, 元数据列表)
-        """
-        documents = []
-        metadatas = []
-
-        try:
-            glossaries = self.glossary_service.get_terms()
-
+            # 2. 检查术语表资源
+            glossaries = self.glossary_repo.get_all()
             for glossary in glossaries:
-                term = glossary.get("term", "")
-                definition = glossary.get("definition", "")
-                glossary_type = glossary.get("type", "")
-                category = glossary.get("category", "")
+                if self.training_repo.needs_training("glossary", glossary.id, glossary.updated_at):
+                    resources["glossary"].append({
+                        "id": glossary.id,
+                        "name": glossary.name,
+                        "last_modified": glossary.updated_at
+                    })
 
-                # 构建术语描述
-                doc_lines = [f"术语: {term}"]
-                doc_lines.append(f"定义: {definition}")
-                doc_lines.append(f"类型: {glossary_type}")
-                if category:
-                    doc_lines.append(f"分类: {category}")
+            # 3. 检查提示词模板资源
+            templates = self.template_repo.get_all()
+            for template in templates:
+                if self.training_repo.needs_training("prompt_template", template.id, template.updated_at):
+                    resources["prompt_template"].append({
+                        "id": template.id,
+                        "name": template.name,
+                        "last_modified": template.updated_at
+                    })
 
-                document = "\n".join(doc_lines)
-                documents.append(document)
-
-                # 构建元数据
-                metadata = {
-                    "type": "glossary",
-                    "term": term,
-                    "glossary_type": glossary_type,
-                    "category": category,
-                    "source": "glossary_service"
-                }
-                metadatas.append(metadata)
-
-            logger.info(f"获取到 {len(glossaries)} 个术语的文档")
-
-        except Exception as e:
-            logger.error(f"获取术语文档失败: {e}")
-
-        return documents, metadatas
-
-    def _get_relation_documents(self) -> tuple[List[str], List[Dict]]:
-        """获取关联配置文档
-
-        Returns:
-            (文档内容列表, 元数据列表)
-        """
-        documents = []
-        metadatas = []
-
-        try:
-            relations = self.relation_service.get_all_relation_configs()
-
+            # 4. 检查关联配置资源
+            relations = self.relation_repo.get_all()
             for relation in relations:
-                relation_id = relation.get("relation_id", "")
-                family_name = relation.get("family_name", "")
-                sub_family_name = relation.get("sub_family_name", "")
-                description = relation.get("description", "")
-                fields = relation.get("fields", [])
+                if self.training_repo.needs_training("relation", relation.id, relation.updated_at):
+                    resources["relation"].append({
+                        "id": relation.id,
+                        "name": f"{relation.relation_family}:{relation.relation_subfamily}",
+                        "last_modified": relation.updated_at
+                    })
 
-                # 构建关联配置描述
-                doc_lines = [f"关联ID: {relation_id}"]
-                doc_lines.append(f"关系家族: {family_name}")
-                if sub_family_name:
-                    doc_lines.append(f"子家族: {sub_family_name}")
-                if description:
-                    doc_lines.append(f"描述: {description}")
-
-                doc_lines.append("包含字段:")
-                for field in fields:
-                    table_name = field.get("table_name", "")
-                    column_name = field.get("column_name", "")
-                    col_comment = field.get("comment", "")
-
-                    field_line = f"  - {table_name}.{column_name}"
-                    if col_comment:
-                        field_line += f": {col_comment}"
-
-                    doc_lines.append(field_line)
-
-                document = "\n".join(doc_lines)
-                documents.append(document)
-
-                # 构建元数据
-                metadata = {
-                    "type": "relation",
-                    "relation_id": relation_id,
-                    "family_name": family_name,
-                    "sub_family_name": sub_family_name,
-                    "field_count": len(fields),
-                    "source": "relation_service"
-                }
-                metadatas.append(metadata)
-
-            logger.info(f"获取到 {len(relations)} 个关联配置的文档")
+            logger.info(f"发现需要训练的资源: 表({len(resources['table'])}), 术语({len(resources['glossary'])}), 模板({len(resources['prompt_template'])}), 关联({len(resources['relation'])})")
 
         except Exception as e:
-            logger.error(f"获取关联配置文档失败: {e}")
+            logger.error(f"获取需要训练的资源失败: {e}")
 
-        return documents, metadatas
+        return resources
 
-    def _record_training_metrics(self, session_id: int, metrics: Dict[str, Any]):
-        """记录训练指标
+    def _get_table_last_modified_time(self, table_id: int) -> datetime:
+        """获取表的最后修改时间（包含字段）
 
         Args:
-            session_id: 训练会话ID
-            metrics: 指标数据
+            table_id: 表ID
+
+        Returns:
+            最后修改时间
         """
         try:
-            # 记录各种指标
-            self.metrics_repo.add_metric(
-                session_id=session_id,
-                metric_name="total_documents",
-                metric_value=metrics["total_documents"],
-                metric_type="training",
-                description="训练的文档总数"
-            )
+            table = self.table_repo.get_by_id(table_id)
+            columns = self.column_repo.get_columns_by_table_id(table_id)
 
-            self.metrics_repo.add_metric(
-                session_id=session_id,
-                metric_name="table_documents",
-                metric_value=metrics["table_documents"],
-                metric_type="training",
-                description="表结构文档数量"
-            )
+            # 取表和所有字段的最新修改时间
+            all_times = [table.updated_at] if table else []
+            all_times.extend([col.updated_at for col in columns])
 
-            self.metrics_repo.add_metric(
-                session_id=session_id,
-                metric_name="glossary_documents",
-                metric_value=metrics["glossary_documents"],
-                metric_type="training",
-                description="术语表文档数量"
-            )
+            return max(all_times) if all_times else datetime.now()
+        except Exception as e:
+            logger.error(f"获取表 {table_id} 的最后修改时间失败: {e}")
+            return datetime.now()
 
-            self.metrics_repo.add_metric(
-                session_id=session_id,
-                metric_name="relation_documents",
-                metric_value=metrics["relation_documents"],
-                metric_type="training",
-                description="关联配置文档数量"
-            )
+    def _train_table_resources(self, tables: List[Dict]) -> Dict[str, int]:
+        """训练表资源
 
-            self.metrics_repo.add_metric(
-                session_id=session_id,
-                metric_name="training_time_seconds",
-                metric_value=metrics["training_time"],
-                metric_type="performance",
-                description="训练耗时（秒）"
-            )
+        Args:
+            tables: 需要训练的表列表
 
-            self.metrics_repo.add_metric(
-                session_id=session_id,
-                metric_name="success_rate",
-                metric_value=(metrics["success_count"] / metrics["total_documents"]) if metrics["total_documents"] > 0 else 0.0,
-                metric_type="quality",
-                description="训练成功率"
-            )
+        Returns:
+            训练结果统计
+        """
+        trained = 0
+        failed = 0
 
-            logger.info(f"训练指标已记录到会话 {session_id}")
+        for table_info in tables:
+            try:
+                table_id = table_info["id"]
+                table_name = table_info["name"]
+
+                # 标记为正在训练
+                self.training_repo.mark_as_training("table", table_id)
+
+                # 删除旧的向量数据
+                self._delete_vector_by_resource("table", table_id)
+
+                # 生成新的文档
+                document, metadata = self._generate_table_document(table_id)
+
+                if document:
+                    # 添加到向量数据库
+                    vector_ids = self.vector_store.add(documents=[document], metadatas=[metadata])
+                    vector_id = vector_ids[0] if vector_ids else ""
+
+                    # 更新训练记录
+                    self.training_repo.update_training_time("table", table_id, vector_id)
+                    trained += 1
+                    logger.debug(f"成功训练表: {table_name}")
+                else:
+                    self.training_repo.mark_as_failed("table", table_id)
+                    failed += 1
+                    logger.warning(f"生成表文档失败: {table_name}")
+
+            except Exception as e:
+                failed += 1
+                logger.error(f"训练表资源失败: {e}")
+                if "table_id" in locals():
+                    self.training_repo.mark_as_failed("table", table_id)
+
+        return {"trained": trained, "failed": failed}
+
+    def _train_glossary_resources(self, glossaries: List[Dict]) -> Dict[str, int]:
+        """训练术语表资源
+
+        Args:
+            glossaries: 需要训练的术语表列表
+
+        Returns:
+            训练结果统计
+        """
+        trained = 0
+        failed = 0
+
+        for glossary_info in glossaries:
+            try:
+                glossary_id = glossary_info["id"]
+                glossary_name = glossary_info["name"]
+
+                # 标记为正在训练
+                self.training_repo.mark_as_training("glossary", glossary_id)
+
+                # 删除旧的向量数据
+                self._delete_vector_by_resource("glossary", glossary_id)
+
+                # 生成新的文档
+                document, metadata = self._generate_glossary_document(glossary_id)
+
+                if document:
+                    # 添加到向量数据库
+                    vector_ids = self.vector_store.add(documents=[document], metadatas=[metadata])
+                    vector_id = vector_ids[0] if vector_ids else ""
+
+                    # 更新训练记录
+                    self.training_repo.update_training_time("glossary", glossary_id, vector_id)
+                    trained += 1
+                    logger.debug(f"成功训练术语: {glossary_name}")
+                else:
+                    self.training_repo.mark_as_failed("glossary", glossary_id)
+                    failed += 1
+                    logger.warning(f"生成术语文档失败: {glossary_name}")
+
+            except Exception as e:
+                failed += 1
+                logger.error(f"训练术语资源失败: {e}")
+                if "glossary_id" in locals():
+                    self.training_repo.mark_as_failed("glossary", glossary_id)
+
+        return {"trained": trained, "failed": failed}
+
+    def _train_template_resources(self, templates: List[Dict]) -> Dict[str, int]:
+        """训练提示词模板资源
+
+        Args:
+            templates: 需要训练的模板列表
+
+        Returns:
+            训练结果统计
+        """
+        trained = 0
+        failed = 0
+
+        for template_info in templates:
+            try:
+                template_id = template_info["id"]
+                template_name = template_info["name"]
+
+                # 标记为正在训练
+                self.training_repo.mark_as_training("prompt_template", template_id)
+
+                # 删除旧的向量数据
+                self._delete_vector_by_resource("prompt_template", template_id)
+
+                # 生成新的文档
+                document, metadata = self._generate_template_document(template_id)
+
+                if document:
+                    # 添加到向量数据库
+                    vector_ids = self.vector_store.add(documents=[document], metadatas=[metadata])
+                    vector_id = vector_ids[0] if vector_ids else ""
+
+                    # 更新训练记录
+                    self.training_repo.update_training_time("prompt_template", template_id, vector_id)
+                    trained += 1
+                    logger.debug(f"成功训练模板: {template_name}")
+                else:
+                    self.training_repo.mark_as_failed("prompt_template", template_id)
+                    failed += 1
+                    logger.warning(f"生成模板文档失败: {template_name}")
+
+            except Exception as e:
+                failed += 1
+                logger.error(f"训练模板资源失败: {e}")
+                if "template_id" in locals():
+                    self.training_repo.mark_as_failed("prompt_template", template_id)
+
+        return {"trained": trained, "failed": failed}
+
+    def _train_relation_resources(self, relations: List[Dict]) -> Dict[str, int]:
+        """训练关联配置资源
+
+        Args:
+            relations: 需要训练的关联配置列表
+
+        Returns:
+            训练结果统计
+        """
+        trained = 0
+        failed = 0
+
+        for relation_info in relations:
+            try:
+                relation_id = relation_info["id"]
+                relation_name = relation_info["name"]
+
+                # 标记为正在训练
+                self.training_repo.mark_as_training("relation", relation_id)
+
+                # 删除旧的向量数据
+                self._delete_vector_by_resource("relation", relation_id)
+
+                # 生成新的文档
+                document, metadata = self._generate_relation_document(relation_id)
+
+                if document:
+                    # 添加到向量数据库
+                    vector_ids = self.vector_store.add(documents=[document], metadatas=[metadata])
+                    vector_id = vector_ids[0] if vector_ids else ""
+
+                    # 更新训练记录
+                    self.training_repo.update_training_time("relation", relation_id, vector_id)
+                    trained += 1
+                    logger.debug(f"成功训练关联: {relation_name}")
+                else:
+                    self.training_repo.mark_as_failed("relation", relation_id)
+                    failed += 1
+                    logger.warning(f"生成关联文档失败: {relation_name}")
+
+            except Exception as e:
+                failed += 1
+                logger.error(f"训练关联资源失败: {e}")
+                if "relation_id" in locals():
+                    self.training_repo.mark_as_failed("relation", relation_id)
+
+        return {"trained": trained, "failed": failed}
+
+    def _generate_table_document(self, table_id: int) -> Tuple[str, Dict]:
+        """生成表文档
+
+        Args:
+            table_id: 表ID
+
+        Returns:
+            (文档内容, 元数据)
+        """
+        try:
+            table = self.table_repo.get_by_id(table_id)
+            if not table:
+                return "", {}
+
+            columns = self.column_repo.get_columns_by_table_id(table_id)
+
+            # 构建表结构描述
+            doc_lines = [f"表名: {table.name}"]
+            if table.comment:
+                doc_lines.append(f"表描述: {table.comment}")
+
+            doc_lines.append("字段信息:")
+            for col in columns:
+                col_name = col.name
+                col_type = col.business_type or col.type
+                col_comment = col.comment
+
+                col_line = f"  - {col_name} ({col_type})"
+                if col_comment:
+                    col_line += f": {col_comment}"
+
+                doc_lines.append(col_line)
+
+            document = "\n".join(doc_lines)
+
+            # 构建元数据
+            metadata = {
+                "type": "table",
+                "resource_type": "table",
+                "resource_id": table_id,
+                "table_name": table.name,
+                "column_count": len(columns)
+            }
+
+            return document, metadata
 
         except Exception as e:
-            logger.error(f"记录训练指标失败: {e}")
+            logger.error(f"生成表文档失败 {table_id}: {e}")
+            return "", {}
+
+    def _generate_glossary_document(self, glossary_id: int) -> Tuple[str, Dict]:
+        """生成术语表文档
+
+        Args:
+            glossary_id: 术语ID
+
+        Returns:
+            (文档内容, 元数据)
+        """
+        try:
+            glossary = self.glossary_repo.get_by_id(glossary_id)
+            if not glossary:
+                return "", {}
+
+            # 解析content JSON
+            try:
+                content = json.loads(glossary.content) if glossary.content else {}
+            except:
+                content = {}
+
+            # 构建术语描述
+            doc_lines = [f"术语: {glossary.name}"]
+            doc_lines.append(f"类型: {glossary.type}")
+
+            if glossary.type == "concept_explanation":
+                doc_lines.append(f"解释: {content.get('explanation', '')}")
+            elif glossary.type == "sql_qa":
+                doc_lines.append(f"问题: {content.get('question', '')}")
+                doc_lines.append(f"SQL: {content.get('sql', '')}")
+            elif glossary.type == "dictionary_conversion":
+                doc_lines.append(f"转换规则: {content.get('conversion_rule', '')}")
+
+            document = "\n".join(doc_lines)
+
+            # 构建元数据
+            metadata = {
+                "type": "glossary",
+                "resource_type": "glossary",
+                "resource_id": glossary_id,
+                "term": glossary.name,
+                "glossary_type": glossary.type
+            }
+
+            return document, metadata
+
+        except Exception as e:
+            logger.error(f"生成术语文档失败 {glossary_id}: {e}")
+            return "", {}
+
+    def _generate_template_document(self, template_id: int) -> Tuple[str, Dict]:
+        """生成提示词模板文档
+
+        Args:
+            template_id: 模板ID
+
+        Returns:
+            (文档内容, 元数据)
+        """
+        try:
+            template = self.template_repo.get_by_id(template_id)
+            if not template:
+                return "", {}
+
+            # 构建模板描述
+            doc_lines = [f"模板名称: {template.name}"]
+            doc_lines.append(f"描述: {template.description}")
+            doc_lines.append(f"内容: {template.content}")
+
+            document = "\n".join(doc_lines)
+
+            # 构建元数据
+            metadata = {
+                "type": "prompt_template",
+                "resource_type": "prompt_template",
+                "resource_id": template_id,
+                "template_name": template.name
+            }
+
+            return document, metadata
+
+        except Exception as e:
+            logger.error(f"生成模板文档失败 {template_id}: {e}")
+            return "", {}
+
+    def _generate_relation_document(self, relation_id: int) -> Tuple[str, Dict]:
+        """生成关联配置文档
+
+        Args:
+            relation_id: 关联ID
+
+        Returns:
+            (文档内容, 元数据)
+        """
+        try:
+            relation = self.relation_repo.get_by_id(relation_id)
+            if not relation:
+                return "", {}
+
+            # 构建关联配置描述
+            doc_lines = [f"关系家族: {relation.relation_family}"]
+            doc_lines.append(f"子家族: {relation.relation_subfamily}")
+            if relation.relation_desc:
+                doc_lines.append(f"描述: {relation.relation_desc}")
+
+            document = "\n".join(doc_lines)
+
+            # 构建元数据
+            metadata = {
+                "type": "relation",
+                "resource_type": "relation",
+                "resource_id": relation_id,
+                "family_name": relation.relation_family,
+                "sub_family_name": relation.relation_subfamily
+            }
+
+            return document, metadata
+
+        except Exception as e:
+            logger.error(f"生成关联文档失败 {relation_id}: {e}")
+            return "", {}
+
+    def _delete_vector_by_resource(self, resource_type: str, resource_id: int):
+        """删除指定资源的向量数据
+
+        Args:
+            resource_type: 资源类型
+            resource_id: 资源ID
+        """
+        try:
+            # 根据元数据删除向量数据
+            # 这里需要根据向量存储的实现来删除特定资源的数据
+            # 如果向量存储支持按元数据删除，可以这样实现：
+            # self.vector_store.delete(where={"resource_type": resource_type, "resource_id": resource_id})
+
+            # 临时方案：获取训练记录中的vector_id，然后删除
+            record = self.training_repo.get_by_resource(resource_type, resource_id)
+            if record and record.vector_id:
+                try:
+                    self.vector_store.delete(ids=[record.vector_id])
+                    logger.debug(f"删除向量数据: {resource_type}:{resource_id}")
+                except Exception as e:
+                    logger.warning(f"删除向量数据失败: {e}")
+
+        except Exception as e:
+            logger.error(f"删除向量数据失败 {resource_type}:{resource_id}: {e}")
+
+    def _cleanup_orphaned_vectors(self):
+        """清理无效资源的向量数据"""
+        try:
+            # 获取当前有效的资源ID列表
+            valid_resources = {
+                "table": [t.id for t in self.table_repo.get_all()],
+                "glossary": [g.id for g in self.glossary_repo.get_all()],
+                "prompt_template": [t.id for t in self.template_repo.get_all()],
+                "relation": [r.id for r in self.relation_repo.get_all()]
+            }
+
+            # 清理无效的训练记录
+            deleted_count = self.training_repo.cleanup_orphaned_records(valid_resources)
+
+            if deleted_count > 0:
+                logger.info(f"清理了 {deleted_count} 条无效的训练记录")
+
+        except Exception as e:
+            logger.error(f"清理无效向量数据失败: {e}")
 
     def get_training_status(self) -> Dict[str, Any]:
         """获取训练状态信息
@@ -392,8 +623,8 @@ class VectorTrainingService:
             训练状态字典
         """
         try:
-            # 获取最近的训练会话
-            recent_sessions = self.session_repo.get_recent_sessions(days=7, limit=5)
+            # 获取训练统计
+            stats = self.training_repo.get_statistics()
 
             # 获取向量数据库文档数量
             vector_count = 0
@@ -403,16 +634,7 @@ class VectorTrainingService:
                 logger.warning(f"获取向量数据库文档数量失败: {e}")
 
             return {
-                "recent_sessions": [
-                    {
-                        "id": s.id,
-                        "name": s.session_name,
-                        "status": s.status,
-                        "success_rate": s.success_rate,
-                        "created_at": s.created_at.isoformat()
-                    }
-                    for s in recent_sessions
-                ],
+                "training_records": stats,
                 "vector_database": {
                     "document_count": vector_count
                 }

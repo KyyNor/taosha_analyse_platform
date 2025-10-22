@@ -19,7 +19,7 @@ from .theme_models import (
     DataTheme, ThemeTableRelation
 )
 from .training_models import (
-    TrainingData, TrainingSession, TrainingMetrics, SQLValidationResult
+    TrainingRecord
 )
 
 __all__ = [
@@ -49,8 +49,5 @@ __all__ = [
     "ThemeTableRelation",
 
     # 训练模型
-    "TrainingData",
-    "TrainingSession",
-    "TrainingMetrics",
-    "SQLValidationResult",
+    "TrainingRecord",
 ]

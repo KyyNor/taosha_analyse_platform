@@ -15,7 +15,6 @@ from langgraph.graph import StateGraph, END
 
 from services.vector_store import VectorStoreFactory, NLQueryContextBuilder
 from services.llm_service import NLQueryLLMService
-from services.training_service import TrainingService
 from services.metadata_service.metadata_service import (
     get_metadata_service, get_prompt_template_service
 )
@@ -72,11 +71,7 @@ class NL2SQLService:
             template_service=template_service
         )
 
-        # 初始化Training Service（如果提供了数据库会话）
-        self.training_service = None
-        if db_session:
-            self.training_service = TrainingService(db_session)
-
+  
         # 初始化其他服务
         self.metadata_service = get_metadata_service()
         self.db_service = get_query_engine()
@@ -93,12 +88,7 @@ class NL2SQLService:
         def check_training_needed(state: TaskState) -> TaskState:
             """检查是否需要重新训练模型"""
             try:
-                # 检查Training Service是否可用
-                # if self.training_service:
-                #     stats = self.training_service.get_training_data_statistics()
-                #     logger.info(f"训练数据统计: {stats}")
-                # else:
-                #     logger.info("Training Service未初始化")
+                logger.info("跳过训练检查步骤（简化版本）")
 
                 state.current_step_log = BaseNodeLog(
                     step="知识库检查",
@@ -302,19 +292,7 @@ class NL2SQLService:
                     )
 
                     # 如果有Training Service，记录成功的结果
-                    if self.training_service:
-                        try:
-                            self.training_service.record_validation_result(
-                                training_data_id=None,
-                                original_sql=sql_query,
-                                executed_sql=sql_query,
-                                is_valid=True,
-                                execution_status="success",
-                                row_count=len(state.execution_result) if state.execution_result else 0
-                            )
-                        except Exception as e:
-                            logger.warning(f"记录验证结果失败: {e}")
-
+  
                 except Exception as exec_error:
                     state.error_message = str(exec_error)
                     state.current_step_log = BaseNodeLog(
@@ -326,20 +304,7 @@ class NL2SQLService:
                         error=str(exec_error)
                     )
 
-                    # 记录失败的验证
-                    if self.training_service:
-                        try:
-                            self.training_service.record_validation_result(
-                                training_data_id=None,
-                                original_sql=sql_query,
-                                executed_sql=sql_query,
-                                is_valid=False,
-                                error_message=str(exec_error),
-                                execution_status="error"
-                            )
-                        except Exception as e:
-                            logger.warning(f"记录失败结果失败: {e}")
-
+        
                 return state
 
             except Exception as e:
@@ -652,40 +617,9 @@ class NL2SQLService:
                 "user_input": user_input
             }
 
-    def add_training_data(self, question: str, sql: str, **kwargs) -> bool:
-        """添加训练数据
-
-        Args:
-            question: 自然语言问题
-            sql: 对应的SQL
-            **kwargs: 其他参数
-
-        Returns:
-            是否成功
-        """
-        if not self.training_service:
-            logger.warning("Training Service未初始化")
-            return False
-
-        try:
-            result = self.training_service.add_training_data(
-                question=question,
-                sql=sql,
-                **kwargs
-            )
-            return result is not None
-        except Exception as e:
-            logger.error(f"添加训练数据失败: {e}")
-            return False
-
     def get_statistics(self) -> Dict[str, Any]:
         """获取系统统计信息"""
         stats = {}
-
-        # 获取训练数据统计
-        if self.training_service:
-            stats["training_data"] = self.training_service.get_training_data_statistics()
-            stats["validation"] = self.training_service.get_validation_statistics()
 
         # 获取向量库统计
         try:

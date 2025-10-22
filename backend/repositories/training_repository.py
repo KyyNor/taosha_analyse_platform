@@ -1,336 +1,391 @@
 """
-训练数据相关的Repository类
+训练记录相关的Repository类 - 简化的增量训练记录系统
 """
 
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc, asc
+from datetime import datetime
 from utils.logger import logger
 
 from .base_repository import BaseRepository
-from models.training_models import TrainingData, TrainingSession, TrainingMetrics, SQLValidationResult
+from models.training_models import TrainingRecord
 
 
-class TrainingDataRepository(BaseRepository):
-    """训练数据Repository"""
+class TrainingRecordRepository(BaseRepository):
+    """训练记录Repository - 管理增量训练记录"""
 
     def __init__(self, db: Session):
-        super().__init__(TrainingData, db)
+        super().__init__(TrainingRecord, db)
 
-    def get_by_category(self, category: str, limit: int = None) -> List[TrainingData]:
-        """根据分类获取训练数据"""
+    def get_by_resource(self, resource_type: str, resource_id: int) -> Optional[TrainingRecord]:
+        """根据资源类型和ID获取训练记录"""
         try:
-            query = self.db.query(TrainingData).filter(TrainingData.category == category)
-            if limit:
-                query = query.limit(limit)
-            return query.all()
+            return self.db.query(TrainingRecord).filter(
+                and_(
+                    TrainingRecord.resource_type == resource_type,
+                    TrainingRecord.resource_id == resource_id
+                )
+            ).first()
         except Exception as e:
-            logger.error(f"获取分类 '{category}' 的训练数据失败: {e}")
+            logger.error(f"获取资源 {resource_type}:{resource_id} 的训练记录失败: {e}")
+            return None
+
+    def get_by_resource_type(self, resource_type: str) -> List[TrainingRecord]:
+        """根据资源类型获取所有训练记录"""
+        try:
+            return self.db.query(TrainingRecord).filter(
+                TrainingRecord.resource_type == resource_type
+            ).all()
+        except Exception as e:
+            logger.error(f"获取资源类型 '{resource_type}' 的训练记录失败: {e}")
             return []
 
-    def get_by_difficulty(self, difficulty: str, limit: int = None) -> List[TrainingData]:
-        """根据难度获取训练数据"""
+    def get_pending_training(self) -> List[TrainingRecord]:
+        """获取待训练的记录"""
         try:
-            query = self.db.query(TrainingData).filter(TrainingData.difficulty == difficulty)
-            if limit:
-                query = query.limit(limit)
-            return query.all()
+            return self.db.query(TrainingRecord).filter(
+                TrainingRecord.training_status == "pending"
+            ).all()
         except Exception as e:
-            logger.error(f"获取难度 '{difficulty}' 的训练数据失败: {e}")
+            logger.error(f"获取待训练记录失败: {e}")
             return []
 
-    def get_verified_data(self, limit: int = None) -> List[TrainingData]:
-        """获取已验证的训练数据"""
+    def get_training_records(self) -> List[TrainingRecord]:
+        """获取所有训练记录"""
         try:
-            query = self.db.query(TrainingData).filter(TrainingData.is_verified == True)
-            if limit:
-                query = query.limit(limit)
-            return query.all()
+            return self.db.query(TrainingRecord).all()
         except Exception as e:
-            logger.error(f"获取已验证的训练数据失败: {e}")
+            logger.error(f"获取所有训练记录失败: {e}")
             return []
 
-    def get_by_quality_threshold(self, min_quality: float = 0.5, limit: int = None) -> List[TrainingData]:
-        """获取质量评分高于阈值的训练数据"""
+    def get_failed_training(self, limit: int = 10) -> List[TrainingRecord]:
+        """获取训练失败的记录"""
         try:
-            query = self.db.query(TrainingData).filter(TrainingData.quality_score >= min_quality)
-            if limit:
-                query = query.limit(limit)
-            return query.all()
+            return self.db.query(TrainingRecord).filter(
+                TrainingRecord.training_status == "failed"
+            ).order_by(desc(TrainingRecord.updated_at)).limit(limit).all()
         except Exception as e:
-            logger.error(f"获取质量评分 >= {min_quality} 的训练数据失败: {e}")
+            logger.error(f"获取训练失败记录失败: {e}")
             return []
 
-    def search_by_question(self, keyword: str, limit: int = 10) -> List[TrainingData]:
-        """按问题关键字搜索"""
+    def get_stale_training_records(self, hours: int = 24) -> List[TrainingRecord]:
+        """获取超时的训练记录"""
         try:
-            return self.db.query(TrainingData).filter(
-                TrainingData.question.contains(keyword)
-            ).limit(limit).all()
+            from datetime import timedelta
+            cutoff_time = datetime.now() - timedelta(hours=hours)
+            return self.db.query(TrainingRecord).filter(
+                and_(
+                    TrainingRecord.training_status == "training",
+                    TrainingRecord.updated_at < cutoff_time
+                )
+            ).all()
         except Exception as e:
-            logger.error(f"搜索问题失败: {e}")
+            logger.error(f"获取超时训练记录失败: {e}")
             return []
 
-    def get_most_used(self, limit: int = 10) -> List[TrainingData]:
-        """获取使用最频繁的训练数据"""
+    def create_or_update_record(self, resource_type: str, resource_id: int,
+                              last_modified: datetime = None, vector_id: str = None) -> TrainingRecord:
+        """创建或更新训练记录"""
         try:
-            return self.db.query(TrainingData).order_by(
-                desc(TrainingData.usage_count)
-            ).limit(limit).all()
+            # 查找现有记录
+            record = self.get_by_resource(resource_type, resource_id)
+
+            if record:
+                # 更新现有记录
+                if last_modified:
+                    record.update_modified_time(last_modified)
+                if vector_id:
+                    record.vector_id = vector_id
+                self.db.commit()
+                return record
+            else:
+                # 创建新记录
+                return self.create(
+                    resource_type=resource_type,
+                    resource_id=resource_id,
+                    last_modified_at=last_modified or datetime.now(),
+                    vector_id=vector_id or ""
+                )
         except Exception as e:
-            logger.error(f"获取最频繁使用的训练数据失败: {e}")
+            logger.error(f"创建或更新训练记录失败 {resource_type}:{resource_id}: {e}")
+            self.db.rollback()
+            raise
+
+    def mark_for_training(self, resource_type: str, resource_id: int) -> bool:
+        """标记资源需要重新训练"""
+        try:
+            record = self.get_by_resource(resource_type, resource_id)
+            if record:
+                record.mark_as_training()
+                self.db.commit()
+                return True
+            else:
+                # 创建新的训练记录
+                self.create(
+                    resource_type=resource_type,
+                    resource_id=resource_id,
+                    training_status="training"
+                )
+                self.db.commit()
+                return True
+        except Exception as e:
+            logger.error(f"标记资源需要训练失败 {resource_type}:{resource_id}: {e}")
+            self.db.rollback()
+            return False
+
+    def complete_training(self, resource_type: str, resource_id: int, vector_id: str = None) -> bool:
+        """完成训练并更新记录"""
+        try:
+            record = self.get_by_resource(resource_type, resource_id)
+            if record:
+                record.update_training_time(vector_id)
+                self.db.commit()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"完成训练记录失败 {resource_type}:{resource_id}: {e}")
+            self.db.rollback()
+            return False
+
+    def fail_training(self, resource_type: str, resource_id: int) -> bool:
+        """标记训练失败"""
+        try:
+            record = self.get_by_resource(resource_type, resource_id)
+            if record:
+                record.mark_as_failed()
+                self.db.commit()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"标记训练失败 {resource_type}:{resource_id}: {e}")
+            self.db.rollback()
+            return False
+
+    def delete_record(self, resource_type: str, resource_id: int) -> bool:
+        """删除训练记录"""
+        try:
+            record = self.get_by_resource(resource_type, resource_id)
+            if record:
+                self.delete(record.id)
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"删除训练记录失败 {resource_type}:{resource_id}: {e}")
+            return False
+
+    def get_resources_needing_training(self, resource_type: str = None) -> List[Dict[str, Any]]:
+        """获取需要训练的资源列表"""
+        try:
+            query = self.db.query(TrainingRecord).filter(
+                TrainingRecord.training_status.in_(["pending", "failed"])
+            )
+
+            if resource_type:
+                query = query.filter(TrainingRecord.resource_type == resource_type)
+
+            records = query.all()
+
+            return [
+                {
+                    "resource_type": record.resource_type,
+                    "resource_id": record.resource_id,
+                    "last_trained_at": record.last_trained_at,
+                    "last_modified_at": record.last_modified_at,
+                    "training_status": record.training_status,
+                    "vector_id": record.vector_id
+                }
+                for record in records
+            ]
+        except Exception as e:
+            logger.error(f"获取需要训练的资源列表失败: {e}")
             return []
 
     def get_statistics(self) -> Dict[str, Any]:
-        """获取训练数据统计信息"""
+        """获取训练统计信息"""
         try:
-            total = self.db.query(TrainingData).count()
-            verified = self.db.query(TrainingData).filter(TrainingData.is_verified == True).count()
-            avg_quality = self.db.query(TrainingData.quality_score).all()
+            total = self.db.query(TrainingRecord).count()
+            pending = self.db.query(TrainingRecord).filter(
+                TrainingRecord.training_status == "pending"
+            ).count()
+            training = self.db.query(TrainingRecord).filter(
+                TrainingRecord.training_status == "training"
+            ).count()
+            completed = self.db.query(TrainingRecord).filter(
+                TrainingRecord.training_status == "completed"
+            ).count()
+            failed = self.db.query(TrainingRecord).filter(
+                TrainingRecord.training_status == "failed"
+            ).count()
 
-            if avg_quality:
-                avg_score = sum(q[0] for q in avg_quality) / len(avg_quality)
-            else:
-                avg_score = 0.0
-
-            categories = self.db.query(TrainingData.category).distinct().all()
-            category_count = {cat[0]: self.db.query(TrainingData).filter(
-                TrainingData.category == cat[0]
-            ).count() for cat in categories}
+            # 按资源类型统计
+            resource_types = self.db.query(TrainingRecord.resource_type).distinct().all()
+            type_stats = {}
+            for rt in resource_types:
+                rt_count = self.db.query(TrainingRecord).filter(
+                    TrainingRecord.resource_type == rt[0]
+                ).count()
+                type_stats[rt[0]] = rt_count
 
             return {
                 "total": total,
-                "verified": verified,
-                "unverified": total - verified,
-                "average_quality": avg_score,
-                "categories": category_count
+                "pending": pending,
+                "training": training,
+                "completed": completed,
+                "failed": failed,
+                "by_resource_type": type_stats
             }
         except Exception as e:
-            logger.error(f"获取训练数据统计失败: {e}")
+            logger.error(f"获取训练统计失败: {e}")
             return {}
 
-    def update_usage_stats(self, training_id: int, success: bool = True) -> bool:
-        """更新使用统计"""
+    def needs_training(self, resource_type: str, resource_id: int, last_modified_time: datetime) -> bool:
+        """判断资源是否需要重新训练
+
+        Args:
+            resource_type: 资源类型
+            resource_id: 资源ID
+            last_modified_time: 资源的最后修改时间
+
+        Returns:
+            bool: 如果需要训练返回True
+        """
         try:
-            training_data = self.get_by_id(training_id)
-            if not training_data:
-                return False
-
-            update_data = {"usage_count": training_data.usage_count + 1}
-            if success:
-                update_data["success_count"] = training_data.success_count + 1
-
-            self.update(training_id, **update_data)
-            return True
+            record = self.get_by_resource(resource_type, resource_id)
+            if not record:
+                return True  # 新资源需要训练
+            return record.last_trained_at < last_modified_time
         except Exception as e:
-            logger.error(f"更新使用统计失败: {e}")
+            logger.error(f"判断资源是否需要训练失败 {resource_type}:{resource_id}: {e}")
+            return True  # 出错时默认需要训练
+
+    def update_training_time(self, resource_type: str, resource_id: int, vector_id: str = None) -> bool:
+        """更新训练时间和状态
+
+        Args:
+            resource_type: 资源类型
+            resource_id: 资源ID
+            vector_id: 向量数据库中的ID
+
+        Returns:
+            bool: 是否更新成功
+        """
+        try:
+            record = self.get_by_resource(resource_type, resource_id)
+            if record:
+                record.last_trained_at = datetime.now()
+                record.training_status = "completed"
+                if vector_id:
+                    record.vector_id = vector_id
+                record.updated_at = datetime.now()
+                self.db.commit()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"更新训练时间失败 {resource_type}:{resource_id}: {e}")
+            self.db.rollback()
             return False
 
+    def mark_as_training(self, resource_type: str, resource_id: int) -> bool:
+        """标记资源为正在训练
 
-class TrainingSessionRepository(BaseRepository):
-    """训练会话Repository"""
+        Args:
+            resource_type: 资源类型
+            resource_id: 资源ID
 
-    def __init__(self, db: Session):
-        super().__init__(TrainingSession, db)
-
-    def get_active_sessions(self) -> List[TrainingSession]:
-        """获取正在进行中的训练会话"""
+        Returns:
+            bool: 是否标记成功
+        """
         try:
-            return self.db.query(TrainingSession).filter(
-                TrainingSession.status.in_(["pending", "running"])
-            ).all()
+            record = self.get_by_resource(resource_type, resource_id)
+            if record:
+                record.training_status = "training"
+                record.updated_at = datetime.now()
+                self.db.commit()
+                return True
+            return False
         except Exception as e:
-            logger.error(f"获取活跃训练会话失败: {e}")
-            return []
-
-    def get_by_status(self, status: str, limit: int = None) -> List[TrainingSession]:
-        """根据状态获取训练会话"""
-        try:
-            query = self.db.query(TrainingSession).filter(TrainingSession.status == status)
-            if limit:
-                query = query.limit(limit)
-            return query.all()
-        except Exception as e:
-            logger.error(f"获取状态为 '{status}' 的训练会话失败: {e}")
-            return []
-
-    def get_recent_sessions(self, days: int = 7, limit: int = 10) -> List[TrainingSession]:
-        """获取最近N天的训练会话"""
-        try:
-            from datetime import datetime, timedelta
-            since = datetime.now() - timedelta(days=days)
-            return self.db.query(TrainingSession).filter(
-                TrainingSession.created_at >= since
-            ).order_by(desc(TrainingSession.created_at)).limit(limit).all()
-        except Exception as e:
-            logger.error(f"获取最近 {days} 天的训练会话失败: {e}")
-            return []
-
-    def get_session_summary(self, session_id: int) -> Optional[Dict[str, Any]]:
-        """获取训练会话的摘要信息"""
-        try:
-            session = self.get_by_id(session_id)
-            if not session:
-                return None
-
-            return {
-                "id": session.id,
-                "name": session.session_name,
-                "status": session.status,
-                "total_samples": session.total_samples,
-                "success_rate": session.success_rate,
-                "training_time": f"{session.training_time_seconds:.2f}s",
-                "average_confidence": session.average_confidence,
-                "created_at": session.created_at.isoformat(),
-                "completed_at": session.completed_at.isoformat() if session.completed_at else None
-            }
-        except Exception as e:
-            logger.error(f"获取会话 {session_id} 摘要失败: {e}")
-            return None
-
-    def update_session_progress(self, session_id: int, total: int = None, successful: int = None,
-                               failed: int = None, status: str = None) -> bool:
-        """更新会话进度"""
-        try:
-            update_data = {}
-            if total is not None:
-                update_data["total_samples"] = total
-            if successful is not None:
-                update_data["successful_samples"] = successful
-            if failed is not None:
-                update_data["failed_samples"] = failed
-            if status is not None:
-                update_data["status"] = status
-                if status == "running":
-                    from datetime import datetime
-                    update_data["started_at"] = datetime.now()
-
-            if update_data:
-                self.update(session_id, **update_data)
-            return True
-        except Exception as e:
-            logger.error(f"更新会话进度失败: {e}")
+            logger.error(f"标记为训练中失败 {resource_type}:{resource_id}: {e}")
+            self.db.rollback()
             return False
 
-    def complete_session(self, session_id: int, success_rate: float = 0.0,
-                        avg_confidence: float = 0.0, training_time: float = 0.0) -> bool:
-        """标记训练会话为完成"""
+    def mark_as_failed(self, resource_type: str, resource_id: int) -> bool:
+        """标记资源训练失败
+
+        Args:
+            resource_type: 资源类型
+            resource_id: 资源ID
+
+        Returns:
+            bool: 是否标记成功
+        """
         try:
-            from datetime import datetime
-            self.update(
-                session_id,
-                status="completed",
-                success_rate=success_rate,
-                average_confidence=avg_confidence,
-                training_time_seconds=training_time,
-                completed_at=datetime.now()
-            )
-            return True
+            record = self.get_by_resource(resource_type, resource_id)
+            if record:
+                record.training_status = "failed"
+                record.updated_at = datetime.now()
+                self.db.commit()
+                return True
+            return False
         except Exception as e:
-            logger.error(f"完成会话失败: {e}")
+            logger.error(f"标记为失败失败 {resource_type}:{resource_id}: {e}")
+            self.db.rollback()
             return False
 
+    def update_modified_time(self, resource_type: str, resource_id: int, modified_time: datetime) -> bool:
+        """更新资源修改时间
 
-class TrainingMetricsRepository(BaseRepository):
-    """训练指标Repository"""
+        Args:
+            resource_type: 资源类型
+            resource_id: 资源ID
+            modified_time: 资源的最新修改时间
 
-    def __init__(self, db: Session):
-        super().__init__(TrainingMetrics, db)
-
-    def get_by_session(self, session_id: int) -> List[TrainingMetrics]:
-        """获取某个训练会话的所有指标"""
+        Returns:
+            bool: 是否更新成功
+        """
         try:
-            return self.db.query(TrainingMetrics).filter(
-                TrainingMetrics.session_id == session_id
-            ).all()
+            record = self.get_by_resource(resource_type, resource_id)
+            if record:
+                record.last_modified_at = modified_time
+                record.updated_at = datetime.now()
+                self.db.commit()
+                return True
+            return False
         except Exception as e:
-            logger.error(f"获取会话 {session_id} 的指标失败: {e}")
-            return []
-
-    def get_by_metric_type(self, metric_type: str) -> List[TrainingMetrics]:
-        """按指标类型获取"""
-        try:
-            return self.db.query(TrainingMetrics).filter(
-                TrainingMetrics.metric_type == metric_type
-            ).all()
-        except Exception as e:
-            logger.error(f"获取类型为 '{metric_type}' 的指标失败: {e}")
-            return []
-
-    def add_metric(self, session_id: int, metric_name: str, metric_value: float,
-                   metric_type: str = "performance", description: str = "") -> bool:
-        """添加训练指标"""
-        try:
-            self.create(
-                session_id=session_id,
-                metric_name=metric_name,
-                metric_value=metric_value,
-                metric_type=metric_type,
-                description=description
-            )
-            return True
-        except Exception as e:
-            logger.error(f"添加指标失败: {e}")
+            logger.error(f"更新修改时间失败 {resource_type}:{resource_id}: {e}")
+            self.db.rollback()
             return False
 
+    def cleanup_orphaned_records(self, valid_resource_ids: Dict[str, List[int]]) -> int:
+        """清理无效资源的训练记录
 
-class SQLValidationResultRepository(BaseRepository):
-    """SQL验证结果Repository"""
+        Args:
+            valid_resource_ids: 字典，key为资源类型，value为有效的资源ID列表
 
-    def __init__(self, db: Session):
-        super().__init__(SQLValidationResult, db)
-
-    def get_by_training_data(self, training_data_id: int) -> List[SQLValidationResult]:
-        """获取某条训练数据的所有验证结果"""
+        Returns:
+            int: 删除的记录数量
+        """
         try:
-            return self.db.query(SQLValidationResult).filter(
-                SQLValidationResult.training_data_id == training_data_id
-            ).all()
-        except Exception as e:
-            logger.error(f"获取训练数据 {training_data_id} 的验证结果失败: {e}")
-            return []
+            deleted_count = 0
 
-    def get_by_execution_status(self, status: str, limit: int = None) -> List[SQLValidationResult]:
-        """根据执行状态获取结果"""
-        try:
-            query = self.db.query(SQLValidationResult).filter(
-                SQLValidationResult.execution_status == status
-            )
-            if limit:
-                query = query.limit(limit)
-            return query.all()
-        except Exception as e:
-            logger.error(f"获取执行状态为 '{status}' 的结果失败: {e}")
-            return []
+            for resource_type, valid_ids in valid_resource_ids.items():
+                # 删除不在有效ID列表中的记录
+                orphaned = self.db.query(TrainingRecord).filter(
+                    and_(
+                        TrainingRecord.resource_type == resource_type,
+                        ~TrainingRecord.resource_id.in_(valid_ids)
+                    )
+                ).all()
 
-    def get_failed_validations(self, limit: int = 10) -> List[SQLValidationResult]:
-        """获取验证失败的结果"""
-        try:
-            return self.db.query(SQLValidationResult).filter(
-                SQLValidationResult.is_valid == False
-            ).order_by(desc(SQLValidationResult.created_at)).limit(limit).all()
-        except Exception as e:
-            logger.error(f"获取失败的验证结果失败: {e}")
-            return []
+                for record in orphaned:
+                    self.delete(record.id)
+                    deleted_count += 1
 
-    def get_validation_statistics(self) -> Dict[str, Any]:
-        """获取验证统计信息"""
-        try:
-            total = self.db.query(SQLValidationResult).count()
-            valid = self.db.query(SQLValidationResult).filter(
-                SQLValidationResult.is_valid == True
-            ).count()
-            success_status = self.db.query(SQLValidationResult).filter(
-                SQLValidationResult.execution_status == "success"
-            ).count()
+            self.db.commit()
+            logger.info(f"清理了 {deleted_count} 条无效的训练记录")
+            return deleted_count
 
-            return {
-                "total": total,
-                "valid": valid,
-                "invalid": total - valid,
-                "success_rate": (success_status / total * 100) if total > 0 else 0,
-                "validation_rate": (valid / total * 100) if total > 0 else 0
-            }
         except Exception as e:
-            logger.error(f"获取验证统计失败: {e}")
-            return {}
+            logger.error(f"清理无效训练记录失败: {e}")
+            self.db.rollback()
+            return 0
