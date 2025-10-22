@@ -459,20 +459,21 @@ class NL2SQLService:
         # explain_result到结束
         workflow.add_edge("explain_result", END)
 
-        import os
-        os.environ["LANGFUSE_PUBLIC_KEY"] = settings.langfuse_public_key
-        os.environ["LANGFUSE_SECRET_KEY"] = settings.langfuse_secret_key
-        os.environ["LANGFUSE_HOST"] = settings.langfuse_host
-        langfuse = get_client()
+        # import os
+        # os.environ["LANGFUSE_PUBLIC_KEY"] = settings.langfuse_public_key
+        # os.environ["LANGFUSE_SECRET_KEY"] = settings.langfuse_secret_key
+        # os.environ["LANGFUSE_HOST"] = settings.langfuse_host
+        # langfuse = get_client()
 
-        # Verify connection
-        if langfuse.auth_check():
-            print("Langfuse client is authenticated and ready!")
-        else:
-            print("Authentication failed. Please check your credentials and host.")
+        # # Verify connection
+        # if langfuse.auth_check():
+        #     print("Langfuse client is authenticated and ready!")
+        # else:
+        #     print("Authentication failed. Please check your credentials and host.")
 
-        langfuse_handler = CallbackHandler()
-        return workflow.compile().with_config({"callbacks": [langfuse_handler]})
+        # langfuse_handler = CallbackHandler()
+        # return workflow.compile().with_config({"callbacks": [langfuse_handler]})
+        return workflow.compile()
 
     def query(self, user_input: str, flow_type: str = "fast",
               relation_id: Optional[str] = None,

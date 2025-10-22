@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from utils.logger import logger
 from repositories.training_repository import TrainingRecordRepository
 from repositories.metadata_repository import MetadataTableRepository, MetadataColumnRepository
-from repositories.glossary_repository import GlossaryTermRepository, PromptTemplateRepository
+from repositories.glossary_repository import GlossaryTermRepository
 from repositories.relation_repository import RelationFieldConfigRepository
 from services.vector_store import VectorStoreFactory
 
@@ -36,7 +36,6 @@ class VectorTrainingService:
         self.table_repo = MetadataTableRepository(db)
         self.column_repo = MetadataColumnRepository(db)
         self.glossary_repo = GlossaryTermRepository(db)
-        self.template_repo = PromptTemplateRepository(db)
         self.relation_repo = RelationFieldConfigRepository(db)
 
         # 使用全局向量存储实例
@@ -87,12 +86,7 @@ class VectorTrainingService:
             trained_count += glossary_result["trained"]
             failed_count += glossary_result["failed"]
 
-            # 3. 训练提示词模板资源
-            template_result = self._train_template_resources(resources_to_train.get("prompt_template", []))
-            trained_count += template_result["trained"]
-            failed_count += template_result["failed"]
-
-            # 4. 训练关联配置资源
+            # 3. 训练关联配置资源
             relation_result = self._train_relation_resources(resources_to_train.get("relation", []))
             trained_count += relation_result["trained"]
             failed_count += relation_result["failed"]
@@ -131,8 +125,7 @@ class VectorTrainingService:
         resources = {
             "table": [],
             "glossary": [],
-            "prompt_template": [],
-            "relation": []
+              "relation": []
         }
 
         try:
@@ -159,17 +152,7 @@ class VectorTrainingService:
                         "last_modified": glossary.updated_at
                     })
 
-            # 3. 检查提示词模板资源
-            templates = self.template_repo.get_all()
-            for template in templates:
-                if self.training_repo.needs_training("prompt_template", template.id, template.updated_at):
-                    resources["prompt_template"].append({
-                        "id": template.id,
-                        "name": template.name,
-                        "last_modified": template.updated_at
-                    })
-
-            # 4. 检查关联配置资源
+            # 3. 检查关联配置资源
             relations = self.relation_repo.get_all()
             for relation in relations:
                 if self.training_repo.needs_training("relation", relation.id, relation.updated_at):
@@ -179,7 +162,7 @@ class VectorTrainingService:
                         "last_modified": relation.updated_at
                     })
 
-            logger.info(f"发现需要训练的资源: 表({len(resources['table'])}), 术语({len(resources['glossary'])}), 模板({len(resources['prompt_template'])}), 关联({len(resources['relation'])})")
+            logger.info(f"发现需要训练的资源: 表({len(resources['table'])}), 术语({len(resources['glossary'])}), 关联({len(resources['relation'])})")
 
         except Exception as e:
             logger.error(f"获取需要训练的资源失败: {e}")
@@ -197,7 +180,7 @@ class VectorTrainingService:
         """
         try:
             table = self.table_repo.get_by_id(table_id)
-            columns = self.column_repo.get_columns_by_table_id(table_id)
+            columns = self.column_repo.get_by_table_id(table_id)
 
             # 取表和所有字段的最新修改时间
             all_times = [table.updated_at] if table else []
@@ -304,54 +287,7 @@ class VectorTrainingService:
 
         return {"trained": trained, "failed": failed}
 
-    def _train_template_resources(self, templates: List[Dict]) -> Dict[str, int]:
-        """训练提示词模板资源
-
-        Args:
-            templates: 需要训练的模板列表
-
-        Returns:
-            训练结果统计
-        """
-        trained = 0
-        failed = 0
-
-        for template_info in templates:
-            try:
-                template_id = template_info["id"]
-                template_name = template_info["name"]
-
-                # 标记为正在训练
-                self.training_repo.mark_as_training("prompt_template", template_id)
-
-                # 删除旧的向量数据
-                self._delete_vector_by_resource("prompt_template", template_id)
-
-                # 生成新的文档
-                document, metadata = self._generate_template_document(template_id)
-
-                if document:
-                    # 添加到向量数据库
-                    vector_ids = self.vector_store.add(documents=[document], metadatas=[metadata])
-                    vector_id = vector_ids[0] if vector_ids else ""
-
-                    # 更新训练记录
-                    self.training_repo.update_training_time("prompt_template", template_id, vector_id)
-                    trained += 1
-                    logger.debug(f"成功训练模板: {template_name}")
-                else:
-                    self.training_repo.mark_as_failed("prompt_template", template_id)
-                    failed += 1
-                    logger.warning(f"生成模板文档失败: {template_name}")
-
-            except Exception as e:
-                failed += 1
-                logger.error(f"训练模板资源失败: {e}")
-                if "template_id" in locals():
-                    self.training_repo.mark_as_failed("prompt_template", template_id)
-
-        return {"trained": trained, "failed": failed}
-
+    
     def _train_relation_resources(self, relations: List[Dict]) -> Dict[str, int]:
         """训练关联配置资源
 
@@ -414,7 +350,7 @@ class VectorTrainingService:
             if not table:
                 return "", {}
 
-            columns = self.column_repo.get_columns_by_table_id(table_id)
+            columns = self.column_repo.get_by_table_id(table_id)
 
             # 构建表结构描述
             doc_lines = [f"表名: {table.name}"]
@@ -499,41 +435,7 @@ class VectorTrainingService:
             logger.error(f"生成术语文档失败 {glossary_id}: {e}")
             return "", {}
 
-    def _generate_template_document(self, template_id: int) -> Tuple[str, Dict]:
-        """生成提示词模板文档
-
-        Args:
-            template_id: 模板ID
-
-        Returns:
-            (文档内容, 元数据)
-        """
-        try:
-            template = self.template_repo.get_by_id(template_id)
-            if not template:
-                return "", {}
-
-            # 构建模板描述
-            doc_lines = [f"模板名称: {template.name}"]
-            doc_lines.append(f"描述: {template.description}")
-            doc_lines.append(f"内容: {template.content}")
-
-            document = "\n".join(doc_lines)
-
-            # 构建元数据
-            metadata = {
-                "type": "prompt_template",
-                "resource_type": "prompt_template",
-                "resource_id": template_id,
-                "template_name": template.name
-            }
-
-            return document, metadata
-
-        except Exception as e:
-            logger.error(f"生成模板文档失败 {template_id}: {e}")
-            return "", {}
-
+    
     def _generate_relation_document(self, relation_id: int) -> Tuple[str, Dict]:
         """生成关联配置文档
 
@@ -603,7 +505,6 @@ class VectorTrainingService:
             valid_resources = {
                 "table": [t.id for t in self.table_repo.get_all()],
                 "glossary": [g.id for g in self.glossary_repo.get_all()],
-                "prompt_template": [t.id for t in self.template_repo.get_all()],
                 "relation": [r.id for r in self.relation_repo.get_all()]
             }
 

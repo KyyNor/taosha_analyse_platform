@@ -62,6 +62,16 @@ async def lifespan(app: FastAPI):
 
             logger.info("向量数据库训练服务初始化完成，开始后台训练...")
 
+        import phoenix as px
+        # 启动本地服务器（内嵌在 Python 进程中）
+        session = px.launch_app()
+        # 自动追踪 LangChain/LangGraph
+        from phoenix.otel import register
+        from openinference.instrumentation.langchain import LangChainInstrumentor
+
+        tracer_provider = register()
+        LangChainInstrumentor().instrument(tracer_provider=tracer_provider)
+
         logger.info("=== 淘沙分析平台启动成功 ===")
 
     except Exception as e:
