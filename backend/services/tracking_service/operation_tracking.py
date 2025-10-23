@@ -148,7 +148,7 @@ class OperationTracker:
         self.cache.set_task_state(state.task_id, state_dict)
         logger.info(f"{state.task_id} 新建任务，更新缓存结束")
 
-        self._write_session_to_db(state.task_id, state.operator)
+        self._write_session_to_db(state.task_id, state.flow_type, state.user_input, state.operator)
 
     def _write_to_db(self, state: TaskState, write_step_log: bool = True):
         """异步写入任务状态到数据库"""
@@ -221,14 +221,14 @@ class OperationTracker:
             import traceback
             logger.error(f"详细错误信息: {traceback.format_exc()}")
 
-    def _write_session_to_db(self, task_id: str, operator: str = None):
+    def _write_session_to_db(self, task_id: str, flow_type: str, user_input: str, operator: str = None):
         """异步写入会话记录到数据库"""
         try:
             session_data = {
                 'task_id': task_id,
-                'user_input': "",  # user_input 将在后续更新
+                'user_input': user_input,
                 'operator': operator,
-                'flow_type': "fast",  # 默认flow_type
+                'flow_type': flow_type,
                 'status': "running",  # 默认status
                 'current_step': "初始化",  # 默认current_step
                 'progress': 0,  # 默认progress

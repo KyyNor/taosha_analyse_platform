@@ -1,357 +1,357 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文件为 Claude Code (claude.ai/code) 在此仓库中工作时提供指导。
 
-## Project Overview
+## 项目概述
 
-淘沙分析平台 (Taosha Analysis Platform) - 一个基于AI的自然语言转SQL分析平台，支持自然语言查询转换为SQL并执行分析。
+**淘沙分析平台** - 一个基于AI的自然语言转SQL分析平台，支持将自然语言查询转换为SQL、执行查询，并通过语义搜索进行数据分析。
 
-## Architecture
+## 快速开始
 
-### Backend (Python/FastAPI)
-- **Query Engine**: 抽象查询引擎层，支持DuckDB和Spark SQL
-- **NL2SQL Service**: 基于LangGraph和Vanna的自然语言转SQL服务，支持本地Embedding
-- **Metadata Service**: 管理数据库元数据、业务术语表和字段关联配置
-- **Operation Tracking**: 操作追踪系统，记录查询过程和执行日志，支持任务状态缓存
-- **API Layer**: FastAPI REST API，提供查询和表信息接口
-- **服务架构优化**: 模块化组织服务代码，分为query_engine、nlquery_service、metadata_service、tracking_service、vanna_service
+### 环境要求
+- Python 3.11+
+- Node.js 18+
+- `uv` 包管理器
+- `npm` 或 `pnpm`
 
-### Frontend (Vue3/TypeScript)
-- **Vue 3 + TypeScript**: 现代前端框架，使用Composition API
-- **Pinia**: 状态管理
-- **Vue Router**: 路由管理
-- **Axios**: HTTP客户端，支持请求拦截和响应处理
-- **ECharts**: 数据可视化（替代Plotly.js）
-- **Socket.io-client**: WebSocket客户端，支持实时进度更新
-- **Tailwind CSS + DaisyUI**: UI组件库
-- **@vueuse/core**: Vue组合式工具库
-
-## Common Commands
-
-### Backend Development
+### 开发命令
 
 ```bash
-# 进入后端目录
-cd backend
-
-# 安装依赖
+# 后端：安装依赖并启动
 uv sync
+cd backend && uv run python main.py
 
-# 启动开发服务器 (推荐使用uv run)
-uv run python main.py
+# 前端：安装依赖并启动
+cd frontend && npm install && npm run dev
 
-# 或者使用uvicorn
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# 运行测试
+uv run pytest -q
+
+# 类型检查
+cd frontend && npm run type-check
 ```
 
-### Frontend Development
+### 常用URL
+- 前端应用：http://localhost:5173
+- 后端API：http://localhost:8000
+- API文档：http://localhost:8000/docs
+- Phoenix追踪：http://localhost:7788
+
+## 系统架构
+
+### 后端组件（Python/FastAPI）
+
+**入口**：`backend/main.py` - FastAPI应用，包含生命周期管理
+
+**核心服务**（`backend/services/`）：
+- **query_engine/**：查询引擎，支持DuckDB/Spark SQL
+- **nlquery_service/**：基于LangGraph的NL2SQL服务，5节点工作流（知识库检查 → 上下文检索 → SQL生成 → SQL验证 → 结果解释）
+- **llm_service/**：LLM交互服务（SQL生成、验证、解释）
+- **vector_store/**：基于ChromaDB的语义搜索，使用Qwen3嵌入模型
+- **metadata_service/**：元数据管理（数据库模式、业务术语、关系、主题）
+- **tracking_service/**：操作追踪，支持TTL缓存
+
+**数据访问层**（`backend/repositories/`）：
+- `base_repository.py`：通用SQLAlchemy ORM CRUD操作
+- `training_repository.py`、`tracking_repository.py`、`metadata_repository.py` 等
+
+**数据库**：
+- DuckDB（`database/taosha.duckdb`）：主要查询执行引擎
+- SQLite/MySQL（`database/metadata.db`）：元数据存储（主题、术语表、关系、训练数据）
+- ChromaDB（`database/chromadb/`）：向量嵌入存储
+
+**API路由**（`backend/api/`）：
+- `nlquey_routes.py`：查询执行，支持WebSocket实时进度
+- `metadata_routes.py`：元数据CRUD操作
+- `endpoint_models.py`：请求/响应模型定义
+
+### 前端（Vue 3 + TypeScript）
+
+**结构**：
+- `src/components/`：功能组件（查询、布局、公共组件）
+- `src/services/api/`：HTTP客户端和API服务层
+- `src/stores/`：Pinia状态管理
+- `src/views/`：页面组件
+- `src/utils/`：工具函数（格式化、时间处理、SQL高亮）
+- `src/types/`：TypeScript接口定义
+
+**技术栈**：Vite、Pinia、Axios、Socket.io、ECharts、Tailwind CSS + DaisyUI
+
+**核心功能**：实时WebSocket进度更新、SQL语法高亮、元数据管理UI、结果数据可视化、响应式设计
+
+## 开发工作流
+
+### 后端开发
 
 ```bash
-# 进入前端目录
-cd frontend
+# 启动开发服务器（自动重载）
+cd backend && uv run python main.py
 
-# 安装依赖
-npm install
+# 或使用uvicorn
+cd backend && uv run uvicorn main:app --reload
+
+# 运行测试
+uv run pytest -q
+
+# 运行特定测试文件
+uv run pytest backend/tests/test_routes.py -q
+
+# 按关键字运行测试
+uv run pytest -k tracking
+
+# 类型检查
+cd backend && python -m mypy services/
+```
+
+**代码风格**：
+- PEP 8规范，4空格缩进，必须有类型注解
+- 命名规范：`snake_case`（函数/变量）、`PascalCase`（类）、`UPPER_SNAKE_CASE`（常量）
+- 使用 `loguru` 日志库，避免 `print()`
+
+**开发模式**：
+- 依赖注入：服务构造函数中进行依赖注入
+- Repository模式：使用SQLAlchemy ORM进行数据访问
+- 数据库会话：通过 `get_db_session()` 上下文管理器获取会话
+- 异步编程：使用async/await处理查询和WebSocket
+- LangGraph工作流：支持条件路由的工作流编排
+
+### 前端开发
+
+```bash
+cd frontend
 
 # 启动开发服务器
 npm run dev
 
-# 构建生产版本
+# 生产构建
 npm run build
 
-# 代码检查
-npm run lint
+# 类型检查和代码检查
 npm run type-check
+npm run lint
 ```
 
-### Database Operations
+**代码风格**：
+- 使用 `<script setup lang="ts">` 语法
+- 组件：`PascalCase`（如 `QueryForm.vue`）
+- 组合函数：`camelCase`（如 `useQueryStore.ts`）
+- 启用严格的TypeScript模式
+
+## 测试
+
+**位置**：`testcases/` 目录（包含单元测试、集成测试、API测试）
 
 ```bash
-# 使用DuckDB数据库
-# 数据库文件位置: backend/database/taosha.duckdb
+# 运行所有测试
+uv run pytest -q
 
-# 查看数据库表结构
-python -c "from services.query_engine import get_query_engine; print(get_query_engine().get_tables())"
+# 运行单个文件
+uv run pytest testcases/unit/test_metadata_service.py -q
 
-# 元数据数据库（SQLite）
-# 数据库文件位置: backend/database/metadata.db
+# 按标记运行
+uv run pytest -m "not slow" -q
+
+# 生成覆盖率报告
+uv run pytest --cov=backend --cov-report=html
 ```
 
-## Key Components
+**测试框架**：pytest，包含mock和数据库设置的fixture
+**覆盖率目标**：核心逻辑85%+、服务层80%+、Repository层80%+、API层75%+
 
-### Query Engine (`backend/services/query_engine/`)
+## 配置与环境
 
-- `base.py`: 抽象基类定义
-- `duckdb_service.py`: DuckDB实现
-- `spark_service.py`: Spark SQL实现
+### 后端配置（`backend/config/config.yaml`）
 
-### NL2SQL Service (`backend/services/nlquery_service/`)
+YAML配置文件，支持环境变量覆盖（前缀：`TAOSHA_`）
 
-- `nl2sql_service.py`: 基于LangGraph的自然语言转SQL服务
-- `async_query_service.py`: 异步查询服务，支持WebSocket进度推送
-- 支持两种流程类型：`fast`（先验证后生成）和`thorough`（先生成后验证）
+**主要配置项**：
+- `app`：应用名称、版本、调试模式
+- `query_engine`：DuckDB/Spark选择
+- `taosha_db`：SQLite/MySQL元数据数据库
+- `openai`：API密钥、模型、温度参数
+- `embedding`：本地/远程嵌入配置
+- `vector_store`：ChromaDB/Qdrant向量存储
+- `tracing`：Phoenix/LangFuse追踪配置
+- `logging`：日志级别、轮转、保留策略
 
-### Vanna Service (`backend/services/vanna_service/`)
-
-- `taosha_vanna_service.py`: Vanna服务实现，支持自定义Embedding
-- `local_embedding_service.py`: 本地Embedding模型支持（Qwen3-Embedding-0.6B）
-
-### Tracking Service (`backend/services/tracking_service/`)
-
-- `operation_tracking.py`: 操作追踪服务，支持任务状态缓存和TTL管理
-- 使用cachetools进行内存缓存优化
-
-### Metadata Service (`backend/services/metadata_service/`)
-
-- `metadata_service.py`: 元数据管理服务，支持术语表、关联配置和提示词模板管理
-
-### Prompt Template Renderer (`backend/services/`)
-
-- `prompt_template_renderer.py`: 提示词模板渲染服务，支持模板化提示词生成和占位符替换
-
-### API Routes (`backend/api/`)
-
-- `nlquey_routes.py`: 主要查询API，支持异步查询和进度追踪
-- `metadata_routes.py`: 元数据管理API
-- `user_routes.py`: 用户相关API
-- `endpoint_models.py`: 统一的API数据模型
-
-### Configuration (`backend/utils/config.py`)
-
-- 使用Pydantic Settings进行配置管理
-- 支持YAML配置文件和环境变量
-- 配置项包括数据库路径、OpenAI API、Embedding配置等
-
-### Frontend Components
-
-- `QueryForm.vue`: 查询表单组件，支持示例填充、查询模式切换和表选择优化
-- `QueryProgress.vue`: 查询进度展示组件，支持实时进度更新和耗时显示
-- `QueryResultsTable.vue`: 查询结果表格组件，支持数据可视化和交互优化
-- `SidebarPanel.vue`: 侧边栏面板，包含查询历史和收藏功能
-- `FloatingBall.vue`: 悬浮球交互组件
-- `LogDetailModal.vue`: 日志详情弹窗组件，支持SQL语法高亮和执行步骤展示
-
-### Metadata Management Components
-
-- `GlossaryPage.vue`: 术语表管理页面，支持概念解释、SQL问答和字典转换三种类型
-- `RelationsPage.vue`: 关联配置管理页面，支持关系家族和子家族配置
-- `PromptTemplatesPage.vue`: 提示词模板管理页面，支持字段验证和模板预览
-- `TablesPage.vue`: 数据表管理页面，支持字段配置和关联ID选择
-
-### Frontend Utility Libraries
-
-- `duration.ts`: 时间和耗时计算工具函数
-  - `calculateDuration()`: 计算两个时间点之间的耗时
-  - `formatDuration()`: 格式化耗时显示（ms/s/min）
-  - `formatTime()`: 格式化时间显示为本地化字符串
-- `formatText.ts`: 智能文本格式化工具
-  - `formatText()`: 智能格式化各种文本内容（JSON、多行文本等）
-  - `formatJson()`: JSON内容格式化，确保正确缩进和换行
-  - `isJson()`: 判断文本是否为JSON格式
-- `prism.ts`: SQL语法高亮工具
-  - `highlightSql()`: SQL代码语法高亮
-  - `applyPrismTheme()`: 动态应用Prism主题（支持深色/浅色主题）
-
-## Data Flow
-
-1.  **用户输入** → **前端界面** → **API调用**
-2.  **API** → **异步查询服务** → **LangGraph工作流**
-3.  **工作流步骤**:
-    - 检查Vanna训练状态
-    - 验证输入清晰度（根据流程类型）
-    - 生成SQL查询
-    - 执行SQL查询
-    - 解释SQL含义
-    - 分析自然语言差异
-4.  **实时进度推送** → **WebSocket** → **前端进度更新**
-5.  **结果返回** → **API响应** → **前端展示**
-
-## Development Notes
-
-### Backend Development
-
-- 使用FastAPI生命周期管理进行服务初始化
-- 集成了完善的日志系统（loguru）
-- 支持操作追踪和调试，使用TTLCache进行任务状态缓存
-- 模块化服务架构，便于维护和扩展
-- 支持本地Embedding模型，减少对外部API的依赖
-
-### Frontend Development
-
-- 使用Vue 3 Composition API和TypeScript严格模式
-- 组件化开发，支持数据可视化和实时进度更新
-- 响应式设计，支持移动端适配
-- 使用Pinia进行状态管理，支持查询历史和收藏功能
-- 完整的错误处理和用户友好的提示系统
-- 集成Prism.js进行SQL语法高亮显示
-- 智能文本格式化和时间处理工具函数
-
-### Database Schema
-
-- **DuckDB**: 主要业务数据库，用于SQL查询执行
-- **SQLite**: 元数据数据库，存储表结构、业务术语、关联配置和提示词模板
-- 支持表结构元数据管理
-- 业务术语表管理（概念解释、SQL问答、字典转换三种类型）
-- 字段关联配置管理（关系家族和子家族）
-- 提示词模板管理（支持占位符验证和模板渲染）
-- 操作日志记录和任务状态追踪
-
-## Environment Setup
-
-### Configuration File (`backend/config/config.yaml`)
-
-主要配置项包括：
-- 应用信息（名称、版本、调试模式）
-- 查询引擎配置（DuckDB/Spark选择）
-- 元数据数据库配置（SQLite/MySQL）
-- OpenAI API配置
-- Embedding配置（支持本地模型）
-- 日志配置
-
-### Required Environment Variables
+### 环境变量
 
 ```bash
-# OpenAI配置
-OPENAI_API_KEY=your_openai_api_key
+OPENAI_API_KEY=your_key
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=kimi-k2-0905-preview
-OPENAI_TEMPERATURE=0.1
-
-# Embedding配置（可选）
-EMBEDDING_API_KEY=your_embedding_api_key
-EMBEDDING_BASE_URL=https://api.openai.com/v1
-
-# 日志级别
 TAOSHA_LOG_LEVEL=INFO
 ```
 
-### Service Dependencies
+### 数据库查询
 
-- **OpenAI API**: 用于自然语言处理和SQL生成
-- **DuckDB**: 内嵌式数据库
-- **SQLite**: 元数据数据库
-- **ChromaDB**: 向量数据库，用于Vanna的上下文存储
-- **LangGraph**: 工作流编排
-- **Vanna**: SQL生成和训练
-- **本地Embedding**: Qwen3-Embedding-0.6B模型支持
+```bash
+# 查看DuckDB表
+python -c "from services.query_engine import get_query_engine; print(get_query_engine().get_tables())"
 
-## Testing and Debugging
+# SQLite表
+sqlite3 backend/database/metadata.db ".tables"
+```
 
-### API Testing
+## 常见任务
 
-- 访问 `http://localhost:8000/docs` 查看API文档
-- 使用Swagger UI进行API测试
-- 查看操作追踪日志进行调试
-- 支持实时WebSocket进度监控
+### 添加新的API端点
 
-### Frontend Testing
+1. 在 `backend/api/endpoint_models.py` 中添加模型定义
+2. 在相应服务中实现业务逻辑
+3. 在 `backend/api/*_routes.py` 中添加路由处理器
+4. 如果是新路由，在 `backend/main.py` 中注册
+5. 在 `testcases/api/test_routes.py` 中添加测试
 
-- 使用Vue DevTools进行组件调试
-- 检查网络请求和响应
-- 查看控制台日志
-- 使用浏览器开发工具监控WebSocket连接
+### 添加前端组件
 
-### Common Issues
+1. 在 `src/components/` 中创建 `.vue` 文件，使用 `<script setup lang="ts">`
+2. 定义props/emits并使用TypeScript接口
+3. 如需共享逻辑，创建组合函数
+4. 在父组件中导入使用
+5. 确保类型安全且符合严格模式
 
-- **数据库连接失败**: 检查配置文件中的数据库路径
-- **OpenAI API调用失败**: 检查API密钥、基础URL和网络连接
-- **本地Embedding加载失败**: 检查模型路径和设备配置
-- **WebSocket连接问题**: 检查前后端WebSocket配置
-- **任务状态缓存问题**: 检查TTLCache配置和内存使用情况
-- **SQL语法高亮显示问题**: 检查Prism.js主题配置和CDN连接
+### 添加数据库模式
 
-## New Features Since 88ebe2925ff8db667dafde3ee46c6e95d4a08ff3
+1. 在 `backend/models/` 中创建模型
+2. 在 `backend/repositories/` 中创建repository
+3. 添加CRUD方法
+4. 更新 `backend/models/db_base.py` 进行会话管理
 
-### Backend Enhancements
+## 调试
 
-- ✅ 模块化服务架构重构
-- ✅ 任务状态缓存系统（TTLCache）
-- ✅ 本地Embedding模型支持
-- ✅ 异步查询服务优化
-- ✅ 统一的TaskState和BaseNodeLog模型
-- ✅ 操作追踪系统简化
-- ✅ 元数据数据库结构优化
-- ✅ 配置管理统一化
-- ✅ **提示词模板渲染服务**：新增模板化提示词生成和占位符替换功能
-- ✅ **术语表管理重构**：支持概念解释、SQL问答、字典转换三种类型
-- ✅ **关联配置管理**：实现完整的关系家族和子家族配置功能，支持拼接ID显示
-- ✅ **表选择组件优化**：修复数据绑定问题，优化UI展示格式
-- ✅ **OperationTracker依赖注入重构**：新增TrackerCache全局缓存管理器，解决数据库写入失败问题
-- ✅ **数据库连接管理统一化**：实现Session依赖注入，每个请求获得独立Session，避免并发问题
-- ✅ **数据主题管理功能**：完整实现主题和表关联管理，支持一般主题和通用主题两种类型
-- ✅ **时间时区问题修复**：统一使用本地时间，解决UTC时差8小时问题
-- ✅ **Repository模式数据访问层**：完成SQLAlchemy ORM架构重构，实现标准化数据访问接口
-- ✅ **LLM Service模块化**：新增BaseLLMService和NLQueryLLMService，解耦LLM功能逻辑
-- ✅ **Training Service完整实现**：支持训练数据管理、会话管理、验证结果记录等核心功能
-- ✅ **NL2SQLServiceV2增强**：集成Vector Store、Context Builder、LLM Service、Training Service的完整工作流
-- ✅ **LangGraph工作流架构**：5节点工作流（知识库检查、上下文检索、SQL生成、SQL验证、结果解释）
-- ✅ **VectorStoreFactory延迟加载**：实现字符串模块路径和动态导入，解决依赖冲突问题
-- ✅ **OpenAI客户端管理**：动态创建和配置OpenAI客户端，支持自定义API端点和模型配置
+**后端**：
+- 日志：`backend/logs/app.log`、`error.log`
+- API文档：`http://localhost:8000/docs`
+- 启用调试：在config.yaml中设置 `debug: true`
+- 调试器：`python -m pdb backend/main.py`
 
-### Frontend Enhancements
+**前端**：
+- Vue DevTools浏览器扩展
+- 检查Console和Network选项卡
+- 检查WebSocket消息
+- 在TypeScript源代码中设置断点
 
-- ✅ 完整的前端项目重构
-- ✅ 移除登录验证功能，简化使用流程
-- ✅ 实时进度展示系统
-- ✅ 查询历史和收藏功能
-- ✅ 悬浮球侧边栏交互
-- ✅ 响应式布局优化
-- ✅ 日志详情弹框功能（支持SQL语法高亮和执行步骤展示）
-- ✅ API配置和服务代码优化
-- ✅ TypeScript类型系统完善
-- ✅ 智能文本格式化和时间处理工具函数
-- ✅ 查询结果表格数据可视化增强
-- ✅ **元数据管理界面重构**：术语表、关联配置、提示词模板三大管理页面
-- ✅ **表单组件优化**：关联ID字段改为下拉框选择，提升用户体验
-- ✅ **数据展示修复**：解决前端术语表数据显示问题，优化数据绑定逻辑
-- ✅ **TypeScript类型安全**：完善接口定义，提升代码类型安全性
-- ✅ **数据主题管理界面完善**：实现完整主题管理界面，支持主题信息增删改查和表关联管理
-- ✅ **关联配置ID显示优化**：修复关联配置接口，支持拼接ID显示（家族|子家族），同时确保入库使用真实ID
+**追踪**：
+- Phoenix（如果启用）：`http://localhost:7788`
+- 显示LangGraph执行和LLM调用
 
-### UI/UX Improvements
+## 项目结构
 
-- ✅ 横向三列布局的查询表单
-- ✅ SQL代码显示区域的主题自适应
-- ✅ 查询进度可视化效果
-- ✅ 用户和时间信息展示
-- ✅ 导航层级结构优化
-- ✅ **术语表录入界面美化**：重新设计表单布局，添加主色调边框和内阴影效果
-- ✅ **表选择显示优化**：中文名（英文名）格式显示，移除标签展示简化界面
+```
+backend/
+├── main.py                      # FastAPI应用
+├── api/                         # 路由和模型
+├── services/                    # 业务逻辑
+│   ├── query_engine/            # DuckDB/Spark
+│   ├── nlquery_service/         # NL2SQL
+│   ├── llm_service/             # LLM调用
+│   ├── vector_store/            # ChromaDB
+│   ├── metadata_service/        # 元数据管理
+│   └── tracking_service/        # 操作追踪
+├── repositories/                # 数据访问层
+├── models/                      # ORM模型
+├── config/
+│   └── config.yaml
+├── utils/
+│   ├── config.py                # 配置管理
+│   ├── logger.py                # 日志配置
+│   └── progress_decorator.py    # 进度装饰器
+└── database/
+    ├── taosha.duckdb
+    ├── metadata.db
+    └── chromadb/
 
-### Testing & Quality Assurance
+frontend/
+├── src/
+│   ├── components/              # Vue组件
+│   ├── services/api/            # API客户端
+│   ├── stores/                  # Pinia状态管理
+│   ├── views/                   # 页面组件
+│   ├── utils/                   # 工具函数
+│   └── types/                   # TypeScript接口
+├── vite.config.ts
+├── tsconfig.json
+└── package.json
 
-- ✅ **完整测试框架建立**：新增130+个测试用例，覆盖核心功能
-- ✅ **测试目录结构重组**：统一管理到testcases/目录，支持单元测试、集成测试、API测试
-- ✅ **查询引擎测试**：DuckDBService完整功能测试，QueryEngineFactory工厂模式测试
-- ✅ **Repository层测试**：BaseRepository通用CRUD测试，数据错误处理和事务测试
-- ✅ **NL2SQL流程测试**：快速流程和彻底流程测试，异步查询服务集成测试
-- ✅ **API接口测试**：自然语言查询API测试，WebSocket实时进度推送测试
-- ✅ **中文显示修复**：修复Windows环境下测试中文乱码问题
-- ✅ **测试覆盖率提升**：核心业务逻辑85%→90%，服务层80%→85%，Repository层0%→80%，API层0%→75%
-- ✅ **LLM Service单元测试**：30个测试覆盖SQL生成、重试、验证、解释等功能
-- ✅ **Training Service单元测试**：19个测试覆盖训练数据和会话管理
-- ✅ **NL2SQL V2集成测试**：15个测试验证完整工作流和模块集成
+testcases/
+├── unit/                        # 单元测试
+├── integration/                 # 集成测试
+└── api/                         # HTTP测试
+```
 
-### Technical Debt Reduction
+## Git提交规范
 
-- ✅ 代码结构模块化重组
-- ✅ 依赖注入模式应用
-- ✅ 配置系统标准化
-- ✅ 错误处理机制完善
-- ✅ 日志系统统一化
-- ✅ **API响应处理优化**：修复axios数据重复提取问题，统一API响应格式处理
-- ✅ **数据库结构优化**：删除冗余表结构，重新设计术语表和提示词模板表
-- ✅ **代码风格统一**：运行ESLint自动修复，统一组件结构和属性顺序
-- ✅ **无用代码清理**：移除废弃的按名称查询接口，统一使用ID-based操作
-- ✅ **NL2SQLServiceV2工作流架构修复**：
-  - 恢复完整的flow_type条件路由逻辑（fast/thorough流程差异执行）
-  - 实现SQL执行失败的重试机制（execute_sql → generate_sql）
-  - 修复LLM服务方法调用 - 使用validate_input_clarity正确方法
-  - 修复TaskState字段类型问题（clear_check_details为字典，添加sql_explanation字段）
-  - 添加4个comprehensive工作流流程类型路由测试
-  - 全部19个集成测试通过验证
+**提交信息格式**：`[scope]: 描述`
+- 作用域：`backend`、`frontend`、`docs`、`infra`、`test`
+- 风格：使用祈使语气（"添加"、"修复"、"重构"），不用过去式
+- 语言：中文或英文均可
+
+**提交前检查**：
+- 后端：`uv run pytest -q`
+- 前端：`npm run lint && npm run type-check`
+- 不要提交 `.env` 文件或凭据
+
+## 重要说明
+
+### 性能优化
+- 向量数据库训练在应用启动时异步执行
+- 查询结果使用TTLCache缓存
+- 使用WebSocket实现实时更新（避免轮询）
+- DuckDB高效处理大规模数据集
+
+### 安全考虑
+- 开发环境CORS开放；生产环境需限制来源
+- 不要提交.env文件或凭据
+- 在API层验证用户输入
+- 使用SQLAlchemy ORM防止SQL注入
+- 生产环境考虑添加速率限制
+
+### 已知限制
+- 开发环境使用SQLite；生产环境应使用MySQL
+- 训练数据索引目前在内存中；考虑使用持久化嵌入缓存
+- 暂不支持多租户
+
+## 参考资源
+
+- FastAPI：https://fastapi.tiangolo.com/
+- LangGraph：https://langchain-ai.github.io/langgraph/
+- Vue 3：https://vuejs.org/
+- SQLAlchemy：https://docs.sqlalchemy.org/
+- ChromaDB：https://docs.trychroma.com/
+- DuckDB：https://duckdb.org/docs/
+
+## 故障排除
+
+**后端无法启动**：
+- 检查 `.env` 文件是否存在且包含必需的变量
+- 验证Python版本：`python --version`
+- 清理缓存：`rm -rf backend/__pycache__ .pytest_cache`
+- 重新安装：`uv sync --refresh`
+
+**前端开发服务器无法启动**：
+- 验证Node版本：`node --version`
+- 清理缓存：`rm -rf frontend/node_modules && npm install`
+- 检查5173端口是否被占用
+
+**数据库连接问题**：
+- 验证 `config.yaml` 中的数据库路径
+- 检查文件权限
+- SQLite：`sqlite3 backend/database/metadata.db ".tables"`
+
+**LLM API调用失败**：
+- 验证API密钥正确且有额度
+- 检查网络连接
+- 检查API速率限制
+- 启用调试日志：`TAOSHA_LOG_LEVEL=DEBUG`
+
+**向量存储错误**：
+- 检查ChromaDB目录是否存在且可写
+- 验证嵌入模型路径正确
+- 检查推理时是否有足够的内存
+- 查看LangChain/OpenInference日志
 
 ---
 
 ## Documentation Last Update
-上次更新时commit:2f96839 - 修复NL2SQLServiceV2工作流架构，恢复完整的flow_type逻辑和重试机制
+上次更新时commit: fd80cc0 - 重构任务进度更新逻辑，移除不必要的缓存依赖，简化错误处理和日志记录
