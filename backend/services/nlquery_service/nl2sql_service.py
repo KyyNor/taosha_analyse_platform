@@ -17,8 +17,9 @@ from services.metadata_service.metadata_service import (
 )
 from services.query_engine import get_query_engine
 from services.service_models import BaseNodeLog, TaskState, TaskStateHelper
-from utils.config import settings
+from services.tracking_service.observability_service import get_tracing_handler
 
+from utils.config import settings
 from utils.logger import logger
 from utils.progress_decorator import track_node_progress
 
@@ -456,24 +457,13 @@ class NL2SQLService:
         # explain_result到结束
         workflow.add_edge("explain_result", END)
 
-        # langfuse 集成
-        # from langfuse import get_client
-        # from langfuse.langchain import CallbackHandler
-        # import os
-        # os.environ["LANGFUSE_PUBLIC_KEY"] = settings.langfuse_public_key
-        # os.environ["LANGFUSE_SECRET_KEY"] = settings.langfuse_secret_key
-        # os.environ["LANGFUSE_HOST"] = settings.langfuse_host
-        # langfuse = get_client()
+        # 获取追踪处理器
+        tracing_handler = get_tracing_handler()
 
-        # # Verify connection
-        # if langfuse.auth_check():
-        #     print("Langfuse client is authenticated and ready!")
-        # else:
-        #     print("Authentication failed. Please check your credentials and host.")
-
-        # langfuse_handler = CallbackHandler()
-        # return workflow.compile().with_config({"callbacks": [langfuse_handler]})
-        return workflow.compile()
+        if tracing_handler is None:
+            return workflow.compile()
+        else:
+            return workflow.compile().with_config({"callbacks": [tracing_handler]})
 
     def query(self, user_input: str, flow_type: str = "fast",
               relation_id: Optional[str] = None,

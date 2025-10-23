@@ -208,6 +208,9 @@ class VectorTrainingService:
                 table_id = table_info["id"]
                 table_name = table_info["name"]
 
+                # 确保训练记录存在（新资源会创建记录）
+                self.training_repo.create_or_update_record("table", table_id, table_info["last_modified"])
+
                 # 标记为正在训练
                 self.training_repo.mark_as_training("table", table_id)
 
@@ -255,6 +258,9 @@ class VectorTrainingService:
             try:
                 glossary_id = glossary_info["id"]
                 glossary_name = glossary_info["name"]
+
+                # 确保训练记录存在（新资源会创建记录）
+                self.training_repo.create_or_update_record("glossary", glossary_id, glossary_info["last_modified"])
 
                 # 标记为正在训练
                 self.training_repo.mark_as_training("glossary", glossary_id)
@@ -304,6 +310,9 @@ class VectorTrainingService:
             try:
                 relation_id = relation_info["id"]
                 relation_name = relation_info["name"]
+
+                # 确保训练记录存在（新资源会创建记录）
+                self.training_repo.create_or_update_record("relation", relation_id, relation_info["last_modified"])
 
                 # 标记为正在训练
                 self.training_repo.mark_as_training("relation", relation_id)

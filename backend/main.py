@@ -16,8 +16,8 @@ from api.user_routes import router as user_router
 from services.query_engine import get_query_engine
 from services.nlquery_service.async_query_service import get_async_query_service
 from models.db_base import get_db_session
-from services.training_service.vector_training_service import VectorTrainingService
-
+from services.vector_store.vector_training_service import VectorTrainingService
+from services.tracking_service.observability_service import initialize_observability
 
 async def _train_vector_database_async(vector_training_service: VectorTrainingService):
     """异步执行向量数据库训练
@@ -62,15 +62,8 @@ async def lifespan(app: FastAPI):
 
             logger.info("向量数据库训练服务初始化完成，开始后台训练...")
 
-        import phoenix as px
-        # 启动本地服务器（内嵌在 Python 进程中）
-        session = px.launch_app()
-        # 自动追踪 LangChain/LangGraph
-        from phoenix.otel import register
-        from openinference.instrumentation.langchain import LangChainInstrumentor
-
-        tracer_provider = register()
-        LangChainInstrumentor().instrument(tracer_provider=tracer_provider)
+        # 初始化可观测性服务（外部追踪）
+        initialize_observability()
 
         logger.info("=== 淘沙分析平台启动成功 ===")
 

@@ -106,9 +106,12 @@ class ConfigManager:
             log_retention: str = self._config_data.get('logging', {}).get('retention', '7 days')
             log_compression: str = self._config_data.get('logging', {}).get('compression', 'gz')
 
-            langfuse_public_key: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY")
-            langfuse_secret_key: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY")
-            langfuse_host: Optional[str] = os.getenv("LANGFUSE_HOST")
+            # 跟踪配置
+            tracing_type: Optional[str] = self._config_data.get('tracing', {}).get('tracing_type')
+            phoenix_work_dir: Optional[str] = self._config_data.get('tracing', {}).get('phoenix_work_dir')
+            langfuse_public_key: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY") or self._config_data.get('tracing', {}).get('langfuse_public_key')
+            langfuse_secret_key: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY") or self._config_data.get('tracing', {}).get('langfuse_secret_key')
+            langfuse_host: Optional[str] = os.getenv("LANGFUSE_HOST") or self._config_data.get('tracing', {}).get('langfuse_host')
 
             class Config:
                 env_prefix = self._config_data.get('env_prefix', 'TAOSHA_')
