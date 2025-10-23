@@ -50,7 +50,7 @@ class NL2SQLService:
     """增强的NL2SQL服务 - 集成新的模块化服务"""
 
     def __init__(self, db_session: Optional[Session] = None):
-        """初始化NL2SQL服务V2
+        """初始化NL2SQL服务
 
         Args:
             db_session: 数据库会话（可选，用于Training Service）
@@ -642,7 +642,7 @@ class NL2SQLService:
             查询结果字典
         """
         try:
-            logger.info(f"查询流程V2: 任务ID={task_id}, 用户输入={user_input[:50]}, 流程类型={flow_type}")
+            logger.info(f"查询流程: 任务ID={task_id}, 用户输入={user_input[:50]}, 流程类型={flow_type}")
 
             if tracker is None:
                 raise ValueError("tracker参数是必须的，请通过依赖注入传入OperationTracker实例")
