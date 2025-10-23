@@ -8,9 +8,6 @@ import traceback
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-from langfuse import get_client
-from langfuse.langchain import CallbackHandler
-
 from langgraph.graph import StateGraph, END
 
 from services.vector_store import VectorStoreFactory, NLQueryContextBuilder
@@ -459,6 +456,9 @@ class NL2SQLService:
         # explain_result到结束
         workflow.add_edge("explain_result", END)
 
+        # langfuse 集成
+        # from langfuse import get_client
+        # from langfuse.langchain import CallbackHandler
         # import os
         # os.environ["LANGFUSE_PUBLIC_KEY"] = settings.langfuse_public_key
         # os.environ["LANGFUSE_SECRET_KEY"] = settings.langfuse_secret_key
