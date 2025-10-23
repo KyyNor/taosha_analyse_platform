@@ -126,11 +126,13 @@ class NL2SQLService:
             """构建查询上下文 - 从向量数据库检索相关信息"""
             try:
                 user_input = state.user_input
+                filtered_vector_ids = getattr(state, 'filtered_vector_ids', None)
 
                 # 使用向量检索构建上下文
                 context = self.context_builder.retrieve_by_semantic_search(
                     user_input=user_input,
-                    top_k=10
+                    top_k=10,
+                    allowed_vector_ids=filtered_vector_ids  # 传递过滤的向量库ID
                 )
 
                 state.task_context = context
@@ -568,7 +570,8 @@ class NL2SQLService:
 
     def query(self, user_input: str, flow_type: str = "fast",
               relation_id: Optional[str] = None,
-              table_names: Optional[list] = None) -> Dict[str, Any]:
+              table_names: Optional[list] = None,
+              filtered_vector_ids: Optional[list] = None) -> Dict[str, Any]:
         """执行自然语言查询
 
         Args:
@@ -576,6 +579,7 @@ class NL2SQLService:
             flow_type: 流程类型（fast或thorough）
             relation_id: 可选的关联ID
             table_names: 可选的表名列表
+            filtered_vector_ids: 可选的向量库ID列表，用于精准过滤检索结果
 
         Returns:
             查询结果字典
@@ -588,6 +592,7 @@ class NL2SQLService:
                 task_id="inline_query",  # 非追踪模式下的任务ID
                 user_input=user_input,
                 flow_type=flow_type,
+                filtered_vector_ids=filtered_vector_ids or [],
                 created_at=datetime.now()
             )
 
@@ -620,7 +625,8 @@ class NL2SQLService:
 
     def process_query(self, user_input: str, task_id: str, max_retries: int = 5,
                      operator: str = "api_user", flow_type: str = "fast",
-                     tracker: Optional[Any] = None) -> Dict[str, Any]:
+                     tracker: Optional[Any] = None,
+                     filtered_vector_ids: Optional[list] = None) -> Dict[str, Any]:
         """兼容旧API的处理查询方法（用于AsyncQueryService）
 
         Args:
@@ -630,6 +636,7 @@ class NL2SQLService:
             operator: 操作者
             flow_type: 流程类型
             tracker: 操作追踪器
+            filtered_vector_ids: 可选的向量库ID列表，用于精准过滤检索结果
 
         Returns:
             查询结果字典
@@ -648,6 +655,9 @@ class NL2SQLService:
                 max_retries=max_retries,
                 operator=operator
             )
+
+            # 添加过滤的向量库ID
+            task_state.filtered_vector_ids = filtered_vector_ids or []
 
             tracker.create_task(task_state)
 

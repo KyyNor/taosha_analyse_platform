@@ -26,8 +26,20 @@ class AsyncQueryService:
         logger.info("AsyncQueryService 使用 NL2SQLService")
 
     async def submit_query(self, user_input: str, operator: str = "api_user",
-                          flow_type: str = "fast", max_retries: int = 5, tracker: OperationTracker = None) -> str:
-        """提交查询任务"""
+                          flow_type: str = "fast", max_retries: int = 5, tracker: OperationTracker = None,
+                          selected_theme_id: Optional[int] = None,
+                          selected_table_ids: Optional[list] = None) -> str:
+        """提交查询任务
+
+        Args:
+            user_input: 用户输入
+            operator: 操作者
+            flow_type: 查询流程类型
+            max_retries: 最大重试次数
+            tracker: 操作追踪器
+            selected_theme_id: 选中的数据主题ID
+            selected_table_ids: 选中的数据表ID列表
+        """
         if tracker is None:
             raise ValueError("tracker参数是必须的，请通过依赖注入传入OperationTracker实例")
 
@@ -36,7 +48,8 @@ class AsyncQueryService:
 
         # 启动后台任务，传递tracker实例
         task = asyncio.create_task(
-            self._execute_query(task_id, user_input, max_retries, operator, flow_type, tracker)
+            self._execute_query(task_id, user_input, max_retries, operator, flow_type, tracker,
+                              selected_theme_id, selected_table_ids)
         )
         _background_tasks.add(task)
         task.add_done_callback(_background_tasks.discard)
@@ -61,10 +74,71 @@ class AsyncQueryService:
     #         logger.error(f"获取任务结果失败: {e}")
     #         return None
 
+    def _get_filtered_vector_ids(self, table_ids: list = None, theme_id: int = None) -> list:
+        """获取过滤的向量库ID列表
+
+        根据选中的表或主题，从训练记录中获取对应的vector_id
+
+        Args:
+            table_ids: 表ID列表
+            theme_id: 主题ID
+
+        Returns:
+            向量库ID列表
+        """
+        from models.training_models import TrainingRecord
+        from models.theme_models import ThemeTableRelation
+
+        vector_ids = []
+        try:
+            db_session = SessionLocal()
+
+            # 确定要查询的表ID
+            target_table_ids = []
+
+            if theme_id:
+                # 如果选中主题，获取该主题下的所有表
+                logger.info(f"获取主题 {theme_id} 下的表...")
+                theme_relations = db_session.query(ThemeTableRelation).filter(
+                    ThemeTableRelation.theme_id == theme_id
+                ).all()
+                target_table_ids = [rel.table_id for rel in theme_relations]
+                logger.info(f"主题 {theme_id} 包含 {len(target_table_ids)} 个表")
+
+            elif table_ids:
+                # 如果选中表，直接使用
+                target_table_ids = table_ids
+                logger.info(f"使用选中的 {len(table_ids)} 个表")
+
+            # 查询这些表对应的所有训练记录的vector_id
+            if target_table_ids:
+                training_records = db_session.query(TrainingRecord).filter(
+                    TrainingRecord.resource_type.in_(["table", "glossary", "prompt_template"]),
+                    TrainingRecord.resource_id.in_(target_table_ids),
+                    TrainingRecord.vector_id != ""  # 只获取有vector_id的记录
+                ).all()
+
+                vector_ids = [record.vector_id for record in training_records]
+                logger.info(f"获取到 {len(vector_ids)} 个vector_id")
+
+            db_session.close()
+
+        except Exception as e:
+            logger.error(f"获取过滤的vector_ids失败: {e}")
+            # 返回空列表，不中断查询流程
+
+        return vector_ids
+
     async def _execute_query(self, task_id: str, user_input: str, max_retries: int,
-                           operator: str, flow_type: str, tracker: OperationTracker):
+                           operator: str, flow_type: str, tracker: OperationTracker,
+                           selected_theme_id: int = None, selected_table_ids: list = None):
         """执行查询任务"""
         try:
+            # 获取过滤的vector_ids
+            filtered_vector_ids = self._get_filtered_vector_ids(
+                table_ids=selected_table_ids,
+                theme_id=selected_theme_id
+            )
 
             # 获取事件循环
             loop = asyncio.get_event_loop()
@@ -73,7 +147,7 @@ class AsyncQueryService:
             await loop.run_in_executor(
                 None,  # 使用默认线程池
                 self.nl2sql_service.process_query,
-                user_input, task_id, max_retries, operator, flow_type, tracker
+                user_input, task_id, max_retries, operator, flow_type, tracker, filtered_vector_ids
             )
 
             # 从全局缓存获取结果

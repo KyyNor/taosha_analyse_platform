@@ -126,7 +126,9 @@ async def process_natural_language_query(
             operator=operator,
             flow_type=request.flow_type,
             max_retries=request.max_retries,
-            tracker=tracker  # 传递tracker实例
+            tracker=tracker,  # 传递tracker实例
+            selected_theme_id=request.selected_theme_id,  # 传递选中的主题ID
+            selected_table_ids=request.selected_table_ids  # 传递选中的表ID列表
         )
 
         logger.info(f"异步任务已创建: {task_id}")

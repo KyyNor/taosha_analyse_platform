@@ -11,6 +11,8 @@ class QueryRequest(BaseModel):
     query: str = Field(..., description="自然语言查询", min_length=1)
     flow_type: str = Field("fast", description="流程类型: fast=先验证后生成SQL, thorough=先生成SQL后验证")
     max_retries: int = Field(2, description="最大重试次数", ge=0, le=5)
+    selected_theme_id: Optional[int] = Field(None, description="选中的数据主题ID")
+    selected_table_ids: Optional[List[int]] = Field(None, description="选中的数据表ID列表")
 
 # 数据模型
 class TableMetadataRequest(BaseModel):
