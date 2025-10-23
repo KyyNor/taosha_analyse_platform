@@ -66,6 +66,14 @@
           </div>
         </template>
 
+        <template #cell-remark="{ value }">
+          <div
+            class="max-w-xs truncate"
+            :title="value"
+          >
+            {{ value || '-' }}
+          </div>
+        </template>
 
         <template #actions="{ record }">
           <div class="flex gap-1">
@@ -191,6 +199,19 @@
                     :disabled="!isDetailEditMode && !isNewTable"
                   />
                 </div>
+
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">备注</span>
+                  </label>
+                  <textarea
+                    v-model="tableForm.remark"
+                    placeholder="请输入表备注"
+                    class="textarea textarea-bordered"
+                    rows="3"
+                    :disabled="!isDetailEditMode && !isNewTable"
+                  />
+                </div>
               </div>
             </form>
           </div>
@@ -237,6 +258,9 @@
                     </th>
                     <th class="w-48">
                       注释
+                    </th>
+                    <th class="w-48">
+                      备注
                     </th>
                     <th class="w-32">
                       业务类型
@@ -303,6 +327,21 @@
                         class="max-w-xs truncate block"
                       >
                         {{ column.comment || '-' }}
+                      </span>
+                    </td>
+                    <td>
+                      <input
+                        v-if="isDetailEditMode || isNewTable"
+                        v-model="column.remark"
+                        type="text"
+                        class="input input-bordered input-xs w-full"
+                        placeholder="字段备注"
+                      >
+                      <span
+                        v-else
+                        class="max-w-xs truncate block"
+                      >
+                        {{ column.remark || '-' }}
                       </span>
                     </td>
                     <td>
@@ -453,7 +492,8 @@ const filters = reactive({
 // Form
 const tableForm = reactive({
   name: '',
-  comment: ''
+  comment: '',
+  remark: ''
 })
 
 // Table columns
@@ -467,6 +507,12 @@ const tableColumns = [
   {
     key: 'comment',
     title: '表注释',
+    sortable: true,
+    visible: true
+  },
+  {
+    key: 'remark',
+    title: '备注',
     sortable: true,
     visible: true
   }
@@ -522,7 +568,8 @@ const openAddTable = () => {
   // Reset form
   Object.assign(tableForm, {
     name: '',
-    comment: ''
+    comment: '',
+    remark: ''
   })
 
   showDetailModal.value = true
@@ -537,7 +584,8 @@ const openTableDetail = async (table: any, editMode: boolean = false) => {
   // Set form data
   Object.assign(tableForm, {
     name: table.name,
-    comment: table.comment || ''
+    comment: table.comment || '',
+    remark: table.remark || ''
   })
 
   // Load columns for this table
@@ -562,7 +610,8 @@ const closeDetailModal = () => {
   // Reset form
   Object.assign(tableForm, {
     name: '',
-    comment: ''
+    comment: '',
+    remark: ''
   })
 }
 
@@ -591,6 +640,7 @@ const loadColumns = async (table?: any) => {
         name: column.name,
         type: column.type,
         comment: column.comment,
+        remark: column.remark,
         businessType: column.business_type,
         relationConfigId: column.relation_config_id,
         isAvailable: column.is_available === undefined ? true : column.is_available === 0
@@ -610,6 +660,7 @@ const addNewColumn = () => {
     name: '',
     type: 'VARCHAR',
     comment: '',
+    remark: '',
     businessType: '',
     relationConfigId: null,
     isAvailable: 0 // 0 代表启用
@@ -636,6 +687,7 @@ const saveTableDetail = async () => {
       const response = await metadataService.createTable({
         name: tableForm.name,
         comment: tableForm.comment,
+        remark: tableForm.remark,
         isAvailable: true
       })
       tableId = response.data.id  // 从data字段获取表ID
@@ -643,7 +695,8 @@ const saveTableDetail = async () => {
     } else {
       // Update existing table
       await metadataService.updateTable(editingTable.value.id, {
-        comment: tableForm.comment
+        comment: tableForm.comment,
+        remark: tableForm.remark
       })
       tableId = editingTable.value.id
       success('表已更新')
@@ -657,6 +710,7 @@ const saveTableDetail = async () => {
           name: column.name,
           type: column.type,
           comment: column.comment,
+          remark: column.remark,
           is_available: column.isAvailable ? 0 : 1, // 转换为后端格式：0=启用，1=不启用
           business_type: column.businessType,
           relation_config_id: column.relationConfigId || null

@@ -33,6 +33,7 @@ class MetadataService {
   async createTable(data: {
     name: string
     comment: string
+    remark: string
     isAvailable: boolean
     dataSource?: string
     updateMethod?: string
@@ -43,6 +44,7 @@ class MetadataService {
   // Update table
   async updateTable(id: number, data: {
     comment?: string
+    remark?: string
     isAvailable?: boolean
     dataSource?: string
     updateMethod?: string
@@ -88,6 +90,7 @@ class MetadataService {
     name: string
     type: string
     comment: string
+    remark: string
     is_available: number
     business_type: string
     relation_config_id?: number
@@ -102,6 +105,7 @@ class MetadataService {
     name?: string
     type?: string
     comment?: string
+    remark?: string
     is_available?: number
     business_type?: string
     relation_config_id?: number

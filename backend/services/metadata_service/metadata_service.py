@@ -53,6 +53,7 @@ class MetadataService:
                                 "name": column.name,
                                 "type": column.type,
                                 "comment": column.comment or "",
+                                "remark": column.remark or "",
                                 "is_available": int(column.is_available or 0),
                                 "business_type": column.business_type or "",
                                 "relation_config_id": column.relation_config_id or ""
@@ -60,10 +61,12 @@ class MetadataService:
                             columns_list.append(column_dict)
 
                 # 转换为字典格式
+                table_remark = table.remark or ""
                 table_dict = {
                     "id": table_id,
                     "name": table_name,
                     "comment": table_comment,
+                    "remark": table_remark,
                     "is_available": table_is_available,
                     "created_at": table_created_at,
                     "updated_at": table_updated_at,
@@ -118,12 +121,13 @@ class MetadataService:
 
         return ddl_statements
 
-    def add_table(self, table_name: str, comment: str = "", is_available: int = 0) -> Optional[Dict[str, Any]]:
+    def add_table(self, table_name: str, comment: str = "", remark: str = "", is_available: int = 0) -> Optional[Dict[str, Any]]:
         """添加表元数据"""
         try:
             table = self.table_repo.create(
                 name=table_name,
                 comment=comment,
+                remark=remark,
                 is_available=is_available
             )
 
@@ -132,6 +136,7 @@ class MetadataService:
                 "id": table.id,
                 "name": table.name,
                 "comment": table.comment or "",
+                "remark": table.remark or "",
                 "is_available": int(table.is_available or 0),
                 "created_at": table.created_at,
                 "updated_at": table.updated_at,
@@ -147,13 +152,15 @@ class MetadataService:
 
     # 已废弃: 使用 update_table_by_id(table_id, comment, is_available) 替代
 
-    def update_table_by_id(self, table_id: int, comment: str = None, is_available: int = None) -> bool:
+    def update_table_by_id(self, table_id: int, comment: str = None, remark: str = None, is_available: int = None) -> bool:
         """更新表元数据（按ID）"""
         try:
             # 准备更新数据
             update_data = {}
             if comment is not None:
                 update_data['comment'] = comment
+            if remark is not None:
+                update_data['remark'] = remark
             if is_available is not None:
                 update_data['is_available'] = is_available
 
@@ -182,7 +189,7 @@ class MetadataService:
             return False
 
     def add_column_by_id(self, table_id: int, column_name: str, column_type: str,
-                          comment: str = "", is_available: int = 0, business_type: str = "", relation_config_id: int = None) -> Optional[Dict[str, Any]]:
+                          comment: str = "", remark: str = "", is_available: int = 0, business_type: str = "", relation_config_id: int = None) -> Optional[Dict[str, Any]]:
         """添加列元数据（按表ID）"""
         try:
             # 检查表是否存在
@@ -204,6 +211,7 @@ class MetadataService:
                 name=column_name,
                 type=column_type,
                 comment=comment,
+                remark=remark,
                 is_available=is_available,
                 business_type=business_type,
                 relation_config_id=relation_config_id
@@ -216,6 +224,7 @@ class MetadataService:
                 "name": column.name,
                 "type": column.type,
                 "comment": column.comment or "",
+                "remark": column.remark or "",
                 "is_available": int(column.is_available or 0),
                 "business_type": column.business_type or "",
                 "relation_config_id": column.relation_config_id
@@ -251,7 +260,7 @@ class MetadataService:
     # 已废弃: 使用 update_column_by_table_id(table_id, column_name, ...) 替代
 
     def update_column_by_table_id(self, table_id: int, column_name: str, column_type: str = None,
-                                  comment: str = None, is_available: int = None, business_type: str = None,
+                                  comment: str = None, remark: str = None, is_available: int = None, business_type: str = None,
                                   relation_config_id: int = None) -> bool:
         """更新列元数据（按表ID）"""
         try:
@@ -267,6 +276,8 @@ class MetadataService:
                 update_data['type'] = column_type
             if comment is not None:
                 update_data['comment'] = comment
+            if remark is not None:
+                update_data['remark'] = remark
             if is_available is not None:
                 update_data['is_available'] = is_available
             if business_type is not None:
@@ -285,7 +296,7 @@ class MetadataService:
             return False
 
     def update_column_by_id(self, column_id: int, name: str = None, column_type: str = None,
-                           comment: str = None, is_available: int = None, business_type: str = None,
+                           comment: str = None, remark: str = None, is_available: int = None, business_type: str = None,
                            relation_config_id: int = None) -> bool:
         """更新列元数据（按列ID）"""
         try:
@@ -297,6 +308,8 @@ class MetadataService:
                 update_data['type'] = column_type
             if comment is not None:
                 update_data['comment'] = comment
+            if remark is not None:
+                update_data['remark'] = remark
             if is_available is not None:
                 update_data['is_available'] = is_available
             if business_type is not None:

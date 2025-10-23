@@ -16,11 +16,13 @@ class QueryRequest(BaseModel):
 class TableMetadataRequest(BaseModel):
     name: str
     comment: str = ""
+    remark: str = ""
     is_available: int = 0
 
 
 class TableMetadataUpdate(BaseModel):
     comment: Optional[str] = None
+    remark: Optional[str] = None
     is_available: Optional[int] = None
 
 
@@ -29,6 +31,7 @@ class ColumnMetadataRequest(BaseModel):
     name: str
     type: str
     comment: str = ""
+    remark: str = ""
     is_available: int = 0
     business_type: str = ""
     relation_config_id: Optional[int] = None
@@ -38,6 +41,7 @@ class ColumnMetadataUpdate(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
     comment: Optional[str] = None
+    remark: Optional[str] = None
     is_available: Optional[int] = None
     business_type: Optional[str] = None
     relation_config_id: Optional[int] = None

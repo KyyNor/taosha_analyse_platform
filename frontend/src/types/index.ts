@@ -116,6 +116,7 @@ export interface TableMetadata {
   id: number
   name: string
   comment: string
+  remark: string
   isAvailable: boolean
   dataSource?: string
   updateMethod?: string
@@ -129,6 +130,7 @@ export interface ColumnMetadata {
   name: string
   type: string
   comment: string
+  remark: string
   isAvailable: boolean
   businessType: string
   relationId?: string

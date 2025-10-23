@@ -51,7 +51,7 @@ async def add_table_metadata(request: TableMetadataRequest, db: Session = Depend
     """添加表元数据"""
     try:
         metadata_service = get_metadata_service(db)
-        created_table = metadata_service.add_table(request.name, request.comment, request.is_available)
+        created_table = metadata_service.add_table(request.name, request.comment, request.remark, request.is_available)
         if created_table:
             # 返回创建的表对象
             return {
@@ -71,7 +71,7 @@ async def update_table_metadata(table_id: int, request: TableMetadataUpdate, db:
     """更新表元数据"""
     try:
         metadata_service = get_metadata_service(db)
-        success = metadata_service.update_table_by_id(table_id, request.comment, request.is_available)
+        success = metadata_service.update_table_by_id(table_id, request.comment, request.remark, request.is_available)
         if success:
             # 重新加载元数据
             return {"success": True, "message": f"表元数据已更新: ID {table_id}"}
@@ -109,6 +109,7 @@ async def add_column_metadata(request: ColumnMetadataRequest, db: Session = Depe
             request.name,
             request.type,
             request.comment,
+            request.remark,
             request.is_available,
             request.business_type,
             request.relation_config_id
@@ -137,6 +138,7 @@ async def update_column_metadata(column_id: int, request: ColumnMetadataUpdate, 
             request.name,
             request.type,
             request.comment,
+            request.remark,
             request.is_available,
             request.business_type,
             request.relation_config_id
