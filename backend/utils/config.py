@@ -114,6 +114,29 @@ class ConfigManager:
             langfuse_secret_key: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY") or self._config_data.get('tracing', {}).get('langfuse_secret_key')
             langfuse_host: Optional[str] = os.getenv("LANGFUSE_HOST") or self._config_data.get('tracing', {}).get('langfuse_host')
 
+            # 元数据同步配置
+            metadata_sync_enabled: bool = self._config_data.get('metadata_sync', {}).get('enabled', False)
+
+            # 源数据库配置
+            metadata_sync_source_db_host: str = self._config_data.get('metadata_sync', {}).get('source_db', {}).get('host', 'localhost')
+            metadata_sync_source_db_port: int = self._config_data.get('metadata_sync', {}).get('source_db', {}).get('port', 3306)
+            metadata_sync_source_db_database: str = self._config_data.get('metadata_sync', {}).get('source_db', {}).get('database', 'source_metadata')
+            metadata_sync_source_db_user: str = self._config_data.get('metadata_sync', {}).get('source_db', {}).get('user', 'root')
+            metadata_sync_source_db_password: str = self._config_data.get('metadata_sync', {}).get('source_db', {}).get('password', '')
+            metadata_sync_source_db_charset: str = self._config_data.get('metadata_sync', {}).get('source_db', {}).get('charset', 'utf8mb4')
+            metadata_sync_source_db_connection_timeout: int = self._config_data.get('metadata_sync', {}).get('source_db', {}).get('connection_timeout', 30)
+
+            # 同步SQL
+            metadata_sync_sql: str = self._config_data.get('metadata_sync', {}).get('sync_sql', '')
+
+            # 同步选项
+            metadata_sync_case_sensitive: bool = self._config_data.get('metadata_sync', {}).get('options', {}).get('case_sensitive', False)
+            metadata_sync_sync_on_startup: bool = self._config_data.get('metadata_sync', {}).get('options', {}).get('sync_on_startup', True)
+            metadata_sync_log_changes: bool = self._config_data.get('metadata_sync', {}).get('options', {}).get('log_changes', True)
+            metadata_sync_batch_size: int = self._config_data.get('metadata_sync', {}).get('options', {}).get('batch_size', 100)
+            metadata_sync_max_retries: int = self._config_data.get('metadata_sync', {}).get('options', {}).get('max_retries', 3)
+            metadata_sync_retry_delay: float = self._config_data.get('metadata_sync', {}).get('options', {}).get('retry_delay', 1.0)
+
             class Config:
                 env_prefix = self._config_data.get('env_prefix', 'TAOSHA_')
                 case_sensitive = False

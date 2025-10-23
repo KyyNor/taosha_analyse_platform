@@ -18,6 +18,7 @@ from services.nlquery_service.async_query_service import get_async_query_service
 from models.db_base import get_db_session
 from services.vector_store.vector_training_service import VectorTrainingService
 from services.tracking_service.observability_service import initialize_observability
+from services.metadata_service.metadata_sync_service import MetadataSyncService
 
 async def _train_vector_database_async(vector_training_service: VectorTrainingService):
     """异步执行向量数据库训练
@@ -52,7 +53,7 @@ async def lifespan(app: FastAPI):
         async_query_service = get_async_query_service()
         logger.info("异步查询服务初始化完成")
 
-        # 初始化向量数据库训练服务
+        # 初始化向量数据库训练服务和元数据同步
         with get_db_session() as db:
             vector_training_service = VectorTrainingService(db)
 
@@ -61,6 +62,14 @@ async def lifespan(app: FastAPI):
             asyncio.create_task(_train_vector_database_async(vector_training_service))
 
             logger.info("向量数据库训练服务初始化完成，开始后台训练...")
+
+            # 执行元数据同步
+            metadata_sync_service = MetadataSyncService(db)
+            sync_result = metadata_sync_service.sync_metadata()
+            if sync_result["success"]:
+                logger.info("元数据同步成功")
+            else:
+                logger.error(f"元数据同步失败: {sync_result.get('error', 'Unknown error')}")
 
         # 初始化可观测性服务（外部追踪）
         initialize_observability()
