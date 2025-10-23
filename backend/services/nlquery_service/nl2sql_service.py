@@ -26,18 +26,18 @@ from utils.progress_decorator import track_node_progress
 from sqlalchemy.orm import Session
 
 
-# 全局NL2SQLServiceV2实例缓存
+# 全局NL2SQLService实例缓存
 _nl2sql_service_instance = None
 
 
 def get_nl2sql_service(db_session: Optional[Session] = None) -> 'NL2SQLService':
-    """获取NL2SQLServiceV2实例（单例模式）
+    """获取NL2SQLService实例（单例模式）
 
     Args:
         db_session: 数据库会话（可选，用于Training Service）
 
     Returns:
-        NL2SQLServiceV2实例
+        NL2SQLService实例
     """
     global _nl2sql_service_instance
     if _nl2sql_service_instance is None:
@@ -77,7 +77,7 @@ class NL2SQLService:
         # 构建工作流
         self.workflow = self._build_workflow()
 
-        logger.info("NL2SQLServiceV2 初始化完成（新的模块化架构）")
+        logger.info("NL2SQLService 初始化完成")
 
     def _build_workflow(self) -> StateGraph:
         """构建LangGraph工作流（与原nl2sql_service.py逻辑一致）"""

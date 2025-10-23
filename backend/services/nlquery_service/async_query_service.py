@@ -23,7 +23,7 @@ class AsyncQueryService:
         # 使用新的模块化架构
         db_session = SessionLocal()
         self.nl2sql_service = get_nl2sql_service(db_session=db_session)
-        logger.info("AsyncQueryService 使用 NL2SQLServiceV2（新的模块化架构）")
+        logger.info("AsyncQueryService 使用 NL2SQLService")
 
     async def submit_query(self, user_input: str, operator: str = "api_user",
                           flow_type: str = "fast", max_retries: int = 5, tracker: OperationTracker = None) -> str:

@@ -43,7 +43,9 @@ def initialize_observability():
             # 启动本地服务器（内嵌在 Python 进程中）
             import os
             os.environ["PHOENIX_WORKING_DIR"] = settings.phoenix_work_dir
-            session = px.launch_app(host='0.0.0.0', use_temp_dir=False)
+            os.environ["PHOENIX_HOST"] = '0.0.0.0'
+            os.environ["PHOENIX_PORT"] = settings.phoenix_port
+            session = px.launch_app(use_temp_dir=False)
             # 自动追踪 LangChain/LangGraph
             from phoenix.otel import register
             from openinference.instrumentation.langchain import LangChainInstrumentor

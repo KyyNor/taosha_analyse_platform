@@ -109,6 +109,7 @@ class ConfigManager:
             # 跟踪配置
             tracing_type: Optional[str] = self._config_data.get('tracing', {}).get('tracing_type')
             phoenix_work_dir: Optional[str] = self._config_data.get('tracing', {}).get('phoenix_work_dir')
+            phoenix_port: Optional[str] = self._config_data.get('tracing', {}).get('phoenix_port')
             langfuse_public_key: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY") or self._config_data.get('tracing', {}).get('langfuse_public_key')
             langfuse_secret_key: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY") or self._config_data.get('tracing', {}).get('langfuse_secret_key')
             langfuse_host: Optional[str] = os.getenv("LANGFUSE_HOST") or self._config_data.get('tracing', {}).get('langfuse_host')
