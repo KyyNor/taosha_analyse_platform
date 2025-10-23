@@ -40,7 +40,8 @@
       "Bash(cd:*)",
       "Bash(dir:*)",
       "Bash(findstr:*)",
-      "Bash(uv:*)"
+      "Bash(uv:*)",
+      "Bash(xargs:*)"
     ],
     "deny": [],
     "ask": [],

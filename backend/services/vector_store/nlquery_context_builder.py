@@ -42,7 +42,7 @@ class NLQueryContextBuilder:
 
     # ========== 方法1：纯向量检索 ==========
 
-    def retrieve_by_semantic_search(self, user_input: str, top_k: int = 10) -> str:
+    def retrieve_by_semantic_search(self, user_input: str, top_k: int = 10, allowed_vector_ids: List[str] = None) -> str:
         """纯向量检索 - 根据语义相似度检索
 
         使用场景：一般性的自然语言查询，直接根据用户输入的语义相似度检索
@@ -50,15 +50,20 @@ class NLQueryContextBuilder:
         Args:
             user_input: 用户的自然语言输入
             top_k: 返回结果数量
+            allowed_vector_ids: 限制检索的vector_id列表（基于表选择的精准过滤）
 
         Returns:
             格式化的提示词上下文（包含表、字段、术语等信息）
         """
-        logger.info(f"执行纯向量检索: {user_input[:50]}...")
+        logger.info(f"执行纯向量检索: {user_input[:50]}... (过滤IDs数: {len(allowed_vector_ids) if allowed_vector_ids else 0})")
 
         try:
-            # 1. 执行向量搜索
-            search_results = self.vector_store.search(user_input, top_k=top_k)
+            # 1. 执行向量搜索（支持 allowed_vector_ids 过滤）
+            search_results = self.vector_store.search(
+                user_input,
+                top_k=top_k,
+                allowed_ids=allowed_vector_ids  # 精准过滤：只在指定的 vector_id 范围内检索
+            )
 
             # 2. 分类组织结果
             table_docs = []
@@ -102,7 +107,8 @@ class NLQueryContextBuilder:
     def retrieve_by_relation_id(self,
                                relation_id: str,
                                user_input: str,
-                               top_k: int = 10) -> str:
+                               top_k: int = 10,
+                               allowed_vector_ids: List[str] = None) -> str:
         """关联ID优先检索 - 先按关联ID过滤，再向量检索
 
         使用场景：当用户提到特定的关联概念（如"客户编号"），
@@ -112,18 +118,23 @@ class NLQueryContextBuilder:
             relation_id: 关联ID（如"cust_id"）
             user_input: 用户输入
             top_k: 返回结果数量
+            allowed_vector_ids: 限制检索的vector_id列表（基于表选择的精准过滤）
 
         Returns:
             格式化的上下文（关联字段优先）
         """
-        logger.info(f"执行关联ID优先检索: relation_id={relation_id}, user_input={user_input[:50]}...")
+        logger.info(f"执行关联ID优先检索: relation_id={relation_id}, user_input={user_input[:50]}... (过滤IDs数: {len(allowed_vector_ids) if allowed_vector_ids else 0})")
 
         try:
             # 1. 获取该关联ID对应的所有字段信息
             relation_fields = self._get_fields_by_relation_id(relation_id)
 
-            # 2. 执行向量搜索
-            search_results = self.vector_store.search(user_input, top_k=top_k)
+            # 2. 执行向量搜索（支持 allowed_vector_ids 过滤）
+            search_results = self.vector_store.search(
+                user_input,
+                top_k=top_k,
+                allowed_ids=allowed_vector_ids  # 精准过滤
+            )
 
             # 3. 重排：关联字段优先
             prioritized_results = self._prioritize_by_relation(

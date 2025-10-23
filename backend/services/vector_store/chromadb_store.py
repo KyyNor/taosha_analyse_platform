@@ -102,8 +102,12 @@ class ChromaDBStore(VectorStore):
     def search(self,
                query: str,
                top_k: int = 5,
-               filters: Dict = None) -> List[Dict]:
-        """搜索相似文档"""
+               filters: Dict = None,
+               allowed_ids: List[str] = None) -> List[Dict]:
+        """搜索相似文档
+
+        支持基于 vector_id 的精准过滤，只在 allowed_ids 范围内返回结果
+        """
 
         if not query:
             raise ValueError("查询文本不能为空")
@@ -121,9 +125,11 @@ class ChromaDBStore(VectorStore):
                 where = filters
 
             # 执行查询（新API）
+            # 注意：如果提供 allowed_ids，ChromaDB 的 query 会在这些 IDs 范围内检索
             results = self.collection.query(
                 query_embeddings=[query_embedding],
                 n_results=top_k,
+                ids=allowed_ids if allowed_ids else None,  # 精准过滤：仅在指定IDs范围内查询
                 where=where,
                 include=["documents", "metadatas", "distances"]
             )

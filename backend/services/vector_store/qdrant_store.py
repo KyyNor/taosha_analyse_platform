@@ -128,8 +128,12 @@ class QdrantStore(VectorStore):
     def search(self,
                query: str,
                top_k: int = 5,
-               filters: Dict = None) -> List[Dict]:
-        """搜索相似文档"""
+               filters: Dict = None,
+               allowed_ids: List[str] = None) -> List[Dict]:
+        """搜索相似文档
+
+        支持基于 vector_id 的精准过滤，只在 allowed_ids 范围内返回结果
+        """
 
         if not query:
             raise ValueError("查询文本不能为空")
@@ -163,6 +167,10 @@ class QdrantStore(VectorStore):
                 content = payload.pop("content", "")
                 original_id = payload.pop("original_id", str(result.id))
 
+                # 如果指定了 allowed_ids，进行过滤
+                if allowed_ids and original_id not in allowed_ids:
+                    continue
+
                 output.append({
                     "id": original_id,
                     "content": content,
@@ -170,7 +178,7 @@ class QdrantStore(VectorStore):
                     "metadata": payload
                 })
 
-            logger.debug(f"搜索查询: {query[:50]}... 返回 {len(output)} 结果")
+            logger.debug(f"搜索查询: {query[:50]}... 返回 {len(output)} 结果（过滤后）")
             return output
 
         except Exception as e:

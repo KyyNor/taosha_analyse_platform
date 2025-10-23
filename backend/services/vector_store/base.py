@@ -36,7 +36,8 @@ class VectorStore(ABC):
     def search(self,
                query: str,
                top_k: int = 5,
-               filters: Dict = None) -> List[Dict]:
+               filters: Dict = None,
+               allowed_ids: List[str] = None) -> List[Dict]:
         """搜索相似文档
 
         Args:
@@ -44,6 +45,8 @@ class VectorStore(ABC):
             top_k: 返回结果数量，默认5
             filters: 过滤条件，键值对形式
                    例如: {"type": "table", "is_available": 0}
+            allowed_ids: 限制搜索的文档ID列表，仅返回这些ID的文档
+                        用于基于表选择的精准过滤
 
         Returns:
             搜索结果列表，每个结果包含：
