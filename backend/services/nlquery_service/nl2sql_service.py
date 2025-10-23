@@ -668,8 +668,11 @@ class NL2SQLService:
             if isinstance(result, dict):
                 result = TaskState(**result)
 
-            # 更新追踪器
+            # 更新追踪器 - 同步调用，不需要 await
             error_msg = getattr(result, 'error_message', None)
+            execution_result = getattr(result, 'execution_result', None)
+            sql_query = getattr(result, 'sql_query', '')
+
             if error_msg:
                 tracker.update_task_progress(
                     task_id=task_id,
@@ -684,6 +687,8 @@ class NL2SQLService:
                     task_id=task_id,
                     progress=100,
                     step_name="查询完成",
+                    execution_result=execution_result,
+                    sql_query=sql_query,
                     final_status="success",
                     write_step_log=False
                 )

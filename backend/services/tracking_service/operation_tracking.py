@@ -134,7 +134,6 @@ class OperationTracker:
         }
         self.cache.set_task_state(task_id, state_dict)
         logger.info(f"{task_id} 更新任务进度，更新缓存结束")
-        logger.info(state)
 
         # 写入数据库
         await self._write_to_db(state, write_step_log)

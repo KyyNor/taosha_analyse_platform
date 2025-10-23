@@ -119,14 +119,14 @@ def track_node_progress(node_name: str):
                         # BaseNodeLog是dataclass，使用__dict__转换为字典
                         cached_state['logs'].append(current_step_log.__dict__)
 
-                        # 更新状态
+                        # 更新状态 - 不覆盖 status，让上层决定
+                        # status 将由 tracker.update_task_progress() 最终决定
                         cached_state.update({
                             'progress': new_progress,
                             'current_step': f"{node_name} 流程结束",
                             'current_step_name': f"{node_name} 流程结束",
                             'current_step_log': current_step_log.__dict__,
                             'error_message': current_step_log.error if not current_step_log.success else None,
-                            'status': 'success' if new_progress == 100 else 'running',
                             'execution_result': state.execution_result or cached_state.get('execution_result'),
                             'sql_query': state.sql_query or cached_state.get('sql_query')
                         })
