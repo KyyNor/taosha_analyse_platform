@@ -375,18 +375,35 @@ class NLQueryLLMService(BaseLLMService):
     # ========== 内部工具方法 ==========
 
     def _render_template_from_db(self, template_name: str, params: Dict[str, Any],
-                                 default_template: str) -> str:
-        """从数据库渲染模板，使用LangChain的PromptTemplate
+                                 default_template: str, depth: int = 0,
+                                 max_depth: int = 10, visited_templates: Optional[set] = None) -> str:
+        """从数据库渲染模板，支持嵌套模板，使用LangChain的PromptTemplate
 
         Args:
             template_name: 模板名称
             params: 模板参数字典
             default_template: 默认模板字符串
+            depth: 当前递归深度（用于检测深度限制）
+            max_depth: 最大递归深度（默认10）
+            visited_templates: 已访问的模板集合（用于循环检测）
 
         Returns:
             渲染后的提示词字符串
         """
+        # 初始化visited_templates
+        if visited_templates is None:
+            visited_templates = set()
+
         try:
+            # 深度检查
+            if depth > max_depth:
+                raise RuntimeError(f"模板嵌套深度超过限制 ({max_depth})")
+
+            # 循环检查
+            if template_name in visited_templates:
+                raise RuntimeError(f"检测到循环模板引用: {template_name}")
+            visited_templates.add(template_name)
+
             # 尝试从数据库获取模板
             template_content = None
             if self.template_service:
@@ -400,15 +417,49 @@ class NLQueryLLMService(BaseLLMService):
                 template_content = default_template
                 logger.warning(f"数据库中未找到模板 '{template_name}'，使用默认模板")
 
-            # 使用LangChain的PromptTemplate进行渲染
+            # 使用LangChain的PromptTemplate进行初始渲染
             prompt_template = PromptTemplate.from_template(template_content)
             rendered_prompt = prompt_template.format(**params)
 
-            logger.info(f"模板渲染成功: {template_name}，参数数量: {len(params)}")
+            # 处理嵌套模板引用 @[template_name]
+            import re
+            nested_pattern = r'@\[([^\]]+)\]'
+
+            while True:
+                # 查找嵌套模板引用
+                matches = re.finditer(nested_pattern, rendered_prompt)
+                match_found = False
+
+                for match in matches:
+                    match_found = True
+                    nested_template_name = match.group(1)
+                    placeholder = match.group(0)
+
+                    try:
+                        # 递归渲染嵌套模板
+                        logger.info(f"处理嵌套模板引用: {nested_template_name} (深度: {depth + 1})")
+                        nested_content = self._render_template_from_db(
+                            nested_template_name,
+                            params,  # 参数透传
+                            "",  # 嵌套模板使用空字符串作为默认值
+                            depth=depth + 1,
+                            max_depth=max_depth,
+                            visited_templates=visited_templates.copy()  # 复制集合以支持多个分支
+                        )
+                        rendered_prompt = rendered_prompt.replace(placeholder, nested_content)
+                    except Exception as e:
+                        logger.warning(f"嵌套模板 '{nested_template_name}' 渲染失败: {e}，使用空字符串替换")
+                        rendered_prompt = rendered_prompt.replace(placeholder, "")
+
+                # 如果没有找到更多的嵌套引用，退出循环
+                if not match_found:
+                    break
+
+            logger.info(f"模板渲染成功: {template_name}，递归深度: {depth}，参数数量: {len(params)}")
             return rendered_prompt
 
         except Exception as e:
-            logger.error(f"模板渲染失败: {template_name}, 错误: {e}")
+            logger.error(f"模板渲染失败: {template_name}, 深度: {depth}, 错误: {e}")
             raise
 
     def _parse_sql_response(self, response_text) -> Dict[str, Any]:

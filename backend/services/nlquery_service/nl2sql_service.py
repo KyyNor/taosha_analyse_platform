@@ -5,6 +5,7 @@
 
 import json
 import traceback
+import re
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -79,35 +80,46 @@ class NL2SQLService:
 
         logger.info("NL2SQLService 初始化完成")
 
+    @staticmethod
+    def _is_sql_safe(sql_query: str) -> tuple[bool, str]:
+        """检查SQL是否安全 - 防止危险操作
+
+        Args:
+            sql_query: SQL查询语句
+
+        Returns:
+            (is_safe: bool, reason: str) - 是否安全和原因说明
+        """
+        if not sql_query or not isinstance(sql_query, str):
+            return True, ""
+
+        # 移除SQL注释
+        # 移除 /* */ 风格注释
+        sql_cleaned = re.sub(r'/\*[\s\S]*?\*/', '', sql_query)
+        # 移除 -- 风格注释
+        sql_cleaned = re.sub(r'--[^\n]*', '', sql_cleaned)
+
+        # 转换为大写进行比较
+        sql_upper = sql_cleaned.upper()
+
+        # 定义危险操作关键词
+        dangerous_patterns = [
+            r'\bINSERT\b',
+            r'\bUPDATE\b',
+            r'\bDELETE\b',
+            r'\bDROP\b',
+            r'\bCREATE\b'
+        ]
+
+        for pattern in dangerous_patterns:
+            if re.search(pattern, sql_upper):
+                operation = pattern.strip(r'\b')
+                return False, f"SQL包含危险操作: {operation}. 只允许执行SELECT查询。"
+
+        return True, ""
+
     def _build_workflow(self) -> StateGraph:
         """构建LangGraph工作流（与原nl2sql_service.py逻辑一致）"""
-
-        @track_node_progress("知识库检查")
-        def check_training_needed(state: TaskState) -> TaskState:
-            """检查是否需要重新训练模型"""
-            try:
-                logger.info("跳过训练检查步骤（简化版本）")
-
-                state.current_step_log = BaseNodeLog(
-                    step="知识库检查",
-                    input_data="knowledge base check",
-                    prompt="",
-                    model_output="knowledge base ready",
-                    success=True
-                )
-                return state
-
-            except Exception as e:
-                logger.error(f"知识库检查失败: {e}")
-                state.current_step_log = BaseNodeLog(
-                    step="知识库检查",
-                    input_data="",
-                    prompt="",
-                    model_output="",
-                    success=False,
-                    error=str(e)
-                )
-                return state
 
         @track_node_progress("构建查询上下文")
         def build_context(state: TaskState) -> TaskState:
@@ -259,6 +271,65 @@ class NL2SQLService:
                 )
                 return state
 
+        @track_node_progress("SQL安全校验")
+        def validate_sql_safety(state: TaskState) -> TaskState:
+            """验证SQL的安全性 - 检查是否包含危险操作
+
+            失败时设置error_message，让should_retry函数决定是否重试
+            """
+            try:
+                sql_query = getattr(state, 'sql_query', '')
+                if not sql_query:
+                    state.error_message = "没有生成SQL"
+                    state.current_step_log = BaseNodeLog(
+                        step="SQL安全校验",
+                        input_data="",
+                        prompt="",
+                        model_output="",
+                        success=False,
+                        error="没有生成SQL"
+                    )
+                    return state
+
+                # 检查SQL安全性
+                is_safe, reason = self._is_sql_safe(sql_query)
+
+                if is_safe:
+                    state.error_message = None  # 清除之前的错误
+                    state.current_step_log = BaseNodeLog(
+                        step="SQL安全校验",
+                        input_data=sql_query,
+                        prompt="",
+                        model_output="SQL安全检查通过",
+                        success=True
+                    )
+                else:
+                    state.error_message = reason  # 设置错误，让should_retry处理
+                    state.current_step_log = BaseNodeLog(
+                        step="SQL安全校验",
+                        input_data=sql_query,
+                        prompt="",
+                        model_output="",
+                        success=False,
+                        error=reason
+                    )
+                    logger.warning(f"SQL安全检查失败: {reason}")
+
+                return state
+
+            except Exception as e:
+                logger.error(f"SQL安全校验失败: {e}")
+                state.error_message = str(e)
+                state.current_step_log = BaseNodeLog(
+                    step="SQL安全校验",
+                    input_data="",
+                    prompt="",
+                    model_output="",
+                    success=False,
+                    error=str(e)
+                )
+                return state
+
         @track_node_progress("执行SQL")
         def execute_sql(state: TaskState) -> TaskState:
             """执行生成的SQL"""
@@ -383,7 +454,33 @@ class NL2SQLService:
                 # 深度流程：已经有SQL，验证通过后执行
                 return "execute_sql"
 
-        def should_retry(state: TaskState) -> str:
+        def route_after_sql_safety_check(state: TaskState) -> str:
+            """SQL安全校验后的路由逻辑"""
+            error_message = getattr(state, 'error_message', None)
+
+            if error_message:
+                # 安全检查失败 -> 判断是否可以重试
+                retry_count = getattr(state, 'retry_count', 0)
+                max_retries = getattr(state, 'max_retries', 5)
+
+                if retry_count < max_retries:
+                    # 可以重试 -> 增加计数后回到generate_sql
+                    state.retry_count = retry_count + 1
+                    return "generate_sql"
+                else:
+                    # 超过重试次数 -> 结束
+                    return "end_with_error"
+
+            # 安全检查通过 -> 继续下一步
+            flow_type = getattr(state, 'flow_type', 'fast')
+            if flow_type == 'fast':
+                # fast流程：直接执行
+                return "execute_sql"
+            else:
+                # thorough流程：验证清晰度
+                return "validate_input"
+
+        def execute_sql_should_retry(state: TaskState) -> str:
             """重试逻辑：如果失败且可以重试，回到generate_sql"""
             error_message = getattr(state, 'error_message', None)
             retry_count = getattr(state, 'retry_count', 0)
@@ -401,16 +498,15 @@ class NL2SQLService:
         workflow = StateGraph(TaskState)
 
         # 添加节点
-        workflow.add_node("check_training", check_training_needed)
         workflow.add_node("build_context", build_context)
         workflow.add_node("validate_input", validate_input)
         workflow.add_node("generate_sql", generate_sql)
+        workflow.add_node("validate_sql_safety", validate_sql_safety)
         workflow.add_node("execute_sql", execute_sql)
         workflow.add_node("explain_result", explain_result)
 
         # 添加边
-        workflow.set_entry_point("check_training")
-        workflow.add_edge("check_training", "build_context")
+        workflow.set_entry_point("build_context")
 
         # build_context -> validate_input
         workflow.add_conditional_edges(
@@ -433,20 +529,25 @@ class NL2SQLService:
             }
         )
 
-        # generate_sql的路由
+        # generate_sql的路由 - 两种流程都先进行SQL安全校验
+        workflow.add_edge("generate_sql", "validate_sql_safety")
+
+        # validate_sql_safety的路由 - SQL安全校验后的分支
         workflow.add_conditional_edges(
-            "generate_sql",
-            route_by_flow_type,
+            "validate_sql_safety",
+            route_after_sql_safety_check,
             {
-                "fast": "execute_sql",
-                "thorough": "validate_input"
+                "generate_sql": "generate_sql",  # 重试：回到SQL生成
+                "end_with_error": END,  # 超过重试次数：结束
+                "execute_sql": "execute_sql",  # fast流程：执行SQL
+                "validate_input": "validate_input"  # thorough流程：验证清晰度
             }
         )
 
         # execute_sql的路由（重试逻辑）
         workflow.add_conditional_edges(
             "execute_sql",
-            should_retry,
+            execute_sql_should_retry,
             {
                 "retry": "generate_sql",
                 "success": "explain_result",

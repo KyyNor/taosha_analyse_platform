@@ -55,6 +55,12 @@
         <template #cell-fields="{ value }">
           <div class="flex flex-wrap gap-1">
             <div
+              v-if="!value || value.length === 0"
+              class="text-xs text-base-content/50 italic"
+            >
+              (无参数)
+            </div>
+            <div
               v-for="field in value"
               :key="field"
               class="badge badge-outline badge-sm"
@@ -186,7 +192,7 @@
               </label>
               <div class="space-y-2">
                 <div
-                  v-for="(field, index) in templateForm.fields"
+                  v-for="(_, index) in templateForm.fields"
                   :key="index"
                   class="flex gap-2 items-center"
                 >
@@ -214,7 +220,7 @@
                 </button>
               </div>
               <label class="label">
-                <span class="label-text-alt">字段名将在模板中作为占位符使用，格式：{{字段名}}</span>
+                <span class="label-text-alt">字段名将在模板中作为占位符使用，格式：{字段名}。不添加字段表示模板没有参数（固定内容）。</span>
               </label>
             </div>
 
@@ -247,12 +253,14 @@
               </label>
               <textarea
                 v-model="templateForm.template"
-                placeholder="请输入提示词模板，使用 {{字段名}} 作为占位符"
+                placeholder="请输入提示词模板，使用 {字段名} 作为占位符"
                 class="textarea textarea-bordered h-48"
                 required
               />
               <label class="label">
-                <span class="label-text-alt">使用 {{字段名}} 格式来标记占位符，例如：你好 {{user_input}}，这是我的回复。</span>
+                <span class="label-text-alt">
+                  <span class="text-warning">★ 占位符格式：使用 </span><span class="font-mono bg-warning/20 px-1 py-0.5">{字段名}</span><span class="text-warning"> 标记占位符，使用 </span><span class="font-mono bg-warning/20 px-1 py-0.5">@[模板名称]</span><span class="text-warning"> 标记模板替换</span>
+                </span>
               </label>
             </div>
 
@@ -355,11 +363,17 @@
           <!-- Fields -->
           <div>
             <h4 class="font-semibold mb-3">
-              字段列表
+              字段列表 <span v-if="!previewTemplate?.fields?.filter((f: string) => f.trim()).length" class="text-xs text-base-content/50">(无参数模板)</span>
             </h4>
             <div class="flex flex-wrap gap-2">
               <div
-                v-for="field in previewTemplate?.fields"
+                v-if="!previewTemplate?.fields?.filter((f: string) => f.trim()).length"
+                class="text-base-content/60 text-sm italic"
+              >
+                此模板没有参数，包含固定内容
+              </div>
+              <div
+                v-for="field in previewTemplate?.fields?.filter((f: string) => f.trim())"
                 :key="field"
                 class="badge badge-outline"
               >
@@ -371,10 +385,10 @@
           <!-- Template -->
           <div>
             <h4 class="font-semibold mb-3">
-              模板内容
+              模板内容 <span class="text-xs text-base-content/50">(占位符已高亮)</span>
             </h4>
             <div class="bg-base-200 p-4 rounded-lg">
-              <pre class="whitespace-pre-wrap text-sm">{{ previewTemplate?.template }}</pre>
+              <pre class="whitespace-pre-wrap text-sm" v-html="highlightedTemplate" />
             </div>
           </div>
 
@@ -384,13 +398,16 @@
               示例使用
             </h4>
             <div class="bg-base-200 p-4 rounded-lg">
-              <div class="text-sm space-y-2">
+              <div v-if="!previewTemplate?.fields?.filter((f: string) => f.trim()).length" class="text-base-content/60 text-sm italic">
+                此模板无参数，直接使用即可（无需输入参数值）
+              </div>
+              <div v-else class="text-sm space-y-2">
                 <div
-                  v-for="field in previewTemplate?.fields"
+                  v-for="field in previewTemplate?.fields?.filter((f: string) => f.trim())"
                   :key="field"
                   class="flex items-center gap-2"
                 >
-                  <span class="font-mono">{{ field }}:</span>
+                  <span class="font-mono">{field}:</span>
                   <input
                     v-model="exampleValues[field]"
                     type="text"
@@ -483,8 +500,8 @@ const templateColumns = [
 // Computed
 const isFormValid = computed(() => {
   return templateForm.name.trim() !== '' &&
-         templateForm.fields.filter(f => f.trim()).length > 0 &&
          templateForm.template.trim() !== ''
+  // 字段可以为空（表示模板没有参数）
 })
 
 const validationErrors = computed(() => {
@@ -492,16 +509,23 @@ const validationErrors = computed(() => {
 
   if (!templateForm.template) return errors
 
-  // Extract placeholders from template
-  const placeholderRegex = /\{\{([^}]+)\}\}/g
-  const placeholders = new Set()
+  // Extract placeholders from template - 严格匹配 {字段名} 格式（不匹配 {{}} 格式）
+  // 使用负向后视来避免匹配 {{}} 或 JSON 格式 {"key": "value"}
+  const placeholderRegex = /(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})/g
+  const placeholders = new Set<string>()
   let match
   while ((match = placeholderRegex.exec(templateForm.template)) !== null) {
     placeholders.add(match[1])
   }
 
-  // Get defined fields
+  // Get defined fields（过滤空白字段）
   const definedFields = new Set(templateForm.fields.filter(f => f.trim()))
+
+  // 如果字段列表为空，则不检查字段匹配（模板可以没有参数）
+  if (definedFields.size === 0 && placeholders.size === 0) {
+    // 无参数模板，完全有效
+    return errors
+  }
 
   // Check for missing fields
   const missingFields = Array.from(placeholders).filter(p => !definedFields.has(p))
@@ -516,6 +540,19 @@ const validationErrors = computed(() => {
   }
 
   return errors
+})
+
+// Highlight placeholders in template
+const highlightedTemplate = computed(() => {
+  if (!previewTemplate.value) return ''
+
+  let template = previewTemplate.value.template
+
+  // 匹配 {字段名} 格式并高亮（避免匹配 {{}} 或 JSON）
+  return template.replace(
+    /(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})/g,
+    '<span class="bg-warning/50 font-semibold px-1 rounded">{$1}</span>'
+  )
 })
 
 // Watch for template changes to update example
@@ -575,9 +612,12 @@ const saveTemplate = async () => {
   try {
     saving.value = true
 
+    // 过滤掉空白字段（允许完全没有字段）
+    const fieldsArray = templateForm.fields.filter(f => f.trim())
+
     const data = {
       name: templateForm.name,
-      fields: templateForm.fields.filter(f => f.trim()),
+      fields: fieldsArray,  // 可以为空数组
       template: templateForm.template
     }
 
@@ -602,11 +642,13 @@ const saveTemplate = async () => {
 const openPreviewModal = (template: any) => {
   previewTemplate.value = template
 
-  // Initialize example values
+  // Initialize example values（过滤空字段）
   exampleValues.value = {}
-  template.fields.forEach((field: string) => {
-    exampleValues.value[field] = `示例${field}`
-  })
+  template.fields
+    .filter((field: string) => field.trim())
+    .forEach((field: string) => {
+      exampleValues.value[field] = `示例${field}`
+    })
 
   updateExample()
   showPreviewModal.value = true
@@ -624,10 +666,11 @@ const updateExample = () => {
 
   let result = previewTemplate.value.template
 
-  // Replace placeholders with example values
+  // Replace placeholders with example values - 严格匹配 {字段名} 格式
   Object.entries(exampleValues.value).forEach(([field, value]) => {
-    const regex = new RegExp(`\\{\\{${field}\\}\\}`, 'g')
-    result = result.replace(regex, value || `{{${field}}}`)
+    // 使用负向后视/前视避免匹配 {{}} 或其他格式
+    const regex = new RegExp(`(?<!\\{)\\{${field}\\}(?!\\})`, 'g')
+    result = result.replace(regex, value || `{${field}}`)
   })
 
   exampleResult.value = result
