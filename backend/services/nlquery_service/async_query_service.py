@@ -144,47 +144,14 @@ class AsyncQueryService:
             loop = asyncio.get_event_loop()
 
             # 将同步的NL2SQL处理移到线程池执行，避免阻塞事件循环
-            result = await loop.run_in_executor(
+            await loop.run_in_executor(
                 None,  # 使用默认线程池
                 self.nl2sql_service.process_query,
                 user_input, task_id, max_retries, operator, flow_type, tracker, filtered_vector_ids
             )
 
-            # 根据执行结果直接判断成功/失败（不依赖缓存中的status值）
-            error_msg = result.get('error') if result else None
-
-            if error_msg:
-                # 查询失败
-                await tracker.update_task_progress(
-                    task_id=task_id,
-                    progress=100,
-                    step_name="查询失败",
-                    error=error_msg,
-                    final_status="failed",
-                    write_step_log=False  # 不写入步骤日志，避免重复记录
-                )
-            else:
-                # 查询成功
-                await tracker.update_task_progress(
-                    task_id=task_id,
-                    progress=100,
-                    step_name="查询完成",
-                    execution_result=result.get('execution_result') if result else None,
-                    sql_query=result.get('sql_query') if result else None,
-                    final_status="success",
-                    write_step_log=False  # 不写入步骤日志，避免重复记录
-                )
-
         except Exception as e:
             logger.error(f"执行查询任务失败: {e}")
-            await tracker.update_task_progress(
-                task_id=task_id,
-                progress=100,
-                step_name="查询异常",
-                error=str(e),
-                final_status="failed",
-                write_step_log=False  # 不写入步骤日志，避免重复记录
-            )
             raise
 
     

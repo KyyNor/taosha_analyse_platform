@@ -669,28 +669,22 @@ class NL2SQLService:
                 result = TaskState(**result)
 
             # 更新追踪器 - 同步调用，不需要 await
+            # 注意：不在这里写入步骤日志，由上层 async_query_service 在任务结束时一次性写入
             error_msg = getattr(result, 'error_message', None)
-            execution_result = getattr(result, 'execution_result', None)
-            sql_query = getattr(result, 'sql_query', '')
 
             if error_msg:
                 tracker.update_task_progress(
                     task_id=task_id,
                     progress=100,
                     step_name="查询失败",
-                    error=error_msg,
                     final_status="failed",
-                    write_step_log=False
                 )
             else:
                 tracker.update_task_progress(
                     task_id=task_id,
                     progress=100,
                     step_name="查询完成",
-                    execution_result=execution_result,
-                    sql_query=sql_query,
                     final_status="success",
-                    write_step_log=False
                 )
 
             return {

@@ -104,10 +104,6 @@ def track_node_progress(node_name: str):
                         # 失败：进度+5，最多到90
                         new_progress = min(progress + 5, 90)
 
-                # 特殊处理最后完成节点
-                if node_name == '执行查询语句' and current_step_log.success == True:
-                    new_progress = 100
-
                 # 更新缓存系统
                 if task_id:
                     # 直接更新缓存，避免依赖tracker

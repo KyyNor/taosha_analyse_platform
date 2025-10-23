@@ -33,23 +33,8 @@ class OperationTracker:
         # 使用全局缓存实例
         self.cache = tracker_cache
 
-    async def get_task_status(self, task_id: str) -> Optional[TaskState]:
-        """获取任务状态（只从内存缓存获取）"""
-        # 只查缓存，不查数据库
-        cached_state_dict = self.cache.get_task_state(task_id)
-        if cached_state_dict:
-            # 将字典转换为TaskState对象
-            return TaskState(**cached_state_dict)
-
-        # 缓存未命中，直接返回None
-        logger.debug(f"任务 {task_id} 在缓存中未找到")
-        return None
-
-    async def update_task_progress(self, task_id: str, progress: int,
-                                 step_name: str, current_log: BaseNodeLog = None,
-                                 error: str = None, final_status: str = None,
-                                 execution_result: list[dict] = None, sql_query: str = None,
-                                 write_step_log: bool = True):
+    def update_task_progress(self, task_id: str, progress: int,
+                                 step_name: str, final_status: str = None):
         """更新任务进度（更新缓存，异步写数据库）"""
         # 获取或创建任务状态
         cached_state_dict = self.cache.get_task_state(task_id)
@@ -71,29 +56,11 @@ class OperationTracker:
         state.progress = progress
         state.current_step = step_name
         state.current_step_name = step_name
-        state.progress = progress
         logger.info(f"更新任务 {task_id} 进度: {progress}%, 步骤: {step_name}")
 
-        if current_log:
-            state.logs.append(current_log)
-            # 设置当前步骤日志为最新的日志
-            state.current_step_log = current_log
-
-        if error:
-            state.error_message = error
-            state.status = "failed"
+        state.status = final_status
+        if state.progress == 100:
             state.completed_at = datetime.now()
-        elif final_status:
-            state.status = final_status
-            if final_status in ("success", "completed"):
-                state.completed_at = datetime.now()
-                state.progress = 100
-
-        if execution_result:
-            state.execution_result = execution_result
-
-        if sql_query:
-            state.sql_query = sql_query
 
         # 更新缓存 - 将TaskState对象转换为字典
         logger.info(f"{task_id} 更新任务进度，更新缓存")
@@ -136,7 +103,7 @@ class OperationTracker:
         logger.info(f"{task_id} 更新任务进度，更新缓存结束")
 
         # 写入数据库
-        await self._write_to_db(state, write_step_log)
+        self._write_to_db(state)
 
     def create_task(self, state: TaskState):
         """创建新任务"""
@@ -181,23 +148,9 @@ class OperationTracker:
         self.cache.set_task_state(state.task_id, state_dict)
         logger.info(f"{state.task_id} 新建任务，更新缓存结束")
 
-        # 注意：create_task是同步方法，但_write_session_to_db是异步的
-        # 这里需要处理异步调用，可以使用asyncio.create_task或直接调用同步版本
-        import asyncio
-        try:
-            # 尝试获取事件循环，如果没有则创建新的
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # 如果循环正在运行，创建任务
-                asyncio.create_task(self._write_session_to_db(state.task_id, state.operator))
-            else:
-                # 如果循环没有运行，直接运行
-                loop.run_until_complete(self._write_session_to_db(state.task_id, state.operator))
-        except RuntimeError:
-            # 没有事件循环，创建新的
-            asyncio.run(self._write_session_to_db(state.task_id, state.operator))
+        self._write_session_to_db(state.task_id, state.operator)
 
-    async def _write_to_db(self, state: TaskState, write_step_log: bool = True):
+    def _write_to_db(self, state: TaskState, write_step_log: bool = True):
         """异步写入任务状态到数据库"""
         try:
             logger.debug(f"开始写入任务 {state.task_id} 到数据库，状态: {state.status}")
@@ -236,35 +189,24 @@ class OperationTracker:
 
             logger.debug(f"已更新会话状态，任务ID: {state.task_id}")
 
-            # 写入步骤日志（只写入最新的一条，且根据 write_step_log 参数决定）
-            if state.logs and write_step_log:
-                logger.debug(f"任务 {state.task_id} 有 {len(state.logs)} 条日志，准备写入步骤日志")
-                latest_log = state.current_step_log
+            # 写入步骤日志
+            if state.logs:
+                logger.info(f"任务 {state.task_id} 有 {len(state.logs)} 条日志，准备写入步骤日志")
+                for _log in state.logs:
+                    step_data = {
+                        'task_id': state.task_id,
+                        'step': _log.step,
+                        'input_data': _log.input_data,
+                        'prompt': _log.prompt if hasattr(_log, 'prompt') else "",
+                        'model_output': _log.model_output,
+                        'success': int(_log.success),
+                        'error': _log.error,
+                        'start_time': _log.start_time,
+                        'end_time': _log.end_time,
+                        'created_at': datetime.now()
+                    }
 
-                if latest_log is None:
-                    logger.warning(f"任务 {state.task_id} current_step_log 返回 None，使用最后一条日志")
-                    if state.logs:
-                        latest_log = state.logs[-1]
-                    else:
-                        logger.error(f"任务 {state.task_id} 日志列表为空，无法写入步骤日志")
-                        return
-
-                logger.debug(f"准备写入步骤日志: step={latest_log.step}, success={latest_log.success}")
-
-                step_data = {
-                    'task_id': state.task_id,
-                    'step': latest_log.step,
-                    'input_data': latest_log.input_data,
-                    'prompt': latest_log.prompt if hasattr(latest_log, 'prompt') else "",
-                    'model_output': latest_log.model_output,
-                    'success': int(latest_log.success),
-                    'error': latest_log.error,
-                    'start_time': latest_log.start_time,
-                    'end_time': latest_log.end_time,
-                    'created_at': datetime.now()
-                }
-
-                self.step_repo.create(**step_data)
+                    self.step_repo.create(**step_data)
                 logger.debug(f"已写入步骤日志，任务ID: {state.task_id}")
             else:
                 if not write_step_log:
@@ -279,7 +221,7 @@ class OperationTracker:
             import traceback
             logger.error(f"详细错误信息: {traceback.format_exc()}")
 
-    async def _write_session_to_db(self, task_id: str, operator: str = None):
+    def _write_session_to_db(self, task_id: str, operator: str = None):
         """异步写入会话记录到数据库"""
         try:
             session_data = {
