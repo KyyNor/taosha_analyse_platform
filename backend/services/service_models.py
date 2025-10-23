@@ -48,6 +48,7 @@ class TaskState(BaseModel):
     clear_check_details: Dict[str, Any] = None
     is_clear: bool = False
     sql_explanation: str = ""
+    filtered_vector_ids: Optional[List[str]] = None  # 用于精准过滤检索结果的向量库ID列表
 
     # 错误和重试
     error_message: Optional[str] = None
@@ -100,6 +101,7 @@ class TaskStateHelper:
             clear_check_details={},
             is_clear=False,
             sql_explanation='',
+            filtered_vector_ids=None,
             error_message=None,
             retry_count=0,
             max_retries=max_retries,

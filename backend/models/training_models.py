@@ -44,4 +44,25 @@ class TrainingRecord(Base):
     def __repr__(self):
         return f"<TrainingRecord(type='{self.resource_type}', id={self.resource_id}, status='{self.training_status}')>"
 
-  
+    def update_modified_time(self, modified_time: datetime) -> None:
+        """更新资源最后修改时间"""
+        self.last_modified_at = modified_time
+        self.updated_at = datetime.now()
+
+    def mark_as_training(self) -> None:
+        """标记为正在训练"""
+        self.training_status = "training"
+        self.updated_at = datetime.now()
+
+    def update_training_time(self, vector_id: str = None) -> None:
+        """更新训练完成时间"""
+        self.training_status = "completed"
+        self.last_trained_at = datetime.now()
+        self.updated_at = datetime.now()
+        if vector_id:
+            self.vector_id = vector_id
+
+    def mark_as_failed(self) -> None:
+        """标记为训练失败"""
+        self.training_status = "failed"
+        self.updated_at = datetime.now()
