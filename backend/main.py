@@ -3,11 +3,13 @@
 """
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from utils.logger import logger
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from utils.config import settings
 from api.nlquey_routes import router as nlquey_router
@@ -114,19 +116,33 @@ app.add_middleware(
 
 api_prefix = "/api/taosha/v1"
 
-# 注册路由
+# 注册 API 路由
 app.include_router(nlquey_router, prefix=api_prefix)
 app.include_router(metadata_router, prefix=api_prefix)
 app.include_router(user_router, prefix=api_prefix)
 
-@app.get("/", tags=["根路径"])
-async def root():
-    """根路径"""
+# API 根路径信息
+@app.get(f"{api_prefix}/", tags=["API信息"])
+async def api_root():
+    """API 根路径信息"""
     return {
         "message": f"欢迎使用{settings.app_name}",
         "version": settings.app_version,
         "api_prefix": api_prefix
     }
+
+# 配置前端静态文件（SPA 支持）
+frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount(
+        "/",
+        StaticFiles(directory=str(frontend_dist), html=True),
+        name="frontend"
+    )
+    logger.info(f"前端静态文件已挂载: {frontend_dist}")
+else:
+    logger.warning(f"前端静态文件目录不存在: {frontend_dist}")
+    logger.warning("请先运行: cd frontend && npm run build")
 
 # 全局异常处理
 @app.exception_handler(Exception)
