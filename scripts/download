@@ -1,0 +1,3 @@
+uv pip compile pyproject.toml   --python-version 3.11   --python-platform x86_64-manylinux2014   --output-file requirements-lock.txt
+
+python -m pip download -r .\requirements-lock.txt -d wheels/   --only-binary=:all:   --platform manylinux2014_x86_64   --python-version 310   --implementation cp
