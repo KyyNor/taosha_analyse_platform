@@ -83,8 +83,7 @@ class QueryService {
   // Get query history detail
   async getQueryHistoryDetail(taskId: string): Promise<{
       success: boolean
-      data: QueryTask
-      logs: BaseNodeLog[]
+      data: BaseNodeLog[]
     }> {
     const url = replaceUrlParams(API_ENDPOINTS.NL_QUERY.HISTORY_DETAIL, { taskId })
     return await api.get(buildApiUrl(url))

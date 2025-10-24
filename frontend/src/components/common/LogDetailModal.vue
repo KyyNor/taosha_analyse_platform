@@ -331,7 +331,7 @@ const loadDetails = async () => {
     if (response.success) {
       detailData.value = {
         task: taskInfo || null,
-        logs: (response as any).logs || []
+        logs: response.data || []
       }
       console.log('Log details loaded:', detailData.value)
 
