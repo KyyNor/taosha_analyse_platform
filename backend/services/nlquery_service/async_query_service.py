@@ -172,6 +172,8 @@ class AsyncQueryService:
                 task_id, clarification_input, tracker
             )
             
+            logger.info(f"工作流恢复任务已提交: task_id={task_id}")
+            
         except Exception as e:
             logger.error(f"恢复工作流失败: {e}")
             raise

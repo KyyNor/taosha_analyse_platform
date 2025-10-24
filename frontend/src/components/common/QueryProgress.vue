@@ -114,19 +114,19 @@
           v-if="clarificationOptions.length > 0"
           class="space-y-2"
         >
-          <label class="text-sm font-medium">请选择最符合您需求的选项：</label>
+          <label class="text-sm font-medium">请选择最符合您需求的选项（可多选）：</label>
           <div class="space-y-2">
             <label
               v-for="(option, index) in clarificationOptions"
               :key="index"
               class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-base-200 transition-colors"
-              :class="{ 'border-primary bg-primary/5': selectedClarification === option }"
+              :class="{ 'border-primary bg-primary/5': selectedClarification.includes(option) }"
             >
               <input
                 v-model="selectedClarification"
-                type="radio"
+                type="checkbox"
                 :value="option"
-                class="radio radio-primary"
+                class="checkbox checkbox-primary"
               >
               <span class="flex-1">{{ option }}</span>
             </label>
@@ -150,7 +150,7 @@
         <div class="flex justify-end gap-2 mt-4">
           <button
             class="btn btn-primary"
-            :disabled="!selectedClarification && !customClarification.trim()"
+            :disabled="selectedClarification.length === 0 && !customClarification.trim()"
             @click="handleSubmitClarification"
           >
             <span
@@ -364,20 +364,14 @@ const clarificationOptions = computed(() => queryStore.clarificationOptions)
 const clarificationQuestion = computed(() => queryStore.clarificationQuestion)
 const selectedClarification = computed({
   get: () => queryStore.selectedClarification,
-  set: (value: string) => {
+  set: (value: string[]) => {
     queryStore.selectedClarification = value
-    if (value) {
-      queryStore.customClarification = ''
-    }
   }
 })
 const customClarification = computed({
   get: () => queryStore.customClarification,
   set: (value: string) => {
     queryStore.customClarification = value
-    if (value) {
-      queryStore.selectedClarification = ''
-    }
   }
 })
 const isLoading = computed(() => queryStore.isLoading)
@@ -610,7 +604,7 @@ const handleSubmitClarification = async () => {
   if (!currentTask.value) return
   try {
     await queryStore.submitClarification(currentTask.value.task_id)
-    // 成功后继续监听进度
+    // 成功后继续监听进度，澄清选项卡会通过状态变化自动收起
   } catch (error) {
     console.error('提交澄清失败:', error)
     // 可以在这里显示错误提示

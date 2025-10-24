@@ -222,7 +222,7 @@ async def submit_clarification(
     add_input: ClarificationInput,
     db: Session = Depends(get_db)
 ):
-    """提交用户澄清输入"""
+    """提交用户澄清输入 - 异步处理"""
     try:
         logger.info(f"接收澄清输入: task_id={task_id}, clarification={add_input.clarification_input[:50]}...")
                        
@@ -231,14 +231,23 @@ async def submit_clarification(
         async_query_service = get_async_query_service()
         tracker = OperationTracker(db)
         
-        # 恢复工作流执行
-        await async_query_service.resume_workflow(task_id, add_input.clarification_input, tracker)
+        # 创建后台异步任务恢复工作流执行
+        task = asyncio.create_task(
+            async_query_service.resume_workflow(task_id, add_input.clarification_input, tracker)
+        )
         
-        logger.info(f"工作流已恢复: task_id={task_id}")
+        # 添加到后台任务集合
+        _background_tasks = getattr(async_query_service, '_background_tasks', set())
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
         
+        logger.info(f"澄清任务已提交到后台执行: task_id={task_id}")
+        
+        # 立即返回响应
         return {
             "success": True,
-            "message": "澄清已接收，正在继续处理...",
+            "message": "澄清已接收，正在后台继续处理...",
+            "task_id": task_id
         }
         
     except Exception as e:

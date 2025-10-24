@@ -144,24 +144,10 @@ class QueryService {
   async submitClarification(
     taskId: string,
     clarification: string,
-    clarificationOptions?: string[],
-    optionIndex?: number
+    clarificationOptions?: string[]
   ): Promise<ClarificationResponse> {
-    // 构建澄清输入内容
-    let clarificationInput = ''
-
-    // 如果有选项索引，获取选项文字
-    if (optionIndex !== undefined && optionIndex >= 0 && clarificationOptions && clarificationOptions[optionIndex]) {
-      clarificationInput = clarificationOptions[optionIndex]
-    }
-
-    // 如果用户也输入了文字，将选项文字和用户输入拼接起来
-    if (clarification.trim()) {
-      clarificationInput = clarificationInput ? `${clarificationInput}：${clarification}` : clarification
-    }
-
     const request = {
-      clarification_input: clarificationInput
+      clarification_input: clarification
     }
 
     const url = replaceUrlParams(API_ENDPOINTS.NL_QUERY.CLARIFICATION, { taskId })

@@ -76,7 +76,7 @@ export const useQueryStore = defineStore('query', () => {
     (currentTask.value as any)?.clear_check_details.clarification_question || ''
   )
 
-  const selectedClarification = ref('')
+  const selectedClarification = ref<string[]>([])
   const customClarification = ref('')
 
   // Actions
@@ -348,29 +348,33 @@ export const useQueryStore = defineStore('query', () => {
   // 提交澄清
   const submitClarification = async (taskId: string) => {
     try {
-      const clarification = selectedClarification.value || customClarification.value
-      if (!clarification.trim()) {
+      // 构建澄清内容：选中的选项 + 自定义输入
+      const selectedOptions = selectedClarification.value.length > 0 ? selectedClarification.value.join('；') : ''
+      const customInput = customClarification.value.trim()
+      
+      let clarification = ''
+      if (selectedOptions && customInput) {
+        clarification = `${selectedOptions}：${customInput}`
+      } else if (selectedOptions) {
+        clarification = selectedOptions
+      } else if (customInput) {
+        clarification = customInput
+      }
+      
+      if (!clarification) {
         throw new Error('请选择或输入澄清内容')
       }
-
+      
       isLoading.value = true
-
-      // 获取选项索引
-      let optionIndex: number | undefined
-      if (selectedClarification.value) {
-        optionIndex = clarificationOptions.value.findIndex((option: string) => option === selectedClarification.value)
-      }
 
       const response: ClarificationResponse = await queryService.submitClarification(
         taskId,
-        clarification,
-        clarificationOptions.value,
-        optionIndex
+        clarification
       )
 
       if (response.success) {
         // 清空澄清相关状态
-        selectedClarification.value = ''
+        selectedClarification.value = []
         customClarification.value = ''
 
         // 继续监听任务进度
