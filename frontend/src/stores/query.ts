@@ -351,7 +351,7 @@ export const useQueryStore = defineStore('query', () => {
       // 构建澄清内容：选中的选项 + 自定义输入
       const selectedOption = selectedClarification.value.trim()
       const customInput = customClarification.value.trim()
-      
+
       let clarification = ''
       if (selectedOption && customInput) {
         clarification = `用户选择：${selectedOption}，用户补充输入：${customInput}`
@@ -360,11 +360,11 @@ export const useQueryStore = defineStore('query', () => {
       } else if (customInput) {
         clarification = `用户补充输入：${customInput}`
       }
-      
+
       if (!clarification) {
         throw new Error('请选择或输入澄清内容')
       }
-      
+
       isLoading.value = true
 
       const response: ClarificationResponse = await queryService.submitClarification(

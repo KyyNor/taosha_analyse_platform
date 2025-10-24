@@ -1,9 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    './index.html',
-    './src/**/*.{vue,js,ts,jsx,tsx}'
-  ],
+  content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
@@ -37,12 +34,12 @@ export default {
         mono: ['JetBrains Mono', 'Consolas', 'Monaco', 'monospace']
       },
       borderRadius: {
-        'lg': '0.5rem',
-        'xl': '0.75rem',
+        lg: '0.5rem',
+        xl: '0.75rem',
         '2xl': '1rem'
       },
       boxShadow: {
-        'card': '0 2px 12px rgba(0, 0, 0, 0.1)'
+        card: '0 2px 12px rgba(0, 0, 0, 0.1)'
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-in-out',
@@ -66,32 +63,60 @@ export default {
     themes: [
       {
         light: {
-          primary: '#3b82f6',
-          secondary: '#a855f7',
-          accent: '#10b981',
-          neutral: '#1f2937',
-          'base-100': '#ffffff',
-          'base-200': '#f3f4f6',
-          'base-300': '#e5e7eb',
-          info: '#3b82f6',
-          success: '#10b981',
-          warning: '#f59e0b',
-          error: '#ef4444'
+          'color-scheme': 'light',
+
+          // 品牌核心色（饱和度略降）
+          primary: 'oklch(0.55 0.18 250)', // 原 0.22→0.18
+          secondary: 'oklch(0.60 0.20 295)', // 原 0.25→0.20
+          accent: 'oklch(0.65 0.16 155)', // 原 0.20→0.16
+
+          // 灰阶
+          neutral: 'oklch(0.21 0.01 250)',
+          'base-100': 'oklch(0.99 0 0)',
+          'base-200': 'oklch(0.95 0 0)',
+          'base-300': 'oklch(0.92 0 0)',
+
+          // 状态色——整体饱和度下调
+          info: 'oklch(0.65 0.12 240)', // 原 0.17→0.12
+          success: 'oklch(0.65 0.12 155)', // 原 0.20→0.12
+          warning: 'oklch(0.75 0.10  85)', // 原 0.15→0.10
+          error: 'oklch(0.65 0.15  25)', // 原 0.25→0.15
+
+          // 文字对比色
+          'primary-content': 'oklch(0.99 0 0)',
+          'secondary-content': 'oklch(0.99 0 0)',
+          'accent-content': 'oklch(0.99 0 0)',
+          'neutral-content': 'oklch(0.95 0 0)',
+          'base-content': 'oklch(0.21 0.01 250)'
         }
       },
       {
         dark: {
-          primary: '#60a5fa',
-          secondary: '#c084fc',
-          accent: '#34d399',
-          neutral: '#f3f4f6',
-          'base-100': '#1f2937',
-          'base-200': '#111827',
-          'base-300': '#030712',
-          info: '#60a5fa',
-          success: '#34d399',
-          warning: '#fbbf24',
-          error: '#f87171'
+          'color-scheme': 'dark',
+
+          // 暗色品牌色（亮度稍提，饱和度降低）
+          primary: 'oklch(0.72 0.18 250)', // 亮度↑ 色度↓
+          secondary: 'oklch(0.72 0.20 295)',
+          accent: 'oklch(0.76 0.16 155)',
+
+          // 灰阶整体提亮
+          neutral: 'oklch(0.92 0 0)',
+          'base-100': 'oklch(0.18 0.01 250)', // 原 0.15→0.18
+          'base-200': 'oklch(0.14 0.01 250)', // 原 0.11→0.14
+          'base-300': 'oklch(0.10 0.01 250)', // 原 0.07→0.10
+
+          // 暗色状态色（饱和度同步降低）
+          info: 'oklch(0.72 0.12 240)',
+          success: 'oklch(0.72 0.12 155)',
+          warning: 'oklch(0.80 0.10  85)',
+          error: 'oklch(0.72 0.15  25)',
+
+          // 暗色对比色
+          'primary-content': 'oklch(0.15 0 0)',
+          'secondary-content': 'oklch(0.15 0 0)',
+          'accent-content': 'oklch(0.15 0 0)',
+          'neutral-content': 'oklch(0.15 0 0)',
+          'base-content': 'oklch(0.92 0 0)'
         }
       }
     ],
@@ -100,7 +125,7 @@ export default {
     styled: true,
     utils: true,
     prefix: '',
-    logs: true,
+    logs: false,
     themeRoot: ':root'
   }
 }
