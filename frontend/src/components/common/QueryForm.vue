@@ -1,5 +1,5 @@
 <template>
-  <div class="card bg-base-100 shadow-lg">
+  <div class="card bg-base-100 shadow-lg border border-base-300">
     <div class="card-body">
       <form
         class="grid grid-cols-1 lg:grid-cols-10 gap-4"

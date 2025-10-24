@@ -33,7 +33,7 @@
     </div>
 
     <!-- Relations Table -->
-    <div class="overflow-x-auto bg-base-100 rounded-lg shadow-md">
+    <div class="overflow-x-auto bg-base-100 rounded-lg shadow-md  border border-base-300">
       <DataTable
         :data="relations"
         :columns="relationColumns"

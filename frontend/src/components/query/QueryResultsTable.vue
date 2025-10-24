@@ -88,7 +88,7 @@
       <div
         v-if="viewMode === 'table'"
         ref="tableContainer"
-        class="overflow-x-auto"
+        class="overflow-x-auto border border-base-300"
       >
         <!-- Fixed Header (only visible when table is scrolled) -->
         <div
@@ -331,7 +331,7 @@
           </div>
         </div>
 
-        <div class="bg-base-200 rounded-lg p-4 min-h-96 flex items-center justify-center">
+        <div class="bg-base-200 rounded-lg p-4 min-h-96 flex items-center justify-center border border-base-300">
           <div
             v-if="!chartConfig.xAxis || !chartConfig.yAxis"
             class="text-center text-base-content/60"

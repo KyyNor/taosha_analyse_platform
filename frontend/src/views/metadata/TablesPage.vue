@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-6">
     <!-- Filters -->
-    <div class="flex flex-wrap gap-4 items-center bg-base-200 p-4 rounded-lg shadow-md">
+    <div class="flex flex-wrap gap-4 items-center bg-base-200 p-4 rounded-lg shadow-md border border-base-300">
       <div class="form-control flex-1 min-w-64">
         <label class="label">
           <span class="label-text">搜索</span>
@@ -38,7 +38,7 @@
     </div>
 
     <!-- Tables Table -->
-    <div class="overflow-x-auto bg-base-100 rounded-lg shadow-md">
+    <div class="overflow-x-auto bg-base-100 rounded-lg shadow-md border border-base-300">
       <DataTable
         :data="tables"
         :columns="tableColumns"

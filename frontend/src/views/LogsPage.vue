@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-6">
     <!-- Filters -->
-    <div class="flex flex-wrap gap-4 items-center bg-base-200 p-4 rounded-lg shadow-md">
+    <div class="flex flex-wrap gap-4 items-center bg-base-200 p-4 rounded-lg shadow-md border border-base-300">
       <div class="form-control">
         <label class="label">
           <span class="label-text">状态</span>
@@ -57,7 +57,7 @@
     </div>
 
     <!-- Logs Table -->
-    <div class="bg-base-100 rounded-lg shadow-md">
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-300">
       <DataTable
         :data="logs"
         :columns="logColumns"

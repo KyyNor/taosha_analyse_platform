@@ -17,7 +17,7 @@
         <!-- Query Results -->
         <div
           v-if="hasResults"
-          class="card bg-base-100 shadow-lg"
+          class="card bg-base-100 shadow-lg border border-base-300"
         >
           <div class="card-body">
             <div class="flex items-center justify-between mb-4">
@@ -90,7 +90,7 @@
         <!-- Welcome State (when no results and no active query) -->
         <div
           v-if="!hasResults && !hasActiveQuery"
-          class="card bg-base-100 shadow-lg"
+          class="card bg-base-100 shadow-lg border border-base-300"
         >
           <div class="card-body text-center py-12">
             <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
