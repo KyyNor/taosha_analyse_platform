@@ -114,19 +114,19 @@
           v-if="clarificationOptions.length > 0"
           class="space-y-2"
         >
-          <label class="text-sm font-medium">请选择最符合您需求的选项（可多选）：</label>
+          <label class="text-sm font-medium">请选择最符合您需求的选项：</label>
           <div class="space-y-2">
             <label
               v-for="(option, index) in clarificationOptions"
               :key="index"
               class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-base-200 transition-colors"
-              :class="{ 'border-primary bg-primary/5': selectedClarification.includes(option) }"
+              :class="{ 'border-primary bg-primary/5': selectedClarification === option }"
             >
               <input
                 v-model="selectedClarification"
-                type="checkbox"
+                type="radio"
                 :value="option"
-                class="checkbox checkbox-primary"
+                class="radio radio-primary"
               >
               <span class="flex-1">{{ option }}</span>
             </label>
@@ -150,7 +150,7 @@
         <div class="flex justify-end gap-2 mt-4">
           <button
             class="btn btn-primary"
-            :disabled="selectedClarification.length === 0 && !customClarification.trim()"
+            :disabled="!selectedClarification && !customClarification.trim()"
             @click="handleSubmitClarification"
           >
             <span
@@ -364,7 +364,7 @@ const clarificationOptions = computed(() => queryStore.clarificationOptions)
 const clarificationQuestion = computed(() => queryStore.clarificationQuestion)
 const selectedClarification = computed({
   get: () => queryStore.selectedClarification,
-  set: (value: string[]) => {
+  set: (value: string) => {
     queryStore.selectedClarification = value
   }
 })

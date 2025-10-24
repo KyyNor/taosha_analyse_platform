@@ -57,23 +57,6 @@ class AsyncQueryService:
 
         return task_id
 
-    # async def get_task_result(self, task_id: str) -> Optional[Dict[str, Any]]:
-    #     """获取任务结果"""
-    #     try:
-    #         # 从追踪系统获取任务状态
-    #         task_state = await tracker.get_task_status(task_id)
-    #         if not task_state:
-    #             return None
-    #
-    #         # 使用统一的 to_dict 方法转换为API格式
-    #         result = task_state.model_dump()
-    #
-    #         return result
-    #
-    #     except Exception as e:
-    #         logger.error(f"获取任务结果失败: {e}")
-    #         return None
-
     def _get_filtered_vector_ids(self, table_ids: list = None, theme_id: int = None) -> list:
         """获取过滤的向量库ID列表
 
@@ -162,23 +145,19 @@ class AsyncQueryService:
             clarification_input: 用户澄清输入
         """
         try:
-            # 获取事件循环
-            loop = asyncio.get_event_loop()
-            
-            # 将同步的NL2SQL处理移到线程池执行
-            await loop.run_in_executor(
-                None,  # 使用默认线程池
-                self._resume_workflow_with_interrupt,
-                task_id, clarification_input, tracker
+            task = asyncio.create_task(
+            # 启动后台任务，传递tracker实例
+                self._resume_workflow_with_interrupt(task_id, clarification_input, tracker)
             )
-            
+            _background_tasks.add(task)
+
             logger.info(f"工作流恢复任务已提交: task_id={task_id}")
             
         except Exception as e:
             logger.error(f"恢复工作流失败: {e}")
             raise
 
-    def _resume_workflow_with_interrupt(self, task_id: str, clarification_input: str, tracker: OperationTracker = None):
+    async def _resume_workflow_with_interrupt(self, task_id: str, clarification_input: str, tracker: OperationTracker = None):
         """使用interrupt机制恢复工作流执行"""
         self.nl2sql_service.resume_workflow_with_interrupt(task_id=task_id, clarification_input=clarification_input, tracker=tracker)
 
