@@ -686,10 +686,18 @@ class NL2SQLService:
             from services.tracking_service.tracker_cache import tracker_cache
             cached_state = tracker_cache.get_task_state(task_id)
             resume_state = TaskState(**cached_state)
-            
-            resume_state.user_input = f"{resume_state.user_input} 用户补充澄清：{clarification_input}"
+
+            new_input = f"{resume_state.user_input} 用户补充澄清：{clarification_input}"
+
+            resume_state.user_input = new_input
             resume_state.waiting_for_user_input = False
             resume_state.status = "running"
+
+            cached_state.update({
+                'user_input': new_input,
+                'waiting_for_user_input': False,
+                'status': "running"
+            })
             
             config = {"configurable": {"thread_id": task_id}}
                 

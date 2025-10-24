@@ -354,11 +354,11 @@ export const useQueryStore = defineStore('query', () => {
       
       let clarification = ''
       if (selectedOption && customInput) {
-        clarification = `${selectedOption}：${customInput}`
+        clarification = `用户选择：${selectedOption}，用户补充输入：${customInput}`
       } else if (selectedOption) {
-        clarification = selectedOption
+        clarification = `用户选择：${selectedOption}`
       } else if (customInput) {
-        clarification = customInput
+        clarification = `用户补充输入：${customInput}`
       }
       
       if (!clarification) {

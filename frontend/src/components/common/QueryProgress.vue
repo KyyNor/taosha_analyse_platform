@@ -51,7 +51,7 @@
       <!-- Error Message -->
       <div
         v-if="error"
-        class="alert alert-error mt-4"
+        class="alert alert-error mt-4 shadow-md"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -79,7 +79,7 @@
       <!-- 澄清选项界面 -->
       <div
         v-if="isWaitingForClarification"
-        class="alert alert-warning mt-4"
+        class="alert alert-warning mt-4 shadow-md"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -107,7 +107,7 @@
       <!-- 澄清选项 -->
       <div
         v-if="isWaitingForClarification"
-        class="mt-4 space-y-3"
+        class="mt-4 space-y-3 shadow-inner rounded-lg bg-base-200 p-4"
       >
         <!-- 预设选项 -->
         <div

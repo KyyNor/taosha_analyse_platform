@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import PromptTemplate
 from .base_llm_service import BaseLLMService
 from utils.logger import logger
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 class NLQueryLLMService(BaseLLMService):
@@ -65,7 +65,7 @@ class NLQueryLLMService(BaseLLMService):
             prompt_params = {
                 "user_input": user_input,
                 "context": context,
-                "current_date": datetime.now().strftime("%Y-%m-%d")
+                "current_date": (datetime.now() + timedelta(days=-1)).strftime("%Y-%m-%d")
             }
 
             # 尝试从模板生成，如果失败则使用默认提示词
@@ -146,7 +146,7 @@ class NLQueryLLMService(BaseLLMService):
                 "context": context,
                 "previous_sql": previous_sql,
                 "error_message": error_message,
-                "current_date": datetime.now().strftime("%Y-%m-%d")
+                "current_date": (datetime.now() + timedelta(days=-1)).strftime("%Y-%m-%d")
             }
 
             default_template = self._get_default_sql_retry_template()
@@ -228,7 +228,7 @@ class NLQueryLLMService(BaseLLMService):
                 "context": context,
                 "sql_query": sql_query,
                 "flow_type": flow_type,
-                "current_date": datetime.now().strftime("%Y-%m-%d")
+                "current_date": (datetime.now() + timedelta(days=-1)).strftime("%Y-%m-%d")
             }
 
             default_template = self._get_default_validation_template()
@@ -312,7 +312,7 @@ class NLQueryLLMService(BaseLLMService):
                 "context": context,
                 "sql_query": sql_query,
                 "flow_type": flow_type,
-                "current_date": datetime.now().strftime("%Y-%m-%d")
+                "current_date": (datetime.now() + timedelta(days=-1)).strftime("%Y-%m-%d")
             }
             
             # 使用新的模板，要求生成澄清选项

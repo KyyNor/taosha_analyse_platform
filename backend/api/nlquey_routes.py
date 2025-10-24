@@ -83,8 +83,8 @@ async def ws_task_process(websocket: WebSocket):
                         current_task_id = None
                         retry_cnt = 0
 
-            # 等待5秒再推送
-            await asyncio.sleep(5)
+            # 等待1秒再推送
+            await asyncio.sleep(1)
 
     except WebSocketDisconnect:
         logger.info("WebSocket客户端断开连接")
