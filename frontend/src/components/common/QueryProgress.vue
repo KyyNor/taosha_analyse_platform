@@ -611,7 +611,7 @@ const handleSubmitClarification = async () => {
 
 .mockup-code pre {
   margin: 0;
-  font-family: 'Courier New', monospace;
+  font-family: 'Cascadia Code', 'Courier New', monospace;
   font-size: 0.875rem;
   line-height: 1.25;
   color: hsl(var(--bc));
@@ -619,7 +619,7 @@ const handleSubmitClarification = async () => {
 
 /* Custom styles for formatted content */
 .formatted-content {
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: 'Cascadia Code', 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.75rem;
   line-height: 1.4;
   background-color: hsl(var(--b2));

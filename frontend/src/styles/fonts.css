@@ -1,0 +1,57 @@
+/*
+ * 离线字体配置
+ * 使用本地 woff2 格式字体，无需 CDN 依赖
+ * 支持 Windows、Linux（麒麟、统信等）完美显示
+ */
+
+@layer base {
+  /* ========================================
+     思源黑体 SC（Source Han Sans CN）
+     现代、专业的中文字体
+     ======================================== */
+
+  @font-face {
+    font-family: 'Source Han Sans CN';
+    src: url('/fonts/SourceHanSansCN-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: 'Source Han Sans CN';
+    src: url('/fonts/SourceHanSansCN-Medium.woff2') format('woff2');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: 'Source Han Sans CN';
+    src: url('/fonts/SourceHanSansCN-Bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  /* ========================================
+     Cascadia Code - 等宽字体
+     代码编辑器、预格式化文本显示
+     ======================================== */
+
+  @font-face {
+    font-family: 'Cascadia Code';
+    src: url('/fonts/CascadiaCode-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: 'Cascadia Code';
+    src: url('/fonts/CascadiaCode-Bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+}

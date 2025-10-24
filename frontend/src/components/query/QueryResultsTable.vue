@@ -652,7 +652,7 @@ onUnmounted(() => {
 
 .mockup-code pre {
   margin: 0;
-  font-family: 'Courier New', monospace;
+  font-family: 'Cascadia Code', 'Courier New', monospace;
   font-size: 0.875rem;
   line-height: 1.25;
   color: hsl(var(--bc));

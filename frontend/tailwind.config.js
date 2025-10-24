@@ -30,8 +30,28 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Consolas', 'Monaco', 'monospace']
+        // 使用本地离线字体，支持 Windows 和国产 Linux 系统
+        // 主字体：思源黑体 CN（现代、专业的中文字体）
+        // 备用：系统字体
+        sans: [
+          '"Source Han Sans CN"',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          '"Helvetica Neue"',
+          'Arial',
+          'sans-serif'
+        ],
+        // 等宽字体：Cascadia Code（代码显示）
+        mono: [
+          '"Cascadia Code"',
+          '"SF Mono"',
+          'Monaco',
+          'Consolas',
+          '"Courier New"',
+          'monospace'
+        ]
       },
       borderRadius: {
         lg: '0.5rem',
