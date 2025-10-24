@@ -356,3 +356,112 @@ class OperationTracker:
                 'success': False,
                 'error': str(e)
             }
+
+    def get_task_state(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """获取任务状态快照（用于恢复工作流）
+        
+        Args:
+            task_id: 任务ID
+            
+        Returns:
+            任务状态字典或None
+        """
+        try:
+            # 先从缓存获取
+            cached_state = self.cache.get_task_state(task_id)
+            if cached_state:
+                logger.debug(f"从缓存获取任务状态: task_id={task_id}")
+                return cached_state
+            
+            # 从数据库获取任务
+            session = self.session_repo.get_by_task_id(task_id)
+            if not session:
+                logger.warning(f"任务不存在，无法获取状态: task_id={task_id}")
+                return None
+            
+            # 将任务对象转换为字典
+            task_state = {
+                'task_id': session.task_id,
+                'user_input': session.user_input or '',
+                'operator': session.operator,
+                'flow_type': session.flow_type or 'fast',
+                'status': session.status,
+                'current_step': session.current_step or '',
+                'progress': session.progress or 0,
+                'created_at': session.created_at.isoformat() if session.created_at else None,
+                'completed_at': session.completed_at.isoformat() if session.completed_at else None,
+                'task_context': session.task_context or '',
+                'sql_query': session.sql_query or '',
+                'error_message': session.error_message,
+                'retry_count': session.retry_count or 0,
+                'max_retries': session.max_retries or 5,
+                'waiting_for_user_input': False,
+                'clarification_options': [],
+                'user_clarification': '',
+                'interaction_type': '',
+                'return_to_node': '',
+                'clarification_question': '',
+                'messages': []  # 提供空的messages列表
+            }
+            
+            # 处理执行结果
+            if session.execution_result:
+                try:
+                    task_state['execution_result'] = json.loads(session.execution_result) if isinstance(session.execution_result, str) else session.execution_result
+                except:
+                    task_state['execution_result'] = []
+            
+            # 处理清晰度检查详情
+            if session.clear_check_details:
+                try:
+                    task_state['clear_check_details'] = json.loads(session.clear_check_details) if isinstance(session.clear_check_details, str) else session.clear_check_details
+                except:
+                    task_state['clear_check_details'] = {}
+            
+            # 设置其他默认值
+            task_state['is_clear'] = bool(session.is_clear or 0)
+            task_state['logs'] = []
+            task_state['current_step_log'] = None
+            task_state['current_step_name'] = ''
+            
+            logger.debug(f"获取任务状态快照: task_id={task_id}")
+            return task_state
+            
+        except Exception as e:
+            logger.error(f"获取任务状态失败: {e}")
+            return None
+
+    def update_task_state(self, task_id: str, task_state: Dict[str, Any]) -> bool:
+        """更新任务状态（用于WebSocket推送）
+        
+        Args:
+            task_id: 任务ID
+            task_state: 任务状态字典
+            
+        Returns:
+            是否更新成功
+        """
+        try:
+            # 更新缓存
+            self.cache.set_task_state(task_id, task_state)
+            
+            # 更新数据库
+            session = self.session_repo.get_by_task_id(task_id)
+            if session:
+                # 更新任务状态字段
+                for key, value in task_state.items():
+                    if hasattr(session, key):
+                        setattr(session, key, value)
+                
+                session.updated_at = datetime.now()
+                self.db.commit()
+                
+                logger.debug(f"任务状态已更新: task_id={task_id}")
+                return True
+            else:
+                logger.warning(f"任务不存在，无法更新状态: task_id={task_id}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"更新任务状态失败: {e}")
+            return False

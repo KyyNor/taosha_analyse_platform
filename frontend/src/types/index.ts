@@ -67,6 +67,9 @@ export interface QueryTask {
   logs?: BaseNodeLog[]
   current_step_log?: BaseNodeLog
   current_step_name: string
+
+  waiting_for_user_input?: boolean
+  return_to_node?: string
 }
 
 
@@ -318,4 +321,51 @@ export interface Notification {
   duration?: number
   closable?: boolean
   timestamp: string
+}
+
+
+export interface ClarificationResponse {
+  success: boolean
+  message: string
+  task_state?: any
+}
+
+// 查询响应类型
+export interface QuerySubmitResponse {
+  success: boolean
+  task_id: string
+  message: string
+}
+
+export interface QueryHistoryResponse {
+  success: boolean
+  data: QueryTask[]
+  pagination: {
+    page: number
+    pageSize: number
+    total: number
+    totalPages: number
+  }
+}
+
+// 收藏相关类型
+export interface FavoritesResponse {
+  items: Favorite[]
+  page: number
+  total: number
+}
+
+export interface AddFavoriteRequest {
+  taskId: string
+  title: string
+}
+
+export interface UpdateFavoriteRequest {
+  title: string
+}
+
+// 反馈相关类型
+export interface FeedbackRequest {
+  type: 'positive' | 'negative' | 'neutral'
+  content?: string
 }

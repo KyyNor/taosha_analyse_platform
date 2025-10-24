@@ -32,7 +32,8 @@ export const API_ENDPOINTS = {
     PROGRESS: '/nlquery/progress/:taskId',        // 获取查询进度
     HISTORY: '/nlquery/history',                  // 查询历史
     HISTORY_DETAIL: '/nlquery/history/:taskId',   // 查询详情
-    FEEDBACK: '/nlquery/feedback/:taskId'        // 提交反馈
+    FEEDBACK: '/nlquery/feedback/:taskId',       // 提交反馈
+    CLARIFICATION: '/nlquery/clarification/:taskId'  // 提交澄清输入
   },
 
   // === 元数据管理相关 ===

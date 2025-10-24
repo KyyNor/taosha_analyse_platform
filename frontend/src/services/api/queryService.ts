@@ -2,16 +2,15 @@ import { api, wsManager, type WebSocketManager } from './client'
 import { API_ENDPOINTS, buildApiUrl, replaceUrlParams } from '@/config/api'
 import type {
   QueryRequest,
+  QueryTask,
+  BaseNodeLog,
+  ClarificationResponse,
   QuerySubmitResponse,
-  QueryHistoryResponse,
-  Favorite,
   FavoritesResponse,
   AddFavoriteRequest,
   UpdateFavoriteRequest,
-  FeedbackRequest,
-  QueryTask,
-  BaseNodeLog
-} from '@types/index'
+  FeedbackRequest
+} from '@/types/index'
 
 class QueryService {
   private ws: WebSocketManager
@@ -139,6 +138,21 @@ class QueryService {
   async executeFavorite(favoriteId: number): Promise<QuerySubmitResponse> {
     const url = replaceUrlParams(API_ENDPOINTS.FAVORITES.EXECUTE, { id: favoriteId })
     return await api.post(buildApiUrl(url))
+  }
+
+  // 提交澄清输入
+  async submitClarification(taskId: string, clarification: string, optionIndex?: number): Promise<ClarificationResponse> {
+    // const request: ClarificationRequest = {
+      // clarification,
+      // option_index: optionIndex
+    // }
+
+    const request={
+      clarification_input: 'fsdfa'
+    }
+
+    const url = replaceUrlParams(API_ENDPOINTS.NL_QUERY.CLARIFICATION, { taskId })
+    return await api.post(buildApiUrl(url), request)
   }
 }
 

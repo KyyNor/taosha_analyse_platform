@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from fastapi.encoders import jsonable_encoder
 
-from api.endpoint_models import QueryRequest
+from api.endpoint_models import QueryRequest, ClarificationInput
 from models.db_base import get_db
 from services.service_models import TaskState, BaseNodeLog
 from services.nlquery_service.async_query_service import get_async_query_service
@@ -212,6 +212,40 @@ async def get_query_detail(task_id: str, db: Session = Depends(get_db)):
         return {
             "success": False,
             "data": None,
+            "error": error_message
+        }
+
+
+@router.post("/clarification/{task_id}")
+async def submit_clarification(
+    task_id: str,
+    add_input: ClarificationInput,
+    db: Session = Depends(get_db)
+):
+    """提交用户澄清输入"""
+    try:
+        logger.info(f"接收澄清输入: task_id={task_id}, clarification={add_input.clarification_input:50]}...")
+                       
+        # 获取异步查询服务
+        from services.nlquery_service.async_query_service import get_async_query_service
+        async_query_service = get_async_query_service()
+        tracker = OperationTracker(db)
+        
+        # 恢复工作流执行
+        await async_query_service.resume_workflow(task_id, add_input.clarification_input, tracker)
+        
+        logger.info(f"工作流已恢复: task_id={task_id}")
+        
+        return {
+            "success": True,
+            "message": "澄清已接收，正在继续处理...",
+        }
+        
+    except Exception as e:
+        error_message = f"提交澄清失败: {str(e)}"
+        logger.error(error_message, exc_info=True)
+        return {
+            "success": False,
             "error": error_message
         }
 

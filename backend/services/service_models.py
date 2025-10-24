@@ -33,7 +33,7 @@ class TaskState(BaseModel):
     messages: Optional[List[Union[HumanMessage, AIMessage]]] = None
 
     # 进度信息
-    status: str = "running"  # 'running', 'success', 'failed', 'completed'
+    status: str = "running"  # 'running', 'success', 'failed', 'completed', 'waiting_for_input'
     current_step: str = "初始化"
     progress: int = 0
     created_at: Optional[datetime] = None
@@ -59,6 +59,10 @@ class TaskState(BaseModel):
     logs: List[BaseNodeLog] = None
     current_step_log: Optional[BaseNodeLog] = None
     current_step_name: str = ""
+    
+    # 人机交互状态
+    waiting_for_user_input: bool = False  # 是否等待用户输入
+    return_to_node: str = ""  # 用户输入后要返回的节点
 
     def __post_init__(self):
         """初始化后处理"""

@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
 
 from services.vector_store import VectorStoreFactory, NLQueryContextBuilder
 from services.llm_service import NLQueryLLMService
@@ -20,7 +21,6 @@ from services.query_engine import get_query_engine
 from services.service_models import BaseNodeLog, TaskState, TaskStateHelper
 from services.tracking_service.observability_service import get_tracing_handler
 
-from utils.config import settings
 from utils.logger import logger
 from utils.progress_decorator import track_node_progress
 
@@ -161,7 +161,7 @@ class NL2SQLService:
 
         @track_node_progress("检查输入清晰度")
         def validate_input(state: TaskState) -> TaskState:
-            """验证输入是否清晰（fast流程）或在thorough流程中验证SQL"""
+            """验证输入是否清晰，如果不清晰则生成澄清选项"""
             try:
                 user_input = state.user_input
                 flow_type = getattr(state, 'flow_type', 'fast')
@@ -177,10 +177,10 @@ class NL2SQLService:
                     step_name = "处理输入"
                     input_for_validation = user_input
 
-                # 使用LLM验证（调用正确的方法名）
-                validation_result = self.llm_service.validate_input_clarity(
-                    user_input=user_input,
+                # 使用新的验证方法，支持生成澄清选项
+                validation_result = self.llm_service.validate_input_clarity_with_options(
                     input_messages=state.messages,
+                    user_input=user_input,
                     context=state.task_context,
                     sql_query=sql_query if sql_query else "",
                     flow_type=flow_type
@@ -190,13 +190,29 @@ class NL2SQLService:
                 state.clear_check_details = {
                     "details": validation_result.get("details", ""),
                     "suggestions": validation_result.get("suggestions", []),
-                    "confidence": validation_result.get("confidence", 0.0)
+                    "confidence": validation_result.get("confidence", 0.0),
+                    "clarification_options": validation_result.get("clarification_options", []),
+                    "clarification_question": validation_result.get("clarification_question", "")
                 }
+                
+                # 如果输入不清晰且有澄清选项，设置等待用户输入状态
+                if not state.is_clear and validation_result.get("clarification_options"):
+                    state.waiting_for_user_input = True
+
+                    # 设置返回节点 - 根据您的反馈，thorough流程回到generate_sql
+                    if flow_type == 'thorough':
+                        state.return_to_node = "generate_sql"
+                    else:
+                        state.return_to_node = "validate_input"
+                    
+                    # 更新状态为等待用户输入
+                    state.status = "waiting_for_input"
+                    
                 state.current_step_log = BaseNodeLog(
                     step=step_name,
                     input_data=input_for_validation,
                     prompt="",
-                    model_output="Clear" if state.is_clear else "Not clear",
+                    model_output=f"Clear: {state.is_clear}",
                     success=state.is_clear
                 )
                 return state
@@ -442,6 +458,10 @@ class NL2SQLService:
 
         def route_after_validation(state: TaskState) -> str:
             """验证后的路由逻辑"""
+            # 如果等待用户输入，暂停工作流
+            if getattr(state, 'waiting_for_user_input', False):
+                return "wait_for_user_input"
+            
             if not getattr(state, 'is_clear', None):
                 return "failed"
 
@@ -496,12 +516,45 @@ class NL2SQLService:
             else:
                 return "success"
 
+        @track_node_progress("等待用户输入")
+        def wait_for_user_input(state: TaskState) -> TaskState:
+            """等待用户输入的节点 - 使用interrupt机制"""
+            # 检查是否有用户澄清输入
+            # user_clarification = getattr(state, 'user_clarification', '')
+            # if user_clarification:
+            #     # 有用户输入，更新用户输入内容并继续
+            #     state.user_input = state.user_input + user_clarification
+            #     state.waiting_for_user_input = False
+            #     state.status = "running"
+            #     logger.info(f"收到用户澄清输入: {user_clarification[:50]}...")
+            # else:
+            #     # 没有用户输入，设置等待状态并中断
+            #     state.waiting_for_user_input = True
+            #     state.status = "waiting_for_input"
+            #     logger.info("等待用户澄清输入...")
+                
+            #     # 使用LangGraph的interrupt_before机制
+            #     from langgraph.graph import interrupt_before
+            #     # 这个调用会在节点执行前中断工作流
+            #     interrupt_before(["validate_input", "generate_sql"])
+            from langgraph.types import Command, interrupt
+            interrupt("等待用户输入")
+            # state.user_input = state.user_input + "用户澄清：" + interrupt("等待用户输入")
+            # state.waiting_for_user_input = False
+            # state.status = "running"
+            
+            return state
+
+        # 创建检查点保存器，用于支持中断和恢复
+        checkpoint_saver = MemorySaver()
+        
         # 构建工作流图
         workflow = StateGraph(TaskState)
 
         # 添加节点
         workflow.add_node("build_context", build_context)
         workflow.add_node("validate_input", validate_input)
+        workflow.add_node("wait_for_user_input", wait_for_user_input)  # 新增
         workflow.add_node("generate_sql", generate_sql)
         workflow.add_node("validate_sql_safety", validate_sql_safety)
         workflow.add_node("execute_sql", execute_sql)
@@ -525,9 +578,38 @@ class NL2SQLService:
             "validate_input",
             route_after_validation,
             {
+                "wait_for_user_input": "wait_for_user_input",  # 新增
                 "generate_sql": "generate_sql",
                 "execute_sql": "execute_sql",
                 "failed": END
+            }
+        )
+        
+        # wait_for_user_input 的路由 - 根据return_to_node决定下一步
+        def route_after_user_input(state: TaskState) -> str:
+            """用户输入后的路由逻辑"""
+            return_to_node = getattr(state, 'return_to_node', 'validate_input')
+            flow_type = getattr(state, 'flow_type', 'fast')
+            
+            # 根据流程类型和返回节点决定下一步
+            if return_to_node == "generate_sql":
+                return "generate_sql"
+            elif return_to_node == "validate_input":
+                return "validate_input"
+            else:
+                # 默认根据流程类型决定
+                if flow_type == 'fast':
+                    return "validate_input"
+                else:
+                    return "generate_sql"
+        
+        # 添加wait_for_user_input的路由
+        workflow.add_conditional_edges(
+            "wait_for_user_input",
+            route_after_user_input,
+            {
+                "validate_input": "validate_input",
+                "generate_sql": "generate_sql"
             }
         )
 
@@ -563,48 +645,64 @@ class NL2SQLService:
         # 获取追踪处理器
         tracing_handler = get_tracing_handler()
 
+        # 编译工作流，添加检查点支持
         if tracing_handler is None:
-            return workflow.compile()
+            graph = workflow.compile(checkpointer=checkpoint_saver)
         else:
-            return workflow.compile().with_config({"callbacks": [tracing_handler]})
+            graph = workflow.compile(
+                checkpointer=checkpoint_saver,
+            ).with_config({"callbacks": [tracing_handler]})
 
-    def query(self, user_input: str, flow_type: str = "fast",
-              relation_id: Optional[str] = None,
-              table_names: Optional[list] = None,
-              filtered_vector_ids: Optional[list] = None) -> Dict[str, Any]:
-        """执行自然语言查询
+        png_bytes = graph.get_graph().draw_mermaid_png()
+        with open("nlquery_graph.png", "wb") as f:
+            f.write(png_bytes)
 
-        Args:
-            user_input: 用户的自然语言查询
-            flow_type: 流程类型（fast或thorough）
-            relation_id: 可选的关联ID
-            table_names: 可选的表名列表
-            filtered_vector_ids: 可选的向量库ID列表，用于精准过滤检索结果
+        return graph
 
-        Returns:
-            查询结果字典
-        """
-        try:
-            logger.info(f"执行NL2SQL查询: {user_input[:100]}...")
+    def write_db_after_workflow(self, result, tracker, task_id):
+        # 更新追踪器 - 同步调用，不需要 await
+        # 注意：不在这里写入步骤日志，由上层 async_query_service 在任务结束时一次性写入
+        logger.info("流程执行结束，开始更新状态")
+        error_msg = getattr(result, 'error_message', None)
 
-            # 创建初始状态
-            initial_state = TaskState(
-                task_id="inline_query",  # 非追踪模式下的任务ID
-                user_input=user_input,
-                flow_type=flow_type,
-                filtered_vector_ids=filtered_vector_ids or [],
-                created_at=datetime.now()
+        if error_msg:
+            tracker.update_task_progress(
+                task_id=task_id,
+                progress=100,
+                step_name="查询失败",
+                final_status="failed",
+            )
+        else:
+            tracker.update_task_progress(
+                task_id=task_id,
+                progress=100,
+                step_name="查询完成",
+                final_status="success",
             )
 
-            # 执行工作流
-            result = self.workflow.invoke(initial_state)
+    def resume_workflow_with_interrupt(self, task_id: str, clarification_input: str, tracker: Optional[Any] = None) -> Dict[str, Any]:
+        """使用interrupt机制恢复工作流执行"""
+        try:
+            from services.tracking_service.tracker_cache import tracker_cache
+            cached_state = tracker_cache.get_task_state(task_id)
+            resume_state = TaskState(**cached_state)
+            
+            resume_state.user_input = f"{resume_state.user_input} 用户补充澄清：{clarification_input}"
+            resume_state.waiting_for_user_input = False
+            resume_state.status = "running"
+            
+            config = {"configurable": {"thread_id": task_id}}
+                
+            result = self.workflow.invoke(resume_state, config=config)
 
             # 将结果转换为TaskState对象（如果是dict）
             if isinstance(result, dict):
                 result = TaskState(**result)
 
-            # 构建返回结果
+            self.write_db_after_workflow(result, tracker, task_id)
             error_msg = getattr(result, 'error_message', None)
+            user_input = getattr(result, 'user_input', None)
+            
             return {
                 "success": error_msg is None,
                 "user_input": user_input,
@@ -614,9 +712,21 @@ class NL2SQLService:
                 "explanation": getattr(result, 'sql_explanation', ''),
                 "error": error_msg
             }
-
         except Exception as e:
-            logger.error(f"NL2SQL查询失败: {e}\n{traceback.format_exc()}")
+            logger.error(f"处理查询失败: {e}\n{traceback.format_exc()}")
+            if tracker:
+                try:
+                    tracker.update_task_progress(
+                        task_id=task_id,
+                        progress=0,
+                        step_name="处理失败",
+                        error=str(e),
+                        final_status="failed",
+                        write_step_log=False
+                    )
+                except:
+                    pass
+
             return {
                 "success": False,
                 "error": str(e),
@@ -661,31 +771,28 @@ class NL2SQLService:
 
             tracker.create_task(task_state)
 
-            # 执行工作流
-            result = self.workflow.invoke(task_state)
+            # 执行工作流，使用线程ID作为检查点ID
+            config = {"configurable": {"thread_id": task_id}}
+            
+            result = self.workflow.invoke(task_state, config=config)
 
             # 将结果转换为TaskState对象（如果是dict）
             if isinstance(result, dict):
                 result = TaskState(**result)
 
-            # 更新追踪器 - 同步调用，不需要 await
-            # 注意：不在这里写入步骤日志，由上层 async_query_service 在任务结束时一次性写入
             error_msg = getattr(result, 'error_message', None)
 
-            if error_msg:
-                tracker.update_task_progress(
-                    task_id=task_id,
-                    progress=100,
-                    step_name="查询失败",
-                    final_status="failed",
-                )
-            else:
-                tracker.update_task_progress(
-                    task_id=task_id,
-                    progress=100,
-                    step_name="查询完成",
-                    final_status="success",
-                )
+            waiting_for_user_input = getattr(result, 'waiting_for_user_input', False)
+            if waiting_for_user_input:
+                logger.info(f"查询流程中断，等待用户输入: ---")
+                return {
+                    "success": False,
+                    "user_input": user_input,
+                    "is_waiting_for_input": True,
+                    "error": "等待用户澄清输入"
+                }
+
+            self.write_db_after_workflow(result, tracker, task_id)
 
             return {
                 "success": error_msg is None,
@@ -696,7 +803,6 @@ class NL2SQLService:
                 "explanation": getattr(result, 'sql_explanation', ''),
                 "error": error_msg
             }
-
         except Exception as e:
             logger.error(f"处理查询失败: {e}\n{traceback.format_exc()}")
             if tracker:

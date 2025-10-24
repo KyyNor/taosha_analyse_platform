@@ -154,7 +154,32 @@ class AsyncQueryService:
             logger.error(f"执行查询任务失败: {e}")
             raise
 
-    
+    async def resume_workflow(self, task_id: str, clarification_input, tracker: OperationTracker = None):
+        """恢复暂停的工作流 - 使用LangGraph的interrupt机制
+        
+        Args:
+            task_id: 任务ID
+            clarification_input: 用户澄清输入
+        """
+        try:
+            # 获取事件循环
+            loop = asyncio.get_event_loop()
+            
+            # 将同步的NL2SQL处理移到线程池执行
+            await loop.run_in_executor(
+                None,  # 使用默认线程池
+                self._resume_workflow_with_interrupt,
+                task_id, clarification_input, tracker
+            )
+            
+        except Exception as e:
+            logger.error(f"恢复工作流失败: {e}")
+            raise
+
+    def _resume_workflow_with_interrupt(self, task_id: str, clarification_input: str, tracker: OperationTracker = None):
+        """使用interrupt机制恢复工作流执行"""
+        self.nl2sql_service.resume_workflow_with_interrupt(task_id=task_id, clarification_input=clarification_input, tracker=tracker)
+
     def _log_task_result(self, t: asyncio.Task, task_id: str):
         """记录任务结果"""
         try:

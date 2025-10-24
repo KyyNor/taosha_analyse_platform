@@ -8,8 +8,11 @@ import functools
 from datetime import datetime
 from typing import Callable, List
 
+from langgraph.errors import GraphInterrupt
+
 from services.service_models import BaseNodeLog, TaskState
 from services.tracking_service.tracker_cache import tracker_cache
+from utils.logger import logger
 
 
 def safe_create_async_task(coro):
@@ -61,6 +64,7 @@ def track_node_progress(node_name: str):
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(state: TaskState) -> TaskState:
+            result_state = None
             # 获取现有的日志列表
             logs = state.logs
 
@@ -132,6 +136,31 @@ def track_node_progress(node_name: str):
                 result_state.current_step_name = f"{node_name} 流程结束"
                 result_state.progress = new_progress
                 return result_state
+            except GraphInterrupt as gi:
+                logger.warning('触发GraphInterrupt 异常，等待用户输入')
+
+                cached_state = tracker_cache.get_task_state(task_id)
+                current_step_log: BaseNodeLog = state.current_step_log
+                current_step_log.start_time = start_time
+                current_step_log.end_time = datetime.now()
+                cached_state['logs'].append(current_step_log.__dict__)
+
+                cached_state.update({
+                    'progress': progress,
+                    'current_step': f"{node_name} 等待用户输入",
+                    'current_step_name': f"{node_name} 等待用户输入",
+                    'current_step_log': current_step_log.__dict__,
+                    'error_message': current_step_log.error if not current_step_log.success else None,
+                    'execution_result': state.execution_result or cached_state.get('execution_result'),
+                    'waiting_for_user_input': state.waiting_for_user_input,
+                    'return_to_node': state.return_to_node,
+                    'clear_check_details': state.clear_check_details,
+                    'sql_query': state.sql_query or cached_state.get('sql_query')
+                })
+
+                tracker_cache.set_task_state(task_id, cached_state)
+
+                raise
 
             except Exception as e:
                 # 异常时也要更新状态

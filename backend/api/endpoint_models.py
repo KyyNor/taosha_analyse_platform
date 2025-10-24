@@ -14,6 +14,9 @@ class QueryRequest(BaseModel):
     selected_theme_id: Optional[int] = Field(None, description="选中的数据主题ID")
     selected_table_ids: Optional[List[int]] = Field(None, description="选中的数据表ID列表")
 
+class ClarificationInput(BaseModel):
+    clarification_input: str
+
 # 数据模型
 class TableMetadataRequest(BaseModel):
     name: str
@@ -105,5 +108,3 @@ class ThemeTableRelationRequest(BaseModel):
     table_id: int = Field(..., description="表ID")
 
 
-# === 查询历史相关模型 ===
-# 注意：查询历史相关模型已迁移到 service_models.TaskState，以实现数据结构复用

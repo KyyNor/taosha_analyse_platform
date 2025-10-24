@@ -294,6 +294,108 @@ class NLQueryLLMService(BaseLLMService):
                 "error": str(e)
             }
 
+    def validate_input_clarity_with_options(
+        self,
+        input_messages: List[Union[HumanMessage, AIMessage, SystemMessage]],
+        user_input: str,
+        context: str,
+        sql_query: str,
+        flow_type: str = "fast"
+    ) -> Dict[str, Any]:
+        """验证输入清晰度并在不清晰时生成澄清选项"""
+        try:
+            logger.info(f"验证输入清晰度并生成选项: flow_type={flow_type}")
+            
+            # 构建验证提示词
+            prompt_params = {
+                "user_input": user_input,
+                "context": context,
+                "sql_query": sql_query,
+                "flow_type": flow_type,
+                "current_date": datetime.now().strftime("%Y-%m-%d")
+            }
+            
+            # 使用新的模板，要求生成澄清选项
+            template = """你是一个 SQL 查询验证专家。请验证用户的自然语言输入和生成的 SQL 是否匹配。
+
+数据库上下文信息：
+{context}
+
+用户输入：{user_input}
+
+生成的 SQL：{sql_query}
+
+请评估：
+1. 用户输入的清晰度（是否明确表达了查询意图）
+2. 生成的 SQL 是否正确对应了用户的意图
+
+如果输入不清晰或需要澄清，请提供最多3个澄清选项供用户选择。
+
+返回 JSON 格式的响应：
+{{
+  "is_clear": true/false,
+  "confidence": 0.0-1.0,
+  "details": "详细说明",
+  "suggestions": ["建议1", "建议2"],
+  "clarification_options": ["选项1", "选项2", "选项3"],
+  "clarification_question": "需要用户澄清的问题"
+}}"""
+            
+            system_prompt = template.format(
+                context=context,
+                user_input=user_input,
+                sql_query=sql_query
+            )
+            
+            # 构建消息
+            messages = input_messages.copy() if input_messages else []
+            messages.append(HumanMessage(content=system_prompt))
+            
+            response = self.client.invoke(messages)
+            
+            # 解析响应
+            if hasattr(response, 'content'):
+                text_content = response.content
+            else:
+                text_content = response
+                
+            validation_result = json.loads(text_content)
+            
+            return {
+                "success": True,
+                "is_clear": validation_result.get("is_clear", False),
+                "confidence": validation_result.get("confidence", 0.5),
+                "details": validation_result.get("details", ""),
+                "suggestions": validation_result.get("suggestions", []),
+                "clarification_options": validation_result.get("clarification_options", []),
+                "clarification_question": validation_result.get("clarification_question", "")
+            }
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"验证结果 JSON 解析失败: {e}")
+            return {
+                "success": False,
+                "is_clear": False,
+                "confidence": 0.0,
+                "details": "",
+                "suggestions": [],
+                "clarification_options": [],
+                "clarification_question": "",
+                "error": f"JSON 解析失败: {e}"
+            }
+        except Exception as e:
+            logger.error(f"输入验证失败: {e}")
+            return {
+                "success": False,
+                "is_clear": False,
+                "confidence": 0.0,
+                "details": "",
+                "suggestions": [],
+                "clarification_options": [],
+                "clarification_question": "",
+                "error": str(e)
+            }
+
     # ========== SQL 解释方法 ==========
 
     def explain_sql(self,

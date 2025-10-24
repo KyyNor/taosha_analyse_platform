@@ -48,6 +48,99 @@
         </div>
       </div>
 
+      <!-- Error Message -->
+      <div
+        v-if="error"
+        class="alert alert-error mt-4"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="stroke-current shrink-0 h-6 w-6"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+        <div>
+          <h3 class="font-bold">
+            查询失败
+          </h3>
+          <div class="text-sm">
+            {{ error }}
+          </div>
+        </div>
+      </div>
+
+      <!-- 澄清选项界面 -->
+      <div
+        v-if="isWaitingForClarification"
+        class="alert alert-warning mt-4"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <div>
+          <h3 class="font-bold">需要澄清</h3>
+          <div class="text-sm">{{ clarificationQuestion }}</div>
+        </div>
+      </div>
+      
+      <!-- 澄清选项 -->
+      <div v-if="isWaitingForClarification" class="mt-4 space-y-3">
+        <!-- 预设选项 -->
+        <div v-if="clarificationOptions.length > 0" class="space-y-2">
+          <label class="text-sm font-medium">请选择最符合您需求的选项：</label>
+          <div class="space-y-2">
+            <label
+              v-for="(option, index) in clarificationOptions"
+              :key="index"
+              class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-base-200 transition-colors"
+              :class="{ 'border-primary bg-primary/5': selectedClarification === option }"
+            >
+              <input
+                type="radio"
+                :value="option"
+                v-model="selectedClarification"
+                class="radio radio-primary"
+                @change="customClarification = ''"
+              >
+              <span class="flex-1">{{ option }}</span>
+            </label>
+          </div>
+        </div>
+        
+        <!-- 自定义输入 -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-medium">或输入您的具体需求：</span>
+          </label>
+          <textarea
+            v-model="customClarification"
+            class="textarea textarea-bordered"
+            placeholder="请详细描述您的查询需求..."
+            rows="3"
+            @input="selectedClarification = ''"
+          ></textarea>
+        </div>
+        
+        <!-- 提交按钮 -->
+        <div class="flex justify-end gap-2 mt-4">
+          <button
+            class="btn btn-primary"
+            :disabled="!selectedClarification && !customClarification.trim()"
+            @click="handleSubmitClarification"
+          >
+            <span v-if="isLoading" class="loading loading-spinner loading-sm"></span>
+            提交澄清
+          </button>
+        </div>
+      </div>
+
       <!-- Generated SQL Preview -->
       <div
         v-if="generatedSQL"
@@ -211,34 +304,6 @@ class="language-sql"
           </div>
         </div>
       </div>
-
-      <!-- Error Message -->
-      <div
-        v-if="error"
-        class="alert alert-error mt-4"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="stroke-current shrink-0 h-6 w-6"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
-        <div>
-          <h3 class="font-bold">
-            查询失败
-          </h3>
-          <div class="text-sm">
-            {{ error }}
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -271,6 +336,30 @@ const queryStore = useQueryStore()
 // Steps derived from actual task logs
 const steps = ref<QueryStep[]>([])
 const error = ref<string>('')
+
+// 人机交互相关
+const isWaitingForClarification = computed(() => queryStore.isWaitingForClarification)
+const clarificationOptions = computed(() => queryStore.clarificationOptions)
+const clarificationQuestion = computed(() => queryStore.clarificationQuestion)
+const selectedClarification = computed({
+  get: () => queryStore.selectedClarification,
+  set: (value: string) => {
+    queryStore.selectedClarification = value
+    if (value) {
+      queryStore.customClarification = ''
+    }
+  }
+})
+const customClarification = computed({
+  get: () => queryStore.customClarification,
+  set: (value: string) => {
+    queryStore.customClarification = value
+    if (value) {
+      queryStore.selectedClarification = ''
+    }
+  }
+})
+const isLoading = computed(() => queryStore.isLoading)
 
 // Computed properties
 const currentTask = computed(() => queryStore.currentTask)
@@ -492,6 +581,19 @@ const copySQL = () => {
   if (generatedSQL.value) {
     navigator.clipboard.writeText(generatedSQL.value)
     emit('copySQL', generatedSQL.value)
+  }
+}
+
+// 处理澄清提交
+const handleSubmitClarification = async () => {
+  if (!currentTask.value) return
+  
+  try {
+    await queryStore.submitClarification(currentTask.value.task_id)
+    // 成功后继续监听进度
+  } catch (error) {
+    console.error('提交澄清失败:', error)
+    // 可以在这里显示错误提示
   }
 }
 </script>

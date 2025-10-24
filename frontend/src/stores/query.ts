@@ -4,7 +4,8 @@ import type {
   QueryRequest,
   QueryTask,
   QueryResult,
-  Favorite
+  Favorite,
+  ClarificationResponse
 } from '@/types/index'
 import queryService from '@services/api/queryService'
 
@@ -36,7 +37,7 @@ export const useQueryStore = defineStore('query', () => {
   // Getters
   const hasActiveQuery = computed(() => {
     return currentTask.value !== null &&
-           ['running', 'success', 'failed'].includes((currentTask.value as any).status)
+           ['running', 'success', 'failed', 'waiting_for_input'].includes((currentTask.value as any).status)
   })
   const isQueryRunning = computed(() =>
     (currentTask.value?.status as string) === 'running'
@@ -62,6 +63,22 @@ export const useQueryStore = defineStore('query', () => {
     return currentResult.value?.generatedSql || (currentTask.value as any)?.generatedSql || ''
   })
 
+  // 人机交互相关状态
+  const isWaitingForClarification = computed(() =>
+    (currentTask.value as any)?.waiting_for_user_input || false
+  )
+  
+  const clarificationOptions = computed(() =>
+    (currentTask.value as any)?.clear_check_details.clarification_options || []
+  )
+  
+  const clarificationQuestion = computed(() =>
+    (currentTask.value as any)?.clear_check_details.clarification_question || ''
+  )
+  
+  const selectedClarification = ref('')
+  const customClarification = ref('')
+
   // Actions
   const submitQuery = async (request: QueryRequest) => {
     try {
@@ -85,7 +102,7 @@ export const useQueryStore = defineStore('query', () => {
       }
 
       // Extract task_id from response (backend returns task_id, not taskId)
-      const task_id = response.task_id || response.taskId
+      const task_id = response.task_id
 
       if (!task_id) {
         console.error('[QueryStore] Response structure:', JSON.stringify(response, null, 2))
@@ -96,21 +113,22 @@ export const useQueryStore = defineStore('query', () => {
       currentTask.value = {
         task_id,
         user_input: request.query,
-        operator: request.operator,
         flow_type: request.flow_type || 'fast',
         status: 'running',
         current_step: '初始化',
         progress: 0,
         created_at: new Date().toISOString(),
         sql_query: '',
-        execution_result: null,
+        execution_result: undefined,
         clear_check_details: {},
         is_clear: false,
-        error_message: null,
+        error_message: undefined,
         retry_count: 0,
         max_retries: 5,
         logs: [],
-        current_step_log: null,
+        current_step_log: undefined,
+        waiting_for_user_input: false,
+        return_to_node: '',
         current_step_name: '初始化'
       }
 
@@ -144,7 +162,7 @@ export const useQueryStore = defineStore('query', () => {
       const response = await queryService.rerunQuery(taskId)
 
       // Extract task_id from response (backend returns task_id, not taskId)
-      const newTaskId = response.task_id || response.taskId
+      const newTaskId = response.task_id
 
       if (!newTaskId) {
         throw new Error('No task ID returned from server')
@@ -171,17 +189,8 @@ export const useQueryStore = defineStore('query', () => {
 
   const exportResults = async (taskId: string, format: 'xlsx' | 'csv') => {
     try {
-      const blob = await queryService.exportResults(taskId, format)
-
-      // Create download link
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `query-results-${taskId}.${format}`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
+      // TODO: 实现导出功能
+      console.log('Export results not implemented yet')
     } catch (error) {
       console.error('Failed to export results:', error)
       throw error
@@ -313,7 +322,7 @@ export const useQueryStore = defineStore('query', () => {
       }
 
       // Extract task_id from response (backend returns task_id, not taskId)
-      const taskId = response.task_id || response.taskId
+      const taskId = response.task_id
 
       if (!taskId) {
         throw new Error('No task ID returned from server')
@@ -333,6 +342,38 @@ export const useQueryStore = defineStore('query', () => {
     } catch (error) {
       console.error('Failed to submit feedback:', error)
       throw error
+    }
+  }
+
+  // 提交澄清
+  const submitClarification = async (taskId: string) => {
+    try {
+      const clarification = selectedClarification.value || customClarification.value
+      if (!clarification.trim()) {
+        throw new Error('请选择或输入澄清内容')
+      }
+      
+      isLoading.value = true
+      
+      const response: ClarificationResponse = await queryService.submitClarification(taskId, clarification)
+      
+      if (response.success) {
+        // 清空澄清相关状态
+        selectedClarification.value = ''
+        customClarification.value = ''
+        
+        // 继续监听任务进度
+        queryService.subscribeToTaskProgress(taskId, handleProgressUpdate)
+        
+        return response
+      } else {
+        throw new Error('提交澄清失败')
+      }
+    } catch (error) {
+      console.error('Failed to submit clarification:', error)
+      throw error
+    } finally {
+      isLoading.value = false
     }
   }
 
@@ -366,7 +407,10 @@ export const useQueryStore = defineStore('query', () => {
         current_step_name: data.current_step_name || currentTask.value.current_step_name,
         logs: data.logs || currentTask.value.logs,
         execution_result: data.execution_result || currentTask.value.execution_result,
-        error_message: data.error_message || currentTask.value.error_message
+        error_message: data.error_message || currentTask.value.error_message,
+        waiting_for_user_input: data.waiting_for_user_input || currentTask.value.waiting_for_user_input,
+        return_to_node: data.return_to_node || currentTask.value.return_to_node,
+        clear_check_details: data.clear_check_details || currentTask.value.clear_check_details
       }
 
       // Update result if available
@@ -468,6 +512,11 @@ export const useQueryStore = defineStore('query', () => {
     hasResults,
     resultData,
     generatedSQL,
+    isWaitingForClarification,
+    clarificationOptions,
+    clarificationQuestion,
+    selectedClarification,
+    customClarification,
 
     // Actions
     submitQuery,
@@ -484,6 +533,7 @@ export const useQueryStore = defineStore('query', () => {
     deleteFavorite,
     executeFavorite,
     submitFeedback,
+    submitClarification,
     initializeWebSocket,
     disconnectWebSocket,
     cleanup
