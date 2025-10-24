@@ -476,6 +476,7 @@ class GlossaryService:
                     "type": term.type,
                     "content": content_data,
                     "creator": term.creator or "",
+                    "is_basic": term.is_basic or False,  # 添加 is_basic 字段
                     "created_at": term.created_at,
                     "updated_at": term.updated_at
                 })
@@ -510,7 +511,7 @@ class GlossaryService:
         """根据类型获取术语"""
         return [term for term in self.get_terms() if term.get("type") == term_type]
 
-    def add_term(self, name: str, term_type: str, content: Dict[str, Any], creator: str) -> bool:
+    def add_term(self, name: str, term_type: str, content: Dict[str, Any], creator: str, is_basic: bool = False) -> bool:
         """添加术语"""
         try:
             # 将 content 转换为 JSON 字符串
@@ -520,10 +521,11 @@ class GlossaryService:
                 name=name,
                 type=term_type,
                 content=content_json,
-                creator=creator
+                creator=creator,
+                is_basic=is_basic
             )
 
-            logger.info(f"添加术语成功: {name}")
+            logger.info(f"添加术语成功: {name}, 基础术语: {is_basic}")
             return True
 
         except Exception as e:
@@ -531,7 +533,7 @@ class GlossaryService:
             return False
 
     def update_term(self, term_id: int, name: str = None, term_type: str = None,
-                   content: Dict[str, Any] = None) -> bool:
+                   content: Dict[str, Any] = None, is_basic: bool = None) -> bool:
         """更新术语"""
         try:
             # 准备更新数据
@@ -543,6 +545,8 @@ class GlossaryService:
             if content is not None:
                 content_json = json.dumps(content, ensure_ascii=False)
                 update_data['content'] = content_json
+            if is_basic is not None:
+                update_data['is_basic'] = is_basic
 
             if update_data:
                 self.repo.update(term_id, **update_data)
@@ -565,6 +569,43 @@ class GlossaryService:
         except Exception as e:
             logger.error(f"删除术语失败: {e}")
             return False
+
+    def get_basic_terms(self) -> List[Dict[str, Any]]:
+        """获取所有基础术语"""
+        try:
+            terms = self.repo.get_basic_terms()
+            return [self._term_to_dict(term) for term in terms]
+        except Exception as e:
+            logger.error(f"获取基础术语失败: {e}")
+            return []
+
+    def get_non_basic_terms(self) -> List[Dict[str, Any]]:
+        """获取所有非基础术语"""
+        try:
+            terms = self.repo.get_non_basic_terms()
+            return [self._term_to_dict(term) for term in terms]
+        except Exception as e:
+            logger.error(f"获取非基础术语失败: {e}")
+            return []
+
+    def _term_to_dict(self, term) -> Dict[str, Any]:
+        """将术语对象转换为字典"""
+        try:
+            content_data = json.loads(term.content) if term.content else {}
+        except json.JSONDecodeError:
+            content_data = {}
+            logger.warning(f"术语 {term.name} 的 content 字段不是有效的 JSON 格式")
+        
+        return {
+            "id": term.id,
+            "name": term.name,
+            "type": term.type,
+            "content": content_data,
+            "creator": term.creator or "",
+            "is_basic": term.is_basic or False,
+            "created_at": term.created_at,
+            "updated_at": term.updated_at
+        }
 
 
 class PromptTemplateService:

@@ -332,17 +332,16 @@ class MetadataSyncService:
     
     def _log_change(self, change_type: str, object_type: str, name: str, details: str = "") -> None:
         """记录变更日志"""
-        if settings.metadata_sync_log_changes:
-            log_message = f"元数据同步: {change_type} {object_type} '{name}'"
-            if details:
-                log_message += f" - {details}"
-            
-            if change_type in ["新增"]:
-                logger.info(log_message)
-            elif change_type in ["更新"]:
-                logger.info(log_message)
-            else:  # 删除
-                logger.warning(log_message)
+        log_message = f"元数据同步: {change_type} {object_type} '{name}'"
+        if details:
+            log_message += f" - {details}"
+        
+        if change_type in ["新增"]:
+            logger.info(log_message)
+        elif change_type in ["更新"]:
+            logger.info(log_message)
+        else:  # 删除
+            logger.warning(log_message)
     
     def _log_sync_results(self) -> None:
         """记录同步结果"""

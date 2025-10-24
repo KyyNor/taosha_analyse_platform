@@ -257,7 +257,7 @@
                 class="textarea textarea-bordered h-48"
                 required
               />
-              <label class="label">
+              <label class="label shadow-inner rounded-lg p-4 m-4 bg-base-200">
                 <span class="label-text-alt">
                   <span class="text-warning">★ 占位符格式：使用 </span><span class="font-mono bg-warning/20 px-1 py-0.5">{字段名}</span><span class="text-warning"> 标记占位符，使用 </span><span class="font-mono bg-warning/20 px-1 py-0.5">@[模板名称]</span><span class="text-warning"> 标记模板替换</span>
                 </span>

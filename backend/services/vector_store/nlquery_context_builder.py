@@ -58,14 +58,17 @@ class NLQueryContextBuilder:
         logger.info(f"执行纯向量检索: {user_input[:50]}... (过滤IDs数: {len(allowed_vector_ids) if allowed_vector_ids else 0})")
 
         try:
-            # 1. 执行向量搜索（支持 allowed_vector_ids 过滤）
+            # 1. 获取基础术语上下文
+            basic_terms_context = self.get_basic_terms_context()
+            
+            # 2. 执行向量搜索（支持 allowed_vector_ids 过滤）
             search_results = self.vector_store.search(
                 user_input,
                 top_k=top_k,
                 allowed_ids=allowed_vector_ids  # 精准过滤：只在指定的 vector_id 范围内检索
             )
 
-            # 2. 分类组织结果
+            # 3. 分类组织结果
             table_docs = []
             glossary_docs = []
             other_docs = []
@@ -81,8 +84,12 @@ class NLQueryContextBuilder:
                 else:
                     other_docs.append(result)
 
-            # 3. 格式化上下文
+            # 4. 格式化上下文
             context_parts = []
+            
+            # 先添加基础术语上下文
+            if basic_terms_context:
+                context_parts.append(basic_terms_context)
 
             if table_docs:
                 context_parts.append(self._format_table_section(table_docs))
@@ -427,3 +434,34 @@ class NLQueryContextBuilder:
 
         # 关联字段优先
         return related_results + other_results
+
+    def get_basic_terms_context(self) -> str:
+        """获取基础术语的上下文"""
+        try:
+            basic_terms = self.glossary_service.get_basic_terms()
+            
+            if not basic_terms:
+                return ""
+            
+            context_parts = ["基础业务术语："]
+            for term in basic_terms:
+                term_name = term.get("name", "")
+                term_type = term.get("type", "")
+                content = term.get("content", {})
+                
+                term_desc = f"  - {term_name} ({term_type})"
+                
+                if term_type == "concept_explanation":
+                    term_desc += f": {content.get('explanation', '')}"
+                elif term_type == "sql_qa":
+                    term_desc += f" - 问题: {content.get('question', '')}, 答案: {content.get('answer', '')}"
+                elif term_type == "dictionary_conversion":
+                    term_desc += f" - 转换规则: {content.get('conversion_rule', '')}"
+                
+                context_parts.append(term_desc)
+            
+            return "\n".join(context_parts)
+            
+        except Exception as e:
+            logger.error(f"获取基础术语上下文失败: {e}")
+            return ""

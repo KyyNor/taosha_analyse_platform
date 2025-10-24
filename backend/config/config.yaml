@@ -81,7 +81,7 @@ logging:
 
 # 元数据同步配置
 metadata_sync:
-  enabled: true  # 是否启用元数据同步
+  enabled: false  # 是否启用元数据同步
   
   # 源数据库连接配置
   source_db:
@@ -111,9 +111,6 @@ metadata_sync:
   # 同步选项
   options:
     case_sensitive: false  # 表名和字段名是否区分大小写
-    sync_on_startup: true  # 是否在启动时同步
-    log_changes: true      # 是否记录变更日志
-    batch_size: 100        # 批处理大小
     max_retries: 3         # 最大重试次数
     retry_delay: 1.0       # 重试延迟（秒）
 

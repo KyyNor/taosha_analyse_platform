@@ -87,6 +87,19 @@
           </div>
         </template>
 
+        <template #cell-is_basic="{ value }">
+          <div class="flex items-center gap-2">
+            <div class="badge" :class="value ? 'badge-primary' : 'badge-ghost'">
+              {{ value ? '基础术语' : '普通术语' }}
+            </div>
+            <div v-if="value" class="tooltip" data-tip="此术语会附加在每次查询的上下文中">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-4 h-4 stroke-current text-info">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </div>
+          </div>
+        </template>
+
         <template #cell-content="{ value, record }">
           <div class="max-w-xs">
             <div v-if="record.type === 'concept'">
@@ -245,6 +258,24 @@
             </div>
 
             <!-- 创建人字段隐藏，默认为 api_user -->
+
+            <!-- 添加基础字段选择器，并增加明确的提示 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="label-text">基础术语</span>
+                <input
+                  v-model="termForm.is_basic"
+                  type="checkbox"
+                  class="checkbox checkbox-primary"
+                >
+              </div>
+              <!-- 提示信息放在下方 -->
+              <label class="label shadow-inner rounded-lg p-4 bg-base-200">
+                <span class="label-text-alt">
+                  <span class="text-warning">★ 基础术语说明：基础术语会附加在每次查询的上下文中，不会被向量训练。适合用于核心业务概念和常用规则。</span>
+                </span>
+              </label>
+            </div>
 
             <!-- Type-specific content -->
             <div class="form-control w-full shadow-inner rounded-lg p-4 bg-base-100">
@@ -507,6 +538,7 @@ interface TermForm {
   name: string
   type: string
   creator: string
+  is_basic: boolean
   content: TermFormContent
 }
 
@@ -514,6 +546,7 @@ const termForm = reactive<TermForm>({
   name: '',
   type: '',
   creator: '',
+  is_basic: false,  // 默认为 false
   content: {
     content: '',
     question: '',
@@ -535,6 +568,12 @@ const termColumns = [
   {
     key: 'type',
     title: '类型',
+    sortable: true,
+    visible: true
+  },
+  {
+    key: 'is_basic',
+    title: '术语类型',
     sortable: true,
     visible: true
   },
@@ -614,6 +653,7 @@ const resetForm = () => {
     name: '',
     type: '',
     creator: '',
+    is_basic: false,  // 重置为 false
     content: {
       content: '',
       question: '',
@@ -640,6 +680,7 @@ const openEditTerm = (term: any) => {
     name: term.name,
     type: term.type,
     creator: term.creator || '',
+    is_basic: term.is_basic || false,  // 添加 is_basic 字段
     content: {
       ...termForm.content,
       ...term.content
@@ -669,6 +710,7 @@ const saveTerm = async () => {
       name: termForm.name,
       type: termForm.type,
       creator: termForm.creator,
+      is_basic: termForm.is_basic,  // 添加 is_basic 字段
       content: { ...termForm.content }
     }
 

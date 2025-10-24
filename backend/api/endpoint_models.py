@@ -54,12 +54,14 @@ class GlossaryTermRequest(BaseModel):
     type: str  # concept/sql_qa/dict_mapping
     content: Dict[str, Any]
     creator: str = ""
+    is_basic: bool = False  # 添加 is_basic 字段，默认为 False
 
 
 class GlossaryTermUpdate(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
     content: Optional[Dict[str, Any]] = None
+    is_basic: Optional[bool] = None  # 添加 is_basic 字段
 
 
 class RelationFieldConfigRequest(BaseModel):

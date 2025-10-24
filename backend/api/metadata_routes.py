@@ -192,7 +192,8 @@ async def add_term(request: GlossaryTermRequest, db: Session = Depends(get_db)):
             request.name,
             request.type,
             request.content,
-            creator
+            creator,
+            request.is_basic  # 传递 is_basic 参数
         )
         if success:
             return {"success": True, "message": f"术语已添加: {request.name}"}
@@ -212,7 +213,8 @@ async def update_term(term_id: int, request: GlossaryTermUpdate, db: Session = D
             term_id,
             request.name,
             request.type,
-            request.content
+            request.content,
+            request.is_basic  # 传递 is_basic 参数
         )
         if success:
             return {"success": True, "message": f"术语已更新: ID {term_id}"}
@@ -262,6 +264,30 @@ async def search_term(query: str, db: Session = Depends(get_db)):
             return {"success": False, "message": "未找到匹配的术语"}
     except Exception as e:
         logger.error(f"搜索术语失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/glossary/terms/basic")
+async def get_basic_terms(db: Session = Depends(get_db)):
+    """获取所有基础术语"""
+    try:
+        glossary_service = get_glossary_service(db)
+        terms = glossary_service.get_basic_terms()
+        return {"success": True, "data": terms}
+    except Exception as e:
+        logger.error(f"获取基础术语失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/glossary/terms/non-basic")
+async def get_non_basic_terms(db: Session = Depends(get_db)):
+    """获取所有非基础术语"""
+    try:
+        glossary_service = get_glossary_service(db)
+        terms = glossary_service.get_non_basic_terms()
+        return {"success": True, "data": terms}
+    except Exception as e:
+        logger.error(f"获取非基础术语失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

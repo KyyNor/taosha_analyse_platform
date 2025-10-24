@@ -142,8 +142,8 @@ class VectorTrainingService:
                         "last_modified": last_modified
                     })
 
-            # 2. 检查术语表资源
-            glossaries = self.glossary_repo.get_all()
+            # 2. 检查术语表资源（只检查非基础术语）
+            glossaries = self.glossary_repo.get_non_basic_terms()  # 改为只获取非基础术语
             for glossary in glossaries:
                 if self.training_repo.needs_training("glossary", glossary.id, glossary.updated_at):
                     resources["glossary"].append({

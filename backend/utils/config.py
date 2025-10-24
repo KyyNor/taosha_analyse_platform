@@ -131,9 +131,6 @@ class ConfigManager:
 
             # 同步选项
             metadata_sync_case_sensitive: bool = self._config_data.get('metadata_sync', {}).get('options', {}).get('case_sensitive', False)
-            metadata_sync_sync_on_startup: bool = self._config_data.get('metadata_sync', {}).get('options', {}).get('sync_on_startup', True)
-            metadata_sync_log_changes: bool = self._config_data.get('metadata_sync', {}).get('options', {}).get('log_changes', True)
-            metadata_sync_batch_size: int = self._config_data.get('metadata_sync', {}).get('options', {}).get('batch_size', 100)
             metadata_sync_max_retries: int = self._config_data.get('metadata_sync', {}).get('options', {}).get('max_retries', 3)
             metadata_sync_retry_delay: float = self._config_data.get('metadata_sync', {}).get('options', {}).get('retry_delay', 1.0)
 

@@ -66,6 +66,22 @@ class GlossaryTermRepository(BaseRepository[GlossaryTerm]):
             logger.error(f"查找相似术语失败: {e}")
             raise
 
+    def get_basic_terms(self) -> List[GlossaryTerm]:
+        """获取所有基础术语"""
+        try:
+            return self.db.query(GlossaryTerm).filter(GlossaryTerm.is_basic == True).all()
+        except Exception as e:
+            logger.error(f"获取基础术语失败: {e}")
+            raise
+
+    def get_non_basic_terms(self) -> List[GlossaryTerm]:
+        """获取所有非基础术语"""
+        try:
+            return self.db.query(GlossaryTerm).filter(GlossaryTerm.is_basic == False).all()
+        except Exception as e:
+            logger.error(f"获取非基础术语失败: {e}")
+            raise
+
 
 class PromptTemplateRepository(BaseRepository[PromptTemplate]):
     """提示词模板Repository"""
