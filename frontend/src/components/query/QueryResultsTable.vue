@@ -369,10 +369,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, watchEffect, onMounted, onUnmounted, nextTick } from 'vue'
-import { useToast } from '@/composables/useToast'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import type { QueryResult } from '@types/index'
+import type { QueryResult } from '@/types/index'
 
 interface Props {
   data: QueryResult['result'] | null
@@ -401,7 +400,6 @@ watchEffect(() => {
   })
 })
 
-const { success, error } = useToast()
 
 // State
 const viewMode = ref<'table' | 'chart'>('table')
@@ -439,9 +437,9 @@ const numericColumns = computed(() => {
 })
 
 const sortedRows = computed(() => {
-  if (!props.data?.rows || !sortColumn.value) return props.data.rows || []
+  if (!props.data?.rows || !sortColumn.value) return props.data?.rows || []
 
-  return [...props.data.rows].sort((a, b) => {
+  return [...(props.data.rows as any[])].sort((a: any, b: any) => {
     const aValue = a[sortColumn.value]
     const bValue = b[sortColumn.value]
 
@@ -517,23 +515,12 @@ const sortByColumn = (columnName: string) => {
   currentPage.value = 1
 }
 
-const copySQL = async () => {
-  try {
-    await navigator.clipboard.writeText(props.generatedSql)
-    success('SQL 已复制到剪贴板')
-  } catch (err) {
-    error('复制失败')
-  }
-}
-
-const explainSQL = () => {
-  // 这里可以实现 SQL 解释功能
-  info('SQL 解释功能开发中...')
-}
-
 const refreshData = () => {
   // 这里可以实现数据刷新功能
-  info('刷新功能开发中...')
+  const infoFn = (message: string) => {
+    console.log(message)
+  }
+  infoFn('刷新功能开发中...')
 }
 
 // Fixed header methods
@@ -561,7 +548,6 @@ const updateFixedHeaderPosition = () => {
   if (!tableHeader.value || !tableContainer.value) return
 
   const containerRect = tableContainer.value.getBoundingClientRect()
-  const headerRect = tableHeader.value.getBoundingClientRect()
 
   fixedHeaderStyle.value = {
     position: 'fixed',

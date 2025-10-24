@@ -76,26 +76,6 @@
 
               <div class="flex items-center gap-3 text-xs text-base-content/60">
                 <span>收藏于 {{ formatTime(item.createdAt) }}</span>
-                <span v-if="item.lastExecutedAt">
-                  最后执行 {{ formatTime(item.lastExecutedAt) }}
-                </span>
-                <span v-if="item.executionCount">
-                  执行 {{ item.executionCount }} 次
-                </span>
-              </div>
-
-              <!-- Tags -->
-              <div
-                v-if="item.tags"
-                class="flex flex-wrap gap-1 mt-2"
-              >
-                <span
-                  v-for="tag in item.tags.split(',')"
-                  :key="tag"
-                  class="badge badge-outline badge-xs"
-                >
-                  {{ tag.trim() }}
-                </span>
               </div>
             </div>
 
@@ -222,19 +202,17 @@
 
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
 import { useToast } from '@/composables/useToast'
-import { useQueryStore } from '@stores/query'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import type { Favorite } from '@types/index'
+import type { Favorite } from '@/types/index'
 
 interface Props {
   favorites: Favorite[]
   loading: boolean
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 
 const emit = defineEmits<{
   execute: [id: number]
@@ -242,8 +220,6 @@ const emit = defineEmits<{
   delete: [id: number]
 }>()
 
-const router = useRouter()
-const queryStore = useQueryStore()
 const { success, error } = useToast()
 
 // Edit modal state

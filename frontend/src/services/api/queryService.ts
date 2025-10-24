@@ -143,8 +143,7 @@ class QueryService {
   // 提交澄清输入
   async submitClarification(
     taskId: string,
-    clarification: string,
-    clarificationOptions?: string[]
+    clarification: string
   ): Promise<ClarificationResponse> {
     const request = {
       clarification_input: clarification

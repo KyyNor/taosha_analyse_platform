@@ -75,8 +75,6 @@
 
 <script setup lang="ts">
 import { onMounted, ref, h } from 'vue'
-import { useAppStore } from '@stores/app'
-import { useToast } from '@/composables/useToast'
 import AppHeader from './AppHeader.vue'
 
 interface Notification {
@@ -86,8 +84,6 @@ interface Notification {
   message?: string
   duration?: number
 }
-
-const appStore = useAppStore()
 
 const notifications = ref<Notification[]>([])
 const isLoading = ref(false)
@@ -213,7 +209,7 @@ const showInfo = (message: string, title?: string) => {
 // Expose methods globally
 onMounted(() => {
   // Make notification methods available globally
-  window.$notify = {
+  (window as any).$notify = {
     success: showSuccess,
     error: showError,
     warning: showWarning,

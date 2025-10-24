@@ -615,13 +615,6 @@ const closeDetailModal = () => {
   })
 }
 
-// Handle backdrop click
-const handleBackdropClick = () => {
-  // 只在非编辑模式下允许点击背景关闭
-  if (!isDetailEditMode.value && !isNewTable.value) {
-    closeDetailModal()
-  }
-}
 
 // Load columns for a table
 const loadColumns = async (table?: any) => {
@@ -690,7 +683,7 @@ const saveTableDetail = async () => {
         remark: tableForm.remark,
         isAvailable: true
       })
-      tableId = response.data.id  // 从data字段获取表ID
+      tableId = (response as any).data?.id  // 从data字段获取表ID
       success('表已创建')
     } else {
       // Update existing table

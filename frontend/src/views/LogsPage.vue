@@ -189,10 +189,10 @@ import { useToast } from '@/composables/useToast'
 import DataTable from '@/components/common/DataTable.vue'
 import LogDetailModal from '@/components/common/LogDetailModal.vue'
 import queryService from '@/services/api/queryService'
-import type { QueryTask, BaseNodeLog } from '@types/index'
+import type { QueryTask } from '@/types/index'
 import { calculateTaskDuration, formatDuration, formatTime } from '@/utils/duration'
 
-const { success, info } = useToast()
+const { success } = useToast()
 
 // State
 const logs = ref<QueryTask[]>([])
@@ -207,7 +207,7 @@ const pagination = ref({
 // 详情弹框状态
 const showDetailModal = ref(false)
 const detailTaskId = ref<string>('')
-const detailTaskInfo = ref(null)
+const detailTaskInfo = ref<any>(null)
 
 // Filters
 const filters = reactive({

@@ -187,7 +187,7 @@ export const useQueryStore = defineStore('query', () => {
     }
   }
 
-  const exportResults = async (taskId: string, format: 'xlsx' | 'csv') => {
+  const exportResults = async (_taskId: string, _format: 'xlsx' | 'csv') => {
     try {
       // TODO: 实现导出功能
       console.log('Export results not implemented yet')

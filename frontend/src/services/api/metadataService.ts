@@ -4,9 +4,8 @@ import type {
   TableMetadata,
   ColumnMetadata,
   GlossaryTerm,
-  RelationConfig,
   DataTheme
-} from '@types/index'
+} from '@/types/index'
 
 class MetadataService {
   // === Table Metadata ===

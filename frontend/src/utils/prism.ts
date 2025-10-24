@@ -1,3 +1,5 @@
+// 为了在工具文件中使用 nextTick，我们需要从 vue 导入
+import { nextTick } from 'vue'
 import Prism from 'prismjs'
 import 'prismjs/components/prism-sql'
 import 'prismjs/themes/prism.css'
@@ -55,6 +57,3 @@ export const highlightSql = (sql: string): string => {
 
 // 导出 Prism 实例，供需要直接使用的场景
 export { Prism }
-
-// 为了在工具文件中使用 nextTick，我们需要从 vue 导入
-import { nextTick } from 'vue'

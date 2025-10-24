@@ -188,7 +188,6 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQueryStore } from '@stores/query'
-import type { QueryTask } from '@types/index'
 
 const router = useRouter()
 const queryStore = useQueryStore()
@@ -198,14 +197,15 @@ const recentQueries = computed(() => {
   return queryStore.queryHistory
     .slice(0, 5)
     .map(log => ({
-      id: log.id,
-      userInput: log.query,
-      createdAt: log.createdAt
+      id: log.task_id,
+      userInput: log.user_input,
+      createdAt: log.created_at
     }))
 })
 
 // Format time
-const formatTime = (timeStr: string) => {
+const formatTime = (timeStr: string | undefined) => {
+  if (!timeStr) return '-'
   const date = new Date(timeStr)
   const now = new Date()
   const diff = now.getTime() - date.getTime()

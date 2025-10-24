@@ -512,7 +512,6 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { metadataService } from '@services/api'
 import DataTable from '@/components/common/DataTable.vue'
-import type { DataTheme } from '@/types/index'
 
 const { success, error } = useToast()
 
@@ -537,7 +536,12 @@ const filters = reactive({
 })
 
 // Form
-const themeForm = reactive({
+const themeForm = reactive<{
+  theme_name: string
+  theme_description: string
+  theme_type: 'normal' | 'public'
+  department: string
+}>({
   theme_name: '',
   theme_description: '',
   theme_type: 'normal',

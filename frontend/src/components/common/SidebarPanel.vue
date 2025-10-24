@@ -224,7 +224,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useQueryStore } from '@stores/query'
 import QueryHistoryList from '@/components/query/QueryHistoryList.vue'
-import type { QueryTask, Favorite } from '@types/index'
+import type { QueryTask } from '@/types/index'
 
 interface Emits {
   (e: 'close'): void
@@ -235,7 +235,7 @@ interface Emits {
   (e: 'delete-favorite', favoriteId: number): void
 }
 
-const props = defineProps<{
+defineProps<{
   isVisible: boolean
 }>()
 
@@ -285,32 +285,6 @@ const filteredFavorites = computed(() => {
   )
 })
 
-// 辅助函数
-const getStatusBadgeClass = (status: string) => {
-  switch (status) {
-    case 'success':
-      return 'badge-success'
-    case 'failed':
-      return 'badge-error'
-    case 'running':
-      return 'badge-info'
-    default:
-      return 'badge-ghost'
-  }
-}
-
-const getStatusText = (status: string) => {
-  switch (status) {
-    case 'success':
-      return '成功'
-    case 'failed':
-      return '失败'
-    case 'running':
-      return '运行中'
-    default:
-      return '未知'
-  }
-}
 
 const formatTime = (timeString: string) => {
   const date = new Date(timeString)

@@ -4,13 +4,10 @@ import axios, {
   type AxiosResponse,
   type AxiosError
 } from 'axios'
-import type { ApiResponse } from '@types/index'
+import type { ApiResponse } from '@/types/index'
 import {
   API_CONFIG,
-  API_ENDPOINTS,
   WS_ENDPOINTS,
-  buildApiUrl,
-  replaceUrlParams,
   buildWsUrl
 } from '@/config/api'
 
@@ -163,7 +160,6 @@ export class WebSocketManager {
   private ws: WebSocket | null = null
   private url: string
   private reconnectAttempts = 0
-  private maxReconnectAttempts = 5
   private reconnectDelay = API_CONFIG.RETRY.DELAY
   private messageHandlers: Map<string, (data: any) => void> = new Map()
   private connectionHandlers: { onOpen?: () => void; onClose?: () => void; onError?: (error: Event) => void } = {}
@@ -177,7 +173,7 @@ export class WebSocketManager {
       try {
         this.ws = new WebSocket(this.url)
 
-        this.ws.onopen = (event) => {
+        this.ws.onopen = () => {
           console.log('[WebSocket] Connected', this.url)
           this.reconnectAttempts = 0
           this.connectionHandlers.onOpen?.()

@@ -47,7 +47,7 @@
                 :key="theme.id"
                 :value="theme.id"
               >
-                {{ theme.themeName }}
+                {{ theme.theme_name }}
               </option>
             </select>
           </div>
@@ -61,11 +61,11 @@
               <label
                 tabindex="0"
                 class="btn btn-outline w-full justify-between"
-                :class="{ 'btn-active': formData.selectedTableIds.length > 0 }"
+                :class="{ 'btn-active': (formData.selectedTableIds || []).length > 0 }"
               >
                 <span class="truncate">
-                  {{ formData.selectedTableIds.length > 0
-                    ? `已选择 ${formData.selectedTableIds.length} 张表`
+                  {{ (formData.selectedTableIds || []).length > 0
+                    ? `已选择 ${(formData.selectedTableIds || []).length} 张表`
                     : '选择数据表（可选）'
                   }}
                 </span>
@@ -319,7 +319,6 @@ const filteredTables = computed(() => {
 
 // Computed
 const loading = computed(() => queryStore.isLoading)
-const hasActiveQuery = computed(() => queryStore.hasActiveQuery)
 const shouldShowCancelButton = computed(() => queryStore.shouldShowCancelButton)
 
 // 监听表选择模式切换，清理相关选择
@@ -355,26 +354,12 @@ const loadAvailableTables = async () => {
   }
 }
 
-// Get table name by ID
-const getTableName = (tableId: number) => {
-  const table = availableTables.value.find(t => t.id === tableId)
-  return table?.name || `Table ${tableId}`
-}
-
 // Get table display name with comment and name
 const getTableDisplayName = (table: TableMetadata) => {
   if (table.comment && table.comment.trim()) {
     return `${table.comment.trim()}（${table.name}）`
   }
   return table.name
-}
-
-// Remove table from selection
-const removeTable = (tableId: number) => {
-  const index = formData.value.selectedTableIds?.indexOf(tableId)
-  if (index > -1 && formData.value.selectedTableIds) {
-    formData.value.selectedTableIds.splice(index, 1)
-  }
 }
 
 // Check if table is selected
@@ -390,11 +375,11 @@ const toggleTableSelection = (tableId: number) => {
     formData.value.selectedTableIds = []
   }
 
-  const index = formData.value.selectedTableIds.indexOf(tableId)
-  if (index > -1) {
-    formData.value.selectedTableIds.splice(index, 1)
+  const index = (formData.value.selectedTableIds || []).indexOf(tableId)
+  if (index !== undefined && index > -1) {
+    formData.value.selectedTableIds!.splice(index, 1)
   } else {
-    formData.value.selectedTableIds.push(tableId)
+    formData.value.selectedTableIds!.push(tableId)
   }
 }
 

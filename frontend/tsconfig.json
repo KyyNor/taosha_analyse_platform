@@ -40,6 +40,7 @@
     "jsxFactory": "h",
     "jsxFragmentFactory": "Fragment",
     "noEmit": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "verbatimModuleSyntax": false
   }
 }

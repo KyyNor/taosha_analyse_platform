@@ -389,7 +389,7 @@
                     <div class="space-y-3 max-h-48 overflow-y-auto">
                       <div
                         v-for="(mapping, index) in termForm.content.dict_map"
-                        :key="index"
+                        :key="`${index}-${mapping.key}`"
                         class="flex gap-3 items-center"
                       >
                         <div class="form-control flex-1">
@@ -626,7 +626,7 @@ const isFormValid = computed(() => {
 
 // Methods
 const getTypeLabel = (type: string) => {
-  const labels = {
+  const labels: Record<string, string> = {
     concept: '概念解释',
     sql_qa: 'SQL问答',
     dict_mapping: '字典转换'
@@ -635,7 +635,7 @@ const getTypeLabel = (type: string) => {
 }
 
 const getContentLabel = () => {
-  const labels = {
+  const labels: Record<string, string> = {
     concept: '概念解释内容',
     sql_qa: 'SQL问答内容',
     dict_mapping: '字典转换内容'

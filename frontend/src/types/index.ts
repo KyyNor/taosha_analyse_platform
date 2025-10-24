@@ -369,3 +369,7 @@ export interface FeedbackRequest {
   type: 'positive' | 'negative' | 'neutral'
   content?: string
 }
+
+// Dummy export to prevent this file from being treated as a declaration file
+export {}
+

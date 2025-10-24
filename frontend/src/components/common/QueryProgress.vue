@@ -378,7 +378,6 @@ const isLoading = computed(() => queryStore.isLoading)
 
 // Computed properties
 const currentTask = computed(() => queryStore.currentTask)
-const progress = computed(() => queryStore.queryProgress)
 const generatedSQL = computed(() => queryStore.generatedSQL)
 const canCancel = computed(() => queryStore.canCancelQuery)
 
@@ -528,30 +527,6 @@ const formatDateTime = (dateString: string): string => {
 }
 
 
-// Check if content is SQL
-const isSQL = (content: string): boolean => {
-  const sqlKeywords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'FROM', 'WHERE', 'JOIN']
-  const upperContent = content.toUpperCase().trim()
-  return sqlKeywords.some(keyword => upperContent.includes(keyword))
-}
-
-// Format SQL with basic indentation
-const formatSQL = (sql: string): string => {
-  return sql
-    .replace(/\bSELECT\b/gi, '\n  SELECT')
-    .replace(/\bFROM\b/gi, '\n  FROM')
-    .replace(/\bWHERE\b/gi, '\n  WHERE')
-    .replace(/\bJOIN\b/gi, '\n  JOIN')
-    .replace(/\bINNER JOIN\b/gi, '\n  INNER JOIN')
-    .replace(/\bLEFT JOIN\b/gi, '\n  LEFT JOIN')
-    .replace(/\bRIGHT JOIN\b/gi, '\n  RIGHT JOIN')
-    .replace(/\bGROUP BY\b/gi, '\n  GROUP BY')
-    .replace(/\bORDER BY\b/gi, '\n  ORDER BY')
-    .replace(/\bHAVING\b/gi, '\n  HAVING')
-    .replace(/\bAND\b/gi, '\n    AND')
-    .replace(/\bOR\b/gi, '\n    OR')
-    .trim()
-}
 
 // Watch for task changes to update steps
 watch(currentTask, updateStepsFromLogs, { immediate: true, deep: true })

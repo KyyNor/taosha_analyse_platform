@@ -167,7 +167,7 @@ import { useToast } from '@/composables/useToast'
 import { useQueryStore } from '@stores/query'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import type { QueryTask } from '@types/index'
+import type { QueryTask } from '@/types/index'
 
 interface Props {
   history: QueryTask[]
@@ -185,7 +185,8 @@ const queryStore = useQueryStore()
 const { success, error } = useToast()
 
 // Format time
-const formatTime = (timeStr: string) => {
+const formatTime = (timeStr: string | undefined) => {
+  if (!timeStr) return '-'
   const date = new Date(timeStr)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
@@ -199,22 +200,10 @@ const formatTime = (timeStr: string) => {
   return '刚刚'
 }
 
-// Format duration
-const formatDuration = (duration: number) => {
-  if (duration < 1000) {
-    return `${duration}ms`
-  } else if (duration < 60000) {
-    return `${(duration / 1000).toFixed(1)}s`
-  } else {
-    const minutes = Math.floor(duration / 60000)
-    const seconds = Math.floor((duration % 60000) / 1000)
-    return `${minutes}m ${seconds}s`
-  }
-}
 
 // Get status text
 const getStatusText = (status: string) => {
-  const statusMap = {
+  const statusMap: Record<string, string> = {
     'success': '成功',
     'failed': '失败',
     'running': '运行中',

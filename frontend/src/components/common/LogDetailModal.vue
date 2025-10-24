@@ -122,7 +122,7 @@ class="language-sql"
               <div v-if="detailData.task.clear_check_details && Object.keys(detailData.task.clear_check_details).length > 0">
                 <label class="font-medium text-base-content/70">输入验证结果:</label>
                 <div class="rounded-lg text-xs overflow-x-auto border">
-                  <pre class="bg-base-200 p-2 rounded-lg shadow-inner">{{ formatText(detailData.task.clear_check_details) }}</pre>
+                  <pre class="bg-base-200 p-2 rounded-lg shadow-inner">{{ formatText(JSON.stringify(detailData.task.clear_check_details)) }}</pre>
                 </div>
               </div>
             </div>
@@ -265,8 +265,8 @@ class="language-sql"
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import queryService from '@services/api/queryService'
-import type { QueryTask, BaseNodeLog } from '@types/index'
-import { highlightSql, initHighlight, applyPrismTheme } from '@utils/prism'
+import type { QueryTask } from '@/types/index'
+import { highlightSql, initHighlight } from '@utils/prism'
 import { calculateDuration, formatDuration, formatTime } from '@utils/duration'
 import { formatText } from '@utils/formatText'
 
@@ -288,7 +288,7 @@ const isLoading = ref(false)
 const expandedLogs = ref<Record<number, boolean>>({})
 const detailData = ref<{
   task: QueryTask | null
-  logs: BaseNodeLog[]
+  logs: Array<any>
 }>({
   task: null,
   logs: []
@@ -307,7 +307,7 @@ const getStatusText = (status: string) => {
 }
 
 // 检查是否有详情内容
-const hasDetails = (log: BaseNodeLog) => {
+const hasDetails = (log: any) => {
   return !!(log.prompt || log.input_data || log.model_output || log.error)
 }
 
@@ -331,7 +331,7 @@ const loadDetails = async () => {
     if (response.success) {
       detailData.value = {
         task: taskInfo || null,
-        logs: response.data || []
+        logs: (response as any).logs || []
       }
       console.log('Log details loaded:', detailData.value)
 
