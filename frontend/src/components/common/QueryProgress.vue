@@ -81,19 +81,39 @@
         v-if="isWaitingForClarification"
         class="alert alert-warning mt-4"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="stroke-current shrink-0 h-6 w-6"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          />
         </svg>
         <div>
-          <h3 class="font-bold">需要澄清</h3>
-          <div class="text-sm">{{ clarificationQuestion }}</div>
+          <h3 class="font-bold">
+            需要澄清
+          </h3>
+          <div class="text-sm">
+            {{ clarificationQuestion }}
+          </div>
         </div>
       </div>
-      
+
       <!-- 澄清选项 -->
-      <div v-if="isWaitingForClarification" class="mt-4 space-y-3">
+      <div
+        v-if="isWaitingForClarification"
+        class="mt-4 space-y-3"
+      >
         <!-- 预设选项 -->
-        <div v-if="clarificationOptions.length > 0" class="space-y-2">
+        <div
+          v-if="clarificationOptions.length > 0"
+          class="space-y-2"
+        >
           <label class="text-sm font-medium">请选择最符合您需求的选项：</label>
           <div class="space-y-2">
             <label
@@ -103,17 +123,16 @@
               :class="{ 'border-primary bg-primary/5': selectedClarification === option }"
             >
               <input
+                v-model="selectedClarification"
                 type="radio"
                 :value="option"
-                v-model="selectedClarification"
                 class="radio radio-primary"
-                @change="customClarification = ''"
               >
               <span class="flex-1">{{ option }}</span>
             </label>
           </div>
         </div>
-        
+
         <!-- 自定义输入 -->
         <div class="form-control">
           <label class="label">
@@ -124,10 +143,9 @@
             class="textarea textarea-bordered"
             placeholder="请详细描述您的查询需求..."
             rows="3"
-            @input="selectedClarification = ''"
-          ></textarea>
+          />
         </div>
-        
+
         <!-- 提交按钮 -->
         <div class="flex justify-end gap-2 mt-4">
           <button
@@ -135,7 +153,10 @@
             :disabled="!selectedClarification && !customClarification.trim()"
             @click="handleSubmitClarification"
           >
-            <span v-if="isLoading" class="loading loading-spinner loading-sm"></span>
+            <span
+              v-if="isLoading"
+              class="loading loading-spinner loading-sm"
+            />
             提交澄清
           </button>
         </div>
@@ -547,14 +568,14 @@ watch(currentTask, (newTask) => {
     // Reset when task is cleared
     steps.value = []
     error.value = ''
-  } else if (newTask.taskStatus === 'failed') {
-    error.value = newTask.error || '查询执行失败'
+  } else if ((newTask as any).status === 'failed') {
+    error.value = (newTask as any).error_message || '查询执行失败'
     // Mark current step as failed
     const activeStep = steps.value.find(step => step.status === 'active')
     if (activeStep) {
       activeStep.status = 'failed'
     }
-  } else if (newTask.taskStatus === 'cancelled') {
+  } else if ((newTask as any).status === 'cancelled') {
     error.value = '查询已取消'
   }
 }, { immediate: true })
@@ -587,7 +608,6 @@ const copySQL = () => {
 // 处理澄清提交
 const handleSubmitClarification = async () => {
   if (!currentTask.value) return
-  
   try {
     await queryStore.submitClarification(currentTask.value.task_id)
     // 成功后继续监听进度

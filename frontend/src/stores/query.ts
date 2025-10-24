@@ -67,15 +67,15 @@ export const useQueryStore = defineStore('query', () => {
   const isWaitingForClarification = computed(() =>
     (currentTask.value as any)?.waiting_for_user_input || false
   )
-  
+
   const clarificationOptions = computed(() =>
     (currentTask.value as any)?.clear_check_details.clarification_options || []
   )
-  
+
   const clarificationQuestion = computed(() =>
     (currentTask.value as any)?.clear_check_details.clarification_question || ''
   )
-  
+
   const selectedClarification = ref('')
   const customClarification = ref('')
 
@@ -352,19 +352,30 @@ export const useQueryStore = defineStore('query', () => {
       if (!clarification.trim()) {
         throw new Error('请选择或输入澄清内容')
       }
-      
+
       isLoading.value = true
-      
-      const response: ClarificationResponse = await queryService.submitClarification(taskId, clarification)
-      
+
+      // 获取选项索引
+      let optionIndex: number | undefined
+      if (selectedClarification.value) {
+        optionIndex = clarificationOptions.value.findIndex((option: string) => option === selectedClarification.value)
+      }
+
+      const response: ClarificationResponse = await queryService.submitClarification(
+        taskId,
+        clarification,
+        clarificationOptions.value,
+        optionIndex
+      )
+
       if (response.success) {
         // 清空澄清相关状态
         selectedClarification.value = ''
         customClarification.value = ''
-        
+
         // 继续监听任务进度
         queryService.subscribeToTaskProgress(taskId, handleProgressUpdate)
-        
+
         return response
       } else {
         throw new Error('提交澄清失败')

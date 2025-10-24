@@ -363,7 +363,10 @@
           <!-- Fields -->
           <div>
             <h4 class="font-semibold mb-3">
-              字段列表 <span v-if="!previewTemplate?.fields?.filter((f: string) => f.trim()).length" class="text-xs text-base-content/50">(无参数模板)</span>
+              字段列表 <span
+                v-if="!previewTemplate?.fields?.filter((f: string) => f.trim()).length"
+                class="text-xs text-base-content/50"
+              >(无参数模板)</span>
             </h4>
             <div class="flex flex-wrap gap-2">
               <div
@@ -388,7 +391,10 @@
               模板内容 <span class="text-xs text-base-content/50">(占位符已高亮)</span>
             </h4>
             <div class="bg-base-200 p-4 rounded-lg">
-              <pre class="whitespace-pre-wrap text-sm" v-html="highlightedTemplate" />
+              <pre
+                class="whitespace-pre-wrap text-sm"
+                v-html="highlightedTemplate"
+              />
             </div>
           </div>
 
@@ -398,10 +404,16 @@
               示例使用
             </h4>
             <div class="bg-base-200 p-4 rounded-lg">
-              <div v-if="!previewTemplate?.fields?.filter((f: string) => f.trim()).length" class="text-base-content/60 text-sm italic">
+              <div
+                v-if="!previewTemplate?.fields?.filter((f: string) => f.trim()).length"
+                class="text-base-content/60 text-sm italic"
+              >
                 此模板无参数，直接使用即可（无需输入参数值）
               </div>
-              <div v-else class="text-sm space-y-2">
+              <div
+                v-else
+                class="text-sm space-y-2"
+              >
                 <div
                   v-for="field in previewTemplate?.fields?.filter((f: string) => f.trim())"
                   :key="field"
@@ -546,7 +558,7 @@ const validationErrors = computed(() => {
 const highlightedTemplate = computed(() => {
   if (!previewTemplate.value) return ''
 
-  let template = previewTemplate.value.template
+  const template = previewTemplate.value.template
 
   // 匹配 {字段名} 格式并高亮（避免匹配 {{}} 或 JSON）
   return template.replace(

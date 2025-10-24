@@ -24,9 +24,15 @@
           class="select select-bordered select-sm"
           @change="loadThemes"
         >
-          <option value="">全部</option>
-          <option value="normal">一般主题</option>
-          <option value="public">通用主题</option>
+          <option value="">
+            全部
+          </option>
+          <option value="normal">
+            一般主题
+          </option>
+          <option value="public">
+            通用主题
+          </option>
         </select>
       </div>
 
@@ -223,8 +229,12 @@
                     :disabled="!isDetailEditMode && !isNewTheme"
                     required
                   >
-                    <option value="normal">一般主题</option>
-                    <option value="public">通用主题</option>
+                    <option value="normal">
+                      一般主题
+                    </option>
+                    <option value="public">
+                      通用主题
+                    </option>
                   </select>
                 </div>
 
@@ -294,9 +304,15 @@
               <table class="table table-sm w-full">
                 <thead>
                   <tr>
-                    <th class="w-48">表名</th>
-                    <th class="w-64">表注释</th>
-                    <th class="w-24">状态</th>
+                    <th class="w-48">
+                      表名
+                    </th>
+                    <th class="w-64">
+                      表注释
+                    </th>
+                    <th class="w-24">
+                      状态
+                    </th>
                     <th
                       v-if="isDetailEditMode || isNewTheme"
                       class="w-16"
@@ -402,7 +418,9 @@
       <div class="bg-base-100 rounded-lg w-11/12 max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <!-- Header -->
         <div class="p-6 border-b border-base-300 flex justify-between items-center flex-shrink-0">
-          <h3 class="font-bold text-lg">选择关联表</h3>
+          <h3 class="font-bold text-lg">
+            选择关联表
+          </h3>
           <button
             class="btn btn-ghost btn-sm"
             @click="closeTableSelector"
@@ -449,8 +467,12 @@
                   class="checkbox checkbox-sm"
                 >
                 <div>
-                  <div class="font-medium">{{ table.name }}</div>
-                  <div class="text-sm text-base-content/60">{{ table.comment || '无注释' }}</div>
+                  <div class="font-medium">
+                    {{ table.name }}
+                  </div>
+                  <div class="text-sm text-base-content/60">
+                    {{ table.comment || '无注释' }}
+                  </div>
                 </div>
               </div>
               <div

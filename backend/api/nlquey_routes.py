@@ -224,7 +224,7 @@ async def submit_clarification(
 ):
     """提交用户澄清输入"""
     try:
-        logger.info(f"接收澄清输入: task_id={task_id}, clarification={add_input.clarification_input:50]}...")
+        logger.info(f"接收澄清输入: task_id={task_id}, clarification={add_input.clarification_input[:50]}...")
                        
         # 获取异步查询服务
         from services.nlquery_service.async_query_service import get_async_query_service
