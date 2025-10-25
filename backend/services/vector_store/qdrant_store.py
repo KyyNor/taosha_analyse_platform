@@ -1,5 +1,5 @@
 """
-Qdrant 向量存储实现（内存模式）
+Qdrant 向量存储实现（支持内存模式和远程模式）
 """
 
 import uuid
@@ -9,33 +9,77 @@ from qdrant_client.models import Distance, VectorParams, PointStruct
 
 from services.vector_store.base import VectorStore
 from utils.logger import logger
+from utils.config import settings
 
 
 class QdrantStore(VectorStore):
     """Qdrant 向量存储实现
 
-    当前仅支持内存模式，后续可扩展为网络模式
+    支持内存模式和远程模式
     """
 
     def __init__(self,
                  embedding_func,
                  collection_name: str = "taosha_knowledge",
-                 embedding_dimension: int = 1024):
+                 embedding_dimension: int = 1024,
+                 mode: str = "memory",
+                 url: Optional[str] = None,
+                 api_key: Optional[str] = None,
+                 timeout: int = 30,
+                 verify: bool = True,
+                 grpc_port: int = 6334,
+                 prefer_grpc: bool = False):
         """初始化 Qdrant 存储
 
         Args:
             embedding_func: Embedding 函数实例
             collection_name: 集合名称
             embedding_dimension: Embedding 维度
+            mode: 运行模式，"memory" 或 "remote"
+            url: 远程Qdrant服务器URL（远程模式必需）
+            api_key: 远程Qdrant API密钥（可选）
+            timeout: 连接超时时间（秒）
+            verify: 是否验证HTTPS证书
+            grpc_port: gRPC端口
+            prefer_grpc: 是否优先使用gRPC
         """
         self.embedding_func = embedding_func
         self.collection_name = collection_name
         self.embedding_dimension = embedding_dimension
+        self.mode = mode
+        self.url = url
+        self.api_key = api_key
+        self.timeout = timeout
+        self.verify = verify
+        self.grpc_port = grpc_port
+        self.prefer_grpc = prefer_grpc
 
         try:
-            # 内存模式初始化
-            logger.info("初始化 Qdrant (内存模式)")
-            self.client = QdrantClient(":memory:")
+            # 根据模式初始化客户端
+            if mode == "memory":
+                logger.info("初始化 Qdrant (内存模式)")
+                self.client = QdrantClient(":memory:")
+            elif mode == "remote":
+                if not url:
+                    raise ValueError("远程模式需要提供URL")
+                
+                logger.info(f"初始化 Qdrant (远程模式): {url}")
+                client_kwargs = {
+                    "url": url,
+                    "timeout": timeout,
+                    "verify": verify
+                }
+                
+                if api_key:
+                    client_kwargs["api_key"] = api_key
+                
+                if prefer_grpc:
+                    client_kwargs["prefer_grpc"] = True
+                    client_kwargs["grpc_port"] = grpc_port
+                
+                self.client = QdrantClient(**client_kwargs)
+            else:
+                raise ValueError(f"不支持的Qdrant模式: {mode}，支持的模式: memory, remote")
 
             # 检查集合是否已存在，如果不存在则创建
             try:
@@ -52,7 +96,7 @@ class QdrantStore(VectorStore):
                     )
                 )
 
-            logger.info(f"Qdrant 初始化完成，集合名: {collection_name}")
+            logger.info(f"Qdrant 初始化完成，集合名: {collection_name}，模式: {mode}")
 
         except Exception as e:
             logger.error(f"Qdrant 初始化失败: {e}")

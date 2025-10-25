@@ -4,7 +4,7 @@
 
 from typing import Dict, Any, Optional
 
-from services.llm_service.embedding_service import get_chroma_embedding_function
+from services.llm_service.embedding_service import get_chroma_embedding_function, get_qdrant_embedding_function
 from services.vector_store.base import VectorStore
 from utils.logger import logger
 from utils.config import settings
@@ -98,7 +98,8 @@ class VectorStoreFactory:
                     config
                 )
             elif store_type == "qdrant":
-                embedding_func = None
+                # 创建 Qdrant 兼容的 embedding 函数
+                embedding_func = get_qdrant_embedding_function()
                 return VectorStoreFactory._create_qdrant(
                     store_class,
                     embedding_func,
@@ -152,15 +153,32 @@ class VectorStoreFactory:
             config: 配置字典
                 - collection_name (str): 集合名称，默认 "taosha_knowledge"
                 - embedding_dimension (int): Embedding 维度，默认 1024
+                - mode (str): 运行模式，"memory" 或 "remote"，默认 "memory"
+                - url (str): 远程Qdrant服务器URL（远程模式必需）
+                - api_key (str): 远程Qdrant API密钥（可选）
+                - timeout (int): 连接超时时间（秒），默认 30
+                - verify (bool): 是否验证HTTPS证书，默认 True
+                - grpc_port (int): gRPC端口，默认 6334
+                - prefer_grpc (bool): 是否优先使用gRPC，默认 False
 
         Returns:
             QdrantStore 实例
         """
         collection_name = config.get("collection_name", "taosha_knowledge")
         embedding_dimension = config.get("embedding_dimension", 1024)
+        
+        # 获取Qdrant特定配置
+        qdrant_config = config.get("qdrant", {})
+        mode = qdrant_config.get("mode", "memory")
+        url = qdrant_config.get("url")
+        api_key = qdrant_config.get("api_key")
+        timeout = qdrant_config.get("timeout", 30)
+        verify = qdrant_config.get("verify", True)
+        grpc_port = qdrant_config.get("grpc_port", 6334)
+        prefer_grpc = qdrant_config.get("prefer_grpc", False)
 
         logger.info(
-            f"创建 Qdrant 实例 (内存模式): "
+            f"创建 Qdrant 实例 ({mode}模式): "
             f"collection_name={collection_name}, "
             f"embedding_dimension={embedding_dimension}"
         )
@@ -168,7 +186,14 @@ class VectorStoreFactory:
         return store_class(
             embedding_func=embedding_func,
             collection_name=collection_name,
-            embedding_dimension=embedding_dimension
+            embedding_dimension=embedding_dimension,
+            mode=mode,
+            url=url,
+            api_key=api_key,
+            timeout=timeout,
+            verify=verify,
+            grpc_port=grpc_port,
+            prefer_grpc=prefer_grpc
         )
 
     @staticmethod
@@ -227,6 +252,37 @@ class VectorStoreFactory:
                 "collection_name": collection_name,
                 "persist_dir": persist_dir
             }
+            
+            # 如果是Qdrant，添加Qdrant特定配置
+            if store_type == "qdrant":
+                qdrant_config = {}
+                try:
+                    # 从settings获取Qdrant配置
+                    qdrant_config = {
+                        "mode": getattr(settings, 'qdrant_mode', 'memory'),
+                        "url": getattr(settings, 'qdrant_url', None),
+                        "api_key": getattr(settings, 'qdrant_api_key', None),
+                        "timeout": getattr(settings, 'qdrant_timeout', 30),
+                        "verify": getattr(settings, 'qdrant_verify', True),
+                        "grpc_port": getattr(settings, 'qdrant_grpc_port', 6334),
+                        "prefer_grpc": getattr(settings, 'qdrant_prefer_grpc', False)
+                    }
+                    
+                    # 如果settings中没有，尝试从配置文件读取
+                    if not qdrant_config.get("url") and qdrant_config.get("mode") == "remote":
+                        try:
+                            from utils.config import get_config
+                            config_data = get_config()
+                            qdrant_config_from_file = config_data.get('vector_store', {}).get('qdrant', {})
+                            qdrant_config.update(qdrant_config_from_file)
+                        except Exception as e:
+                            logger.warning(f"从配置文件读取Qdrant配置失败，使用默认值: {e}")
+                    
+                except Exception as e:
+                    logger.warning(f"获取Qdrant配置失败，使用默认值: {e}")
+                    qdrant_config = {"mode": "memory"}
+                
+                config["qdrant"] = qdrant_config
 
             # 创建 VectorStore 实例
             cls._vector_store = cls.create(store_type, config)

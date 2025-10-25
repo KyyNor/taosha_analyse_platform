@@ -319,3 +319,57 @@ def get_chroma_embedding_function() -> EmbeddingFunction:
     """获取ChromaDB兼容的Embedding函数实例"""
     service = get_embedding_service()
     return ChromaEmbeddingFunction(service)
+
+
+class QdrantEmbeddingFunction:
+    """
+    适配Qdrant的Embedding函数接口
+    复用现有的embedding服务，提供Qdrant兼容的接口
+    """
+
+    def __init__(self, service: BaseEmbeddingService):
+        self.service = service
+
+    def encode(self, texts: List[str]) -> List[List[float]]:
+        """
+        计算文本的embedding向量
+        
+        Args:
+            texts: 文本列表
+            
+        Returns:
+            embedding向量列表
+        """
+        return self.service.embed_documents(texts)
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        """计算多个文本的embedding"""
+        return self.service.embed_documents(texts)
+
+    def embed_query(self, text: str) -> List[float]:
+        """计算单个文本的embedding"""
+        return self.service.embed_query(text)
+
+    def get_dimension(self) -> int:
+        """获取embedding维度"""
+        return self.service.get_dimension()
+
+    def is_available(self) -> bool:
+        """检查服务是否可用"""
+        return self.service.is_available()
+
+    def name(self) -> str:
+        """返回embedding函数的名称"""
+        service_type = "local" if isinstance(self.service, LocalEmbeddingService) else "remote"
+        return f"qdrant_embedding_function_{service_type}"
+
+    def __str__(self) -> str:
+        """字符串表示"""
+        service_type = "local" if isinstance(self.service, LocalEmbeddingService) else "remote"
+        return f"QdrantEmbeddingFunction(service_type={service_type})"
+
+
+def get_qdrant_embedding_function() -> QdrantEmbeddingFunction:
+    """获取Qdrant兼容的Embedding函数实例"""
+    service = get_embedding_service()
+    return QdrantEmbeddingFunction(service)
