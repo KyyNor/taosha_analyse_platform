@@ -147,3 +147,4 @@ temp/
 .tmp/
 
 backend/database/Qwen3-Embedding-0___6B/
+backend/database/bge-m3-onnx/

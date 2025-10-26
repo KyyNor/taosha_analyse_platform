@@ -40,13 +40,14 @@ class BaseEmbeddingService(ABC):
 
 
 class LocalEmbeddingService(BaseEmbeddingService):
-    """本地Embedding服务实现 - 基于sentence-transformers"""
+    """本地Embedding服务实现 - 基于FastEmbed"""
 
     def __init__(self):
         self._model = None
         self._cache = {}
         self._cache_max_size = settings.embedding_cache_size
         self._model_path = settings.embedding_model_path
+        self._model_name = settings.embedding_model
         self._device = settings.embedding_device
 
         logger.info(f"本地Embedding服务初始化，模型路径: {self._model_path}, 设备: {self._device}")
@@ -57,23 +58,28 @@ class LocalEmbeddingService(BaseEmbeddingService):
             return
 
         try:
-            from sentence_transformers import SentenceTransformer
+            from fastembed import TextEmbedding
+            from fastembed.common.model_description import PoolingType, ModelSource
 
-            logger.info(f"开始加载本地模型: {self._model_path}")
-            self._model = SentenceTransformer(
-                self._model_path,
-                device=self._device
-            )
+            logger.info(f"开始加载FastEmbed模型: {self._model_path}")
+
+            model = TextEmbedding(
+                model_name="intfloat/multilingual-e5-small",
+                cache_dir="/data/models",
+                local_files_only=True,
+                parallel=0)  # 0=用满 CPU 核，离线大数据集常用
+            
+            self._model = TextEmbedding(self._model_name)
 
             # 测试模型
-            test_embedding = self._model.encode(["测试"])
-            logger.info(f"模型加载成功，embedding维度: {len(test_embedding[0])}")
+            test_embeddings = list(self._model.embed(["测试"]))
+            logger.info(f"FastEmbed模型加载成功，embedding维度: {len(test_embeddings[0])}")
 
         except ImportError:
-            raise ImportError("请安装sentence-transformers: pip install sentence-transformers")
+            raise ImportError("请安装fastembed: pip install fastembed")
         except Exception as e:
-            logger.error(f"模型加载失败: {e}")
-            raise RuntimeError(f"无法加载本地模型 {self._model_path}: {e}")
+            logger.error(f"FastEmbed模型加载失败: {e}")
+            raise RuntimeError(f"无法加载FastEmbed模型 {self._model_path}: {e}")
 
     def _get_cache_key(self, texts: List[str]) -> str:
         """生成缓存键"""
@@ -105,27 +111,22 @@ class LocalEmbeddingService(BaseEmbeddingService):
             self._load_model()
 
         try:
-            # 计算embedding
+            # 计算embedding - FastEmbed使用生成器方式
             logger.debug(f"计算embedding，文本数量: {len(texts)}")
-            embeddings = self._model.encode(
-                texts,
-                batch_size=32,
-                normalize_embeddings=True,
-                convert_to_numpy=True
-            )
+            embeddings = list(self._model.embed(texts))
 
-            # 转换为列表格式
-            result = embeddings.tolist()
+            # FastEmbed返回的已经是列表格式，不需要额外转换
+            result = embeddings
 
             # 更新缓存
             self._update_cache(cache_key, result)
 
-            logger.debug(f"embedding计算完成，维度: {len(result[0]) if result else 0}")
+            logger.debug(f"FastEmbed embedding计算完成，维度: {len(result[0]) if result else 0}")
             return result
 
         except Exception as e:
-            logger.error(f"embedding计算失败: {e}")
-            raise RuntimeError(f"embedding计算失败: {e}")
+            logger.error(f"FastEmbed embedding计算失败: {e}")
+            raise RuntimeError(f"FastEmbed embedding计算失败: {e}")
 
     def embed_query(self, text: str) -> List[float]:
         """计算单个文本的embedding"""
@@ -140,8 +141,8 @@ class LocalEmbeddingService(BaseEmbeddingService):
         if self._model is None:
             self._load_model()
 
-        test_embedding = self._model.encode(["测试"])
-        return len(test_embedding[0])
+        test_embeddings = list(self._model.embed(["测试"]))
+        return len(test_embeddings[0])
 
     def is_available(self) -> bool:
         """检查服务是否可用"""
