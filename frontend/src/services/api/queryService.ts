@@ -1,4 +1,4 @@
-import { api, wsManager, type WebSocketManager } from './client'
+import { api, wsManager } from './client'
 import { API_ENDPOINTS, buildApiUrl, replaceUrlParams } from '@/config/api'
 import type {
   QueryRequest,
@@ -13,20 +13,10 @@ import type {
 } from '@/types/index'
 
 class QueryService {
-  private ws: WebSocketManager
+  private ws: typeof wsManager
 
   constructor() {
     this.ws = wsManager
-  }
-
-  // 保留向后兼容（现在是空操作，因为使用HTTP长轮询）
-  async initializeWebSocket(): Promise<void> {
-    console.log('[QueryService] 使用HTTP长轮询，无需初始化WebSocket')
-  }
-
-  // 保留向后兼容（现在会停止所有轮询）
-  disconnectWebSocket(): void {
-    this.ws.stopAll()
   }
 
   // Submit query

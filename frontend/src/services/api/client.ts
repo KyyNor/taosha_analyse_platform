@@ -344,7 +344,4 @@ export class PollingManager {
 // Export singleton polling manager
 export const wsManager = new PollingManager()
 
-// 向后兼容：导出WebSocketManager作为PollingManager的别名
-export { PollingManager as WebSocketManager }
-
 export default api

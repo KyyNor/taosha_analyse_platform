@@ -17,7 +17,6 @@ export const useQueryStore = defineStore('query', () => {
   const queryHistory = ref<QueryTask[]>([])
   const favorites = ref<Favorite[]>([])
   const isLoading = ref(false)
-  const wsConnected = ref(false)
 
   // Pagination
   const historyPage = ref(1)
@@ -48,7 +47,7 @@ export const useQueryStore = defineStore('query', () => {
   )
   const queryProgress = computed(() => (currentTask.value as any)?.progress || null)
   const canCancelQuery = computed(() =>
-    isQueryRunning.value && wsConnected.value
+    isQueryRunning.value
   )
   const hasResults = computed(() => currentResult.value !== null)
   const resultData = computed(() => {
@@ -85,11 +84,7 @@ export const useQueryStore = defineStore('query', () => {
       isLoading.value = true
       currentQuery.value = request
 
-      // Initialize WebSocket connection if not already connected
-      if (!wsConnected.value) {
-        await queryService.initializeWebSocket()
-        wsConnected.value = true
-      }
+      // 注：长轮询自动启动，无需初始化连接
 
       // Submit query
       console.log('[QueryStore] Submitting query request:', request)
@@ -392,22 +387,6 @@ export const useQueryStore = defineStore('query', () => {
     }
   }
 
-  // WebSocket management
-  const initializeWebSocket = async () => {
-    try {
-      await queryService.initializeWebSocket()
-      wsConnected.value = true
-    } catch (error) {
-      console.error('Failed to initialize WebSocket:', error)
-      wsConnected.value = false
-    }
-  }
-
-  const disconnectWebSocket = () => {
-    queryService.disconnectWebSocket()
-    wsConnected.value = false
-  }
-
   // Progress update handler
   const handleProgressUpdate = (data: any) => {
     if (currentTask.value && data.task_id === currentTask.value.task_id) {
@@ -492,7 +471,7 @@ export const useQueryStore = defineStore('query', () => {
   // Cleanup
   const cleanup = () => {
     clearCurrentQuery()
-    disconnectWebSocket()
+    // 长轮询会在任务完成时自动停止
     queryHistory.value = []
     favorites.value = []
     historyPage.value = 1
@@ -509,7 +488,6 @@ export const useQueryStore = defineStore('query', () => {
     queryHistory,
     favorites,
     isLoading,
-    wsConnected,
     historyPage,
     historyPageSize,
     historyTotal,
@@ -549,8 +527,6 @@ export const useQueryStore = defineStore('query', () => {
     executeFavorite,
     submitFeedback,
     submitClarification,
-    initializeWebSocket,
-    disconnectWebSocket,
     cleanup
   }
 })
