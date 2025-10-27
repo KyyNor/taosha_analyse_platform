@@ -3,16 +3,17 @@ Qdrant 向量存储实现
 """
 
 import uuid
-from typing import List, Dict, Optional
+from typing import List, Dict
 
-from fastembed.common.model_description import PoolingType, ModelSource
-from qdrant_client import QdrantClient, models
-from qdrant_client.models import Distance, VectorParams, PointStruct
 from fastembed import TextEmbedding
+from fastembed.common.model_description import PoolingType, ModelSource
 from fastembed.rerank.cross_encoder import TextCrossEncoder
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import MatchAny, FieldCondition, Filter
+from qdrant_client.models import Distance, VectorParams, PointStruct
 
-from utils.logger import logger
 from utils.config import settings
+from utils.logger import logger
 
 
 class QdrantVectorStore():
@@ -139,7 +140,8 @@ class QdrantVectorStore():
                query: str,
                top_k: int = 10,
                rerank_top_k: int = None,
-               filters: models.Filter = None,
+               filters: Filter = None,
+               score_threshold: float = None,
                allowed_ids: List[str] = None) -> List[Dict]:
         """搜索相似文档
 
@@ -157,11 +159,11 @@ class QdrantVectorStore():
 
         try:
             if filters is None:
-                filters = models.Filter()
+                filters = Filter()
 
             if allowed_ids:
-                id_filters = models.FieldCondition(key="id", match=models.MatchAny(any=allowed_ids))
-                filters.add(id_filters)
+                id_filters = FieldCondition(key="id", match=MatchAny(any=allowed_ids))
+                filters.must.append(id_filters)
 
             # 执行搜索
             results = self.client.query_points(
@@ -169,6 +171,7 @@ class QdrantVectorStore():
                 query=list(self.embedding.embed(query))[0],
                 limit=rerank_top_k,
                 query_filter=filters,
+                score_threshold=score_threshold,
             )
 
             content_hits = []

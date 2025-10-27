@@ -14,7 +14,7 @@ class GlossaryTerm(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)  # concept_explanation, sql_qa, dictionary_conversion
+    type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)  # concept, sql_qa, dict_mapping
     is_basic: Mapped[bool] = mapped_column(default=False)  # 是否为基础术语，默认为False
     content: Mapped[str] = mapped_column(Text, nullable=False)  # JSON格式的术语内容
     creator: Mapped[str] = mapped_column(String(100), default="")

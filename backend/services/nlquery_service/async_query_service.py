@@ -5,6 +5,10 @@
 import asyncio
 import uuid
 from typing import Optional, Set
+
+from sqlalchemy import or_
+
+from models import DataTheme
 from utils.logger import logger
 from services.tracking_service.operation_tracking import OperationTracker
 from models.db_base import get_db, SessionLocal
@@ -79,24 +83,35 @@ class AsyncQueryService:
             # 确定要查询的表ID
             target_table_ids = []
 
+            public_theme = db_session.query(DataTheme).filter(DataTheme.theme_type == "public").first()
+            public_table_obj_list = db_session.query(ThemeTableRelation).filter(
+                ThemeTableRelation.theme_id == public_theme.theme_id
+            ).all()
+            public_table_id_list = [_.table_id for _ in public_table_obj_list]
+            logger.info(f"公共主题共 {len(public_table_id_list)} 张表。")
+
             if theme_id:
                 # 如果选中主题，获取该主题下的所有表
                 logger.info(f"获取主题 {theme_id} 下的表...")
                 theme_relations = db_session.query(ThemeTableRelation).filter(
-                    ThemeTableRelation.theme_id == theme_id
+                    or_(ThemeTableRelation.theme_id == theme_id,
+                        ThemeTableRelation.theme_id == public_theme.theme_id)
                 ).all()
                 target_table_ids = [rel.table_id for rel in theme_relations]
                 logger.info(f"主题 {theme_id} 包含 {len(target_table_ids)} 个表")
 
+                target_table_ids.extend(public_table_id_list)
             elif table_ids:
                 # 如果选中表，直接使用
                 target_table_ids = table_ids
                 logger.info(f"使用选中的 {len(table_ids)} 个表")
 
+                target_table_ids.extend(public_table_id_list)
+
             # 查询这些表对应的所有训练记录的vector_id
             if target_table_ids:
                 training_records = db_session.query(TrainingRecord).filter(
-                    TrainingRecord.resource_type.in_(["table", "glossary", "prompt_template"]),
+                    TrainingRecord.resource_type.in_(["table"]),
                     TrainingRecord.resource_id.in_(target_table_ids),
                     TrainingRecord.vector_id != ""  # 只获取有vector_id的记录
                 ).all()

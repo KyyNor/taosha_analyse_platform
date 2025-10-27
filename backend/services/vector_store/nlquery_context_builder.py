@@ -3,6 +3,9 @@ NL2SQL 专用的上下文构建器 - 业务级别的检索和上下文组织
 """
 
 from typing import List, Dict, Optional
+
+from qdrant_client.http.models import MatchAny, Filter, MatchValue, FieldCondition
+
 from services.metadata_service.metadata_service import (
     get_metadata_service,
     get_glossary_service,
@@ -38,8 +41,6 @@ class NLQueryContextBuilder:
 
         logger.info("NLQuery Context Builder 初始化完成，使用全局 VectorStore 实例")
 
-    # ========== 方法1：纯向量检索 ==========
-
     def retrieve_by_semantic_search(self, user_input: str, top_k: int = 10, allowed_vector_ids: List[str] = None) -> str:
         """纯向量检索 - 根据语义相似度检索
 
@@ -59,11 +60,21 @@ class NLQueryContextBuilder:
             # 1. 获取基础术语上下文
             basic_terms_context = self.get_basic_terms_context()
             
-            # 2. 执行向量搜索（支持 allowed_vector_ids 过滤）
-            search_results = self.vector_store.search(
+            # 2. 执行向量搜索 先检索表
+            table_search_results = self.vector_store.search(
                 user_input,
                 top_k=top_k,
-                allowed_ids=allowed_vector_ids  # 精准过滤：只在指定的 vector_id 范围内检索
+                filters=Filter(must=FieldCondition(key="resource_type", match=MatchValue(value="table"))),
+                allowed_ids=allowed_vector_ids,
+                score_threshold=0.6,
+            )
+
+            # 再检索其他
+            other_search_results = self.vector_store.search(
+                user_input,
+                top_k=top_k,
+                filters=Filter(must_not=FieldCondition(key="resource_type", match=MatchValue(value="table"))),
+                score_threshold=0.6,
             )
 
             # 3. 分类组织结果
@@ -71,9 +82,9 @@ class NLQueryContextBuilder:
             glossary_docs = []
             other_docs = []
 
-            for result in search_results:
+            for result in table_search_results + other_search_results:
                 metadata = result.get("metadata", {})
-                doc_type = metadata.get("type", "unknown")
+                doc_type = metadata.get("resource_type", "unknown")
 
                 if doc_type == "table":
                     table_docs.append(result)
@@ -100,180 +111,13 @@ class NLQueryContextBuilder:
 
             context = "\n\n".join(context_parts)
             logger.info(context)
-            logger.info(f"向量检索完成，返回 {len(search_results)} 个结果")
+            logger.info(f"向量检索完成，返回 {len(table_search_results + other_search_results)} 个结果")
             return context
 
         except Exception as e:
             logger.error(f"纯向量检索失败: {e}")
             raise RuntimeError(f"上下文检索失败: {e}")
 
-    # ========== 方法2：关联ID优先检索 ==========
-
-    def retrieve_by_relation_id(self,
-                               relation_id: str,
-                               user_input: str,
-                               top_k: int = 10,
-                               allowed_vector_ids: List[str] = None) -> str:
-        """关联ID优先检索 - 先按关联ID过滤，再向量检索
-
-        使用场景：当用户提到特定的关联概念（如"客户编号"），
-                 可以先找到这个关联族的所有字段，再做语义搜索
-
-        Args:
-            relation_id: 关联ID（如"cust_id"）
-            user_input: 用户输入
-            top_k: 返回结果数量
-            allowed_vector_ids: 限制检索的vector_id列表（基于表选择的精准过滤）
-
-        Returns:
-            格式化的上下文（关联字段优先）
-        """
-        logger.info(f"执行关联ID优先检索: relation_id={relation_id}, user_input={user_input[:50]}... (过滤IDs数: {len(allowed_vector_ids) if allowed_vector_ids else 0})")
-
-        try:
-            # 1. 获取该关联ID对应的所有字段信息
-            relation_fields = self._get_fields_by_relation_id(relation_id)
-
-            # 2. 执行向量搜索（支持 allowed_vector_ids 过滤）
-            search_results = self.vector_store.search(
-                user_input,
-                top_k=top_k,
-                allowed_ids=allowed_vector_ids  # 精准过滤
-            )
-
-            # 3. 重排：关联字段优先
-            prioritized_results = self._prioritize_by_relation(
-                search_results,
-                relation_fields
-            )
-
-            # 4. 格式化上下文
-            context_parts = []
-
-            # 先展示关联字段信息
-            if relation_fields:
-                context_parts.append(self._format_relation_fields(relation_fields, relation_id))
-
-            # 再展示其他检索结果
-            if prioritized_results:
-                context_parts.append(self._format_search_results(prioritized_results))
-
-            context = "\n\n".join(context_parts)
-            logger.debug(f"关联ID优先检索完成，返回 {len(prioritized_results)} 个结果")
-            return context
-
-        except Exception as e:
-            logger.error(f"关联ID优先检索失败: {e}")
-            raise RuntimeError(f"上下文检索失败: {e}")
-
-    # ========== 方法3：表优先检索 ==========
-
-    def retrieve_by_table_first(self,
-                               table_names: List[str],
-                               user_input: str,
-                               top_k: int = 10) -> str:
-        """表优先检索 - 先返回指定表的完整结构，再向量检索
-
-        使用场景：当用户明确指定了表名（如"订单表"），
-                 可以先返回这个表的完整结构，再做语义搜索
-
-        Args:
-            table_names: 指定的表名列表
-            user_input: 用户输入
-            top_k: 返回结果数量
-
-        Returns:
-            格式化的上下文（表结构在前）
-        """
-        logger.info(f"执行表优先检索: tables={table_names}, user_input={user_input[:50]}...")
-
-        try:
-            context_parts = []
-
-            # 1. 获取指定表的完整信息
-            for table_name in table_names:
-                table_info = self.metadata_service.get_table_by_name(table_name)
-                if table_info:
-                    context_parts.append(self._format_complete_table(table_info))
-                else:
-                    logger.warning(f"找不到表: {table_name}")
-
-            # 2. 执行向量检索补充相关表和术语
-            search_results = self.vector_store.search(user_input, top_k=top_k)
-
-            if search_results:
-                context_parts.append(self._format_search_results(search_results))
-
-            context = "\n\n".join(context_parts)
-            logger.debug(f"表优先检索完成，返回 {len(table_names)} 个指定表")
-            return context
-
-        except Exception as e:
-            logger.error(f"表优先检索失败: {e}")
-            raise RuntimeError(f"上下文检索失败: {e}")
-
-    # ========== 方法4：混合检索 ==========
-
-    def retrieve_hybrid(self,
-                       user_input: str,
-                       relation_id: str = None,
-                       table_names: List[str] = None,
-                       top_k: int = 10) -> str:
-        """混合检索 - 组合使用关联ID、表优先、向量检索
-
-        使用场景：复杂查询，需要多个条件组合
-
-        例子：
-        用户输入："客户表中，客户编号为123的最近订单"
-        -> retrieve_hybrid(
-             user_input="最近订单",
-             relation_id="cust_id",
-             table_names=["customer_table"],
-             top_k=5
-           )
-
-        Args:
-            user_input: 用户输入
-            relation_id: 可选的关联ID
-            table_names: 可选的表名列表
-            top_k: 返回结果数量
-
-        Returns:
-            格式化的上下文
-        """
-        logger.info(f"执行混合检索: user_input={user_input[:50]}..., "
-                   f"relation_id={relation_id}, tables={table_names}")
-
-        try:
-            context_parts = []
-
-            # 1. 表优先
-            if table_names:
-                for table_name in table_names:
-                    table_info = self.metadata_service.get_table_by_name(table_name)
-                    if table_info:
-                        context_parts.append(self._format_complete_table(table_info))
-
-            # 2. 关联ID优先
-            if relation_id:
-                relation_fields = self._get_fields_by_relation_id(relation_id)
-                if relation_fields:
-                    context_parts.append(
-                        self._format_relation_fields(relation_fields, relation_id)
-                    )
-
-            # 3. 向量检索补充
-            search_results = self.vector_store.search(user_input, top_k=top_k)
-            if search_results:
-                context_parts.append(self._format_search_results(search_results))
-
-            context = "\n\n".join(context_parts)
-            logger.debug("混合检索完成")
-            return context
-
-        except Exception as e:
-            logger.error(f"混合检索失败: {e}")
-            raise RuntimeError(f"上下文检索失败: {e}")
 
     # ========== 内部格式化方法 ==========
 

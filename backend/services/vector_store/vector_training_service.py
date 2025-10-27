@@ -361,19 +361,23 @@ class VectorTrainingService:
             columns = self.column_repo.get_by_table_id(table_id)
 
             # 构建表结构描述
-            doc_lines = [f"表名: {table.name}"]
-            if table.comment:
-                doc_lines.append(f"表描述: {table.comment}")
 
-            doc_lines.append("字段信息:")
+            comment = ''
+            if table.comment:
+                comment = f"表描述: {table.comment}"
+
+            doc_lines = [f"表名: {table.name} {comment}", "字段信息:"]
+
             for col in columns:
                 col_name = col.name
                 col_type = col.business_type or col.type
                 col_comment = col.comment
 
-                col_line = f"  - {col_name} ({col_type})"
-                if col_comment:
-                    col_line += f": {col_comment}"
+                relation_info = ''
+                if col.relation_config_id:
+                    relation_info = f'关联ID: {col.relation_config_id}'
+
+                col_line = f"  - {col_name} ({col_type}) 描述: {col_comment} {relation_info}"
 
                 doc_lines.append(col_line)
 
@@ -381,7 +385,6 @@ class VectorTrainingService:
 
             # 构建元数据
             metadata = {
-                "type": "table",
                 "resource_type": "table",
                 "resource_id": table_id,
                 "table_name": table.name,
@@ -415,22 +418,22 @@ class VectorTrainingService:
                 content = {}
 
             # 构建术语描述
-            doc_lines = [f"术语: {glossary.name}"]
-            doc_lines.append(f"类型: {glossary.type}")
+            doc_lines = []
 
-            if glossary.type == "concept_explanation":
-                doc_lines.append(f"解释: {content.get('explanation', '')}")
+            if glossary.type == "concept":
+                doc_lines.append(f"术语: {glossary.name} 词语解释: {content.get('explanation', '')}")
             elif glossary.type == "sql_qa":
+                doc_lines.append(f"术语: {glossary.name} SQL问答: {content.get('explanation', '')}")
                 doc_lines.append(f"问题: {content.get('question', '')}")
-                doc_lines.append(f"SQL: {content.get('sql', '')}")
-            elif glossary.type == "dictionary_conversion":
-                doc_lines.append(f"转换规则: {content.get('conversion_rule', '')}")
+                doc_lines.append(f"SQL: {content.get('answer', '')}")
+            elif glossary.type == "dict_mapping":
+                doc_lines.append(f"术语: {glossary.name} 字段转换 字段名: {content.get('col_name', '')}：")
+                doc_lines.append(f"转换规则: {content.get('dict_map', '')}")
 
             document = "\n".join(doc_lines)
 
             # 构建元数据
             metadata = {
-                "type": "glossary",
                 "resource_type": "glossary",
                 "resource_id": glossary_id,
                 "term": glossary.name,
@@ -468,7 +471,6 @@ class VectorTrainingService:
 
             # 构建元数据
             metadata = {
-                "type": "relation",
                 "resource_type": "relation",
                 "resource_id": relation_id,
                 "family_name": relation.relation_family,
