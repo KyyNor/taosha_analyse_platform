@@ -7,6 +7,7 @@ from cachetools import TTLCache
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import threading
+from utils.logger import logger
 
 from ..service_models import TaskState, BaseNodeLog
 
@@ -40,14 +41,18 @@ class TrackerCache:
 
     def set_task_state(self, task_id: str, state: Dict[str, Any]) -> None:
         """
-        设置任务状态
+        设置任务状态（自动添加update_time时间戳）
 
         Args:
             task_id: 任务ID
             state: 任务状态字典
         """
         with self._lock:
-            self.cache[task_id] = state
+            # 添加或更新update_time时间戳（用于长轮询增量查询）
+            state_copy = state.copy()
+            state_copy['update_time'] = datetime.now().isoformat()
+            self.cache[task_id] = state_copy
+            logger.debug(f"缓存已更新: task_id={task_id}, update_time={state_copy['update_time']}")
 
     def cleanup_expired(self) -> int:
         """

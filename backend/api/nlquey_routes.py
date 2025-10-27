@@ -2,8 +2,11 @@
 API路由定义
 """
 import asyncio
+import time
+from typing import Optional
+from datetime import datetime
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
+from fastapi import APIRouter, Query, Depends
 from sqlalchemy.orm import Session
 
 from fastapi.encoders import jsonable_encoder
@@ -19,86 +22,116 @@ from utils.logger import logger
 # 创建路由器
 router = APIRouter(prefix="/nlquery")
 
-@router.websocket("/ws/task_process")
-async def ws_task_process(websocket: WebSocket):
+@router.get("/progress/{task_id}")
+async def get_task_progress(
+    task_id: str,
+    last_update_time: Optional[str] = Query(None, description="上次更新时间戳（ISO格式）"),
+    timeout: int = Query(30, ge=1, le=60, description="服务端最大等待时间（秒）"),
+    db: Session = Depends(get_db)
+):
     """
-    WebSocket任务状态推送接口
-    客户端发送任务ID，服务端每5秒推送一次任务状态
-    如果任务完成（成功或失败），则停止推送
-    """
-    await websocket.accept()
-    current_task_id = None
-    retry_cnt = 0
-    running = True
+    长轮询获取任务进度
 
+    - 如果有新更新则立即返回最新状态
+    - 否则等待最多timeout秒后返回当前状态
+    - 返回complete=True表示任务已完成（成功或失败）
+
+    Args:
+        task_id: 任务ID
+        last_update_time: 上次更新的时间戳（ISO格式），用于增量查询
+        timeout: 服务端阻塞等待的最大时间（秒）
+
+    Returns:
+        {
+            "code": 0 或错误码,
+            "data": {
+                "task_id": "...",
+                "status": "running|success|failed|cancelled",
+                "progress": 0-100,
+                "current_step": "当前步骤名称",
+                "complete": true|false,
+                "update_time": "ISO时间戳",
+                "logs": [...],
+                ...其他字段
+            },
+            "error_msg": ""
+        }
+    """
     try:
-        while running:
-            # 接收客户端消息（任务ID）
-            try:
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=1.0)
-                if data.strip():
-                    current_task_id = data.strip()
-                    current_task_id = current_task_id.replace('"', '')
-                    logger.info(f"WebSocket客户端切换到任务: {current_task_id}")
-            except asyncio.TimeoutError:
-                # 超时继续执行，继续推送当前任务状态
-                pass
-            except WebSocketDisconnect:
-                break
-
-            # 如果有当前任务，推送状态
-            if current_task_id:
-                # WebSocket直接从全局缓存读取状态，不需要数据库会话
-                cached_state = tracker_cache.get_task_state(current_task_id)
-
-                if cached_state:
-                    # 将字典转换为TaskState对象
-                    task_result = TaskState(**cached_state)
-
-                    if task_result:
-                        # 构建响应数据（使用统一的状态格式）
-                        response = {
-                            "code": 0,
-                            "data": task_result,
-                            "error_msg": ""
-                        }
-
-                        await websocket.send_json(jsonable_encoder(response))
-
-                        # 检查任务是否完成
-                        if task_result.status in ["success", "failed"]:
-                            logger.info(f"任务 {current_task_id} 已完成，状态: {task_result.status}")
-                            # 任务完成后，清空当前任务，但保持连接等待新任务
-                            current_task_id = None
-                else:
-                    # 任务不存在
-                    await websocket.send_json({
-                        "code": 404,
-                        "data": None,
-                        "error_msg": f"第{retry_cnt + 1}次尝试：任务 {current_task_id} 不存在"
-                    })
-                    if retry_cnt < 10:
-                        retry_cnt = retry_cnt + 1
-                    else:
-                        current_task_id = None
-                        retry_cnt = 0
-
-            # 等待1秒再推送
-            await asyncio.sleep(1)
-
-    except WebSocketDisconnect:
-        logger.info("WebSocket客户端断开连接")
-    except Exception as e:
-        logger.error(f"WebSocket连接错误: {e}", exc_info=True)
-        try:
-            await websocket.send_json({
-                "code": 500,
+        # 检查任务是否存在
+        task_state = tracker_cache.get_task_state(task_id)
+        if not task_state:
+            return {
+                "code": 404,
                 "data": None,
-                "error_msg": f"服务器错误: {str(e)}"
-            })
-        except Exception as send_error:
-            logger.error(f"发送错误消息失败: {send_error}")
-            pass
+                "error_msg": f"任务 {task_id} 不存在"
+            }
+
+        # 获取初始状态的更新时间
+        current_state = task_state.copy()
+        current_update_time = current_state.get('update_time', datetime.now().isoformat())
+
+        # 如果没有上次更新时间，或有新更新，则直接返回
+        if not last_update_time or current_update_time > last_update_time:
+            return {
+                "code": 0,
+                "data": {
+                    **current_state,
+                    "update_time": current_update_time,
+                    "complete": current_state.get('status') in ['success', 'failed']
+                },
+                "error_msg": ""
+            }
+
+        # 等待更新（最多timeout秒）
+        start_time = time.time()
+        poll_interval = 0.5  # 每500ms检查一次
+
+        while time.time() - start_time < timeout:
+            await asyncio.sleep(poll_interval)
+
+            # 重新检查状态
+            task_state = tracker_cache.get_task_state(task_id)
+            if task_state:
+                new_update_time = task_state.get('update_time', datetime.now().isoformat())
+                if new_update_time > last_update_time:
+                    return {
+                        "code": 0,
+                        "data": {
+                            **task_state,
+                            "update_time": new_update_time,
+                            "complete": task_state.get('status') in ['success', 'failed']
+                        },
+                        "error_msg": ""
+                    }
+
+        # 超时时返回当前状态（可能无新更新）
+        task_state = tracker_cache.get_task_state(task_id)
+        if task_state:
+            current_update_time = task_state.get('update_time', datetime.now().isoformat())
+            return {
+                "code": 0,
+                "data": {
+                    **task_state,
+                    "update_time": current_update_time,
+                    "complete": task_state.get('status') in ['success', 'failed']
+                },
+                "error_msg": ""
+            }
+        else:
+            return {
+                "code": 404,
+                "data": None,
+                "error_msg": f"任务 {task_id} 不存在"
+            }
+
+    except Exception as e:
+        logger.error(f"获取任务进度失败: {e}", exc_info=True)
+        return {
+            "code": 500,
+            "data": None,
+            "error_msg": f"服务器错误: {str(e)}"
+        }
 
 @router.post("/submit")
 async def process_natural_language_query(

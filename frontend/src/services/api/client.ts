@@ -6,9 +6,7 @@ import axios, {
 } from 'axios'
 import type { ApiResponse } from '@/types/index'
 import {
-  API_CONFIG,
-  WS_ENDPOINTS,
-  buildWsUrl
+  API_CONFIG
 } from '@/config/api'
 
 // Create axios instance
@@ -155,124 +153,198 @@ export const api = {
   }
 }
 
-// WebSocket utility
-export class WebSocketManager {
-  private ws: WebSocket | null = null
-  private url: string
-  private reconnectAttempts = 0
-  private reconnectDelay = API_CONFIG.RETRY.DELAY
+// 长轮询管理器
+export class PollingManager {
+  private pollingIntervals: Map<string, ReturnType<typeof setTimeout>> = new Map()
+  private lastUpdateTime: Map<string, string> = new Map()
   private messageHandlers: Map<string, (data: any) => void> = new Map()
-  private connectionHandlers: { onOpen?: () => void; onClose?: () => void; onError?: (error: Event) => void } = {}
+  private pollInterval = 2000  // 轮询间隔：2秒
+  private serverTimeout = 30    // 服务端等待时间：30秒
+  private maxRetries = 5        // 最大重试次数：5次
+  private abortControllers: Map<string, AbortController> = new Map()
 
-  constructor(endpoint: string = WS_ENDPOINTS.TASK_PROGRESS) {
-    this.url = buildWsUrl(endpoint)
+  /**
+   * 订阅任务进度（自动启动长轮询）
+   */
+  async subscribeToTaskProgress(
+    taskId: string,
+    handler: (data: any) => void,
+    options?: {
+      pollInterval?: number
+      serverTimeout?: number
+      maxRetries?: number
+    }
+  ): Promise<void> {
+    const mergedOptions = {
+      pollInterval: options?.pollInterval ?? this.pollInterval,
+      serverTimeout: options?.serverTimeout ?? this.serverTimeout,
+      maxRetries: options?.maxRetries ?? this.maxRetries
+    }
+
+    this.messageHandlers.set(`task_${taskId}`, handler)
+    console.log(`[Polling] 开始订阅任务进度: ${taskId}`)
+
+    // 如果已在轮询则停止
+    if (this.pollingIntervals.has(taskId)) {
+      this.unsubscribe(taskId)
+    }
+
+    // 启动长轮询
+    await this.startPolling(taskId, mergedOptions)
   }
 
-  connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
+  /**
+   * 启动长轮询
+   */
+  private async startPolling(
+    taskId: string,
+    options: {
+      pollInterval: number
+      serverTimeout: number
+      maxRetries: number
+    }
+  ): Promise<void> {
+    let retryCount = 0
+
+    const poll = async () => {
       try {
-        this.ws = new WebSocket(this.url)
-
-        this.ws.onopen = () => {
-          console.log('[WebSocket] Connected', this.url)
-          this.reconnectAttempts = 0
-          this.connectionHandlers.onOpen?.()
-          resolve()
+        // 构建请求URL
+        const lastUpdate = this.lastUpdateTime.get(taskId)
+        const params = new URLSearchParams({
+          timeout: String(options.serverTimeout)
+        })
+        if (lastUpdate) {
+          params.append('last_update_time', lastUpdate)
         }
 
-        this.ws.onmessage = (event) => {
-          try {
-            const message = JSON.parse(event.data)
-            console.log('[WebSocket] Message received', message)
+        const url = `${API_CONFIG.BASE_URL}/api/taosha/v1/nlquery/progress/${taskId}?${params}`
 
-            // Handle task progress messages (backend sends {code: 0, data: {...}})
-            if (message.code === 0 && message.data && message.data.task_id) {
-              const taskId = message.data.task_id
-              // Call task-specific handler
-              if (this.messageHandlers.has(`task_${taskId}`)) {
-                this.messageHandlers.get(`task_${taskId}`)?.(message.data)
-              }
-            }
+        // 创建AbortController用于超时控制
+        const abortController = new AbortController()
+        const clientTimeout = (options.serverTimeout + 15) * 1000  // 客户端超时：45秒
+        const timeoutId = setTimeout(() => abortController.abort(), clientTimeout)
+        this.abortControllers.set(taskId, abortController)
 
-            // Call registered message handlers for messages with type
-            if (message.type && this.messageHandlers.has(message.type)) {
-              this.messageHandlers.get(message.type)?.(message.data)
-            }
+        console.log(`[Polling] 发送请求: ${taskId} (重试: ${retryCount}/${options.maxRetries})`)
 
-            // Call default handler if registered
-            if (this.messageHandlers.has('*')) {
-              this.messageHandlers.get('*')?.(message)
-            }
-          } catch (error) {
-            console.error('[WebSocket] Error parsing message', error)
-          }
+        // 发起HTTP请求（使用axios）
+        const response = await apiClient.get(url, {
+          signal: abortController.signal
+        })
+
+        clearTimeout(timeoutId)
+
+        if (response.status !== 200) {
+          throw new Error(`HTTP ${response.status}`)
         }
 
-        this.ws.onclose = (event) => {
-          console.log('[WebSocket] Disconnected', { code: event.code, reason: event.reason })
-          this.connectionHandlers.onClose?.()
+        const responseData = response.data
+        const taskData = responseData.data || responseData
+        retryCount = 0  // 重置重试计数
 
-          // Attempt to reconnect if not a normal closure
-          if (event.code !== 1000 && this.reconnectAttempts < API_CONFIG.RETRY.MAX_ATTEMPTS) {
-            setTimeout(() => {
-              this.reconnectAttempts++
-              console.log(`[WebSocket] Reconnecting... (${this.reconnectAttempts}/${API_CONFIG.RETRY.MAX_ATTEMPTS})`)
-              this.connect()
-            }, this.reconnectDelay * this.reconnectAttempts)
-          }
+        // 更新时间戳
+        if (taskData?.update_time) {
+          this.lastUpdateTime.set(taskId, taskData.update_time)
         }
 
-        this.ws.onerror = (error) => {
-          console.error('[WebSocket] Error', error)
-          this.connectionHandlers.onError?.(error)
-          reject(error)
+        // 调用处理器
+        const handler = this.messageHandlers.get(`task_${taskId}`)
+        if (handler) {
+          handler(taskData)
         }
+
+        // 如果任务完成则停止轮询
+        if (taskData?.complete) {
+          console.log(`[Polling] 任务完成，停止轮询: ${taskId}`)
+          this.unsubscribe(taskId)
+          return
+        }
+
+        // 继续下一轮轮询（等待pollInterval后）
+        const interval = setTimeout(poll, options.pollInterval)
+        this.pollingIntervals.set(taskId, interval)
+
       } catch (error) {
-        reject(error)
+        const errorMsg = error instanceof Error ? error.message : String(error)
+
+        // 检查是否超时
+        if (errorMsg.includes('aborted') || errorMsg.includes('timeout')) {
+          console.warn(`[Polling] 请求超时: ${taskId}, 继续轮询...`)
+          retryCount = 0  // 超时不计入重试次数
+        } else {
+          // 处理其他错误
+          if (retryCount < options.maxRetries) {
+            retryCount++
+            console.warn(`[Polling] 请求失败 (${retryCount}/${options.maxRetries}): ${errorMsg}`)
+          } else {
+            console.error(`[Polling] 达到最大重试次数，停止轮询: ${taskId}`)
+            this.unsubscribe(taskId)
+
+            // 通知错误给处理器
+            const handler = this.messageHandlers.get(`task_${taskId}`)
+            if (handler) {
+              handler({
+                error: '轮询连接失败，请检查网络',
+                status: 'failed'
+              })
+            }
+            return
+          }
+        }
+
+        // 继续下一轮轮询
+        const interval = setTimeout(poll, options.pollInterval)
+        this.pollingIntervals.set(taskId, interval)
       }
-    })
-  }
-
-  disconnect(): void {
-    if (this.ws) {
-      this.ws.close(1000, 'Client disconnect')
-      this.ws = null
     }
+
+    // 立即执行第一次轮询
+    await poll()
   }
 
-  send(data: any): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(data))
-    } else {
-      console.warn('[WebSocket] Cannot send message, connection not ready')
+  /**
+   * 取消订阅
+   */
+  unsubscribe(taskId: string): void {
+    const interval = this.pollingIntervals.get(taskId)
+    if (interval) {
+      clearTimeout(interval)
+      this.pollingIntervals.delete(taskId)
     }
-  }
 
-  onMessage(type: string, handler: (data: any) => void): void {
-    this.messageHandlers.set(type, handler)
-  }
-
-  onConnection(handlers: { onOpen?: () => void; onClose?: () => void; onError?: (error: Event) => void }): void {
-    this.connectionHandlers = handlers
-  }
-
-  getConnectionState(): 'connecting' | 'open' | 'closing' | 'closed' {
-    if (!this.ws) return 'closed'
-    switch (this.ws.readyState) {
-      case WebSocket.CONNECTING: return 'connecting'
-      case WebSocket.OPEN: return 'open'
-      case WebSocket.CLOSING: return 'closing'
-      case WebSocket.CLOSED: return 'closed'
-      default: return 'closed'
+    const controller = this.abortControllers.get(taskId)
+    if (controller) {
+      controller.abort()
+      this.abortControllers.delete(taskId)
     }
+
+    this.messageHandlers.delete(`task_${taskId}`)
+    this.lastUpdateTime.delete(taskId)
+    console.log(`[Polling] 已取消订阅: ${taskId}`)
   }
 
-  isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN
+  /**
+   * 检查是否正在轮询
+   */
+  isPolling(taskId: string): boolean {
+    return this.pollingIntervals.has(taskId)
+  }
+
+  /**
+   * 停止所有轮询
+   */
+  stopAll(): void {
+    for (const taskId of Array.from(this.pollingIntervals.keys())) {
+      this.unsubscribe(taskId)
+    }
+    console.log('[Polling] 已停止所有轮询')
   }
 }
 
-// Export singleton WebSocket manager
-export const wsManager = new WebSocketManager()
+// Export singleton polling manager
+export const wsManager = new PollingManager()
+
+// 向后兼容：导出WebSocketManager作为PollingManager的别名
+export { PollingManager as WebSocketManager }
 
 export default api

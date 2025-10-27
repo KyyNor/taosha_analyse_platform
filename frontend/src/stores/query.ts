@@ -133,7 +133,7 @@ export const useQueryStore = defineStore('query', () => {
       }
 
       // Subscribe to progress updates
-      queryService.subscribeToTaskProgress(task_id, handleProgressUpdate)
+      await queryService.subscribeToTaskProgress(task_id, handleProgressUpdate)
 
       return task_id
     } catch (error) {
@@ -176,7 +176,7 @@ export const useQueryStore = defineStore('query', () => {
       }
 
       // Subscribe to progress updates
-      queryService.subscribeToTaskProgress(newTaskId, handleProgressUpdate)
+      await queryService.subscribeToTaskProgress(newTaskId, handleProgressUpdate)
 
       return newTaskId
     } catch (error) {
@@ -378,7 +378,7 @@ export const useQueryStore = defineStore('query', () => {
         customClarification.value = ''
 
         // 继续监听任务进度
-        queryService.subscribeToTaskProgress(taskId, handleProgressUpdate)
+        await queryService.subscribeToTaskProgress(taskId, handleProgressUpdate)
 
         return response
       } else {

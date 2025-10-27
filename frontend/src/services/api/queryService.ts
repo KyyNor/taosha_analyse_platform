@@ -19,16 +19,14 @@ class QueryService {
     this.ws = wsManager
   }
 
-  // Initialize WebSocket connection
+  // 保留向后兼容（现在是空操作，因为使用HTTP长轮询）
   async initializeWebSocket(): Promise<void> {
-    if (!this.ws.isConnected()) {
-      await this.ws.connect()
-    }
+    console.log('[QueryService] 使用HTTP长轮询，无需初始化WebSocket')
   }
 
-  // Disconnect WebSocket
+  // 保留向后兼容（现在会停止所有轮询）
   disconnectWebSocket(): void {
-    this.ws.disconnect()
+    this.ws.stopAll()
   }
 
   // Submit query
@@ -96,15 +94,21 @@ class QueryService {
     await api.post(buildApiUrl(url), request)
   }
 
-  // Subscribe to task progress updates
-  subscribeToTaskProgress(taskId: string, handler: (data: any) => void): void {
-    // Register handler for task-specific messages
-    this.ws.onMessage(`task_${taskId}`, handler)
+  // Subscribe to task progress updates (HTTP long polling)
+  async subscribeToTaskProgress(taskId: string, handler: (data: any) => void): Promise<void> {
+    // Start HTTP long polling for task progress
+    await this.ws.subscribeToTaskProgress(taskId, handler, {
+      pollInterval: 2000,      // 前端轮询间隔：2秒
+      serverTimeout: 30,       // 服务端等待时间：30秒
+      maxRetries: 5            // 最大重试次数：5次
+    })
 
-    // Send task_id to server to subscribe to this task's progress
-    this.ws.send(taskId)
+    console.log(`[Polling] 已订阅任务进度: ${taskId}`)
+  }
 
-    console.log(`[WebSocket] Subscribed to task progress for task: ${taskId}`)
+  // Stop polling for a specific task
+  unsubscribeFromTaskProgress(taskId: string): void {
+    this.ws.unsubscribe(taskId)
   }
 
 
