@@ -1,0 +1,7 @@
+CentOS7
+
+uv pip compile pyproject.toml  --output-file requirements-lock.txt
+python -m pip download -r requirements-lock.txt --python-version 311 --platform manylinux_2_17_x86_64 --platform manylinux_2_28_x86_64 --only-binary :all: -d www/ -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple --no-deps
+
+
+windows生成要屏蔽pywin32
