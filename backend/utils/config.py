@@ -89,25 +89,17 @@ class ConfigManager:
             embedding_base_url: Optional[str] = os.getenv("EMBEDDING_BASE_URL") or self._config_data.get('embedding', {}).get('base_url')
             embedding_model: str = self._config_data.get('embedding', {}).get('model', 'text-embedding-3-small')
             embedding_dimensions: int = self._config_data.get('embedding', {}).get('dimensions', 1024)
-
-            # 本地Embedding配置（统一到embedding配置下）
             embedding_model_path: Optional[str] = self._config_data.get('embedding', {}).get('model_path')
-            embedding_device: str = self._config_data.get('embedding', {}).get('device', 'cpu')
-            embedding_cache_size: int = self._config_data.get('embedding', {}).get('cache_size', 1000)
+            embedding_pooling: str = self._config_data.get('embedding', {}).get('pooling', "CLS")
+            embedding_reranker_model: str = self._config_data.get('embedding', {}).get('reranker_model', 'text-embedding-3-small')
 
             # 向量存储配置
-            vector_store_type: str = self._config_data.get('vector_store', {}).get('store_type', 'chromadb')
             vector_store_collection_name: str = self._config_data.get('vector_store', {}).get('collection_name', 'taosha_knowledge')
-            vector_store_persist_dir: str = self._config_data.get('vector_store', {}).get('persist_dir', './database/chromadb')
-            
+
             # Qdrant配置
-            qdrant_mode: str = self._config_data.get('vector_store', {}).get('qdrant', {}).get('mode', 'memory')
             qdrant_url: Optional[str] = os.getenv("QDRANT_URL") or self._config_data.get('vector_store', {}).get('qdrant', {}).get('url')
             qdrant_api_key: Optional[str] = os.getenv("QDRANT_API_KEY") or self._config_data.get('vector_store', {}).get('qdrant', {}).get('api_key')
             qdrant_timeout: int = self._config_data.get('vector_store', {}).get('qdrant', {}).get('timeout', 30)
-            qdrant_verify: bool = self._config_data.get('vector_store', {}).get('qdrant', {}).get('verify', True)
-            qdrant_grpc_port: int = self._config_data.get('vector_store', {}).get('qdrant', {}).get('grpc_port', 6334)
-            qdrant_prefer_grpc: bool = self._config_data.get('vector_store', {}).get('qdrant', {}).get('prefer_grpc', False)
 
             # 日志配置
             log_level: str = self._config_data.get('logging', {}).get('level', 'INFO')

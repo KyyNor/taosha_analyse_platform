@@ -3,13 +3,12 @@ NL2SQL 专用的上下文构建器 - 业务级别的检索和上下文组织
 """
 
 from typing import List, Dict, Optional
-from services.vector_store.base import VectorStore
-from services.vector_store.vector_store_factory import get_vector_store
 from services.metadata_service.metadata_service import (
     get_metadata_service,
     get_glossary_service,
     get_relation_field_config_service
 )
+from services.vector_store.qdrant_vector_store import qdrant_vector_store
 from utils.logger import logger
 
 
@@ -30,8 +29,7 @@ class NLQueryContextBuilder:
             glossary_service: 术语服务（可选，未提供则自动获取）
             relation_config_service: 关联配置服务（可选，未提供则自动获取）
         """
-        # 使用全局 VectorStore 实例
-        self.vector_store = get_vector_store()
+        self.vector_store = qdrant_vector_store
 
         # 如果未提供服务，则获取全局实例
         self.metadata_service = metadata_service or get_metadata_service()

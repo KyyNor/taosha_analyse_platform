@@ -40,31 +40,22 @@ embedding:
   type: "local"  # remote 或 local
   api_key: ""  # remote需配置环境变量 EMBEDDING_API_KEY
   base_url: ""  # remote需配置环境变量 EMBEDDING_BASE_URL
-  model_path: "./database/bge-m3-onnx"  # FastEmbed模型名称
-  device: "cpu"  # 推理设备: cpu/cuda
-  cache_size: 1000  # embedding缓存大小
-  model: "bge-m3"  # FastEmbed模型名称
-  dimensions: 1024  # embedding维度
+  model: "bge-small-zh"  # FastEmbed模型名称
+  model_path: "C:/Users/Administrator/Desktop/淘沙打包/嵌入式模型/新建文件夹"  # 模型路径
+  dimensions: 512  # embedding维度
+  pooling: "CLS" # 池化方式: CLS 或 MEAN (BGE、ms-marco-MiniLM为CLS，jina-embeddings-v2、all-MiniLM-L6-v2、nomic-embed-*为MEAN)
+  reranker_model: "jina-reranker-v2_int8"
 
 # 向量存储配置
 vector_store:
-  store_type: "qdrant"  # chromadb 或 qdrant
   collection_name: "taosha_knowledge"
-  persist_dir: "./database/chromadb"
-  
+
   # Qdrant配置
   qdrant:
-    mode: "remote"  # memory 或 remote
     # 远程Qdrant配置（当mode为remote时使用）
     url: ""  # 从环境变量 QDRANT_URL 读取
     api_key: ""  # 从环境变量 QDRANT_API_KEY 读取
-    timeout: 30  # 连接超时时间（秒）
-    # 可选：TLS配置
-    verify: true  # 是否验证HTTPS证书
-    # 可选：代理配置
-    grpc_port: 6334  # gRPC端口
-    # 可选：认证配置
-    prefer_grpc: false  # 是否优先使用gRPC
+    timeout: 60  # 连接超时时间（秒）
 
 tracing:
   tracing_type: "phoenix"  # phoenix 或 langfuse

@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
-from services.vector_store import VectorStoreFactory, NLQueryContextBuilder
+from services.vector_store import NLQueryContextBuilder
 from services.llm_service import NLQueryLLMService
 from services.metadata_service.metadata_service import (
     get_metadata_service, get_prompt_template_service
@@ -20,6 +20,7 @@ from services.metadata_service.metadata_service import (
 from services.query_engine import get_query_engine
 from services.service_models import BaseNodeLog, TaskState, TaskStateHelper
 from services.tracking_service.observability_service import get_tracing_handler
+from services.vector_store.qdrant_vector_store import qdrant_vector_store
 
 from utils.logger import logger
 from utils.progress_decorator import track_node_progress
@@ -57,8 +58,7 @@ class NL2SQLService:
         """
         # 使用全局向量存储实例和上下文构建器
         try:
-            from services.vector_store.vector_store_factory import get_vector_store
-            self.vector_store = get_vector_store()
+            self.vector_store = qdrant_vector_store
             self.context_builder = NLQueryContextBuilder()
             logger.info("向量存储和上下文构建器初始化成功，使用全局实例")
         except Exception as e:

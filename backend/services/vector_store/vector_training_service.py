@@ -9,12 +9,12 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from services.vector_store.qdrant_vector_store import qdrant_vector_store
 from utils.logger import logger
 from repositories.training_repository import TrainingRecordRepository
 from repositories.metadata_repository import MetadataTableRepository, MetadataColumnRepository
 from repositories.glossary_repository import GlossaryTermRepository
 from repositories.relation_repository import RelationFieldConfigRepository
-from services.vector_store import VectorStoreFactory
 
 
 class VectorTrainingService:
@@ -40,8 +40,7 @@ class VectorTrainingService:
 
         # 使用全局向量存储实例
         try:
-            from services.vector_store.vector_store_factory import get_vector_store
-            self.vector_store = get_vector_store()
+            self.vector_store = qdrant_vector_store
             logger.info("向量存储初始化成功，使用全局实例")
         except Exception as e:
             logger.error(f"向量存储初始化失败: {e}")
