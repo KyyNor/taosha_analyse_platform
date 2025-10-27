@@ -17,9 +17,9 @@ from utils.logger import logger
 def init_tables():
     """初始化数据库表"""
     try:
-        logger.info("开始初始化训练相关表...")
+        logger.info("开始初始化表...")
         create_tables()
-        logger.info("训练相关表初始化成功！")
+        logger.info("表初始化成功！")
     except Exception as e:
         logger.error(f"初始化表失败: {e}")
         raise

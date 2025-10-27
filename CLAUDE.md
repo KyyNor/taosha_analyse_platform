@@ -47,8 +47,8 @@ cd frontend && npm run type-check
 - **query_engine/**：查询引擎，支持DuckDB/Spark SQL
 - **nlquery_service/**：基于LangGraph的NL2SQL服务，5节点工作流（知识库检查 → 上下文检索 → SQL生成 → SQL验证 → 结果解释）
 - **llm_service/**：LLM交互服务（SQL生成、验证、解释）
-- **vector_store/**：基于ChromaDB的语义搜索，使用Qwen3嵌入模型
-- **metadata_service/**：元数据管理（数据库模式、业务术语、关系、主题）
+- **vector_store/**：基于Qdrant的语义搜索，使用Qwen3嵌入模型，支持本地和远程部署
+- **metadata_service/**：元数据管理（数据库模式、业务术语、关系、主题），支持术语表基础字段定义和元数据同步
 - **tracking_service/**：操作追踪，支持TTL缓存
 
 **数据访问层**（`backend/repositories/`）：
@@ -58,10 +58,10 @@ cd frontend && npm run type-check
 **数据库**：
 - DuckDB（`database/taosha.duckdb`）：主要查询执行引擎
 - SQLite/MySQL（`database/metadata.db`）：元数据存储（主题、术语表、关系、训练数据）
-- ChromaDB（`database/chromadb/`）：向量嵌入存储
+- Qdrant（支持本地/远程部署）：向量嵌入存储，替代ChromaDB提供更好的性能和企业级特性
 
 **API路由**（`backend/api/`）：
-- `nlquey_routes.py`：查询执行，支持WebSocket实时进度
+- `nlquey_routes.py`：查询执行，支持HTTP长轮询实时进度更新
 - `metadata_routes.py`：元数据CRUD操作
 - `endpoint_models.py`：请求/响应模型定义
 
@@ -75,9 +75,9 @@ cd frontend && npm run type-check
 - `src/utils/`：工具函数（格式化、时间处理、SQL高亮）
 - `src/types/`：TypeScript接口定义
 
-**技术栈**：Vite、Pinia、Axios、Socket.io、ECharts、Tailwind CSS + DaisyUI
+**技术栈**：Vite、Pinia、Axios、ECharts、Tailwind CSS + DaisyUI
 
-**核心功能**：实时WebSocket进度更新、SQL语法高亮、元数据管理UI、结果数据可视化、响应式设计
+**核心功能**：HTTP长轮询实时进度更新、SQL语法高亮、元数据管理UI、结果数据可视化、响应式设计
 
 ## 开发工作流
 
@@ -170,7 +170,7 @@ YAML配置文件，支持环境变量覆盖（前缀：`TAOSHA_`）
 - `taosha_db`：SQLite/MySQL元数据数据库
 - `openai`：API密钥、模型、温度参数
 - `embedding`：本地/远程嵌入配置
-- `vector_store`：ChromaDB/Qdrant向量存储
+- `vector_store`：Qdrant向量存储（支持本地和远程部署）
 - `tracing`：Phoenix/LangFuse追踪配置
 - `logging`：日志级别、轮转、保留策略
 
@@ -246,7 +246,7 @@ backend/
 │   ├── query_engine/            # DuckDB/Spark
 │   ├── nlquery_service/         # NL2SQL
 │   ├── llm_service/             # LLM调用
-│   ├── vector_store/            # ChromaDB
+│   ├── vector_store/            # Qdrant向量存储
 │   ├── metadata_service/        # 元数据管理
 │   └── tracking_service/        # 操作追踪
 ├── repositories/                # 数据访问层
@@ -260,7 +260,7 @@ backend/
 └── database/
     ├── taosha.duckdb
     ├── metadata.db
-    └── chromadb/
+    └── qdrant/              # Qdrant向量存储数据
 
 frontend/
 ├── src/
@@ -294,11 +294,71 @@ testcases/
 
 ## 重要说明
 
+### 核心功能特性
+
+### 人在循环（Human-in-the-Loop）
+- **功能描述**：支持查询过程中的用户交互和澄清
+- **实现细节**：
+  - 在查询执行过程中遇到歧义时，系统会主动向用户请求澄清
+  - 支持多选澄清选项和自定义文字输入
+  - 异步处理澄清请求，避免阻塞查询流程
+  - 完整的实时进度更新
+- **技术实现**：
+  - 后端：扩展了 `async_query_service.py` 支持澄清状态管理
+  - 前端：优化 `QueryProgress.vue` 组件，支持澄清交互界面
+  - 新增 `BaseNodeLog` 类型用于追踪查询步骤
+
+### 元数据同步功能
+- **功能描述**：自动同步外部数据库的元数据信息
+- **配置支持**：
+  - 支持MySQL、PostgreSQL、SQLite等多种数据源
+  - 可配置同步策略（全量/增量）
+  - 支持定时同步和手动触发
+- **技术实现**：
+  - 新增 `metadata_sync_service.py` 处理同步逻辑
+  - 配置文件支持多数据源连接配置
+  - 自动识别表结构、字段类型和关系信息
+
+### 术语表基础字段功能
+- **功能描述**：为术语表添加基础字段支持，增强元数据管理能力
+- **新增字段**：
+  - 数据类型定义
+  - 字段长度限制
+  - 默认值设置
+  - 验证规则配置
+- **技术实现**：
+  - 扩展 `glossary_models.py` 数据模型
+  - 更新 `metadata_service.py` 业务逻辑
+  - 前端界面增加字段编辑功能
+
+### 单进程部署方案
+- **功能描述**：通过FastAPI同时提供前端和后端服务
+- **实现方案**：
+  - FastAPI挂载前端静态文件到根路径
+  - API接口迁移到 `/api/taosha/v1/` 路径
+  - 支持SPA路由（404自动回退到index.html）
+- **部署优势**：
+  - 一键启动完整应用
+  - 简化部署流程
+  - 支持内网离线环境
+
+### 前端离线字体支持
+- **功能描述**：配置离线本地字体，支持内网部署
+- **字体选择**：
+  - 思源黑体CN（中文字体，覆盖99%+常用简体中文）
+  - Cascadia Code（代码字体，专业显示）
+- **技术优势**：
+  - 完全离线，无需CDN依赖
+  - 支持Windows和国产Linux系统
+  - 现代科技感，提升用户体验
+  - 字体文件优化（woff2格式，异步加载）
+
 ### 性能优化
 - 向量数据库训练在应用启动时异步执行
 - 查询结果使用TTLCache缓存
-- 使用WebSocket实现实时更新（避免轮询）
+- 使用HTTP长轮询实现实时更新（兼容企业内网环境）
 - DuckDB高效处理大规模数据集
+- Qdrant向量存储提供高性能语义搜索
 
 ### 安全考虑
 - 开发环境CORS开放；生产环境需限制来源
@@ -306,6 +366,26 @@ testcases/
 - 在API层验证用户输入
 - 使用SQLAlchemy ORM防止SQL注入
 - 生产环境考虑添加速率限制
+
+### UI/UX优化
+- **样式改进**：
+  - 添加卡片边框样式，提升视觉层次感
+  - 使用OKLch色彩空间优化主题配色
+  - 降低色彩饱和度，提供更柔和的视觉效果
+  - 改善深色模式对比度
+- **交互优化**：
+  - 修复弹窗步骤日志显示问题
+  - 优化澄清功能界面，支持自动收起
+  - 完善TypeScript类型安全
+
+### 代码质量提升
+- **类型安全**：
+  - 修复所有TypeScript编译错误
+  - 删除未使用的变量和导入
+  - 添加完整的类型定义文件
+- **依赖管理**：
+  - 稳定版本依赖，减少升级风险
+  - 清理冗余依赖包
 
 ### 已知限制
 - 开发环境使用SQLite；生产环境应使用MySQL
@@ -351,86 +431,5 @@ testcases/
 - 检查推理时是否有足够的内存
 - 查看LangChain/OpenInference日志
 
-## 新增功能（最近更新）
-
-### 人在循环（Human-in-the-Loop）
-- **功能描述**：支持查询过程中的用户交互和澄清
-- **实现细节**：
-  - 在查询执行过程中遇到歧义时，系统会主动向用户请求澄清
-  - 支持多选澄清选项和自定义文字输入
-  - 异步处理澄清请求，避免阻塞查询流程
-  - 完整的WebSocket实时进度更新
-- **技术实现**：
-  - 后端：扩展了 `async_query_service.py` 支持澄清状态管理
-  - 前端：优化 `QueryProgress.vue` 组件，支持澄清交互界面
-  - 新增 `BaseNodeLog` 类型用于追踪查询步骤
-
-### 元数据同步功能
-- **功能描述**：自动同步外部数据库的元数据信息
-- **配置支持**：
-  - 支持MySQL、PostgreSQL、SQLite等多种数据源
-  - 可配置同步策略（全量/增量）
-  - 支持定时同步和手动触发
-- **技术实现**：
-  - 新增 `metadata_sync_service.py` 处理同步逻辑
-  - 配置文件支持多数据源连接配置
-  - 自动识别表结构、字段类型和关系信息
-
-### 术语表基础字段功能
-- **功能描述**：为术语表添加基础字段支持
-- **新增字段**：
-  - 数据类型定义
-  - 字段长度限制
-  - 默认值设置
-  - 验证规则配置
-- **技术实现**：
-  - 扩展 `glossary_models.py` 数据模型
-  - 更新 `metadata_service.py` 业务逻辑
-  - 前端界面增加字段编辑功能
-
-### 前端离线字体支持
-- **功能描述**：配置离线本地字体，支持内网部署
-- **字体选择**：
-  - 思源黑体CN（中文字体，覆盖99%+常用简体中文）
-  - Cascadia Code（代码字体，专业显示）
-- **技术优势**：
-  - 完全离线，无需CDN依赖
-  - 支持Windows和国产Linux系统
-  - 现代科技感，提升用户体验
-  - 字体文件优化（woff2格式，异步加载）
-
-### 单进程部署方案
-- **功能描述**：通过FastAPI同时提供前端和后端服务
-- **实现方案**：
-  - FastAPI挂载前端静态文件到根路径
-  - API接口迁移到 `/api/taosha/v1/` 路径
-  - 支持SPA路由（404自动回退到index.html）
-- **部署优势**：
-  - 一键启动完整应用
-  - 简化部署流程
-  - 支持内网离线环境
-
-### UI/UX优化
-- **样式改进**：
-  - 添加卡片边框样式，提升视觉层次感
-  - 使用OKLch色彩空间优化主题配色
-  - 降低色彩饱和度，提供更柔和的视觉效果
-  - 改善深色模式对比度
-- **交互优化**：
-  - 修复弹窗步骤日志显示问题
-  - 优化澄清功能界面，支持自动收起
-  - 完善TypeScript类型安全
-
-### 代码质量提升
-- **类型安全**：
-  - 修复所有TypeScript编译错误
-  - 删除未使用的变量和导入
-  - 添加完整的类型定义文件
-- **依赖管理**：
-  - 稳定版本依赖，减少升级风险
-  - 清理冗余依赖包
-
----
-
 ## Documentation Last Update
-上次更新时commit: 47a2857 - frontend: 优化组件样式，添加卡片边框
+上次更新时commit: 66c6328 - refactor: 清理不再需要的WebSocket兼容代码
