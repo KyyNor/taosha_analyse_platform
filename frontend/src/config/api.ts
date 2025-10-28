@@ -6,8 +6,8 @@
 // API基础配置
 export const API_CONFIG = {
   // 基础URL配置
-  BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
-  WS_BASE_URL: import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000',
+  BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://125.1.129.158:50020',
+  WS_BASE_URL: import.meta.env.VITE_WS_BASE_URL || 'ws://125.1.129.158:50020',
 
   // API版本前缀
   API_PREFIX: '/api/taosha/v1',

@@ -461,7 +461,7 @@
             >
               <div class="flex items-center gap-3">
                 <input
-                  v-model="selectedTableIds"
+                  v-model="selected_table_ids"
                   :value="table.id"
                   type="checkbox"
                   class="checkbox checkbox-sm"
@@ -499,7 +499,7 @@
             class="btn btn-primary"
             @click="confirmTableSelection"
           >
-            确认选择 ({{ selectedTableIds.length }})
+            确认选择 ({{ selected_table_ids.length }})
           </button>
         </div>
       </div>
@@ -526,7 +526,7 @@ const isNewTheme = ref(false)
 const selectedTables = ref<any[]>([])
 const availableTables = ref<any[]>([])
 const showTableSelector = ref(false)
-const selectedTableIds = ref<number[]>([])
+const selected_table_ids = ref<number[]>([])
 const tableSearchQuery = ref('')
 
 // Filters
@@ -708,7 +708,7 @@ const closeDetailModal = () => {
 
 // Open table selector
 const openTableSelector = () => {
-  selectedTableIds.value = selectedTables.value.map(table => table.id)
+  selected_table_ids.value = selectedTables.value.map(table => table.id)
   tableSearchQuery.value = ''
   showTableSelector.value = true
 }
@@ -716,14 +716,14 @@ const openTableSelector = () => {
 // Close table selector
 const closeTableSelector = () => {
   showTableSelector.value = false
-  selectedTableIds.value = []
+  selected_table_ids.value = []
   tableSearchQuery.value = ''
 }
 
 // Confirm table selection
 const confirmTableSelection = () => {
   selectedTables.value = availableTables.value.filter(table =>
-    selectedTableIds.value.includes(table.id)
+  selected_table_ids.value.includes(table.id)
   )
   closeTableSelector()
 }

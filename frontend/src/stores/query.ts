@@ -308,9 +308,9 @@ export const useQueryStore = defineStore('query', () => {
         const request: QueryRequest = {
           query: favorite.userQuestion,
           flow_type: 'thorough',
-          selectedThemeId: favorite.selectedThemeId,
-          selectedTableIds: favorite.selectedTableIds ?
-            JSON.parse(favorite.selectedTableIds as any) : undefined
+          selected_theme_id: favorite.selected_theme_id,
+          selected_table_ids: favorite.selected_table_ids ?
+            JSON.parse(favorite.selected_table_ids as any) : undefined
         }
 
         await submitQuery(request)

@@ -9,30 +9,39 @@ app:
 # 查询引擎配置
 query_engine:
   dir: "./database"
-  service_type: "duckdb"  # duckdb 或 spark
+  service_type: "spark"  # duckdb 或 spark
   duckdb_path: "./database/taosha.duckdb"
+  spark:
+    jdbc_driver_class: 'org.apache.hive.jdbc.HiveDriver'
+    jdbc_url: 'jdbc:hive2://125.1.129.81:10000'
+    user_name: bdspk
+    password: ''
+  jdbc_driver_jar:
+    - /data/taosha/taosha_analyse_platform/backend/jars/hadoop-common-2.3.0.jar
+    - /data/taosha/taosha_analyse_platform/backend/jars/hive-jdbc-1.2.2-standalone.jar
+    - /data/taosha/taosha_analyse_platform/backend/jars/trino-jdbc-407.jar
 
 # 业务数据配置
 taosha_db:
-  db_type: "sqlite"  # sqlite 或 mysql
+  db_type: "mysql"  # sqlite 或 mysql
 
   # SQLite配置（默认）
   sqlite_path: "./database/metadata.db"
 
   # MySQL配置（当db_type为mysql时使用）
   mysql:
-    host: "localhost"
+    host: "125.1.129.75"
     port: 3306
-    database: "taosha_metadata"
-    user: "root"
-    password: ""
+    database: "taosha"
+    user: "testUser"
+    password: "Hx215079."
     charset: "utf8mb4"
 
 # OpenAI配置
 openai:
-  api_key: ""  # 从环境变量 OPENAI_API_KEY 读取
-  base_url: ""  # 从环境变量 OPENAI_BASE_URL 读取
-  model: "kimi-k2-0905-preview"
+  api_key: "Hxb147258"  # 从环境变量 OPENAI_API_KEY 读取
+  base_url: "http://125.1.129.158:51002/v1/"  # 从环境变量 OPENAI_BASE_URL 读取
+  model: "Qwen3-Coder"
   temperature: 0.1
 
 # Embedding配置 (用于ChromaDB向量存储)
@@ -40,9 +49,9 @@ embedding:
   type: "local"  # remote 或 local
   api_key: ""  # remote需配置环境变量 EMBEDDING_API_KEY
   base_url: ""  # remote需配置环境变量 EMBEDDING_BASE_URL
-  model: "bge-small-zh"  # FastEmbed模型名称
-  model_path: "C:/Users/Administrator/Desktop/淘沙打包/嵌入式模型/新建文件夹"  # 模型路径
-  dimensions: 512  # embedding维度
+  model: "bge-base-zh"  # FastEmbed模型名称
+  model_path: "/data/taosha/embedding_model_file"  # 模型路径
+  dimensions: 768  # embedding维度
   pooling: "CLS" # 池化方式: CLS 或 MEAN (BGE、ms-marco-MiniLM为CLS，jina-embeddings-v2、all-MiniLM-L6-v2、nomic-embed-*为MEAN)
   reranker_model: "jina-reranker-v2_int8"
 
@@ -53,8 +62,8 @@ vector_store:
   # Qdrant配置
   qdrant:
     # 远程Qdrant配置（当mode为remote时使用）
-    url: ""  # 从环境变量 QDRANT_URL 读取
-    api_key: ""  # 从环境变量 QDRANT_API_KEY 读取
+    url: "http://125.1.129.158:50011"  # 从环境变量 QDRANT_URL 读取
+    api_key: "Hx147258."  # 从环境变量 QDRANT_API_KEY 读取
     timeout: 60  # 连接超时时间（秒）
 
 tracing:
@@ -90,28 +99,31 @@ metadata_sync:
   
   # 源数据库连接配置
   source_db:
-    host: "localhost"
+    host: "125.1.129.121"
     port: 3306
-    database: "source_metadata"
-    user: "root"
-    password: ""
+    database: "data_factory"
+    user: "whdb"
+    password: "Hx215079_whdb"
     charset: "utf8mb4"
     connection_timeout: 30  # 连接超时时间（秒）
   
   # 同步SQL查询语句，必须返回以下列：table_name, table_comment, column_name, column_comment, column_type
   sync_sql: |
-    SELECT
-      t.TABLE_NAME AS table_name,
-      t.TABLE_COMMENT AS table_comment,
-      c.COLUMN_NAME AS column_name,
-      c.COLUMN_COMMENT AS column_comment,
-      c.COLUMN_TYPE AS column_type
-    FROM information_schema.TABLES t
-    JOIN information_schema.COLUMNS c ON t.TABLE_NAME = c.TABLE_NAME AND t.TABLE_SCHEMA = c.TABLE_SCHEMA
-    WHERE t.TABLE_SCHEMA = '${database}'
-      AND c.TABLE_SCHEMA = '${database}'
-      AND t.TABLE_TYPE = 'BASE TABLE'
-    ORDER BY t.TABLE_NAME, c.ORDINAL_POSITION
+      SELECT 
+        concat(t1.database_name,'.',t1.table_name) as table_name,
+        t2.table_name as table_comment,
+        t3.name as column_name,
+        t4.name as column_comment,
+        t3.col_type as column_type 
+      FROM data_factory.metadata_entity_table t1
+        left join data_factory.metadata_business_table t2
+        on t1.busi_table_id  = t2.id 
+        left join data_factory.metadata_entity_column t3
+        on t1.id = t3.entity_table_id 
+        left join data_factory.metadata_business_column t4
+        on t3.busi_col_id = t4.id
+      where t1.data_source_id = '1'
+      and t1.table_status = '1'
   
   # 同步选项
   options:

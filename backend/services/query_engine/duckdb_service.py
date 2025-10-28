@@ -29,70 +29,18 @@ class DuckDBService(QueryEngineService, LoggerMixin):
             self.logger.error(f"DuckDB连接失败: {e}")
             raise
         
-    def execute_query(self, sql: str) -> pd.DataFrame:
+    def execute_query(self, sql: str) -> list[dict]:
         """执行SQL查询"""
         try:
             self.logger.debug(f"执行SQL查询: {sql}")
             result = self.conn.execute(sql).fetchdf()
+            result.to_dict('records')
             self.logger.debug(f"SQL查询完成，返回 {len(result)} 行数据")
             return result
         except Exception as e:
             self.logger.error(f"SQL查询执行失败: {e}")
             self.logger.error(f"失败的SQL语句: {sql}")
             raise
-
-    def get_tables(self) -> List[str]:
-        """获取所有表名"""
-        try:
-            self.logger.debug("开始获取数据库表列表")
-            result = self.conn.execute("""
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_schema = 'main'
-            """).fetchall()
-            tables = [row[0] for row in result]
-            self.logger.debug(f"获取到表列表: {tables}")
-            return tables
-        except Exception as e:
-            self.logger.error(f"获取表列表失败: {e}")
-            return []
-
-    def get_table_schema(self, table_name: str) -> Dict[str, Any]:
-        """获取表结构"""
-        try:
-            self.logger.debug(f"开始获取表 {table_name} 的结构信息")
-            # 获取列信息
-            columns_result = self.conn.execute(f"""
-                SELECT column_name, data_type, is_nullable
-                FROM information_schema.columns
-                WHERE table_name = '{table_name}'
-                ORDER BY ordinal_position
-            """).fetchall()
-
-            # 获取行数
-            count_result = self.conn.execute(f"""
-                SELECT COUNT(*) FROM {table_name}
-            """).fetchone()
-
-            schema = {
-                'table_name': table_name,
-                'row_count': count_result[0],
-                'columns': [
-                    {
-                        'name': col[0],
-                        'type': col[1],
-                        'nullable': col[2] == 'YES'
-                    }
-                    for col in columns_result
-                ]
-            }
-
-            self.logger.debug(f"表 {table_name} 结构信息: {schema}")
-            return schema
-
-        except Exception as e:
-            self.logger.error(f"获取表 {table_name} 结构失败: {e}")
-            return {'error': str(e)}
 
     def close(self):
         """关闭数据库连接"""

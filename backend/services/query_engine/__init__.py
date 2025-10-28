@@ -10,6 +10,7 @@ from .base import QueryEngineService, QueryEngineFactory
 from .duckdb_service import DuckDBService
 from .spark_service import SparkSQLService
 from utils.logger import get_logger
+from utils.config import settings
 
 logger = get_logger(__name__)
 
@@ -33,9 +34,7 @@ def get_query_engine(service_type: str = None) -> QueryEngineService:
         logger.debug("开始初始化查询引擎服务")
         # 如果没有指定类型，从配置文件读取
         if service_type is None:
-            from utils.config import get_config
-            config = get_config()
-            service_type = config.get('query_engine.service_type', 'duckdb')
+            service_type = settings.query_engine_type
             logger.debug(f"从配置文件读取查询引擎类型: {service_type}")
 
         logger.info(f"创建查询引擎服务实例，类型: {service_type}")

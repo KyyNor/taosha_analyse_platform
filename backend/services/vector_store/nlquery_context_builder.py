@@ -66,7 +66,7 @@ class NLQueryContextBuilder:
                 top_k=top_k,
                 filters=Filter(must=FieldCondition(key="resource_type", match=MatchValue(value="table"))),
                 allowed_ids=allowed_vector_ids,
-                score_threshold=0.6,
+                score_threshold=0.3,
             )
 
             # 再检索其他
@@ -74,7 +74,7 @@ class NLQueryContextBuilder:
                 user_input,
                 top_k=top_k,
                 filters=Filter(must_not=FieldCondition(key="resource_type", match=MatchValue(value="table"))),
-                score_threshold=0.6,
+                score_threshold=0.3,
             )
 
             # 3. 分类组织结果

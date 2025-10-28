@@ -162,8 +162,9 @@ class QdrantVectorStore():
                 filters = Filter()
 
             if allowed_ids:
-                id_filters = FieldCondition(key="id", match=MatchAny(any=allowed_ids))
-                filters.must.append(id_filters)
+                filters = Filter(
+                    must = [FieldCondition(key="id", match=MatchAny(any=allowed_ids))]
+                )
 
             # 执行搜索
             results = self.client.query_points(
@@ -192,7 +193,7 @@ class QdrantVectorStore():
                         "content": hit.payload["content"],
                         "score": hit.score,
                         "rerank_score": ranking[i][1],
-                        "metadata": hit.payload['type']
+                        "metadata": hit.payload
                     })
 
             logger.debug(f"搜索查询: {query[:50]}... 返回 {len(rerank_result)} 结果（过滤后）")
