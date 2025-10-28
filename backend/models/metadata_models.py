@@ -49,7 +49,7 @@ class MetadataColumn(Base):
     remark: Mapped[str] = mapped_column(Text, default="")
     is_available: Mapped[int] = mapped_column(Integer, default=0)  # 0=可用，1=不可用
     business_type: Mapped[str] = mapped_column(String(255), default="")
-    relation_config_id: Mapped[int] = mapped_column(Integer, ForeignKey("relation_field_config.id"), nullable=True)
+    relation_config_id: Mapped[int] = mapped_column(Integer, ForeignKey("metadata_relation_field_config.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 

@@ -67,7 +67,7 @@ class NlQueryStep(Base):
 
 class UserFeedback(Base):
     """用户反馈模型"""
-    __tablename__ = "user_feedback"
+    __tablename__ = "nlquery_user_feedback"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     feedback_type: Mapped[str] = mapped_column(String(50), nullable=False)

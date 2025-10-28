@@ -10,7 +10,7 @@ from .db_base import Base
 
 class GlossaryTerm(Base):
     """术语表模型"""
-    __tablename__ = "glossary_terms"
+    __tablename__ = "metadata_glossary_terms"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
@@ -27,7 +27,7 @@ class GlossaryTerm(Base):
 
 class PromptTemplate(Base):
     """提示词模板模型"""
-    __tablename__ = "prompt_templates"
+    __tablename__ = "system_prompt_templates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)

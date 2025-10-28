@@ -653,9 +653,10 @@ class NL2SQLService:
                 checkpointer=checkpoint_saver,
             ).with_config({"callbacks": [tracing_handler]})
 
-        png_bytes = graph.get_graph().draw_mermaid_png()
-        with open("nlquery_graph.png", "wb") as f:
-            f.write(png_bytes)
+        # 绘制流程图依赖外网环境
+        # png_bytes = graph.get_graph().draw_mermaid_png()
+        # with open("nlquery_graph.png", "wb") as f:
+        #     f.write(png_bytes)
 
         return graph
 

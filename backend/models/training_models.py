@@ -13,7 +13,7 @@ class TrainingRecord(Base):
 
     用于跟踪不同类型资源的训练状态，支持增量训练
     """
-    __tablename__ = "training_records"
+    __tablename__ = "system_training_records"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 

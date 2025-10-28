@@ -64,7 +64,7 @@ class ConfigManager:
             duckdb_path: str = self._config_data.get('database', {}).get('duckdb_path', './database/taosha.duckdb')
 
             # 元数据配置
-            taosha_db_db_type: str = self._config_data.get('taosha_db', {}).get('db_type', 'sqlite')
+            taosha_db_type: str = self._config_data.get('taosha_db', {}).get('db_type', 'sqlite')
 
             # SQLite配置
             taosha_db_sqlite_path: str = self._config_data.get('taosha_db', {}).get('sqlite_path', './database/metadata.db')
