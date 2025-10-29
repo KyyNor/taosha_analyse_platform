@@ -58,6 +58,7 @@ class ConfigManager:
             app_name: str = self._config_data.get('app', {}).get('name', '淘沙分析平台')
             app_version: str = self._config_data.get('app', {}).get('version', '0.1.0')
             debug: bool = self._config_data.get('app', {}).get('debug', True)
+            workers: bool = self._config_data.get('app', {}).get('workers', True)
 
             # 数据库配置
             database_dir: Path = Path(self._config_data.get('database', {}).get('dir', './database'))
@@ -123,6 +124,8 @@ class ConfigManager:
             langfuse_public_key: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY") or self._config_data.get('tracing', {}).get('langfuse_public_key')
             langfuse_secret_key: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY") or self._config_data.get('tracing', {}).get('langfuse_secret_key')
             langfuse_host: Optional[str] = os.getenv("LANGFUSE_HOST") or self._config_data.get('tracing', {}).get('langfuse_host')
+
+            disk_cache_path: Optional[str] = self._config_data.get('disk_cache', {}).get('paht', './cache')
 
             # 元数据同步配置
             metadata_sync_enabled: bool = self._config_data.get('metadata_sync', {}).get('enabled', False)

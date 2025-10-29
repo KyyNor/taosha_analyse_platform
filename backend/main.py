@@ -168,7 +168,8 @@ def main():
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
+        port=50020,
+        workers=settings.workers,
         reload=settings.debug,
         reload_excludes=["database/*", "*.log", "__pycache__/*"] if settings.debug else None,
         log_level=settings.log_level.lower()

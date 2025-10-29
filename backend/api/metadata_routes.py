@@ -25,6 +25,7 @@ router = APIRouter(prefix="/metadata")
 async def get_all_table_metadata(isAvailable: Optional[str] = None, db: Session = Depends(get_db)):
     """获取所有表元数据"""
     try:
+        # todo 查询条件
         metadata_service = get_metadata_service(db)
 
         if isAvailable is not None:
@@ -362,9 +363,6 @@ async def delete_relation_config(config_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# 已移除: 不再需要关联ID列表接口，直接使用数字ID
-
-
 # 提示词模板管理
 @router.get("/prompt-templates")
 async def get_all_prompt_templates(db: Session = Depends(get_db)):
@@ -432,10 +430,11 @@ async def delete_prompt_template(template_id: int, db: Session = Depends(get_db)
 
 
 # 数据主题管理
-@router.get("/themes")
-async def get_all_themes(db: Session = Depends(get_db)):
+@router.get("/themes?theme_type={theme_type}")
+async def get_all_themes(theme_type:str, db: Session = Depends(get_db)):
     """获取所有数据主题"""
     try:
+        # todo 只返回非公共表
         theme_service = get_data_theme_service(db)
         themes = theme_service.get_all_themes()
         return {"success": True, "data": themes}

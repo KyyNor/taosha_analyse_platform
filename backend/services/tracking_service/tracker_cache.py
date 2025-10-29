@@ -2,29 +2,30 @@
 任务状态缓存管理器
 用于OperationTracker的缓存管理，支持WebSocket高效读取
 """
+import os
 
-from cachetools import TTLCache
+from diskcache import FanoutCache
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-import threading
 from utils.logger import logger
-
-from ..service_models import TaskState, BaseNodeLog
+from utils.config import settings
 
 
 class TrackerCache:
     """任务状态缓存管理器"""
 
-    def __init__(self, maxsize: int = 1000, ttl: int = 3600):
+    def __init__(self, maxsize: int = 1*1024*1024*1024):
         """
         初始化缓存管理器
 
         Args:
-            maxsize: 缓存最大条目数
-            ttl: 缓存过期时间（秒）
+            maxsize: 最大缓存空间 1*1024*1024*1024 为1GB
         """
-        self.cache = TTLCache(maxsize=maxsize, ttl=ttl)
-        self._lock = threading.RLock()
+        self.cache = FanoutCache(
+            directory=f"{settings.disk_cache_path}{os.sep}tracker_cache",
+            shards=8,
+            size_limit=maxsize,
+        )
 
     def get_task_state(self, task_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -36,8 +37,7 @@ class TrackerCache:
         Returns:
             任务状态字典，如果不存在则返回None
         """
-        with self._lock:
-            return self.cache.get(task_id)
+        return self.cache.get(task_id)
 
     def set_task_state(self, task_id: str, state: Dict[str, Any]) -> None:
         """
@@ -47,25 +47,11 @@ class TrackerCache:
             task_id: 任务ID
             state: 任务状态字典
         """
-        with self._lock:
-            # 添加或更新update_time时间戳（用于长轮询增量查询）
-            state_copy = state.copy()
-            state_copy['update_time'] = datetime.now().isoformat()
-            self.cache[task_id] = state_copy
-            logger.debug(f"缓存已更新: task_id={task_id}, update_time={state_copy['update_time']}")
-
-    def cleanup_expired(self) -> int:
-        """
-        清理过期缓存条目
-
-        Returns:
-            清理的条目数量
-        """
-        # TTLCache会自动清理过期条目，这里只是触发清理
-        with self._lock:
-            # 访问所有键来触发过期检查
-            keys = list(self.cache.keys())
-            return len(keys) - len(self.cache)
+        # 添加或更新update_time时间戳（用于长轮询增量查询）
+        state_copy = state.copy()
+        state_copy['update_time'] = datetime.now().isoformat()
+        self.cache.set(task_id, state_copy)
+        logger.debug(f"缓存已更新: task_id={task_id}, update_time={state_copy['update_time']}")
 
 
 # 全局缓存实例
