@@ -3,9 +3,7 @@
 """
 
 import json
-from utils.logger import logger
 from typing import Dict, List, Any, Optional
-from datetime import datetime
 from sqlalchemy.orm import Session
 
 from repositories import (
@@ -14,10 +12,7 @@ from repositories import (
     RelationFieldConfigRepository, DataThemeRepository,
     ThemeTableRelationRepository
 )
-from models.metadata_models import MetadataTable, MetadataColumn
-from models.glossary_models import GlossaryTerm, PromptTemplate
-from models.relation_models import RelationFieldConfig
-from models.theme_models import DataTheme, ThemeTableRelation
+from utils.logger import logger
 
 
 class MetadataService:
@@ -28,10 +23,10 @@ class MetadataService:
         self.table_repo = MetadataTableRepository(db)
         self.column_repo = MetadataColumnRepository(db)
 
-    def _build_metadata_dict(self) -> Dict[str, Any]:
+    def _build_metadata_dict(self, is_available: str, include_fields: bool, table_name_filter: str) -> Dict[str, Any]:
         """从数据库动态构建元数据字典"""
         try:
-            tables_with_columns = self.table_repo.get_all_with_columns()
+            tables_with_columns = self.table_repo.get_filter_tables_with_columns(is_available, include_fields, table_name_filter)
 
             tables = []
             for table in tables_with_columns:
@@ -82,44 +77,15 @@ class MetadataService:
             logger.error(f"从数据库加载元数据失败: {e}")
             return {"tables": []}
 
-    def get_metadata(self) -> Dict[str, Any]:
-        """获取元数据（直接从数据库查询）"""
-        return self._build_metadata_dict()
 
-    def get_tables(self) -> List[Dict[str, Any]]:
+    def get_tables(self, is_available: Optional[str] = None,include_fields: Optional[bool] = True,table_name_filter: Optional[str] = None,) -> List[Dict[str, Any]]:
         """获取所有表信息"""
-        return self.get_metadata().get("tables", [])
+        return self._build_metadata_dict(
+            is_available=is_available,
+            include_fields=include_fields,
+            table_name_filter=table_name_filter
+        ).get("tables", [])
 
-    def get_table_info(self, table_name: str) -> Optional[Dict[str, Any]]:
-        """获取指定表的信息"""
-        for table in self.get_tables():
-            if table.get("name") == table_name:
-                return table
-        return None
-
-    def get_ddl_statements(self) -> List[str]:
-        """生成建表语句"""
-        ddl_statements = []
-
-        for table in self.get_tables():
-            table_name = table.get("name")
-            columns = table.get("columns", [])
-
-            if not table_name or not columns:
-                continue
-
-            # 构建建表语句
-            column_definitions = []
-            for col in columns:
-                col_def = f"{col['name']} {col['type']}"
-                if col.get('is_primary_key'):
-                    col_def += " PRIMARY KEY"
-                column_definitions.append(col_def)
-
-            ddl = f"CREATE TABLE {table_name} (\n  " + ",\n  ".join(column_definitions) + "\n)"
-            ddl_statements.append(ddl)
-
-        return ddl_statements
 
     def add_table(self, table_name: str, comment: str = "", remark: str = "", is_available: int = 0) -> Optional[Dict[str, Any]]:
         """添加表元数据"""
@@ -174,7 +140,6 @@ class MetadataService:
             logger.error(f"更新表元数据失败: {e}")
             return False
 
-    # 已废弃: 使用 delete_table_by_id(table_id) 替代
 
     def delete_table_by_id(self, table_id: int) -> bool:
         """删除表元数据（按ID）"""
@@ -358,11 +323,6 @@ class MetadataService:
         except Exception as e:
             logger.error(f"删除列元数据失败: {e}")
             return False
-
-    def get_available_tables(self) -> List[Dict[str, Any]]:
-        """获取所有可用的表信息（is_available = 0）"""
-        all_tables = self.get_tables()
-        return [table for table in all_tables if table.get('is_available', 0) == 0]
 
 
 class RelationFieldConfigService:

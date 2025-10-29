@@ -222,7 +222,7 @@ class NLQueryContextBuilder:
 
         try:
             # 获取所有表
-            all_tables = self.metadata_service.get_available_tables()
+            all_tables = self.metadata_service.get_tables(is_available='0')
 
             # 遍历查找关联ID匹配的字段
             for table in all_tables:

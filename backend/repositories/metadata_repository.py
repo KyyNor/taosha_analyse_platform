@@ -24,12 +24,26 @@ class MetadataTableRepository(BaseRepository[MetadataTable]):
             logger.error(f"根据表名获取元数据表失败: {e}")
             raise
 
-    def get_available_tables(self) -> List[MetadataTable]:
-        """获取所有可用的表（is_available = 0）"""
+    def get_filter_tables_with_columns(self, is_available: str, include_fields: bool, table_name_filter: str) -> List[MetadataTable]:
+        """获取所有表及其列信息"""
         try:
-            return self.db.query(MetadataTable).filter(MetadataTable.is_available == 0).all()
+            results = self.db.query(MetadataTable)
+            if is_available == '1':
+                results = results.filter(MetadataTable.is_available == 0)
+            elif is_available == '0':
+                results = results.filter(MetadataTable.is_available == 1)
+
+            if include_fields:
+                results = results.options(joinedload(MetadataTable.columns))
+
+            if table_name_filter is not None and len(table_name_filter) > 0:
+                results = results.filter(MetadataTable.name.ilike(f"%{table_name_filter}%"))
+
+            results = results.all()
+
+            return results
         except Exception as e:
-            logger.error(f"获取可用元数据表失败: {e}")
+            logger.error(f"获取所有表及其列信息失败: {e}")
             raise
 
     def get_with_columns(self, table_id: int) -> Optional[MetadataTable]:

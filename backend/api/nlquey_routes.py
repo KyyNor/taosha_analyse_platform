@@ -3,17 +3,14 @@ API路由定义
 """
 import asyncio
 import time
-from typing import Optional
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Query, Depends
 from sqlalchemy.orm import Session
 
-from fastapi.encoders import jsonable_encoder
-
 from api.endpoint_models import QueryRequest, ClarificationInput
 from models.db_base import get_db
-from services.service_models import TaskState, BaseNodeLog
 from services.nlquery_service.async_query_service import get_async_query_service
 from services.tracking_service.operation_tracking import OperationTracker
 from services.tracking_service.tracker_cache import tracker_cache
