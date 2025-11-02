@@ -10,7 +10,7 @@ from .db_base import Base
 
 class DataTheme(Base):
     """数据主题模型"""
-    __tablename__ = "data_themes"
+    __tablename__ = "metadata_data_themes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     theme_name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
@@ -31,10 +31,10 @@ class DataTheme(Base):
 
 class ThemeTableRelation(Base):
     """主题表关联关系模型"""
-    __tablename__ = "theme_table_relations"
+    __tablename__ = "metadata_theme_table_relations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    theme_id: Mapped[int] = mapped_column(Integer, ForeignKey("data_themes.id"), nullable=False, index=True)
+    theme_id: Mapped[int] = mapped_column(Integer, ForeignKey("metadata_data_themes.id"), nullable=False, index=True)
     table_id: Mapped[int] = mapped_column(Integer, ForeignKey("metadata_tables.id"), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 

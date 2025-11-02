@@ -10,7 +10,7 @@ from .db_base import Base
 
 class RelationFieldConfig(Base):
     """关联字段配置模型"""
-    __tablename__ = "relation_field_config"
+    __tablename__ = "metadata_relation_field_config"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     relation_family: Mapped[str] = mapped_column(String(255), nullable=False)
