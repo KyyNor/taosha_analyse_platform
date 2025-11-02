@@ -8,6 +8,7 @@ dependencies = [
     "apscheduler>=3.11.0",
     "arize-phoenix>=12.6.1",
     "cachetools>=6.2.0",
+    "diskcache>=5.6.3",
     "duckdb>=1.2.2",
     "fastapi>=0.116.1",
     "fastembed>=0.5.0",
