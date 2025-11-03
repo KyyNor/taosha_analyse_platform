@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>淘沙分析平台 - 项目介绍 v3.0</title>
+    <title>淘沙分析平台 - 项目介绍</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -464,23 +464,20 @@
         <div class="sidebar w-64 bg-white shadow-lg hand-drawn m-4 p-4" id="sidebar">
             <div class="p-4">
                 <h1 class="text-2xl font-bold text-gray-800 mb-8 title-underline">
-                    🎨 淘沙分析平台 v3.0
+                    🎨 淘沙分析平台
                 </h1>
                 <nav class="space-y-3">
-                    <a href="#section-problem" class="nav-tab w-full text-left px-4 py-3 rounded-lg block">
-                        🚫 问题背景
-                    </a>
-                    <a href="#section-solution" class="nav-tab w-full text-left px-4 py-3 rounded-lg block">
-                        💡 解决方案
+                    <a href="#section-problem-solution" class="nav-tab w-full text-left px-4 py-3 rounded-lg block">
+                        🚫 问题与解决方案
                     </a>
                     <a href="#section-service-modes" class="nav-tab w-full text-left px-4 py-3 rounded-lg block">
                         📋 服务模式
                     </a>
-                    <a href="#section-tech-architecture" class="nav-tab w-full text-left px-4 py-3 rounded-lg block">
-                        🔧 技术架构
-                    </a>
                     <a href="#section-challenges-solutions" class="nav-tab w-full text-left px-4 py-3 rounded-lg block">
                         ⚠️ 面临问题及解决方案
+                    </a>
+                    <a href="#section-tech-architecture" class="nav-tab w-full text-left px-4 py-3 rounded-lg block">
+                        🔧 技术架构
                     </a>
                     <a href="#section-tech-advantages" class="nav-tab w-full text-left px-4 py-3 rounded-lg block">
                         ⚡ 技术优势
@@ -494,28 +491,28 @@
 
         <!-- 右侧内容区域 -->
         <div class="content-area flex-1 p-8">
-            <!-- 问题背景 -->
-            <section id="section-problem" class="content-section">
+            <!-- 问题与解决方案 -->
+            <section id="section-problem-solution" class="content-section">
                 <div class="bg-white rounded-lg shadow-md p-8 hand-drawn">
-                    <h2 class="text-3xl font-bold text-gray-800 mb-6 title-underline">🚫 问题背景</h2>
+                    <h2 class="text-3xl font-bold text-gray-800 mb-6 title-underline">🚫 问题与解决方案</h2>
 
                     <!-- 核心矛盾 -->
                     <div class="mb-8">
                         <h3 class="text-2xl font-bold text-gray-800 mb-4">💥 核心矛盾</h3>
                         <div class="bg-gradient-to-r from-red-50 to-orange-50 rounded-lg p-6 border-2 border-red-300" style="transform: rotate(0.5deg);">
                             <p class="text-lg text-gray-800 font-semibold">
-                                业务部门日益增长的数据处理需求与相对固定的数据服务产出能力的矛盾
+                                业务部门日益增长的数据处理需求与相对固定的数据服务产出能力之间的矛盾日益凸显
                             </p>
                         </div>
                     </div>
 
                     <!-- 具体表现 -->
-                    <div>
-                        <h3 class="text-2xl font-bold text-gray-800 mb-4">🔍 具体表现</h3>
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">🔍 现状挑战</h3>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div class="feature-card">
                                 <h4 class="text-xl font-bold text-red-700 mb-3">🚫 技术门槛高</h4>
-                                <p class="text-gray-700 mb-3">业务人员缺乏SQL技能，数据分析完全依赖技术人员</p>
+                                <p class="text-gray-700 mb-3">业务人员缺乏SQL技能，数据分析完全依赖技术人员支持</p>
                                 <div class="bg-red-50 rounded-lg p-3">
                                     <p class="text-sm text-red-700">• 数据获取周期长</p>
                                     <p class="text-sm text-red-700">• 业务决策滞后</p>
@@ -525,7 +522,7 @@
 
                             <div class="feature-card">
                                 <h4 class="text-xl font-bold text-orange-700 mb-3">⏱️ 响应效率低</h4>
-                                <p class="text-gray-700 mb-3">传统报表开发周期长，无法满足快速变化的业务需求</p>
+                                <p class="text-gray-700 mb-3">传统报表开发周期长，难以满足快速变化的业务需求</p>
                                 <div class="bg-orange-50 rounded-lg p-3">
                                     <p class="text-sm text-orange-700">• 错失市场机会</p>
                                     <p class="text-sm text-orange-700">• 竞争力下降</p>
@@ -533,52 +530,32 @@
                                 </div>
                             </div>
 
-                            <div class="feature-card">
-                                <h4 class="text-xl font-bold text-yellow-700 mb-3">🏝️ 数据孤岛</h4>
-                                <p class="text-gray-700 mb-3">缺乏统一的数据分析平台，数据分散在各个系统中</p>
-                                <div class="bg-yellow-50 rounded-lg p-3">
-                                    <p class="text-sm text-yellow-700">• 数据价值无法充分发挥</p>
-                                    <p class="text-sm text-yellow-700">• 跨部门协作困难</p>
-                                    <p class="text-sm text-yellow-700">• 决策依据不完整</p>
-                                </div>
-                            </div>
                         </div>
                     </div>
-                </div>
-            </section>
 
-            <!-- 解决方案 -->
-            <section id="section-solution" class="content-section">
-                <div class="bg-white rounded-lg shadow-md p-8 hand-drawn">
-                    <h2 class="text-3xl font-bold text-gray-800 mb-6 title-underline">💡 解决方案</h2>
-
-                    <!-- 项目目的 -->
-                    <div class="mb-8">
-                        <h3 class="text-2xl font-bold text-gray-800 mb-4">🎯 项目目的</h3>
+                    <!-- 解决方案 -->
+                    <div>
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">💡 淘沙解决方案</h3>
                         <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border-2 border-blue-300" style="transform: rotate(0.5deg);">
-                            <p class="text-lg text-gray-800">
-                                利用<span class="highlight">大模型</span>及<span class="highlight">完善基础设施</span>（历史的数据工厂项目），提供<span class="highlight">自然语言的查询能力</span>。
+                            <p class="text-lg text-gray-800 mb-4">
+                                基于<span class="highlight">大模型技术</span>和<span class="highlight">完善的基础设施</span>（历史数据工厂项目），打造<span class="highlight">自然语言智能查询平台</span>
                             </p>
                         </div>
-                    </div>
 
-                    <!-- 核心价值 -->
-                    <div>
-                        <h3 class="text-2xl font-bold text-gray-800 mb-4">✨ 核心价值</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
                             <div class="tech-card">
                                 <h4 class="text-xl font-bold text-blue-700 mb-3">🚀 零技术门槛</h4>
-                                <p class="text-gray-700">业务人员用自然语言提问，系统自动生成并执行SQL查询</p>
+                                <p class="text-gray-700">业务人员直接使用自然语言提问，系统自动生成并执行SQL查询</p>
                             </div>
 
                             <div class="tech-card">
                                 <h4 class="text-xl font-bold text-green-700 mb-3">🤝 智能交互体验</h4>
-                                <p class="text-gray-700">基于LangGraph智能工作流，人在循环交互，确保查询准确性</p>
+                                <p class="text-gray-700">基于LangGraph智能工作流，人在循环交互机制确保查询准确性</p>
                             </div>
 
                             <div class="tech-card">
                                 <h4 class="text-xl font-bold text-purple-700 mb-3">🔄 自动化数据管理</h4>
-                                <p class="text-gray-700">智能元数据同步，减少人工维护成本</p>
+                                <p class="text-gray-700">智能元数据同步机制，大幅减少人工维护成本</p>
                             </div>
                         </div>
                     </div>
@@ -639,9 +616,114 @@
                 </div>
             </section>
 
+            <!-- 面临问题及解决方案 -->
+            <section id="section-challenges-solutions" class="content-section">
+                <div class="bg-white rounded-lg shadow-md p-8 hand-drawn">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-6 title-underline">⚠️ 面临问题及解决方案</h2>
+
+                    <div class="space-y-8">
+                        <!-- 锁定查询范围 -->
+                        <div>
+                            <h3 class="text-2xl font-bold text-red-800 mb-4">1. 锁定查询范围</h3>
+                            <div class="feature-card">
+                                <h4 class="text-xl font-bold text-red-700 mb-3">挑战</h4>
+                                <p class="text-gray-700 mb-4">面对用户的自然语言输入，如何在数据工厂的2500张表中精准定位用户实际需要的数据表？</p>
+                                
+                                <h4 class="text-xl font-bold text-green-700 mb-3">解决策略</h4>
+                                <div class="space-y-4">
+                                    <div class="bg-green-50 rounded-lg p-4">
+                                        <h5 class="font-bold text-green-700 mb-2">方案一（当前方案）</h5>
+                                        <p class="text-gray-700">构建数据主题，每个主题包含相关表20张以内，用户查询前先选择目标主题，检索范围限定在所选主题的表范围内</p>
+                                    </div>
+                                    
+                                    <div class="bg-blue-50 rounded-lg p-4">
+                                        <h5 class="font-bold text-blue-700 mb-2">方案二</h5>
+                                        <p class="text-gray-700">基于Hadoop数据血缘、Hadoop-Mysql数据同步、Mysql-帆软CPT血缘关系、帆软CPT访问量综合评估每张表的引用计数，在向量检索时按引用计数增加表权重，引用计数为0的表不参与检索</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 如何确保用户输入清晰 -->
+                        <div>
+                            <h3 class="text-2xl font-bold text-orange-800 mb-4">2. 确保用户输入清晰</h3>
+                            <div class="feature-card">
+                                <h4 class="text-xl font-bold text-orange-700 mb-3">挑战</h4>
+                                <p class="text-gray-700 mb-4">用户使用自然语言输入时，往往存在表达不完整、描述不清晰的情况，如何有效识别并引导用户补充必要信息？</p>
+                                
+                                <h4 class="text-xl font-bold text-green-700 mb-3">解决策略</h4>
+                                <div class="bg-green-50 rounded-lg p-4">
+                                    <p class="text-gray-700">采用人在循环机制，在工作流中设置清晰度验证节点，大模型结合已有表信息智能判断用户输入清晰度，当识别为不清晰时，主动引导用户补充关键信息。</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 业务逻辑确定 -->
+                        <div>
+                            <h3 class="text-2xl font-bold text-yellow-800 mb-4">3. 业务逻辑确定</h3>
+                            <div class="feature-card">
+                                <h4 class="text-xl font-bold text-yellow-700 mb-3">挑战</h4>
+                                <p class="text-gray-700 mb-4">如何准确理解用户自然语言输入中的业务描述，并将其映射到正确的数据字段和查询逻辑？</p>
+                                
+                                <h4 class="text-xl font-bold text-green-700 mb-3">解决策略</h4>
+                                <div class="space-y-4">
+                                    <div class="bg-green-50 rounded-lg p-4">
+                                        <h5 class="font-bold text-green-700 mb-2">知识库构建</h5>
+                                        <ul class="list-disc list-inside text-gray-700 space-y-1">
+                                            <li>术语解释：对内部术语提供明确解释，精确到查询条件级别</li>
+                                            <li>SQL问答：将日常数据加工、取数的SQL以问答形式维护</li>
+                                            <li>数据字典：建立常用字段的字典映射关系</li>
+                                        </ul>
+                                    </div>
+                                    
+                                    <div class="bg-blue-50 rounded-lg p-4">
+                                        <h5 class="font-bold text-blue-700 mb-2">关联关系管理</h5>
+                                        <p class="text-gray-700">对可关联字段标记关联ID，并提供关联方式的详细说明，确保查询逻辑的准确性</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 资源隔离 -->
+                        <div>
+                            <h3 class="text-2xl font-bold text-purple-800 mb-4">4. 资源隔离</h3>
+                            <div class="feature-card">
+                                <h4 class="text-xl font-bold text-purple-700 mb-3">挑战</h4>
+                                <p class="text-gray-700 mb-4">淘沙查询依赖Spark集群，而Spark生产集群需执行关键数据处理任务，如何有效防止淘沙应用阻塞正常数据加工流程？</p>
+                                
+                                <h4 class="text-xl font-bold text-green-700 mb-3">解决策略</h4>
+                                <div class="bg-green-50 rounded-lg p-4">
+                                    <p class="text-gray-700">针对任务执行中的木桶效应，将Spark集群拆分为老集群（bigdata01~bigdata06）和新集群（bigdata07~bigdata10），Hadoop集群保持不变。数据处理任务优先在新集群运行，淘沙查询和数据同步任务在老集群执行，实现资源有效隔离。</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 权限控制 -->
+                        <div>
+                            <h3 class="text-2xl font-bold text-indigo-800 mb-4">5. 权限控制</h3>
+                            <div class="feature-card">
+                                <h4 class="text-xl font-bold text-indigo-700 mb-3">挑战</h4>
+                                <p class="text-gray-700 mb-4">如何有效控制用户可查询的数据范围，确保数据安全和合规性？</p>
+                                
+                                <h4 class="text-xl font-bold text-green-700 mb-3">解决策略</h4>
+                                <div class="space-y-4">
+                                    <div class="bg-green-50 rounded-lg p-4">
+                                        <p class="text-gray-700">1. 常用报表智能化改造场景：提供虚拟表或视图，查询前替换为带权限控制的子查询，确保最终查询结果符合权限要求</p>
+                                    </div>
+                                    
+                                    <div class="bg-blue-50 rounded-lg p-4">
+                                        <p class="text-gray-700">2. 敏感字段权限控制：指定吸存码、机构号等字段为权限字段，按帆软角色配置用户查询范围，SQL生成后自动添加权限控制层</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- 技术架构 -->
             <section id="section-tech-architecture" class="content-section">
-                <div class="bg-white rounded-lg shadow-md p-8 hand-drawn">
+                                <div class="bg-white rounded-lg shadow-md p-8 hand-drawn">
                     <h2 class="text-3xl font-bold text-gray-800 mb-6 title-underline">🔧 技术架构</h2>
 
                     <!-- 整体架构 -->
@@ -724,111 +806,7 @@
                         </div>
                     </div>
                 </div>
-            </section>
 
-            <!-- 面临问题及解决方案 -->
-            <section id="section-challenges-solutions" class="content-section">
-                <div class="bg-white rounded-lg shadow-md p-8 hand-drawn">
-                    <h2 class="text-3xl font-bold text-gray-800 mb-6 title-underline">⚠️ 面临问题及解决方案</h2>
-
-                    <div class="space-y-8">
-                        <!-- 锁定查询范围 -->
-                        <div>
-                            <h3 class="text-2xl font-bold text-red-800 mb-4">1. 锁定查询范围</h3>
-                            <div class="feature-card">
-                                <h4 class="text-xl font-bold text-red-700 mb-3">问题</h4>
-                                <p class="text-gray-700 mb-4">对于用户的自然语言输入，如何在数据工厂的2500张表中精准命中用户实际需要的表？</p>
-                                
-                                <h4 class="text-xl font-bold text-green-700 mb-3">解决方案</h4>
-                                <div class="space-y-4">
-                                    <div class="bg-green-50 rounded-lg p-4">
-                                        <h5 class="font-bold text-green-700 mb-2">方案一（当前方案）</h5>
-                                        <p class="text-gray-700">构建数据主题，每个主题包括相关表20张以内，用户查询前需要先选择查询的目标主题，检索范围限制在选择主题的表范围内</p>
-                                    </div>
-                                    
-                                    <div class="bg-blue-50 rounded-lg p-4">
-                                        <h5 class="font-bold text-blue-700 mb-2">方案二</h5>
-                                        <p class="text-gray-700">按Hadoop数据血缘、Hadoop-Mysql数据同步、Mysql-帆软CPT血缘关系、帆软CPT访问量综合评估每张表的引用计数，在向量检索时按引用计数增加表权重，引用计数为0的表不参与检索</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 如何确保用户输入清晰 -->
-                        <div>
-                            <h3 class="text-2xl font-bold text-orange-800 mb-4">2. 如何确保用户输入清晰</h3>
-                            <div class="feature-card">
-                                <h4 class="text-xl font-bold text-orange-700 mb-3">问题</h4>
-                                <p class="text-gray-700 mb-4">用户使用自然语言输入时，很有可能其输入不完整，不清晰，如何发现这种问题，并反馈到用户补充信息？</p>
-                                
-                                <h4 class="text-xl font-bold text-green-700 mb-3">解决方案</h4>
-                                <div class="bg-green-50 rounded-lg p-4">
-                                    <p class="text-gray-700">（人在循环）在工作流中设置清晰度验证节点，大模型结合已有表信息判断用户输入是否清晰，如果不清晰，则反馈给用户补充。</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 业务逻辑确定 -->
-                        <div>
-                            <h3 class="text-2xl font-bold text-yellow-800 mb-4">3. 业务逻辑确定</h3>
-                            <div class="feature-card">
-                                <h4 class="text-xl font-bold text-yellow-700 mb-3">问题</h4>
-                                <p class="text-gray-700 mb-4">如何通过用户自然语言输入确认其业务描述所对应的数据字段及查询逻辑？</p>
-                                
-                                <h4 class="text-xl font-bold text-green-700 mb-3">解决方案</h4>
-                                <div class="space-y-4">
-                                    <div class="bg-green-50 rounded-lg p-4">
-                                        <h5 class="font-bold text-green-700 mb-2">知识库</h5>
-                                        <ul class="list-disc list-inside text-gray-700 space-y-1">
-                                            <li>术语解释：对内部术语给出明确的解释说明，最好精确到查询条件</li>
-                                            <li>SQL问答：将日常数据加工、取数的SQL以问答的形式维护进来</li>
-                                            <li>数据字典：常用字段的字典映射关系</li>
-                                        </ul>
-                                    </div>
-                                    
-                                    <div class="bg-blue-50 rounded-lg p-4">
-                                        <h5 class="font-bold text-blue-700 mb-2">关联关系</h5>
-                                        <p class="text-gray-700">对于可以关联的字段，标记其关联ID，并对关联ID的关联方式做解释说明</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 资源隔离 -->
-                        <div>
-                            <h3 class="text-2xl font-bold text-purple-800 mb-4">4. 资源隔离</h3>
-                            <div class="feature-card">
-                                <h4 class="text-xl font-bold text-purple-700 mb-3">问题</h4>
-                                <p class="text-gray-700 mb-4">淘沙查询需依赖Spark集群，而Spark生产集群需要执行数据处理任务，需防止淘沙应用阻塞正常数据加工</p>
-                                
-                                <h4 class="text-xl font-bold text-green-700 mb-3">解决方案</h4>
-                                <div class="bg-green-50 rounded-lg p-4">
-                                    <p class="text-gray-700">由于任务执行的时候有明显的木桶效应，新老集群混用在任务数量中等偏少的场景，如果任务分配到了老节点，并无法显著提升运行效率。因此将Spark集群拆分为老集群bigdata01~bigdata06和新集群bigdata07~bigdata10，Hadoop集群维持不变，数据处理任务在新集群运行，淘沙任务、数据同步任务在老集群运行。</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 权限控制 -->
-                        <div>
-                            <h3 class="text-2xl font-bold text-indigo-800 mb-4">5. 权限控制</h3>
-                            <div class="feature-card">
-                                <h4 class="text-xl font-bold text-indigo-700 mb-3">问题</h4>
-                                <p class="text-gray-700 mb-4">如何控制用户可以查询的数据范围？</p>
-                                
-                                <h4 class="text-xl font-bold text-green-700 mb-3">解决方案</h4>
-                                <div class="space-y-4">
-                                    <div class="bg-green-50 rounded-lg p-4">
-                                        <p class="text-gray-700">1. 对于常用报表的智能化改造场景，提供给淘沙的就是一张虚拟表，可以是视图，也可以在下发查询之前替换为一个子查询，这个查询语句是附带权限控制的，因此最终查询结果也是有权限控制的</p>
-                                    </div>
-                                    
-                                    <div class="bg-blue-50 rounded-lg p-4">
-                                        <p class="text-gray-700">2. 指定吸存码、机构号等字段为权限字段，按帆软角色配置用户查询范围，所有涉及到此类字段的在SQL生成完毕后包一层权限控制。</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </section>
 
             <!-- 技术优势 -->
@@ -950,7 +928,7 @@
                     <!-- 中期规划 -->
                     <div class="mb-8">
                         <h3 class="text-2xl font-bold text-gray-800 mb-4">🎯 中期规划</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div class="feature-card">
                                 <h4 class="text-xl font-bold text-orange-700 mb-3">🤖 智能推荐系统</h4>
                                 <p class="text-gray-700 mb-3">基于用户行为和查询历史，提供智能数据推荐和洞察</p>
@@ -959,67 +937,6 @@
                                     <p class="text-sm text-gray-600">• 个性化数据推荐</p>
                                     <p class="text-sm text-gray-600">• 异常数据自动识别</p>
                                     <p class="text-sm text-gray-600">• 业务洞察智能生成</p>
-                                </div>
-                            </div>
-
-                            <div class="feature-card">
-                                <h4 class="text-xl font-bold text-red-700 mb-3">📱 移动端支持</h4>
-                                <p class="text-gray-700 mb-3">开发移动端应用，支持随时随地的数据查询和分析</p>
-                                <div class="bg-red-50 rounded-lg p-3">
-                                    <p class="text-sm font-semibold text-red-700">移动端特性：</p>
-                                    <p class="text-sm text-gray-600">• 响应式设计适配</p>
-                                    <p class="text-sm text-gray-600">• 离线查询支持</p>
-                                    <p class="text-sm text-gray-600">• 推送通知功能</p>
-                                </div>
-                            </div>
-
-                            <div class="feature-card">
-                                <h4 class="text-xl font-bold text-purple-700 mb-3">🔗 API开放平台</h4>
-                                <p class="text-gray-700 mb-3">构建开放API平台，支持第三方应用集成和数据服务</p>
-                                <div class="bg-purple-50 rounded-lg p-3">
-                                    <p class="text-sm font-semibold text-purple-700">开放能力：</p>
-                                    <p class="text-sm text-gray-600">• RESTful API接口</p>
-                                    <p class="text-sm text-gray-600">• SDK和开发工具</p>
-                                    <p class="text-sm text-gray-600">• 应用市场生态</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 长期愿景 -->
-                    <div>
-                        <h3 class="text-2xl font-bold text-gray-800 mb-4">🌟 长期愿景</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div class="feature-card">
-                                <h4 class="text-xl font-bold text-indigo-700 mb-3">🧠 AI驱动的数据洞察</h4>
-                                <p class="text-gray-700 mb-3">基于机器学习算法，自动发现数据中的业务洞察和趋势</p>
-                                <div class="bg-indigo-50 rounded-lg p-3">
-                                    <p class="text-sm font-semibold text-indigo-700">智能能力：</p>
-                                    <p class="text-sm text-gray-600">• 自动异常检测</p>
-                                    <p class="text-sm text-gray-600">• 趋势预测分析</p>
-                                    <p class="text-sm text-gray-600">• 智能决策建议</p>
-                                </div>
-                            </div>
-
-                            <div class="feature-card">
-                                <h4 class="text-xl font-bold text-teal-700 mb-3">🏢 企业数据中台</h4>
-                                <p class="text-gray-700 mb-3">构建企业级数据中台，支持更广泛的数据应用场景</p>
-                                <div class="bg-teal-50 rounded-lg p-3">
-                                    <p class="text-sm font-semibold text-teal-700">中台能力：</p>
-                                    <p class="text-sm text-gray-600">• 统一数据服务</p>
-                                    <p class="text-sm text-gray-600">• 数据资产化管理</p>
-                                    <p class="text-sm text-gray-600">• 跨部门数据共享</p>
-                                </div>
-                            </div>
-
-                            <div class="feature-card">
-                                <h4 class="text-xl font-bold text-cyan-700 mb-3">🌐 生态系统扩展</h4>
-                                <p class="text-gray-700 mb-3">构建完整的数据应用生态，支持行业解决方案</p>
-                                <div class="bg-cyan-50 rounded-lg p-3">
-                                    <p class="text-sm font-semibold text-cyan-700">生态能力：</p>
-                                    <p class="text-sm text-gray-600">• 行业模板库</p>
-                                    <p class="text-sm text-gray-600">• 合作伙伴生态</p>
-                                    <p class="text-sm text-gray-600">• 社区驱动创新</p>
                                 </div>
                             </div>
                         </div>
