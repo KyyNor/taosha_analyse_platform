@@ -109,6 +109,13 @@ export const API_ENDPOINTS = {
     SEARCH: '/metadata/search'             // 搜索元数据
   },
 
+  // === Agent对话相关 ===
+  AGENTS: {
+    CHAT: '/agents/chat',                   // 聊天对话
+    CHAT_STREAM: '/agents/chat/stream',     // 流式聊天
+    HEALTH: '/agents/health'                // 健康检查
+  },
+
   // === 收藏管理相关 ===
   FAVORITES: {
     LIST: '/favorites',                     // 获取收藏列表

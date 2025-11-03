@@ -6,6 +6,7 @@ import MainLayout from '@/components/layout/MainLayout.vue'
 
 // Import views
 import QueryPage from '@/views/QueryPage.vue'
+import AgentPage from '@/views/AgentPage.vue'
 import MetadataPage from '@/views/MetadataPage.vue'
 import LogsPage from '@/views/LogsPage.vue'
 import FavoritesPage from '@/views/FavoritesPage.vue'
@@ -31,6 +32,14 @@ const routes: RouteRecordRaw[] = [
         component: QueryPage,
         meta: {
           title: '淘沙查询 - 淘沙分析平台'
+        }
+      },
+      {
+        path: 'agent',
+        name: 'Agent',
+        component: AgentPage,
+        meta: {
+          title: '淘沙Agent - 淘沙分析平台'
         }
       },
       {
