@@ -474,13 +474,10 @@
                         📋 服务模式
                     </a>
                     <a href="#section-challenges-solutions" class="nav-tab w-full text-left px-4 py-3 rounded-lg block">
-                        ⚠️ 面临问题及解决方案
+                        🔄 核心流程及挑战
                     </a>
                     <a href="#section-tech-architecture" class="nav-tab w-full text-left px-4 py-3 rounded-lg block">
                         🔧 技术架构
-                    </a>
-                    <a href="#section-tech-advantages" class="nav-tab w-full text-left px-4 py-3 rounded-lg block">
-                        ⚡ 技术优势
                     </a>
                     <a href="#section-future-outlook" class="nav-tab w-full text-left px-4 py-3 rounded-lg block">
                         🚀 未来展望
@@ -511,25 +508,22 @@
                         <h3 class="text-2xl font-bold text-gray-800 mb-4">🔍 现状挑战</h3>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div class="feature-card">
-                                <h4 class="text-xl font-bold text-red-700 mb-3">🚫 技术门槛高</h4>
-                                <p class="text-gray-700 mb-3">业务人员缺乏SQL技能，数据分析完全依赖技术人员支持</p>
-                                <div class="bg-red-50 rounded-lg p-3">
-                                    <p class="text-sm text-red-700">• 数据获取周期长</p>
-                                    <p class="text-sm text-red-700">• 业务决策滞后</p>
-                                    <p class="text-sm text-red-700">• 技术部门成为瓶颈</p>
-                                </div>
-                            </div>
-
-                            <div class="feature-card">
                                 <h4 class="text-xl font-bold text-orange-700 mb-3">⏱️ 响应效率低</h4>
                                 <p class="text-gray-700 mb-3">传统报表开发周期长，难以满足快速变化的业务需求</p>
                                 <div class="bg-orange-50 rounded-lg p-3">
-                                    <p class="text-sm text-orange-700">• 错失市场机会</p>
                                     <p class="text-sm text-orange-700">• 竞争力下降</p>
                                     <p class="text-sm text-orange-700">• 业务灵活性受限</p>
                                 </div>
                             </div>
-
+                            
+                            <div class="feature-card">
+                                <h4 class="text-xl font-bold text-red-700 mb-3">🚫 技术门槛高</h4>
+                                <p class="text-gray-700 mb-3">业务人员缺乏SQL技能，数据分析完全依赖技术人员支持</p>
+                                <div class="bg-red-50 rounded-lg p-3">
+                                    <p class="text-sm text-red-700">• 数据获取周期长</p>
+                                    <p class="text-sm text-red-700">• 数据魔方业务部门以数据查看为主，自主加工极少</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -538,7 +532,7 @@
                         <h3 class="text-2xl font-bold text-gray-800 mb-4">💡 淘沙解决方案</h3>
                         <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border-2 border-blue-300" style="transform: rotate(0.5deg);">
                             <p class="text-lg text-gray-800 mb-4">
-                                基于<span class="highlight">大模型技术</span>和<span class="highlight">完善的基础设施</span>（历史数据工厂项目），打造<span class="highlight">自然语言智能查询平台</span>
+                                基于<span class="highlight">大模型技术</span>和<span class="highlight">完善的基础设施</span>（数据工厂项目），打造<span class="highlight">自然语言智能查询平台</span>
                             </p>
                         </div>
 
@@ -616,10 +610,66 @@
                 </div>
             </section>
 
-            <!-- 面临问题及解决方案 -->
+            <!-- 核心流程及挑战 -->
             <section id="section-challenges-solutions" class="content-section">
                 <div class="bg-white rounded-lg shadow-md p-8 hand-drawn">
-                    <h2 class="text-3xl font-bold text-gray-800 mb-6 title-underline">⚠️ 面临问题及解决方案</h2>
+                    <h2 class="text-3xl font-bold text-gray-800 mb-6 title-underline">🔄 核心流程及挑战</h2>
+
+                    <!-- 项目核心流程概览 -->
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">🎯 项目核心流程</h3>
+                        <div class="flow-chart">
+                            <div class="arch-box">
+                                <h4 class="text-xl font-bold text-blue-700 mb-2">1. 用户自然语言提问</h4>
+                                <p class="text-gray-700">业务人员用中文描述数据需求</p>
+                                <p class="text-sm text-gray-600">例："查询上个季度各产品线的销售额"</p>
+                            </div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="arch-box">
+                                <h4 class="text-xl font-bold text-green-700 mb-2">2. 智能语义理解</h4>
+                                <p class="text-gray-700">向量模型检索相关元数据和术语</p>
+                                <p class="text-sm text-gray-600">LangGraph工作流解析用户意图</p>
+                            </div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="arch-box">
+                                <h4 class="text-xl font-bold text-orange-700 mb-2">3. SQL生成与验证</h4>
+                                <p class="text-gray-700">基于上下文生成准确SQL语句</p>
+                                <p class="text-sm text-gray-600">多重验证确保查询安全性</p>
+                            </div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="arch-box">
+                                <h4 class="text-xl font-bold text-purple-700 mb-2">4. 查询执行与结果解释</h4>
+                                <p class="text-gray-700">查询引擎(SparkSQL)执行查询并返回结果</p>
+                                <p class="text-sm text-gray-600">AI自动解释数据含义和业务洞察</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 核心挑战概览 -->
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">⚡ 核心挑战概览</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="feature-card">
+                                <h4 class="text-xl font-bold text-red-700 mb-3">🎯 挑战1：查询范围锁定</h4>
+                                <p class="text-gray-700 mb-3">如何在2500张表中精准定位用户需要的数据表？</p>
+                            </div>
+
+                            <div class="feature-card">
+                                <h4 class="text-xl font-bold text-orange-700 mb-3">🔧 挑战2：用户输入清晰度</h4>
+                                <p class="text-gray-700 mb-3">如何识别并引导用户补充不完整的查询信息？</p>
+                            </div>
+
+                            <div class="feature-card">
+                                <h4 class="text-xl font-bold text-yellow-700 mb-3">📊 挑战3：业务逻辑映射</h4>
+                                <p class="text-gray-700 mb-3">如何将自然语言准确映射到数据字段和查询逻辑？</p>
+                            </div>
+
+                            <div class="feature-card">
+                                <h4 class="text-xl font-bold text-green-700 mb-3">🚀 挑战4：资源隔离与权限控制</h4>
+                                <p class="text-gray-700 mb-3">如何防止查询阻塞生产流程并确保数据安全？</p>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="space-y-8">
                         <!-- 锁定查询范围 -->
@@ -718,6 +768,36 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- 数据管理平台核心价值 -->
+                    <div class="mt-8">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">其他主要能力</h3>
+                        <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-6 border-2 border-indigo-300" style="transform: rotate(0.5deg);">
+                            <p class="text-lg text-gray-800 mb-4">
+                                对接<span class="highlight">数据工厂</span>提供统一的数据资产管理和治理能力，提供对大模型查询全流程的追踪监控，便捷的溯源调试。
+                            </p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div class="bg-white rounded-lg p-4">
+                                    <h4 class="font-bold text-indigo-700 mb-2">🔄 智能元数据管理</h4>
+                                    <p class="text-sm text-gray-600">自动同步多数据源元数据，支持自定义同步策略，确保数据信息实时准确</p>
+                                </div>
+                                <div class="bg-white rounded-lg p-4">
+                                    <h4 class="font-bold text-blue-700 mb-2">📈 增量学习优化</h4>
+                                    <p class="text-sm text-gray-600">基于用户反馈持续优化查询质量，构建企业级数据知识库</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="bg-white rounded-lg p-4">
+                                    <h4 class="font-bold text-green-700 mb-2">🔍 查询历史追踪</h4>
+                                    <p class="text-sm text-gray-600">完整记录所有查询历史，支持查询复用和效果分析</p>
+                                </div>
+                                <div class="bg-white rounded-lg p-4">
+                                    <h4 class="font-bold text-green-700 mb-2">📈 性能监控分析</h4>
+                                    <p class="text-sm text-gray-600">实时监控系统性能，识别瓶颈和优化机会</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -726,93 +806,57 @@
                                 <div class="bg-white rounded-lg shadow-md p-8 hand-drawn">
                     <h2 class="text-3xl font-bold text-gray-800 mb-6 title-underline">🔧 技术架构</h2>
 
-                    <!-- 整体架构 -->
-                    <div class="mb-8">
-                        <h3 class="text-2xl font-bold text-gray-800 mb-4">整体架构设计</h3>
-                        <div class="flow-chart">
-                            <div class="arch-box">
-                                <h4 class="text-xl font-bold text-blue-700 mb-2">后台架构</h4>
-                                <p class="text-gray-700">Python，提供独立页面</p>
-                            </div>
-                            <div class="flow-arrow">↓</div>
-                            <div class="arch-box">
-                                <h4 class="text-xl font-bold text-green-700 mb-2">元数据同步</h4>
-                                <p class="text-gray-700">从数据工厂定期同步</p>
-                            </div>
-                            <div class="flow-arrow">↓</div>
-                            <div class="arch-box">
-                                <h4 class="text-xl font-bold text-purple-700 mb-2">知识库存储</h4>
-                                <p class="text-gray-700">Qdrant向量数据库</p>
-                            </div>
-                            <div class="flow-arrow">↓</div>
-                            <div class="arch-box">
-                                <h4 class="text-xl font-bold text-orange-700 mb-2">执行引擎</h4>
-                                <p class="text-gray-700">备集群Spark，可拓展MySQL等其他引擎</p>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- 技术栈详情 -->
-                    <div>
-                        <h3 class="text-2xl font-bold text-gray-800 mb-4">技术栈详情</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <!-- 前端技术栈 -->
-                            <div>
-                                <h4 class="text-xl font-bold text-gray-800 mb-4">前端技术栈</h4>
-                                <div class="space-y-4">
-                                    <div class="tech-card">
-                                        <h5 class="font-bold text-orange-700 mb-2">开发框架</h5>
-                                        <p class="text-gray-700">Vue 3 + TypeScript + Vite</p>
-                                        <p class="text-sm text-gray-600">现代化响应式框架，提供优秀的开发体验</p>
-                                    </div>
-
-                                    <div class="tech-card">
-                                        <h5 class="font-bold text-red-700 mb-2">状态管理</h5>
-                                        <p class="text-gray-700">Pinia + Axios HTTP客户端</p>
-                                        <p class="text-sm text-gray-600">Pinia提供简洁的状态管理方案</p>
-                                    </div>
-
-                                    <div class="tech-card">
-                                        <h5 class="font-bold text-indigo-700 mb-2">UI组件</h5>
-                                        <p class="text-gray-700">Tailwind CSS + DaisyUI + ECharts</p>
-                                        <p class="text-sm text-gray-600">Tailwind CSS提供原子化CSS框架</p>
-                                    </div>
-                                </div>
+                    <div class="p-8">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">核心技术组件</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <!-- 用户界面层 -->
+                            <div class="bg-blue-50 rounded-lg p-6 border-l-4 border-blue-500">
+                                <h4 class="text-lg font-bold text-blue-800 mb-3">🖥️ 用户界面</h4>
+                                <p class="text-gray-700 mb-2">Web浏览器应用</p>
+                                <p class="text-sm text-gray-600">提供交互式查询界面和结果展示</p>
                             </div>
 
-                            <!-- 后端技术栈 -->
-                            <div>
-                                <h4 class="text-xl font-bold text-gray-800 mb-4">后端技术栈</h4>
-                                <div class="space-y-4">
-                                    <div class="tech-card">
-                                        <h5 class="font-bold text-blue-700 mb-2">核心框架</h5>
-                                        <p class="text-gray-700">Python + FastAPI + SQLAlchemy</p>
-                                        <p class="text-sm text-gray-600">FastAPI提供高性能的API服务</p>
-                                    </div>
+                            <!-- 核心服务层 -->
+                            <div class="bg-green-50 rounded-lg p-6 border-l-4 border-green-500">
+                                <h4 class="text-lg font-bold text-green-800 mb-3">⚙️ 核心服务</h4>
+                                <p class="text-gray-700 mb-2">FastAPI Web 服务</p>
+                                <p class="text-sm text-gray-600">处理业务逻辑、AI模型调用和数据协调</p>
+                            </div>
 
-                                    <div class="tech-card">
-                                        <h5 class="font-bold text-green-700 mb-2">AI服务</h5>
-                                        <p class="text-gray-700">OpenAI API + LangGraph + LangChain</p>
-                                        <p class="text-sm text-gray-600">OpenAI API提供强大的语言理解能力</p>
-                                    </div>
+                            <!-- 数据执行层 -->
+                            <div class="bg-purple-50 rounded-lg p-6 border-l-4 border-purple-500">
+                                <h4 class="text-lg font-bold text-purple-800 mb-3">📊 数据执行</h4>
+                                <p class="text-gray-700 mb-2">Spark SQL / MySQL</p>
+                                <p class="text-sm text-gray-600">可自定义拓展查询引擎</p>
+                            </div>
 
-                                    <div class="tech-card">
-                                        <h5 class="font-bold text-purple-700 mb-2">数据存储</h5>
-                                        <p class="text-gray-700">SparkSQL + MySQL + Qdrant</p>
-                                        <p class="text-sm text-gray-600">SparkSQL处理大规模数据查询</p>
-                                    </div>
-                                </div>
+                            <!-- AI能力 -->
+                            <div class="bg-orange-50 rounded-lg p-6 border-l-4 border-orange-500">
+                                <h4 class="text-lg font-bold text-orange-800 mb-3">🧠 AI能力</h4>
+                                <p class="text-gray-700 mb-2">LLM 模型 + 嵌入模型</p>
+                                <p class="text-sm text-gray-600">自然语言理解和SQL生成能力</p>
+                            </div>
+
+                            <!-- 知识库 -->
+                            <div class="bg-indigo-50 rounded-lg p-6 border-l-4 border-indigo-500">
+                                <h4 class="text-lg font-bold text-indigo-800 mb-3">🧭 知识库</h4>
+                                <p class="text-gray-700 mb-2">Qdrant 向量数据库</p>
+                                <p class="text-sm text-gray-600">存储业务术语、表结构和语义索引</p>
+                            </div>
+
+                            <!-- 元数据管理 -->
+                            <div class="bg-teal-50 rounded-lg p-6 border-l-4 border-teal-500">
+                                <h4 class="text-lg font-bold text-teal-800 mb-3">📋 业务管理</h4>
+                                <p class="text-gray-700 mb-2">MySQL</p>
+                                <p class="text-sm text-gray-600">管理表结构、字段定义、业务术语和同步配置</p>
                             </div>
                         </div>
                     </div>
-                </div>
 
-            </section>
 
-            <!-- 技术优势 -->
-            <section id="section-tech-advantages" class="content-section">
                 <div class="bg-white rounded-lg shadow-md p-8 hand-drawn">
-                    <h2 class="text-3xl font-bold text-gray-800 mb-6 title-underline">⚡ 技术优势</h2>
+                    <h2 class="text-3xl font-bold text-gray-800 mb-6 title-underline">⚡ 技术能力</h2>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <!-- 企业级监控能力 -->
@@ -879,6 +923,8 @@
                         </div>
                     </div>
                 </div>
+                </div>
+
             </section>
 
             <!-- 未来展望 -->
