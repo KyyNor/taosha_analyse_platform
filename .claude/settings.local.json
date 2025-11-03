@@ -45,7 +45,9 @@
       "Bash(for file in ./components/common/LogDetailModal.vue ./components/common/SidebarPanel.vue ./components/query/FavoritesList.vue ./components/query/QueryHistoryList.vue ./components/query/QueryResultsTable.vue ./services/api/client.ts ./services/api/metadataService.ts ./views/LogsPage.vue)",
       "Bash(do)",
       "Bash(done)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "mcp__docs-langchain__SearchDocsByLangChain",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": [],
