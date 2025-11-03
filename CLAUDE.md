@@ -378,6 +378,25 @@ testcases/
   - 优化澄清功能界面，支持自动收起
   - 完善TypeScript类型安全
 
+### 淘沙Agent智能对话功能
+- **功能描述**：基于LangChain ReAct Agent的智能对话助手，提供自然语言问答服务
+- **核心特性**：
+  - 实时流式对话响应（Server-Sent Events）
+  - 现代化聊天界面，支持多轮对话
+  - 集成现有LLM服务，无需额外配置
+  - 完整的TypeScript类型安全
+- **技术实现**：
+  - 后端：`backend/services/agents/agent_service.py` - LangChain Agent核心服务
+  - 后端：`backend/api/agents_routes.py` - 流式API接口，支持SSE
+  - 前端：`frontend/src/views/AgentPage.vue` - 聊天页面组件
+  - 前端：`frontend/src/stores/agentStore.ts` - Pinia状态管理
+  - 前端：`frontend/src/services/api/agentService.ts` - API服务封装
+- **架构优势**：
+  - 复用现有LLM服务和配置管理
+  - 使用Fetch + ReadableStream处理流式数据
+  - 统一的API配置和错误处理机制
+  - 响应式设计，适配多种屏幕尺寸
+
 ### 代码质量提升
 - **类型安全**：
   - 修复所有TypeScript编译错误
@@ -431,5 +450,12 @@ testcases/
 - 检查推理时是否有足够的内存
 - 查看LangChain/OpenInference日志
 
+**Agent服务问题**：
+- **端口错误**：确保前端请求发送到正确的后端端口（8000），而非前端开发端口（3000）
+- **API配置**：使用 `buildApiUrl()` 确保包含完整的API前缀 `/api/taosha/v1`
+- **流式响应**：Fetch + ReadableStream处理SSE，避免直接使用Axios（不支持流式响应）
+- **类型错误**：注意 `AxiosResponse` 与原生 `Response` 的区别，特别是在处理流式数据时
+- **依赖导入**：Agent服务避免导入 `services` 模块（会触发向量存储初始化），直接导入需要的组件
+
 ## Documentation Last Update
-上次更新时commit: 66c6328 - refactor: 清理不再需要的WebSocket兼容代码
+上次更新时commit: c8c3ec1 - feat: 添加淘沙Agent智能对话功能
