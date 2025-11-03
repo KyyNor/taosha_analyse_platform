@@ -375,6 +375,9 @@
                     <button class="nav-tab w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100" onclick="showSection('tech-advantages')">
                         ⚡ 技术优势
                     </button>
+                    <button class="nav-tab w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100" onclick="showSection('core-workflow')">
+                        🔄 核心流程及挑战
+                    </button>
                     <button class="nav-tab w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100" onclick="showSection('future-outlook')">
                         🚀 未来展望
                     </button>
@@ -835,6 +838,117 @@
                                     ✅ 智能增量同步<br>
                                     ✅ 自动变更检测
                                 </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 核心流程及挑战 -->
+            <div id="core-workflow" class="content-section">
+                <div class="bg-white rounded-lg shadow-md p-8 hand-drawn">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-8 title-underline">🔄 核心流程及挑战</h2>
+
+                    <!-- 项目核心流程 -->
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">🎯 项目核心流程</h3>
+                        <div class="flow-chart">
+                            <div class="arch-box">
+                                <h4 class="text-xl font-bold text-blue-700 mb-2">1. 用户自然语言提问</h4>
+                                <p class="text-gray-700">业务人员用中文描述数据需求</p>
+                                <p class="text-sm text-gray-600">例："查询上个季度各产品线的销售额"</p>
+                            </div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="arch-box">
+                                <h4 class="text-xl font-bold text-green-700 mb-2">2. 智能语义理解</h4>
+                                <p class="text-gray-700">BGE向量模型检索相关元数据和术语</p>
+                                <p class="text-sm text-gray-600">LangGraph工作流解析用户意图</p>
+                            </div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="arch-box">
+                                <h4 class="text-xl font-bold text-orange-700 mb-2">3. SQL生成与验证</h4>
+                                <p class="text-gray-700">基于上下文生成准确SQL语句</p>
+                                <p class="text-sm text-gray-600">多重验证确保查询安全性</p>
+                            </div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="arch-box">
+                                <h4 class="text-xl font-bold text-purple-700 mb-2">4. 查询执行与结果解释</h4>
+                                <p class="text-gray-700">SparkSQL执行查询并返回结果</p>
+                                <p class="text-sm text-gray-600">AI自动解释数据含义和业务洞察</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 核心挑战与解决方案 -->
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">⚡ 核心挑战与解决方案</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="feature-card">
+                                <h4 class="text-xl font-bold text-red-700 mb-3">🎯 挑战1：自然语言理解准确性</h4>
+                                <p class="text-gray-700 mb-3">业务表述多样化，AI理解容易产生歧义</p>
+                                <div class="bg-red-50 rounded-lg p-3">
+                                    <p class="text-sm font-semibold text-red-700">解决方案：</p>
+                                    <p class="text-sm text-gray-600">• 有限范围检索减少歧义</p>
+                                    <p class="text-sm text-gray-600">• 人在循环机制主动澄清</p>
+                                    <p class="text-sm text-gray-600">• 业务术语表持续优化</p>
+                                </div>
+                            </div>
+
+                            <div class="feature-card">
+                                <h4 class="text-xl font-bold text-orange-700 mb-3">🔧 挑战2：SQL生成复杂度</h4>
+                                <p class="text-gray-700 mb-3">复杂业务逻辑导致SQL生成错误率高</p>
+                                <div class="bg-orange-50 rounded-lg p-3">
+                                    <p class="text-sm font-semibold text-orange-700">解决方案：</p>
+                                    <p class="text-sm text-gray-600">• LangGraph多步骤验证</p>
+                                    <p class="text-sm text-gray-600">• 查询模板库复用</p>
+                                    <p class="text-sm text-gray-600">• 智能错误诊断修复</p>
+                                </div>
+                            </div>
+
+                            <div class="feature-card">
+                                <h4 class="text-xl font-bold text-yellow-700 mb-3">📊 挑战3：数据管理复杂性</h4>
+                                <p class="text-gray-700 mb-3">多数据源、多表关联增加管理难度</p>
+                                <div class="bg-yellow-50 rounded-lg p-3">
+                                    <p class="text-sm font-semibold text-yellow-700">解决方案：</p>
+                                    <p class="text-sm text-gray-600">• 智能元数据自动同步</p>
+                                    <p class="text-sm text-gray-600">• 主题组分类管理</p>
+                                    <p class="text-sm text-gray-600">• 数据血缘关系追踪</p>
+                                </div>
+                            </div>
+
+                            <div class="feature-card">
+                                <h4 class="text-xl font-bold text-green-700 mb-3">🚀 挑战4：系统性能优化</h4>
+                                <p class="text-gray-700 mb-3">大数据量查询响应慢，用户体验差</p>
+                                <div class="bg-green-50 rounded-lg p-3">
+                                    <p class="text-sm font-semibold text-green-700">解决方案：</p>
+                                    <p class="text-sm text-gray-600">• 多级缓存策略</p>
+                                    <p class="text-sm text-gray-600">• 异步查询处理</p>
+                                    <p class="text-sm text-gray-600">• 智能索引优化</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 数据管理平台核心价值 -->
+                    <div>
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">🗄️ 数据管理平台核心价值</h3>
+                        <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-6 border-2 border-indigo-300" style="transform: rotate(0.5deg);">
+                            <p class="text-lg text-gray-800 mb-4">
+                                <span class="highlight">数据管理平台</span>作为淘沙分析平台的核心基础设施，提供统一的数据资产管理和治理能力。
+                            </p>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="bg-white rounded-lg p-4">
+                                    <h4 class="font-bold text-indigo-700 mb-2">🔄 智能元数据管理</h4>
+                                    <p class="text-sm text-gray-600">自动同步多数据源元数据，支持自定义同步策略，确保数据信息实时准确</p>
+                                </div>
+                                <div class="bg-white rounded-lg p-4">
+                                    <h4 class="font-bold text-purple-700 mb-2">📁 业务主题组织</h4>
+                                    <p class="text-sm text-gray-600">按业务领域组织数据表，提供直观的数据导航，降低用户使用门槛</p>
+                                </div>
+                                <div class="bg-white rounded-lg p-4">
+                                    <h4 class="font-bold text-blue-700 mb-2">📈 增量学习优化</h4>
+                                    <p class="text-sm text-gray-600">基于用户反馈持续优化查询质量，构建企业级数据知识库</p>
+                                </div>
                             </div>
                         </div>
                     </div>
