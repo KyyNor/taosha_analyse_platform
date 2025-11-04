@@ -6,8 +6,7 @@
 // API基础配置
 export const API_CONFIG = {
   // 基础URL配置
-  BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
-  WS_BASE_URL: import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000',
+  BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:50020',
 
   // API版本前缀
   API_PREFIX: '/api/taosha/v1',
@@ -109,13 +108,6 @@ export const API_ENDPOINTS = {
     SEARCH: '/metadata/search'             // 搜索元数据
   },
 
-  // === Agent对话相关 ===
-  AGENTS: {
-    CHAT: '/agents/chat',                   // 聊天对话
-    CHAT_STREAM: '/agents/chat/stream',     // 流式聊天
-    HEALTH: '/agents/health'                // 健康检查
-  },
-
   // === 收藏管理相关 ===
   FAVORITES: {
     LIST: '/favorites',                     // 获取收藏列表
@@ -161,12 +153,6 @@ export const replaceUrlParams = (url: string, params: Record<string, any>): stri
   return result
 }
 
-// 辅助函数：构建WebSocket URL
-export const buildWsUrl = (endpoint: string): string => {
-  const wsBaseUrl = API_CONFIG.WS_BASE_URL.replace('http', 'ws')
-  return `${wsBaseUrl}${API_CONFIG.API_PREFIX}${endpoint}`
-}
-
 // 环境类型
 export type Environment = 'development' | 'production' | 'test'
 
@@ -196,7 +182,6 @@ export default {
   WS_ENDPOINTS,
   buildApiUrl,
   replaceUrlParams,
-  buildWsUrl,
   getCurrentEnvironment,
   isDevelopment,
   isProduction

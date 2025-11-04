@@ -11,10 +11,11 @@ class MetadataService {
   // === Table Metadata ===
 
   // Get all tables
-  async getTables(dataSource?: string, isActive?: boolean): Promise<TableMetadata[]> {
+  async getTables(includeFields?: boolean, isActive?: boolean, searchTableName?: string): Promise<TableMetadata[]> {
     const params: Record<string, any> = {}
-    if (dataSource) params.dataSource = dataSource
+    if (includeFields !== undefined) params.fields = includeFields
     if (isActive !== undefined) params.isAvailable = isActive ? '1' : '0'
+    if (searchTableName !== undefined) params.table_name = searchTableName
 
     const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.TABLES.LIST, params))
     // Extract data from response object

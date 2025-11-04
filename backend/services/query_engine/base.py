@@ -11,18 +11,8 @@ class QueryEngineService(ABC):
     """查询引擎服务抽象基类"""
 
     @abstractmethod
-    def execute_query(self, sql: str) -> pd.DataFrame:
+    def execute_query(self, sql: str) -> list[dict]:
         """执行SQL查询"""
-        pass
-
-    @abstractmethod
-    def get_tables(self) -> List[str]:
-        """获取所有表名"""
-        pass
-
-    @abstractmethod
-    def get_table_schema(self, table_name: str) -> Dict[str, Any]:
-        """获取表结构"""
         pass
 
     @abstractmethod
@@ -46,7 +36,3 @@ class QueryEngineFactory:
         else:
             raise ValueError(f"不支持的查询引擎服务类型: {service_type}")
 
-
-# 向后兼容的别名
-DatabaseService = QueryEngineService
-DatabaseServiceFactory = QueryEngineFactory

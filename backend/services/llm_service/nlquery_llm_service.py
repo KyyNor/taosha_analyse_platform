@@ -6,10 +6,20 @@ import json
 from typing import Dict, List, Optional, Any, Tuple, Union
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import PromptTemplate
+from pydantic import BaseModel, Field
+
 from .base_llm_service import BaseLLMService
 from utils.logger import logger
 from datetime import datetime, timedelta
 
+
+class ValidateClarityResponse(BaseModel):
+    is_clear: bool = Field(description="用户描述是否清晰")
+    confidence: float = Field(description="置信度(0.0~1.0)")
+    details: str = Field(description="用户描述清晰或不清晰的详细说明")
+    suggestions: list[str] = Field(description="3个或以下的修改建议（修改后完整的提示词）")
+    clarification_question: str = Field(description="用户需要澄清的问题")
+    clarification_options: list[str] = Field(description="对于澄清问题的3个或以下的澄清选项（用户需要选择其中一个）")
 
 class NLQueryLLMService(BaseLLMService):
     """NL2SQL 专用的 LLM 服务
@@ -192,108 +202,6 @@ class NLQueryLLMService(BaseLLMService):
                 "retry_count": 1
             }
 
-    def validate_input_clarity(self,
-                              input_messages: List[Union[HumanMessage, AIMessage, SystemMessage]],
-                              user_input: str,
-                              context: str,
-                              sql_query: str,
-                              flow_type: str = "fast") -> Dict[str, Any]:
-        """验证输入清晰度 - 检查用户输入的清晰性和 SQL 的对应性
-
-        在执行 SQL 前进行验证，确保 SQL 符合用户意图
-
-        Args:
-            input_messages: ChatML格式的消息列表
-            user_input: 用户的自然语言输入
-            context: 数据库元数据和术语表上下文
-            sql_query: 生成的 SQL 查询
-            flow_type: 流程类型 ("fast" 或 "thorough")
-
-        Returns:
-            {
-                "success": bool,
-                "is_clear": bool,
-                "confidence": float,  # 0.0-1.0
-                "details": str,
-                "suggestions": List[str],
-                "error": str (if success=False)
-            }
-        """
-        try:
-            logger.info(f"验证输入清晰度: flow_type={flow_type}")
-
-            # 1. 构建验证提示词
-            prompt_params = {
-                "user_input": user_input,
-                "context": context,
-                "sql_query": sql_query,
-                "flow_type": flow_type,
-                "current_date": (datetime.now() + timedelta(days=-1)).strftime("%Y-%m-%d")
-            }
-
-            default_template = self._get_default_validation_template()
-
-            try:
-                system_prompt = self._render_template_from_db(
-                    f"input_validation_{flow_type}", prompt_params, default_template
-                )
-            except Exception as e:
-                logger.warning(f"验证模板渲染失败，使用默认模板: {e}")
-                system_prompt = default_template.format(
-                    context=context,
-                    user_input=user_input,
-                    sql_query=sql_query
-                )
-
-            # 2. 构建ChatML格式的消息
-            messages = input_messages.copy() if input_messages else []
-            messages.append(HumanMessage(content=system_prompt))
-
-            response = self.client.invoke(messages)
-
-            # 3. 解析验证结果
-            # 处理AIMessage对象
-            if hasattr(response, 'content'):
-                text_content = response.content
-            else:
-                text_content = response
-
-            if isinstance(text_content, dict):
-                validation_result = text_content
-            else:
-                validation_result = json.loads(text_content)
-
-            logger.info(f"输入验证完成: is_clear={validation_result.get('is_clear')}")
-
-            return {
-                "success": True,
-                "is_clear": validation_result.get("is_clear", False),
-                "confidence": validation_result.get("confidence", 0.5),
-                "details": validation_result.get("details", ""),
-                "suggestions": validation_result.get("suggestions", [])
-            }
-
-        except json.JSONDecodeError as e:
-            logger.error(f"验证结果 JSON 解析失败: {e}")
-            return {
-                "success": False,
-                "is_clear": False,
-                "confidence": 0.0,
-                "details": "",
-                "suggestions": [],
-                "error": f"JSON 解析失败: {e}"
-            }
-        except Exception as e:
-            logger.error(f"输入验证失败: {e}")
-            return {
-                "success": False,
-                "is_clear": False,
-                "confidence": 0.0,
-                "details": "",
-                "suggestions": [],
-                "error": str(e)
-            }
-
     def validate_input_clarity_with_options(
         self,
         input_messages: List[Union[HumanMessage, AIMessage, SystemMessage]],
@@ -331,15 +239,7 @@ class NLQueryLLMService(BaseLLMService):
 
 如果输入不清晰或需要澄清，请提供最多3个澄清选项供用户选择。
 
-返回 JSON 格式的响应：
-{{
-  "is_clear": true/false,
-  "confidence": 0.0-1.0,
-  "details": "详细说明",
-  "suggestions": ["建议1", "建议2"],
-  "clarification_options": ["选项1", "选项2", "选项3"],
-  "clarification_question": "需要用户澄清的问题"
-}}"""
+返回 JSON 格式的响应"""
             
             system_prompt = template.format(
                 context=context,
@@ -351,24 +251,18 @@ class NLQueryLLMService(BaseLLMService):
             messages = input_messages.copy() if input_messages else []
             messages.append(HumanMessage(content=system_prompt))
             
-            response = self.client.invoke(messages)
-            
-            # 解析响应
-            if hasattr(response, 'content'):
-                text_content = response.content
-            else:
-                text_content = response
-                
-            validation_result = json.loads(text_content)
-            
+            # response = self.client.invoke(messages)
+            response:ValidateClarityResponse = self.client.with_structured_output(ValidateClarityResponse).invoke(messages)
+
+
             return {
                 "success": True,
-                "is_clear": validation_result.get("is_clear", False),
-                "confidence": validation_result.get("confidence", 0.5),
-                "details": validation_result.get("details", ""),
-                "suggestions": validation_result.get("suggestions", []),
-                "clarification_options": validation_result.get("clarification_options", []),
-                "clarification_question": validation_result.get("clarification_question", "")
+                "is_clear": response.is_clear,
+                "confidence": response.confidence,
+                "details": response.details,
+                "suggestions": response.suggestions,
+                "clarification_options": response.clarification_options,
+                "clarification_question": response.clarification_question
             }
             
         except json.JSONDecodeError as e:

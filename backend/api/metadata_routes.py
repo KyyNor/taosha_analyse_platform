@@ -2,19 +2,18 @@
 开发环境API路由 - 元数据管理
 """
 
-from typing import List, Optional
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
 
 from api.endpoint_models import TableMetadataRequest, TableMetadataUpdate, ColumnMetadataRequest, ColumnMetadataUpdate, \
     GlossaryTermRequest, GlossaryTermUpdate, RelationFieldConfigRequest, RelationFieldConfigUpdate, \
     PromptTemplateRequest, PromptTemplateUpdate, DataThemeRequest, DataThemeUpdate, ThemeTableRelationRequest
-from utils.logger import logger, get_logger, LoggerMixin
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-
 from models.db_base import get_db
-from services import get_metadata_service, get_glossary_service, get_relation_field_config_service, get_prompt_template_service, get_data_theme_service
-
+from services import get_metadata_service, get_glossary_service, get_relation_field_config_service, \
+    get_prompt_template_service, get_data_theme_service
+from utils.logger import logger
 
 # 创建路由器
 router = APIRouter(prefix="/metadata")
@@ -22,23 +21,21 @@ router = APIRouter(prefix="/metadata")
 
 # 表元数据管理
 @router.get("/tables")
-async def get_all_table_metadata(isAvailable: Optional[str] = None, db: Session = Depends(get_db)):
+async def get_all_table_metadata(
+        isAvailable: Optional[str] = None,
+        fields: Optional[bool] = True,  # 新增参数，默认返回字段
+        table_name: Optional[str] = None,  # 新增参数，支持表名搜索
+        db: Session = Depends(get_db)
+):
     """获取所有表元数据"""
     try:
         metadata_service = get_metadata_service(db)
 
-        if isAvailable is not None:
-            # 根据isAvailable参数过滤表
-            if isAvailable == '1':
-                # 获取可用的表 (is_available = 0)
-                tables = metadata_service.get_available_tables()
-            else:
-                # 获取不可用的表 (is_available = 1)
-                all_tables = metadata_service.get_tables()
-                tables = [table for table in all_tables if table.get('is_available', 0) != 0]
-        else:
-            # 获取所有表
-            tables = metadata_service.get_tables()
+        tables = metadata_service.get_tables(
+            is_available=isAvailable,
+            include_fields=fields,
+            table_name_filter=table_name
+        )
 
         return {"success": True, "data": tables}
     except Exception as e:
@@ -362,9 +359,6 @@ async def delete_relation_config(config_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# 已移除: 不再需要关联ID列表接口，直接使用数字ID
-
-
 # 提示词模板管理
 @router.get("/prompt-templates")
 async def get_all_prompt_templates(db: Session = Depends(get_db)):
@@ -433,9 +427,11 @@ async def delete_prompt_template(template_id: int, db: Session = Depends(get_db)
 
 # 数据主题管理
 @router.get("/themes")
-async def get_all_themes(db: Session = Depends(get_db)):
+async def get_all_themes(theme_type: Optional[str] = None, 
+                         db: Session = Depends(get_db)):
     """获取所有数据主题"""
     try:
+        # todo 只返回非公共表
         theme_service = get_data_theme_service(db)
         themes = theme_service.get_all_themes()
         return {"success": True, "data": themes}

@@ -35,7 +35,7 @@
             class="form-control"
           >
             <select
-              v-model="formData.selectedThemeId"
+              v-model="formData.selected_theme_id"
               class="select select-bordered"
               :disabled="loading || themesLoading"
             >
@@ -61,11 +61,11 @@
               <label
                 tabindex="0"
                 class="btn btn-outline w-full justify-between"
-                :class="{ 'btn-active': (formData.selectedTableIds || []).length > 0 }"
+                :class="{ 'btn-active': (formData.selected_table_ids || []).length > 0 }"
               >
                 <span class="truncate">
-                  {{ (formData.selectedTableIds || []).length > 0
-                    ? `已选择 ${(formData.selectedTableIds || []).length} 张表`
+                  {{ (formData.selected_table_ids || []).length > 0
+                    ? `已选择 ${(formData.selected_table_ids || []).length} 张表`
                     : '选择数据表（可选）'
                   }}
                 </span>
@@ -279,8 +279,8 @@ const queryStore = useQueryStore()
 const formData = ref<QueryRequest>({
   query: props.initialQuery,
   flow_type: props.initialFlowType,
-  selectedThemeId: props.initialThemeId || undefined,
-  selectedTableIds: props.initialTableIds
+  selected_theme_id: props.initialThemeId || undefined,
+  selected_table_ids: props.initialTableIds
 })
 
 // 监听 initialQuery 变化，更新表单数据
@@ -325,10 +325,10 @@ const shouldShowCancelButton = computed(() => queryStore.shouldShowCancelButton)
 watch(tableSelectionMode, (newMode) => {
   if (newMode === 'theme') {
     // 切换到主题模式时，清空表选择
-    formData.value.selectedTableIds = []
+    formData.value.selected_table_ids = []
   } else {
     // 切换到表模式时，清空主题选择
-    formData.value.selectedThemeId = undefined
+    formData.value.selected_theme_id = undefined
   }
 })
 
@@ -364,22 +364,22 @@ const getTableDisplayName = (table: TableMetadata) => {
 
 // Check if table is selected
 const isTableSelected = (tableId: number) => {
-  return formData.value.selectedTableIds?.includes(tableId) || false
+  return formData.value.selected_table_ids?.includes(tableId) || false
 }
 
 // Toggle table selection
 const toggleTableSelection = (tableId: number) => {
   if (loading.value) return
 
-  if (!formData.value.selectedTableIds) {
-    formData.value.selectedTableIds = []
+  if (!formData.value.selected_table_ids) {
+    formData.value.selected_table_ids = []
   }
 
-  const index = (formData.value.selectedTableIds || []).indexOf(tableId)
+  const index = (formData.value.selected_table_ids || []).indexOf(tableId)
   if (index !== undefined && index > -1) {
-    formData.value.selectedTableIds!.splice(index, 1)
+    formData.value.selected_table_ids!.splice(index, 1)
   } else {
-    formData.value.selectedTableIds!.push(tableId)
+    formData.value.selected_table_ids!.push(tableId)
   }
 }
 
@@ -390,9 +390,9 @@ const handleSubmit = () => {
   const request: QueryRequest = {
     query: formData.value.query.trim(),
     flow_type: formData.value.flow_type,
-    selectedThemeId: formData.value.selectedThemeId,
-    selectedTableIds: formData.value.selectedTableIds?.length
-      ? formData.value.selectedTableIds
+    selected_theme_id: formData.value.selected_theme_id,
+    selected_table_ids: formData.value.selected_table_ids?.length
+      ? formData.value.selected_table_ids
       : undefined
   }
 
@@ -409,8 +409,8 @@ const handleReset = () => {
   formData.value = {
     query: '',
     flow_type: 'thorough',
-    selectedThemeId: undefined,
-    selectedTableIds: []
+    selected_theme_id: undefined,
+    selected_table_ids: []
   }
   tableSearchQuery.value = ''
   tableSelectionMode.value = 'theme'

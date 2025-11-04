@@ -13,8 +13,8 @@ export interface QueryRequest {
   query: string
   flow_type: 'fast' | 'thorough'
   maxRetries?: number
-  selectedThemeId?: number
-  selectedTableIds?: number[]
+  selected_theme_id?: number
+  selected_table_ids?: number[]
 }
 
 export interface QueryLogEntry {
@@ -178,8 +178,8 @@ export interface Favorite {
   favoriteTitle: string
   userQuestion: string
   generatedSql: string
-  selectedThemeId?: number
-  selectedTableIds?: number[]
+  selected_theme_id?: number
+  selected_table_ids?: number[]
   createdAt: string
   updatedAt: string
 }

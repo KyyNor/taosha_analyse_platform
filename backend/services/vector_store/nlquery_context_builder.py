@@ -66,7 +66,7 @@ class NLQueryContextBuilder:
                 top_k=top_k,
                 filters=Filter(must=FieldCondition(key="resource_type", match=MatchValue(value="table"))),
                 allowed_ids=allowed_vector_ids,
-                score_threshold=0.6,
+                score_threshold=0.3,
             )
 
             # 再检索其他
@@ -74,7 +74,7 @@ class NLQueryContextBuilder:
                 user_input,
                 top_k=top_k,
                 filters=Filter(must_not=FieldCondition(key="resource_type", match=MatchValue(value="table"))),
-                score_threshold=0.6,
+                score_threshold=0.3,
             )
 
             # 3. 分类组织结果
@@ -222,7 +222,7 @@ class NLQueryContextBuilder:
 
         try:
             # 获取所有表
-            all_tables = self.metadata_service.get_available_tables()
+            all_tables = self.metadata_service.get_tables(is_available='0')
 
             # 遍历查找关联ID匹配的字段
             for table in all_tables:

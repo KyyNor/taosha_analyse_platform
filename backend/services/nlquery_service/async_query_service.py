@@ -82,20 +82,21 @@ class AsyncQueryService:
 
             # 确定要查询的表ID
             target_table_ids = []
+            public_table_id_list = []
 
             public_theme = db_session.query(DataTheme).filter(DataTheme.theme_type == "public").first()
-            public_table_obj_list = db_session.query(ThemeTableRelation).filter(
-                ThemeTableRelation.theme_id == public_theme.theme_id
-            ).all()
-            public_table_id_list = [_.table_id for _ in public_table_obj_list]
-            logger.info(f"公共主题共 {len(public_table_id_list)} 张表。")
+            if public_theme is not None:
+                public_table_obj_list = db_session.query(ThemeTableRelation).filter(
+                    ThemeTableRelation.theme_id == public_theme.id
+                ).all()
+                public_table_id_list = [_.table_id for _ in public_table_obj_list]
+                logger.info(f"公共主题共 {len(public_table_id_list)} 张表。")
 
             if theme_id:
                 # 如果选中主题，获取该主题下的所有表
                 logger.info(f"获取主题 {theme_id} 下的表...")
                 theme_relations = db_session.query(ThemeTableRelation).filter(
-                    or_(ThemeTableRelation.theme_id == theme_id,
-                        ThemeTableRelation.theme_id == public_theme.theme_id)
+                    ThemeTableRelation.theme_id == theme_id
                 ).all()
                 target_table_ids = [rel.table_id for rel in theme_relations]
                 logger.info(f"主题 {theme_id} 包含 {len(target_table_ids)} 个表")

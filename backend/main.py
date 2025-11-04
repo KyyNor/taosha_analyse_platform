@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
             metadata_sync_service = MetadataSyncService(db)
             sync_result = metadata_sync_service.sync_metadata()
             if sync_result["success"]:
-                logger.info("元数据同步成功")
+                logger.info("元数据同步完毕")
             else:
                 logger.error(f"元数据同步失败: {sync_result.get('error', 'Unknown error')}")
 
@@ -170,7 +170,8 @@ def main():
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
+        port=50020,
+        workers=settings.workers,
         reload=settings.debug,
         reload_excludes=["database/*", "*.log", "__pycache__/*"] if settings.debug else None,
         log_level=settings.log_level.lower()

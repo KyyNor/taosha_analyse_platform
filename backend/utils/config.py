@@ -58,6 +58,7 @@ class ConfigManager:
             app_name: str = self._config_data.get('app', {}).get('name', '淘沙分析平台')
             app_version: str = self._config_data.get('app', {}).get('version', '0.1.0')
             debug: bool = self._config_data.get('app', {}).get('debug', True)
+            workers: bool = self._config_data.get('app', {}).get('workers', True)
 
             # 数据库配置
             database_dir: Path = Path(self._config_data.get('database', {}).get('dir', './database'))
@@ -77,6 +78,15 @@ class ConfigManager:
             taosha_db_mysql_password: str = self._config_data.get('taosha_db', {}).get('mysql', {}).get('password', '')
             taosha_db_mysql_charset: str = self._config_data.get('taosha_db', {}).get('mysql', {}).get('charset', 'utf8mb4')
 
+            # 查询引擎配置
+            query_engine_type: str = self._config_data.get('query_engine', {}).get('service_type', 'spark')
+            query_engine_spark_jdbc_driver_class: str = self._config_data.get('query_engine', {}).get('spark', {}).get('jdbc_driver_class', 'org.apache.hive.jdbc.HiveDriver')
+            query_engine_spark_jdbc_url: str = self._config_data.get('query_engine', {}).get('spark', {}).get('jdbc_url', 'jdbc:hive2://125.1.129.81:10000')
+            query_engine_spark_user_name: str = self._config_data.get('query_engine', {}).get('spark', {}).get('user_name', 'bdspk')
+            query_engine_spark_password: str = self._config_data.get('query_engine', {}).get('spark', {}).get('password', '')
+            query_engine_jdbc_driver_jar_list: list[str] = self._config_data.get('query_engine', {}).get('jdbc_driver_jar', [])
+
+            
             # OpenAI配置
             openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY") or self._config_data.get('openai', {}).get('api_key')
             openai_base_url: Optional[str] = os.getenv("OPENAI_BASE_URL") or self._config_data.get('openai', {}).get('base_url')
@@ -114,6 +124,8 @@ class ConfigManager:
             langfuse_public_key: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY") or self._config_data.get('tracing', {}).get('langfuse_public_key')
             langfuse_secret_key: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY") or self._config_data.get('tracing', {}).get('langfuse_secret_key')
             langfuse_host: Optional[str] = os.getenv("LANGFUSE_HOST") or self._config_data.get('tracing', {}).get('langfuse_host')
+
+            disk_cache_path: Optional[str] = self._config_data.get('disk_cache', {}).get('paht', './cache')
 
             # 元数据同步配置
             metadata_sync_enabled: bool = self._config_data.get('metadata_sync', {}).get('enabled', False)
