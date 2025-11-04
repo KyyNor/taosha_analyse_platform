@@ -50,13 +50,13 @@ class SparkUtils:
         for row in result:
             converted_row = []
             for item in row:
-                if hasattr(item, '__class__') and 'JDouble' in str(type(item)):
+                if hasattr(item, '__class__') and 'Double' in str(type(item)):
                     # 转换 JDouble 为 float
                     converted_row.append(float(item))
-                elif hasattr(item, '__class__') and 'JLong' in str(type(item)):
+                elif hasattr(item, '__class__') and 'Long' in str(type(item)):
                     # 转换 JLong 为 int
                     converted_row.append(int(item))
-                elif hasattr(item, '__class__') and 'JInt' in str(type(item)):
+                elif hasattr(item, '__class__') and 'Int' in str(type(item)):
                     # 转换 JInt 为 int
                     converted_row.append(int(item))
                 else:

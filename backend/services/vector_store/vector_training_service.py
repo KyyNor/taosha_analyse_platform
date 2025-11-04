@@ -421,11 +421,11 @@ class VectorTrainingService:
             doc_lines = []
 
             if glossary.type == "concept":
-                doc_lines.append(f"术语: {glossary.name} 词语解释: {content.get('explanation', '')}")
+                doc_lines.append(f"术语: {glossary.name} 词语解释: {content.get('content', '')}")
             elif glossary.type == "sql_qa":
-                doc_lines.append(f"术语: {glossary.name} SQL问答: {content.get('explanation', '')}")
+                doc_lines.append(f"术语: {glossary.name} 说明: {content.get('remark', '')}")
                 doc_lines.append(f"问题: {content.get('question', '')}")
-                doc_lines.append(f"SQL: {content.get('answer', '')}")
+                doc_lines.append(f"回答SQL: {content.get('answer', '')}")
             elif glossary.type == "dict_mapping":
                 doc_lines.append(f"术语: {glossary.name} 字段转换 字段名: {content.get('col_name', '')}：")
                 doc_lines.append(f"转换规则: {content.get('dict_map', '')}")

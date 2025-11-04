@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
             metadata_sync_service = MetadataSyncService(db)
             sync_result = metadata_sync_service.sync_metadata()
             if sync_result["success"]:
-                logger.info("元数据同步成功")
+                logger.info("元数据同步完毕")
             else:
                 logger.error(f"元数据同步失败: {sync_result.get('error', 'Unknown error')}")
 
