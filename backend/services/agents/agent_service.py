@@ -31,12 +31,7 @@ class AgentService:
             self.agent = create_agent(
                 model=self.llm_service.client,
                 tools=tools,
-                system_prompt="""你是一个智能助手，专门帮助用户进行数据分析和问答。你具备以下能力：
-1. 数据分析和问答
-2. 获取各大平台的热门榜单（B站、微博、知乎、抖音、V2EX、IT之家）
-3. 获取程序员历史上的今天的小故事
-
-请用简洁、准确的方式回答用户的问题。当用户询问热榜或程序员故事时，请使用相应的工具获取最新信息。"""
+                system_prompt="""你是一个智能助手，使用提供的工具来帮助用户回答问题。"""
             )
             logger.info("Agent初始化成功，已加载热榜和程序员小故事工具")
         except Exception as e:
