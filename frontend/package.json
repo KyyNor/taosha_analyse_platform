@@ -16,6 +16,8 @@
     "axios": "^1.6.2",
     "dayjs": "^1.11.10",
     "echarts": "^5.4.3",
+    "highlight.js": "^11.11.1",
+    "marked": "^16.4.1",
     "pinia": "^2.1.7",
     "prismjs": "^1.30.0",
     "socket.io-client": "^4.7.4",
