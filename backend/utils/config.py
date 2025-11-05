@@ -58,7 +58,7 @@ class ConfigManager:
             app_name: str = self._config_data.get('app', {}).get('name', '淘沙分析平台')
             app_version: str = self._config_data.get('app', {}).get('version', '0.1.0')
             debug: bool = self._config_data.get('app', {}).get('debug', True)
-            workers: bool = self._config_data.get('app', {}).get('workers', True)
+            workers: int = self._config_data.get('app', {}).get('workers', True)
 
             # 数据库配置
             database_dir: Path = Path(self._config_data.get('database', {}).get('dir', './database'))

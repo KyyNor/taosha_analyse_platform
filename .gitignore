@@ -113,6 +113,7 @@ backend/database/*.sqlite3
 backend/database/*.sqlite3-journal
 backend/database/*.log
 backend/database/phoenix.*
+backend/cache/*
 
 # ChromaDB files
 backend/database/chromadb/

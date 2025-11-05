@@ -39,7 +39,7 @@ async def chat_endpoint(request: ChatRequest) -> ChatResponse:
         ChatResponse: 聊天响应
     """
     try:
-        logger.info(f"Received chat request: {request.message[:100]}...")
+        logger.info(f"收到聊天请求: {request.message[:100]}...")
 
         # 收集所有流式响应
         response_content = ""
@@ -52,7 +52,7 @@ async def chat_endpoint(request: ChatRequest) -> ChatResponse:
         return ChatResponse(content=response_content)
 
     except Exception as e:
-        logger.error(f"Error in chat endpoint: {e}")
+        logger.error(f"聊天接口错误: {e}")
         raise HTTPException(status_code=500, detail=f"聊天服务错误: {str(e)}")
 
 
@@ -71,7 +71,7 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
     async def generate_stream():
         """生成流式响应"""
         try:
-            logger.info(f"Received stream chat request: {request.message[:100]}...")
+            logger.info(f"收到流式聊天请求: {request.message[:100]}...")
 
             # 发送SSE头部
             yield f"data: {json.dumps({'type': 'start', 'content': ''})}\n\n"
@@ -91,10 +91,10 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
             # 发送结束标记
             yield f"data: {json.dumps({'type': 'end', 'content': ''})}\n\n"
 
-            logger.info("Stream chat completed successfully")
+            logger.info("流式聊天完成")
 
         except Exception as e:
-            logger.error(f"Error in stream chat: {e}")
+            logger.error(f"流式聊天错误: {e}")
             error_data = {
                 "type": "error",
                 "content": f"流式聊天服务错误: {str(e)}"
@@ -132,7 +132,7 @@ async def health_check() -> Dict[str, Any]:
             "timestamp": "2024-01-01T00:00:00Z"
         }
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
+        logger.error(f"健康检查失败: {e}")
         return {
             "status": "error",
             "service": "agent",

@@ -10,6 +10,7 @@ from langchain_core.runnables import RunnableConfig
 import json
 
 from services.llm_service.base_llm_service import BaseLLMService
+from services.agents.tools import get_hotboard, get_programmer_story
 from utils.logger import logger
 
 
@@ -25,15 +26,21 @@ class AgentService:
     def _initialize_agent(self):
         """初始化Agent"""
         try:
-            # 创建ReAct Agent，暂时不使用工具
+            # 创建ReAct Agent，添加热榜和程序员小故事工具
+            tools = [get_hotboard, get_programmer_story]
             self.agent = create_agent(
                 model=self.llm_service.client,
-                tools=[],  # 暂时不使用工具
-                system_prompt="你是一个智能助手，专门帮助用户进行数据分析和问答。请用简洁、准确的方式回答用户的问题。"
+                tools=tools,
+                system_prompt="""你是一个智能助手，专门帮助用户进行数据分析和问答。你具备以下能力：
+1. 数据分析和问答
+2. 获取各大平台的热门榜单（B站、微博、知乎、抖音、V2EX、IT之家）
+3. 获取程序员历史上的今天的小故事
+
+请用简洁、准确的方式回答用户的问题。当用户询问热榜或程序员故事时，请使用相应的工具获取最新信息。"""
             )
-            logger.info("Agent initialized successfully")
+            logger.info("Agent初始化成功，已加载热榜和程序员小故事工具")
         except Exception as e:
-            logger.error(f"Failed to initialize agent: {e}")
+            logger.error(f"Agent初始化失败: {e}")
             raise
 
     async def chat_stream(self, message: str, conversation_history: list = None) -> AsyncGenerator[str, None]:
@@ -62,7 +69,7 @@ class AgentService:
             # 添加当前用户消息
             messages.append(HumanMessage(content=message))
 
-            logger.info(f"Processing agent request with {len(messages)} messages")
+            logger.info(f"正在处理Agent请求，共{len(messages)}条消息")
 
             # 使用stream方法获取流式响应
             async for chunk in self.agent.astream(
@@ -96,11 +103,11 @@ class AgentService:
                                 yield char
                                 await asyncio.sleep(0.01)
 
-            logger.info("Agent streaming completed successfully")
+            logger.info("Agent流式响应完成")
 
         except Exception as e:
-            logger.error(f"Error in agent streaming: {e}")
-            yield f"[ERROR] Agent服务出现错误: {str(e)}"
+            logger.error(f"Agent流式响应错误: {e}")
+            yield f"[错误] Agent服务出现错误: {str(e)}"
 
 
 # 全局Agent服务实例

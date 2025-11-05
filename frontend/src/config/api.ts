@@ -115,6 +115,13 @@ export const API_ENDPOINTS = {
     UPDATE: '/favorites/:id',               // 更新收藏
     DELETE: '/favorites/:id',               // 删除收藏
     EXECUTE: '/favorites/:id/execute'      // 执行收藏的查询
+  },
+
+  // === Agent相关 ===
+  AGENTS: {
+    CHAT_STREAM: '/agents/chat/stream',    // 流式聊天接口
+    CHAT: '/agents/chat',  // 非流式聊天接口
+    HEALTH: '/agents/health'  // 健康检查接口
   }
 }
 
