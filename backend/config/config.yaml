@@ -135,5 +135,17 @@ metadata_sync:
     max_retries: 3         # 最大重试次数
     retry_delay: 1.0       # 重试延迟（秒）
 
+# FineReport配置
+fine_report:
+  login_url: "http://localhost:8075/webroot/decision/login"
+  user_name: ""  # 从环境变量 FINE_REPORT_USER_NAME 读取
+  password: ""  # 从环境变量 FINE_REPORT_PASSWORD 读取
+  browser:
+    headless: false
+    timeout: 30000  # 页面加载超时（毫秒）
+    wait_timeout: 5000  # 元素等待超时（毫秒）
+    download_path: "./downloads/fine_report"  # 下载目录
+  download_timeout: 60000  # 下载超时（毫秒）
+
 # 环境变量前缀
 env_prefix: "TAOSHA_"
