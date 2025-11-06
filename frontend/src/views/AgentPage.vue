@@ -81,7 +81,7 @@
       </div>
 
       <!-- Input Area -->
-      <div class="border-t border-base-300 bg-base-200 p-6">
+      <div class="border-t border-base-300 bg-base-200 p-3">
         <div class="flex gap-3">
           <div class="flex-1">
             <textarea
@@ -89,21 +89,31 @@
               :disabled="isProcessing"
               placeholder="输入您的问题..."
               class="textarea textarea-bordered w-full resize-none shadow-md focus:shadow-lg transition-shadow bg-base-100 text-base-content"
-              rows="3"
+              rows="2"
               @keydown.enter.prevent="handleEnterKey"
               @keydown.shift.enter.prevent="handleShiftEnter"
-            ></textarea>
+            />
           </div>
           <div class="flex flex-col gap-2">
             <button
               class="btn btn-primary shadow-md hover:shadow-lg transition-shadow"
-              @click="sendMessage"
               :disabled="!inputMessage.trim() || isProcessing"
+              @click="sendMessage"
             >
-              <svg v-if="!isProcessing" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg
+                v-if="!isProcessing"
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
               </svg>
-              <span v-else class="loading loading-spinner loading-sm"></span>
+              <span
+                v-else
+                class="loading loading-spinner loading-sm"
+              />
             </button>
 
             <!-- 清空对话按钮 -->

@@ -10,9 +10,10 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from loguru import logger
+from markitdown import MarkItDown
 
 from utils.config import get_settings
-from utils.excel_parser import parse_excel_file, clean_excel_file, ensure_download_dir
+from utils.excel_parser import ensure_download_dir
 
 
 # 全局浏览器实例（复用）
@@ -194,25 +195,20 @@ async def download_fine_report(report_url: str) -> str:
         start_time = time.time()
 
         try:
-            result = parse_excel_file(file_path)
-
-            # 添加处理时间信息
-            if result.get("success"):
-                processing_time = time.time() - start_time
-                result["metadata"]["processing_time"] = round(processing_time, 2)
-                logger.info(f"Excel解析完成，耗时: {processing_time:.2f}秒")
-
-            # 转换为JSON字符串
-            import json
-            result_json = json.dumps(result, ensure_ascii=False, indent=2)
+            md = MarkItDown()
+            result = md.convert(file_path)   # 返回 Markdown 文本
 
             # 清理临时文件
             # if clean_excel_file(file_path):
                 # logger.info("已清理临时Excel文件")
             
-            logger.info(f"FineReport报表处理完成 {result_json}")
+            logger.info(f"FineReport报表处理完成 {result}")
 
-            return result_json
+            return {
+                "success": True,
+                "error": "",
+                "data": result
+            }
 
         except Exception as parse_error:
             logger.error(f"解析Excel文件失败: {parse_error}")
