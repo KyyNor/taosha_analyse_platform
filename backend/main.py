@@ -1,6 +1,10 @@
 """
 淘沙分析平台 - FastAPI主应用
 """
+import asyncio, platform
+if platform.system() == "Windows":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 
 from contextlib import asynccontextmanager
 from pathlib import Path

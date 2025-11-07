@@ -204,7 +204,7 @@ def _get_report_sample_sync(report_url: str) -> str:
                 return {
                     控件名: widget.widgetName || '',
                     是否禁用: widget.disabled || false,
-                    是否可见: widget.invisible || false,
+                    是否不可见: widget.invisible || false,
                     控件值: value,
                     x坐标: widget.x || 0,
                     y坐标: widget.y || 0,
