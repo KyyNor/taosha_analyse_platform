@@ -22,6 +22,8 @@ from models.db_base import get_db_session
 from services.vector_store.vector_training_service import VectorTrainingService
 from services.tracking_service.observability_service import initialize_observability
 from services.metadata_service.metadata_sync_service import MetadataSyncService
+from services.agents.fine_report_tools import get_browser, _cleanup_browser
+
 
 async def _train_vector_database_async(vector_training_service: VectorTrainingService):
     """异步执行向量数据库训练
@@ -48,6 +50,11 @@ async def lifespan(app: FastAPI):
     logger.info("=== 淘沙分析平台启动中 ===")
 
     try:
+        # 初始化 Playwright 浏览器
+        logger.info("初始化 Playwright 浏览器...")
+        await get_browser()
+        logger.info("Playwright 浏览器初始化完成")
+
         # 初始化查询引擎服务
         query_engine = get_query_engine()
         logger.info(f"查询引擎初始化完成")
@@ -88,6 +95,11 @@ async def lifespan(app: FastAPI):
     # 关闭时的清理
     logger.info("=== 淘沙分析平台关闭中 ===")
     try:
+        # 清理 Playwright 浏览器
+        logger.info("清理 Playwright 浏览器...")
+        await _cleanup_browser()
+        logger.info("Playwright 浏览器已清理")
+
         # 关闭查询引擎连接
         query_engine = get_query_engine()
         query_engine.close()

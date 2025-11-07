@@ -3,13 +3,12 @@ FineReport工具包
 提供FineReport报表登录和抽样功能
 """
 import os
-import time
 import asyncio
 import json
 import uuid
 import sys
-from typing import Optional, List
-from playwright.async_api import async_playwright, Browser, BrowserContext
+from typing import Optional
+from playwright.async_api import async_playwright, Browser, Page
 from loguru import logger
 from markitdown import DocumentConverterResult, MarkItDown
 import pandas as pd
@@ -18,116 +17,44 @@ from utils.config import settings
 from utils.excel_parser import ensure_download_dir
 
 
-# Windows事件循环策略修复
-if sys.platform == 'win32':
-    try:
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-    except:
-        pass  # 如果设置失败，使用默认策略
-
-# 全局并发控制（降低并发数以减少竞争）
-_batch_semaphore = asyncio.Semaphore(2)  # 单个batch内最多2个并发
-_global_semaphore = asyncio.Semaphore(6)  # 全局最多6个并发
-
-
-# 全局浏览器实例（复用）
+# 全局浏览器实例（每个worker进程一个）
 _browser_instance: Optional[Browser] = None
 
 
-class BrowserSessionPool:
-    """浏览器会话池管理器"""
-
-    def __init__(self, pool_size: int = 3):
-        self.pool_size = pool_size
-        self.available_sessions: List[BrowserContext] = []
-        self.active_sessions: dict = {}
-        self._lock = asyncio.Lock()
-
-    async def get_session(self) -> BrowserContext:
-        """获取可用会话"""
-        async with self._lock:
-            # 优先复用现有会话
-            if self.available_sessions:
-                session = self.available_sessions.pop()
-                logger.debug("复用现有浏览器会话")
-                return session
-
-            # 创建新会话
-            if not _browser_instance:
-                await self._init_browser()
-
-            session = await _browser_instance.new_context(
-                viewport={'width': 1920, 'height': 1080},
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            )
-            logger.debug("创建新的浏览器会话")
-            return session
-
-    async def return_session(self, session: BrowserContext):
-        """归还会话到池中"""
-        async with self._lock:
-            if len(self.available_sessions) < self.pool_size:
-                self.available_sessions.append(session)
-                logger.debug("会话已归还到池中")
-            else:
-                await session.close()
-                logger.debug("会话池已满，关闭会话")
-
-    async def _init_browser(self):
-        """初始化浏览器实例"""
-        global _browser_instance
-        if _browser_instance is None:
-            logger.info("启动Playwright浏览器实例")
+async def get_browser() -> Browser:
+    """获取全局 Browser 实例"""
+    global _browser_instance
+    if _browser_instance is None:
+        logger.info("启动 Playwright 浏览器实例")
+        try:
             playwright = await async_playwright().start()
-
+            logger.info('Playwright 启动完成')
             _browser_instance = await playwright.chromium.launch(
                 headless=settings.fine_report_browser_headless,
                 args=['--no-sandbox', '--disable-dev-shm-usage']
             )
-
-    async def cleanup_all(self):
-        """清理所有会话和浏览器实例"""
-        global _browser_instance
-
-        async with self._lock:
-            # 关闭所有活跃会话
-            for session in list(self.active_sessions.values()):
-                try:
-                    await session.close()
-                except:
-                    pass
-
-            # 关闭所有可用会话
-            for session in self.available_sessions:
-                try:
-                    await session.close()
-                except:
-                    pass
-
-            self.available_sessions.clear()
-            self.active_sessions.clear()
-
-            # 关闭浏览器实例
-            if _browser_instance:
-                await _browser_instance.close()
-                _browser_instance = None
+            logger.info("Playwright 浏览器实例已启动")
+        except Exception as e:
+            logger.error(f"启动浏览器失败: {e}", exc_info=True)
+            raise
+    return _browser_instance
 
 
-# 全局会话池实例
-_session_pool = BrowserSessionPool()
+async def _cleanup_browser():
+    """清理 Browser 实例"""
+    global _browser_instance
+    if _browser_instance:
+        try:
+            logger.info("关闭 Playwright 浏览器实例")
+            await _browser_instance.close()
+            _browser_instance = None
+            logger.info("Playwright 浏览器实例已关闭")
+        except Exception as e:
+            logger.warning(f"关闭浏览器实例失败: {e}")
+            _browser_instance = None
 
 
-async def _get_browser_session() -> BrowserContext:
-    """从会话池获取浏览器会话"""
-    return await _session_pool.get_session()
-
-
-async def _return_browser_session(session: BrowserContext):
-    """归还浏览器会话到池中"""
-    await _session_pool.return_session(session)
-
-
-async def _download_excel(page) -> str:
+async def _download_excel(page: Page) -> str:
     """
     下载Excel文件并返回文件路径
 
@@ -164,7 +91,7 @@ async def _download_excel(page) -> str:
         return None
 
 
-async def _check_fine_login(page) -> bool:
+async def _check_fine_login(page: Page) -> bool:
     """
     登录FineReport系统（内部使用，不暴露给大模型）
 
@@ -184,7 +111,7 @@ async def _check_fine_login(page) -> bool:
         if "login" in current_url.lower():
             # 如果不在登录页面，先跳转到登录页面
             logger.info("检测到需要登录，开始执行登录流程")
-        
+
             # 填写登录信息
             logger.debug("填写登录表单")
             await page.fill('input[type="text"]', settings.fine_report_user_name)
@@ -228,11 +155,14 @@ async def get_report_sample(report_url: str) -> str:
     """
     logger.info(f"开始获取报表抽样信息: {report_url}")
 
+    page = None
     try:
-        # 第一步：直接访问报表页面
-        logger.info("直接访问报表页面")
-        session = await _get_browser_session()
-        page = await session.new_page()
+        # 获取全局 Browser 实例
+        browser = await get_browser()
+
+        # 创建新 Page（不复用）
+        logger.info("创建新的浏览器页面")
+        page = await browser.new_page()
 
         # 访问报表URL
         await page.goto(report_url, wait_until="networkidle")
@@ -242,10 +172,10 @@ async def get_report_sample(report_url: str) -> str:
         await page.wait_for_load_state('networkidle')
         await page.wait_for_timeout(500)
 
-        # 第二步：确保登录状态
+        # 检查登录状态
         await _check_fine_login(page)
-        
-        # 第三步：获取控件信息
+
+        # 获取控件信息
         logger.info("获取参数面板控件信息")
         widgets_script = """
         () => {
@@ -282,24 +212,17 @@ async def get_report_sample(report_url: str) -> str:
 
         widgets_result = await page.evaluate(widgets_script)
 
-        # 第四步：下载Excel文件
+        # 下载Excel文件
         file_path = await _download_excel(page)
         if not file_path:
-            await page.close()
-            await _return_browser_session(session)
             return '{"success": false, "error": "Excel下载失败"}'
 
-        # 第三步：解析Excel文件
+        # 解析Excel文件
         logger.info("开始解析Excel文件")
         md = MarkItDown()
         sample_page_info = md.convert(file_path)
 
-
-        # 关闭页面，归还会话
-        await page.close()
-        await _return_browser_session(session)
-
-        # 第五步：生成Markdown格式的报告
+        # 生成Markdown格式的报告
         markdown_report = _generate_markdown_report(report_url, widgets_result, sample_page_info)
 
         logger.info("报表抽样信息获取完成")
@@ -308,6 +231,14 @@ async def get_report_sample(report_url: str) -> str:
     except Exception as e:
         logger.error(f"获取报表抽样信息时发生错误: {e}")
         return f"# 错误\n获取报表抽样信息失败: {str(e)}"
+
+    finally:
+        # 关闭页面
+        if page:
+            try:
+                await page.close()
+            except Exception as e:
+                logger.warning(f"关闭页面失败: {e}")
 
 
 def _generate_markdown_report(report_url: str, widgets_result: dict, page_info: DocumentConverterResult) -> str:
@@ -323,11 +254,11 @@ def _generate_markdown_report(report_url: str, widgets_result: dict, page_info: 
         "## 基本信息",
         f"- **报表URL**: {report_url}",
         "",
-        "- **控件信息**："
+        "- **控件信息**：",
         "",
         f"{widgets_result_table}",
         "",
-        "- **页面信息**："
+        "- **页面信息**：",
         "",
         f"{page_info}"
     ]
@@ -335,7 +266,7 @@ def _generate_markdown_report(report_url: str, widgets_result: dict, page_info: 
     return "\n".join(markdown_lines)
 
 
-async def filter_report_and_get_data(report_url: str, control_operations: List[dict], return_locators: dict = None, return_name: str = None) -> dict:
+async def filter_report_and_get_data(report_url: str, control_operations: list, return_locators: dict = None, return_name: str = None) -> dict:
     """
     执行FineReport报表的控件操作，并返回数据内容
 
@@ -350,11 +281,14 @@ async def filter_report_and_get_data(report_url: str, control_operations: List[d
     """
     logger.info(f"开始执行控件操作: {report_url}, 操作数量: {len(control_operations)}")
 
+    page = None
     try:
-        # 第一步：访问报表页面
-        logger.info("访问报表页面")
-        session = await _get_browser_session()
-        page = await session.new_page()
+        # 获取全局 Browser 实例
+        browser = await get_browser()
+
+        # 创建新 Page（不复用）
+        logger.info("创建新的浏览器页面")
+        page = await browser.new_page()
 
         # 访问报表URL
         await page.goto(report_url, wait_until="networkidle")
@@ -364,10 +298,10 @@ async def filter_report_and_get_data(report_url: str, control_operations: List[d
         await page.wait_for_load_state('networkidle')
         await page.wait_for_timeout(500)
 
-        # 第二步：检查是否需要登录
+        # 检查登录状态
         await _check_fine_login(page)
 
-        # 第三步：执行控件操作
+        # 执行控件操作
         logger.info("开始执行控件操作")
 
         for operation in control_operations:
@@ -387,7 +321,7 @@ async def filter_report_and_get_data(report_url: str, control_operations: List[d
                 error_msg = f"控件 {operation.get('name', 'unknown')} 操作失败: {str(op_error)}"
                 logger.error(error_msg)
 
-        # 第四步：提交参数并刷新页面
+        # 提交参数并刷新页面
         logger.info("提交参数并刷新页面")
         try:
             await page.evaluate('_g().parameterCommit()')
@@ -403,7 +337,7 @@ async def filter_report_and_get_data(report_url: str, control_operations: List[d
             error_msg = f"参数提交失败: {str(commit_error)}"
             logger.error(error_msg)
 
-        # 第五步：如果需要返回数据，下载Excel并提取数据
+        # 如果需要返回数据，下载Excel并提取数据
         if return_locators and return_name:
             logger.info("下载Excel并提取数据")
             file_path = await _download_excel(page)
@@ -415,21 +349,23 @@ async def filter_report_and_get_data(report_url: str, control_operations: List[d
             else:
                 result = {}
 
-            await page.close()
-            await _return_browser_session(session)
-
             logger.info("控件操作和数据提取完成")
             return result
         else:
-            await page.close()
-            await _return_browser_session(session)
-
             logger.info("控件操作执行完成")
             return {}
 
     except Exception as e:
         logger.error(f"执行控件操作时发生错误: {e}")
         return {"error": f"# 错误\n执行控件操作失败: {str(e)}"}
+
+    finally:
+        # 关闭页面
+        if page:
+            try:
+                await page.close()
+            except Exception as e:
+                logger.warning(f"关闭页面失败: {e}")
 
 
 def extract_data_from_excel(excel_path: str, locators: dict) -> dict:
@@ -443,8 +379,6 @@ def extract_data_from_excel(excel_path: str, locators: dict) -> dict:
     Returns:
         提取的数据字典
     """
-    import pandas as pd
-
     df = pd.read_excel(excel_path, header=None)
     result = {}
 
@@ -498,7 +432,7 @@ def get_report_sample_sync(report_url: str) -> str:
     return asyncio.run(get_report_sample(report_url))
 
 
-async def batch_filter_report_and_get_data(report_url: str, control_operations: List[dict], return_locators: dict = None) -> dict:
+async def batch_filter_report_and_get_data(report_url: str, control_operations: list, return_locators: dict = None) -> dict:
     """
     批量执行FineReport报表的控件操作，支持多个值的并发处理
 
@@ -544,7 +478,7 @@ async def batch_filter_report_and_get_data(report_url: str, control_operations: 
     return final_result
 
 
-def _generate_value_combinations(control_operations: List[dict]) -> List[List[dict]]:
+def _generate_value_combinations(control_operations: list) -> list:
     """
     生成所有可能的控件操作值组合
 
@@ -590,7 +524,7 @@ def _generate_value_combinations(control_operations: List[dict]) -> List[List[di
     return combinations
 
 
-async def _execute_single_combination(report_url: str, control_operations: List[dict], return_locators: dict, index: int) -> dict:
+async def _execute_single_combination(report_url: str, control_operations: list, return_locators: dict, index: int) -> dict:
     """
     执行单个值组合的操作
 
@@ -606,19 +540,17 @@ async def _execute_single_combination(report_url: str, control_operations: List[
     # 生成return_name：拼接所有操作的value
     return_name = "_".join([str(op['value']) for op in control_operations])
 
-    # 并发控制
-    async with _global_semaphore:
-        async with _batch_semaphore:
-            try:
-                logger.debug(f"执行组合 {index + 1}: {return_name}")
-                _result = await filter_report_and_get_data(report_url, control_operations, return_locators, return_name)
-                logger.debug(f"组合 {index + 1} 完成: {return_name}")
-                return _result
-            except Exception as e:
-                logger.error(f"组合 {index + 1} 执行失败: {e}")
-                return {return_name: {"error": str(e)}}
+    try:
+        logger.debug(f"执行组合 {index + 1}: {return_name}")
+        _result = await filter_report_and_get_data(report_url, control_operations, return_locators, return_name)
+        logger.debug(f"组合 {index + 1} 完成: {return_name}")
+        return _result
+    except Exception as e:
+        logger.error(f"组合 {index + 1} 执行失败: {e}")
+        return {return_name: {"error": str(e)}}
 
-def batch_filter_report_and_get_data_sync(report_url: str, control_operations: List[dict], return_locators: dict = None) -> dict:
+
+def batch_filter_report_and_get_data_sync(report_url: str, control_operations: list, return_locators: dict = None) -> dict:
     """
     批量从帆软报表获取结构化数据
 
