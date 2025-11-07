@@ -7,6 +7,7 @@ import time
 import asyncio
 import json
 import uuid
+import sys
 from typing import Optional, List
 from playwright.async_api import async_playwright, Browser, BrowserContext
 from loguru import logger
@@ -17,9 +18,16 @@ from utils.config import settings
 from utils.excel_parser import ensure_download_dir
 
 
-# 全局并发控制
-_batch_semaphore = asyncio.Semaphore(3)  # 单个batch内最多3个并发
-_global_semaphore = asyncio.Semaphore(12)  # 全局最多12个并发
+# Windows事件循环策略修复
+if sys.platform == 'win32':
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    except:
+        pass  # 如果设置失败，使用默认策略
+
+# 全局并发控制（降低并发数以减少竞争）
+_batch_semaphore = asyncio.Semaphore(2)  # 单个batch内最多2个并发
+_global_semaphore = asyncio.Semaphore(6)  # 全局最多6个并发
 
 
 # 全局浏览器实例（复用）
@@ -487,7 +495,21 @@ def get_report_sample_sync(report_url: str) -> str:
     Returns:
         Markdown格式的抽样信息字符串
     """
-    return asyncio.run(get_report_sample(report_url))
+    try:
+        # 尝试在当前事件循环中运行
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # 如果事件循环正在运行，使用线程池
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(lambda: asyncio.run(get_report_sample(report_url)))
+                return future.result()
+        else:
+            # 如果事件循环未运行，直接使用asyncio.run
+            return asyncio.run(get_report_sample(report_url))
+    except RuntimeError:
+        # 如果获取事件循环失败，使用asyncio.run
+        return asyncio.run(get_report_sample(report_url))
 
 
 async def batch_filter_report_and_get_data(report_url: str, control_operations: List[dict], return_locators: dict = None) -> dict:
@@ -623,7 +645,21 @@ def batch_filter_report_and_get_data_sync(report_url: str, control_operations: L
     Returns:
         包含所有批次结果的字典
     """
-    return asyncio.run(batch_filter_report_and_get_data(report_url, control_operations, return_locators))
+    try:
+        # 尝试在当前事件循环中运行
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # 如果事件循环正在运行，使用线程池
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(lambda: asyncio.run(batch_filter_report_and_get_data(report_url, control_operations, return_locators)))
+                return future.result()
+        else:
+            # 如果事件循环未运行，直接使用asyncio.run
+            return asyncio.run(batch_filter_report_and_get_data(report_url, control_operations, return_locators))
+    except RuntimeError:
+        # 如果获取事件循环失败，使用asyncio.run
+        return asyncio.run(batch_filter_report_and_get_data(report_url, control_operations, return_locators))
 
 
 # 导出给Agent使用的工具函数
