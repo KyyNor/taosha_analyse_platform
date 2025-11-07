@@ -6,6 +6,7 @@ import os
 import time
 import asyncio
 import json
+import uuid
 from typing import Optional, List
 from playwright.async_api import async_playwright, Browser, BrowserContext
 from loguru import logger
@@ -111,6 +112,43 @@ async def _get_browser_session() -> BrowserContext:
 async def _return_browser_session(session: BrowserContext):
     """归还浏览器会话到池中"""
     await _session_pool.return_session(session)
+
+
+async def _download_excel(page) -> str:
+    """
+    下载Excel文件并返回文件路径
+
+    Args:
+        page: Playwright页面对象
+
+    Returns:
+        Excel文件路径，失败返回None
+    """
+    try:
+        download_path = os.path.abspath(settings.fine_report_browser_download_path)
+
+        async with page.expect_download(timeout=settings.fine_report_download_timeout) as download_info:
+            # 执行JavaScript触发Excel导出
+            logger.info("执行JavaScript导出Excel")
+            await page.evaluate('_g().exportReportToExcel("simple")')
+            logger.info("已执行导出命令")
+
+        # 等待下载完成
+        logger.info("等待文件下载完成")
+        download = await download_info.value
+
+        # 使用UUID生成唯一文件名
+        file_name = f"report_{uuid.uuid4().hex[:8]}.xlsx"
+        file_path = os.path.join(download_path, file_name)
+
+        await download.save_as(file_path)
+        logger.info(f"文件已下载到: {file_path}")
+
+        return file_path
+
+    except Exception as e:
+        logger.error(f"下载Excel文件失败: {e}")
+        return None
 
 
 async def _check_fine_login(page) -> bool:
@@ -231,30 +269,12 @@ async def get_report_sample(report_url: str) -> str:
 
         widgets_result = await page.evaluate(widgets_script)
 
-        # 第四步：获取页面基本数据
-        download_path = os.path.abspath(settings.fine_report_browser_download_path)
-        
-        async with page.expect_download(timeout=settings.fine_report_download_timeout) as download_info:
-            # 执行JavaScript触发Excel导出
-            logger.info("执行JavaScript导出Excel")
-            try:
-                await page.evaluate('_g().exportReportToExcel("simple")')
-                logger.info("已执行导出命令")
-            except Exception as js_error:
-                logger.error(f"执行导出JavaScript失败: {js_error}")
-                await page.close()
-                return '{"success": false, "error": "执行导出命令失败: ' + str(js_error) + '"}'
-
-        # 等待下载完成
-        logger.info("等待文件下载完成")
-        download = await download_info.value
-
-        # 保存下载的文件
-        file_name = download.suggested_filename or f"report_{int(time.time())}.xlsx"
-        file_path = os.path.join(download_path, file_name)
-
-        await download.save_as(file_path)
-        logger.info(f"文件已下载到: {file_path}")
+        # 第四步：下载Excel文件
+        file_path = await _download_excel(page)
+        if not file_path:
+            await page.close()
+            await _return_browser_session(session)
+            return '{"success": false, "error": "Excel下载失败"}'
 
         # 第三步：解析Excel文件
         logger.info("开始解析Excel文件")
@@ -302,9 +322,9 @@ def _generate_markdown_report(report_url: str, widgets_result: dict, page_info: 
     return "\n".join(markdown_lines)
 
 
-async def execute_control_operations(report_url: str, control_operations: List[dict], return_locators: dict = None, return_name: str = None) -> str:
+async def filter_report_and_get_data(report_url: str, control_operations: List[dict], return_locators: dict = None, return_name: str = None) -> str:
     """
-    执行FineReport报表的控件操作
+    执行FineReport报表的控件操作，并返回数据内容
 
     Args:
         report_url: FineReport报表的完整URL
@@ -373,19 +393,14 @@ async def execute_control_operations(report_url: str, control_operations: List[d
         # 第五步：如果需要返回数据，下载Excel并提取数据
         if return_locators and return_name:
             logger.info("下载Excel并提取数据")
-            download_path = os.path.abspath(settings.fine_report_browser_download_path)
+            file_path = await _download_excel(page)
 
-            async with page.expect_download(timeout=settings.fine_report_download_timeout) as download_info:
-                await page.evaluate('_g().exportReportToExcel("simple")')
-                download = await download_info.value
-
-            file_name = download.suggested_filename or f"report_{int(time.time())}.xlsx"
-            file_path = os.path.join(download_path, file_name)
-            await download.save_as(file_path)
-
-            # 提取数据
-            extracted_data = extract_data_from_excel(file_path, return_locators)
-            result = {return_name: extracted_data}
+            if file_path:
+                # 提取数据
+                extracted_data = extract_data_from_excel(file_path, return_locators)
+                result = {return_name: extracted_data}
+            else:
+                result = {}
 
             await page.close()
             await _return_browser_session(session)
@@ -477,9 +492,9 @@ def get_report_sample_sync(report_url: str) -> str:
         loop.close()
 
 
-def execute_control_operations_sync(report_url: str, control_operations: List[dict], return_locators: dict = None, return_name: str = None) -> str:
+def filter_report_and_get_data_sync(report_url: str, control_operations: List[dict], return_locators: dict = None, return_name: str = None) -> str:
     """
-    同步版本执行控件操作（供Agent工具调用）
+    同步版本执行控件操作并提取数据（供Agent工具调用）
 
     Args:
         report_url: FineReport报表的完整URL
@@ -495,13 +510,13 @@ def execute_control_operations_sync(report_url: str, control_operations: List[di
     asyncio.set_event_loop(loop)
 
     try:
-        return loop.run_until_complete(execute_control_operations(report_url, control_operations, return_locators, return_name))
+        return loop.run_until_complete(filter_report_and_get_data(report_url, control_operations, return_locators, return_name))
     finally:
         loop.close()
 
 
 # 导出给Agent使用的工具函数
-__all__ = ['get_report_sample_sync', 'execute_control_operations_sync']
+__all__ = ['get_report_sample_sync', 'filter_report_and_get_data_sync']
 
 
 if __name__ == '__main__':
@@ -516,6 +531,6 @@ if __name__ == '__main__':
     # 测试2：控件操作 + 数据提取
     p = [{'type': 'text', 'name': 'zzz', 'value': '新的值'}]
     # locators = {'bal': 'C3', 'avg_bal': 'D3'}
-    locators = {'bal': {'find_column': 'C', 'find_value': 'ZZDFSSD', 'return_column': 'E'}}
-    result = execute_control_operations_sync(test_url, p, locators, '2025-11-11')
+    locators = {'bal': {'find_column': 'C', 'find_value': '烦烦烦', 'return_column': 'E'}}
+    result = operate_controls_and_extract_data_sync(test_url, p, locators, '2025-11-11')
     print(result)
