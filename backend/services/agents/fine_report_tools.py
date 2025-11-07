@@ -113,9 +113,12 @@ async def _return_browser_session(session: BrowserContext):
     await _session_pool.return_session(session)
 
 
-async def _login_to_fine_report() -> bool:
+async def _login_to_fine_report(page) -> bool:
     """
     登录FineReport系统（内部使用，不暴露给大模型）
+
+    Args:
+        page: 当前的Playwright Page对象
 
     Returns:
         是否登录成功
@@ -125,21 +128,20 @@ async def _login_to_fine_report() -> bool:
         return False
 
     try:
-        logger.info(f"开始登录FineReport系统: {settings.fine_report_login_url}")
+        logger.info("检测到需要登录，开始执行登录流程")
 
-        session = await _get_browser_session()
-        page = await session.new_page()
+        # 检查当前是否已经在登录页面
+        current_url = page.url
+        if "login" not in current_url.lower():
+            # 如果不在登录页面，先跳转到登录页面
+            logger.info("跳转到登录页面")
+            await page.goto(settings.fine_report_login_url, wait_until="networkidle")
+            await page.wait_for_timeout(1000)
 
-        # 访问登录页面
-        await page.goto(settings.fine_report_login_url, wait_until="networkidle")
-        await page.wait_for_timeout(1000)
-
-        # 检查是否已经登录
+        # 再次检查是否已经登录
         current_url = page.url
         if "login" not in current_url.lower():
             logger.info("已经处于登录状态")
-            await page.close()
-            await _return_browser_session(session)
             return True
 
         # 填写登录信息
@@ -151,21 +153,22 @@ async def _login_to_fine_report() -> bool:
         logger.debug("点击登录按钮")
         await page.click('div[class*="login-button"]')
 
-        # 等待登录完成
-        await page.wait_for_url("**/decision/**", timeout=30000)
-        await page.wait_for_timeout(1000)
-
-        current_url = page.url
-        if "decision" in current_url:
-            logger.info("FineReport登录成功")
-            await page.close()
-            await _return_browser_session(session)
+        # 等待登录完成，等待跳转到系统主页
+        logger.info("等待登录完成...")
+        try:
+            await page.wait_for_url("**/decision/**", timeout=30000)
+            await page.wait_for_timeout(1000)
+            logger.info("登录成功，已跳转到系统主页")
             return True
-        else:
-            logger.error(f"登录失败，当前URL: {current_url}")
-            await page.close()
-            await _return_browser_session(session)
-            return False
+        except Exception as wait_error:
+            # 如果等待超时，检查当前URL是否已经是有效页面
+            current_url = page.url
+            if "decision" in current_url or "report" in current_url:
+                logger.info(f"登录成功，当前页面: {current_url}")
+                return True
+            else:
+                logger.error(f"登录超时或失败，当前URL: {current_url}")
+                return False
 
     except Exception as e:
         logger.error(f"登录过程中发生错误: {e}")
@@ -185,15 +188,8 @@ async def get_report_sample(report_url: str) -> str:
     logger.info(f"开始获取报表抽样信息: {report_url}")
 
     try:
-        # 第一步：确保已登录
-        logger.info("检查登录状态")
-        if not await _login_to_fine_report():
-            error_msg = "FineReport登录失败，无法获取报表信息"
-            logger.error(error_msg)
-            return f"# 错误\n{error_msg}"
-
-        # 第二步：访问报表页面
-        logger.info("访问报表页面")
+        # 第一步：直接访问报表页面
+        logger.info("直接访问报表页面")
         session = await _get_browser_session()
         page = await session.new_page()
 
@@ -204,6 +200,22 @@ async def get_report_sample(report_url: str) -> str:
         # 等待页面加载完成
         await page.wait_for_load_state('networkidle')
         await page.wait_for_timeout(2000)
+
+        # 第二步：检查是否需要登录
+        current_url = page.url
+        if "login" in current_url.lower():
+            logger.info("页面跳转到登录页，需要先登录")
+
+            # 直接在当前page上执行登录
+            if not await _login_to_fine_report(page):
+                error_msg = "FineReport登录失败，无法获取报表信息"
+                logger.error(error_msg)
+                await page.close()
+                await _return_browser_session(session)
+                return f"# 错误\n{error_msg}"
+
+        else:
+            logger.info("成功访问报表页面，无需登录")
 
         # 第三步：获取控件信息
         logger.info("获取参数面板控件信息")
