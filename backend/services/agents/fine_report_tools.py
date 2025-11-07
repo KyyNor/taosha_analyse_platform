@@ -113,7 +113,7 @@ async def _return_browser_session(session: BrowserContext):
     await _session_pool.return_session(session)
 
 
-async def _login_to_fine_report(page) -> bool:
+async def _check_fine_login(page) -> bool:
     """
     登录FineReport系统（内部使用，不暴露给大模型）
 
@@ -128,47 +128,37 @@ async def _login_to_fine_report(page) -> bool:
         return False
 
     try:
-        logger.info("检测到需要登录，开始执行登录流程")
-
         # 检查当前是否已经在登录页面
         current_url = page.url
-        if "login" not in current_url.lower():
+        if "login" in current_url.lower():
             # 如果不在登录页面，先跳转到登录页面
-            logger.info("跳转到登录页面")
-            await page.goto(settings.fine_report_login_url, wait_until="networkidle")
-            await page.wait_for_timeout(1000)
+            logger.info("检测到需要登录，开始执行登录流程")
+        
+            # 填写登录信息
+            logger.debug("填写登录表单")
+            await page.fill('input[type="text"]', settings.fine_report_user_name)
+            await page.fill('input[type="password"]', settings.fine_report_password)
 
-        # 再次检查是否已经登录
-        current_url = page.url
-        if "login" not in current_url.lower():
-            logger.info("已经处于登录状态")
-            return True
+            # 点击登录按钮
+            logger.debug("点击登录按钮")
+            await page.click('div[class*="login-button"]')
 
-        # 填写登录信息
-        logger.debug("填写登录表单")
-        await page.fill('input[type="text"]', settings.fine_report_user_name)
-        await page.fill('input[type="password"]', settings.fine_report_password)
-
-        # 点击登录按钮
-        logger.debug("点击登录按钮")
-        await page.click('div[class*="login-button"]')
-
-        # 等待登录完成，等待跳转到系统主页
-        logger.info("等待登录完成...")
-        try:
-            await page.wait_for_url("**/decision/**", timeout=30000)
-            await page.wait_for_timeout(1000)
-            logger.info("登录成功，已跳转到系统主页")
-            return True
-        except Exception as wait_error:
-            # 如果等待超时，检查当前URL是否已经是有效页面
-            current_url = page.url
-            if "decision" in current_url or "report" in current_url:
-                logger.info(f"登录成功，当前页面: {current_url}")
+            # 等待登录完成，等待跳转到系统主页
+            logger.info("等待登录完成...")
+            try:
+                await page.wait_for_url("**/decision/**", timeout=30000)
+                await page.wait_for_timeout(1000)
+                logger.info("登录成功，已跳转到系统主页")
                 return True
-            else:
-                logger.error(f"登录超时或失败，当前URL: {current_url}")
-                return False
+            except Exception as wait_error:
+                # 如果等待超时，检查当前URL是否已经是有效页面
+                current_url = page.url
+                if "decision" in current_url or "report" in current_url:
+                    logger.info(f"登录成功，当前页面: {current_url}")
+                    return True
+                else:
+                    logger.error(f"登录超时或失败，当前URL: {current_url}")
+                    return False
 
     except Exception as e:
         logger.error(f"登录过程中发生错误: {e}")
@@ -201,22 +191,9 @@ async def get_report_sample(report_url: str) -> str:
         await page.wait_for_load_state('networkidle')
         await page.wait_for_timeout(2000)
 
-        # 第二步：检查是否需要登录
-        current_url = page.url
-        if "login" in current_url.lower():
-            logger.info("页面跳转到登录页，需要先登录")
-
-            # 直接在当前page上执行登录
-            if not await _login_to_fine_report(page):
-                error_msg = "FineReport登录失败，无法获取报表信息"
-                logger.error(error_msg)
-                await page.close()
-                await _return_browser_session(session)
-                return f"# 错误\n{error_msg}"
-
-        else:
-            logger.info("成功访问报表页面，无需登录")
-
+        # 第二步：检查是否需要登录     
+        await _check_fine_login(page) # 确保登录状态
+        
         # 第三步：获取控件信息
         logger.info("获取参数面板控件信息")
         widgets_script = """
