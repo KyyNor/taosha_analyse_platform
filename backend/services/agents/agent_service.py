@@ -10,7 +10,8 @@ from langchain_core.runnables import RunnableConfig
 import json
 
 from services.llm_service.base_llm_service import BaseLLMService
-from services.agents.tools import get_hotboard, get_programmer_story
+from services.agents.common_tools import get_hotboard, get_programmer_story
+from services.agents.fine_report_tools import get_report_sample_sync, batch_filter_report_and_get_data_sync
 from utils.logger import logger
 
 
@@ -27,13 +28,13 @@ class AgentService:
         """初始化Agent"""
         try:
             # 创建ReAct Agent，添加热榜和程序员小故事工具
-            tools = [get_hotboard, get_programmer_story]
+            tools = [get_report_sample_sync, batch_filter_report_and_get_data_sync]
             self.agent = create_agent(
                 model=self.llm_service.client,
                 tools=tools,
                 system_prompt="""你是一个智能助手，使用提供的工具来帮助用户回答问题。"""
             )
-            logger.info("Agent初始化成功，已加载热榜和程序员小故事工具")
+            logger.info("Agent初始化成功")
         except Exception as e:
             logger.error(f"Agent初始化失败: {e}")
             raise
