@@ -189,10 +189,10 @@ async def get_report_sample(report_url: str) -> str:
 
         # 等待页面加载完成
         await page.wait_for_load_state('networkidle')
-        await page.wait_for_timeout(2000)
+        await page.wait_for_timeout(500)
 
-        # 第二步：检查是否需要登录     
-        await _check_fine_login(page) # 确保登录状态
+        # 第二步：确保登录状态
+        await _check_fine_login(page)
         
         # 第三步：获取控件信息
         logger.info("获取参数面板控件信息")
@@ -302,6 +302,83 @@ def _generate_markdown_report(report_url: str, widgets_result: dict, page_info: 
     return "\n".join(markdown_lines)
 
 
+async def execute_control_operations(report_url: str, control_operations: List[dict]) -> str:
+    """
+    执行FineReport报表的控件操作
+
+    Args:
+        report_url: FineReport报表的完整URL
+        control_operations: 控件操作列表，格式: [{'type': 'text', 'name': 'widget_name', 'value': 'new_value'}, ...]
+
+    Returns:
+        操作结果的描述字符串
+    """
+    logger.info(f"开始执行控件操作: {report_url}, 操作数量: {len(control_operations)}")
+
+    try:
+        # 第一步：访问报表页面
+        logger.info("访问报表页面")
+        session = await _get_browser_session()
+        page = await session.new_page()
+
+        # 访问报表URL
+        await page.goto(report_url, wait_until="networkidle")
+        logger.info(f"已访问报表页面: {report_url}")
+
+        # 等待页面加载完成
+        await page.wait_for_load_state('networkidle')
+        await page.wait_for_timeout(500)
+
+        # 第二步：检查是否需要登录
+        await _check_fine_login(page)
+
+        # 第三步：执行控件操作
+        logger.info("开始执行控件操作")
+
+        for operation in control_operations:
+            try:
+                widget_name = operation.get('name')
+                widget_value = operation.get('value')
+                widget_type = operation.get('type', 'text')
+
+                if not widget_name:
+                    logger.warning(f"操作缺少控件名称: {operation}")
+                    continue
+                await page.evaluate(f'_g().getParameterContainer().getWidgetByName("{widget_name}").setValue("{widget_value}")')
+
+                logger.debug(f"控件 {widget_name} 操作成功")
+
+            except Exception as op_error:
+                error_msg = f"控件 {operation.get('name', 'unknown')} 操作失败: {str(op_error)}"
+                logger.error(error_msg)
+
+        # 第四步：提交参数并刷新页面
+        logger.info("提交参数并刷新页面")
+        try:
+            await page.evaluate('_g().parameterCommit()')
+            logger.info("参数提交完成，等待页面刷新")
+
+            # 等待页面刷新完成
+            await page.wait_for_load_state('networkidle')
+            await page.wait_for_timeout(3000)
+
+            logger.info("页面刷新完成")
+
+        except Exception as commit_error:
+            error_msg = f"参数提交失败: {str(commit_error)}"
+            logger.error(error_msg)
+
+        await page.close()
+        await _return_browser_session(session)
+
+        logger.info("控件操作执行完成")
+        return {}
+
+    except Exception as e:
+        logger.error(f"执行控件操作时发生错误: {e}")
+        return f"# 错误\n执行控件操作失败: {str(e)}"
+
+
 def get_report_sample_sync(report_url: str) -> str:
     """
     同步版本获取报表抽样信息（供Agent工具调用）
@@ -322,12 +399,35 @@ def get_report_sample_sync(report_url: str) -> str:
         loop.close()
 
 
+def execute_control_operations_sync(report_url: str, control_operations: List[dict]) -> str:
+    """
+    同步版本执行控件操作（供Agent工具调用）
+
+    Args:
+        report_url: FineReport报表的完整URL
+        control_operations: 控件操作列表
+
+    Returns:
+        操作结果的描述字符串
+    """
+    # 在新的事件循环中运行异步函数
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    try:
+        return loop.run_until_complete(execute_control_operations(report_url, control_operations))
+    finally:
+        loop.close()
+
+
 # 导出给Agent使用的工具函数
-__all__ = ['get_report_sample_sync']
+__all__ = ['get_report_sample_sync', 'execute_control_operations_sync']
 
 
 if __name__ == '__main__':
     # 测试报表抽样功能
     test_url = "http://localhost:8075/webroot/decision/view/report?viewlet=WorkBook1.cpt"
-    result = get_report_sample_sync(test_url)
+    # result = get_report_sample_sync(test_url)
+    p = [{'type': 'text', 'name': 'zzz', 'value': '新的值'}]
+    result = execute_control_operations_sync(test_url, p)
     print(result)
