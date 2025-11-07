@@ -302,16 +302,18 @@ def _generate_markdown_report(report_url: str, widgets_result: dict, page_info: 
     return "\n".join(markdown_lines)
 
 
-async def execute_control_operations(report_url: str, control_operations: List[dict]) -> str:
+async def execute_control_operations(report_url: str, control_operations: List[dict], return_locators: dict = None, return_name: str = None) -> str:
     """
     执行FineReport报表的控件操作
 
     Args:
         report_url: FineReport报表的完整URL
         control_operations: 控件操作列表，格式: [{'type': 'text', 'name': 'widget_name', 'value': 'new_value'}, ...]
+        return_locators: 返回数据定位器，格式: {'key': 'A5'} 或 {'key': {'find_column': 'A', 'find_value': '汉口支行', 'return_column': 'C'}}
+        return_name: 返回结果的键名
 
     Returns:
-        操作结果的描述字符串
+        操作结果的描述字符串，或包含数据的字典
     """
     logger.info(f"开始执行控件操作: {report_url}, 操作数量: {len(control_operations)}")
 
@@ -368,15 +370,91 @@ async def execute_control_operations(report_url: str, control_operations: List[d
             error_msg = f"参数提交失败: {str(commit_error)}"
             logger.error(error_msg)
 
-        await page.close()
-        await _return_browser_session(session)
+        # 第五步：如果需要返回数据，下载Excel并提取数据
+        if return_locators and return_name:
+            logger.info("下载Excel并提取数据")
+            download_path = os.path.abspath(settings.fine_report_browser_download_path)
 
-        logger.info("控件操作执行完成")
-        return {}
+            async with page.expect_download(timeout=settings.fine_report_download_timeout) as download_info:
+                await page.evaluate('_g().exportReportToExcel("simple")')
+                download = await download_info.value
+
+            file_name = download.suggested_filename or f"report_{int(time.time())}.xlsx"
+            file_path = os.path.join(download_path, file_name)
+            await download.save_as(file_path)
+
+            # 提取数据
+            extracted_data = extract_data_from_excel(file_path, return_locators)
+            result = {return_name: extracted_data}
+
+            await page.close()
+            await _return_browser_session(session)
+
+            logger.info("控件操作和数据提取完成")
+            return result
+        else:
+            await page.close()
+            await _return_browser_session(session)
+
+            logger.info("控件操作执行完成")
+            return {}
 
     except Exception as e:
         logger.error(f"执行控件操作时发生错误: {e}")
         return f"# 错误\n执行控件操作失败: {str(e)}"
+
+
+def extract_data_from_excel(excel_path: str, locators: dict) -> dict:
+    """
+    从Excel中提取数据
+
+    Args:
+        excel_path: Excel文件路径
+        locators: 定位器字典
+
+    Returns:
+        提取的数据字典
+    """
+    import pandas as pd
+
+    df = pd.read_excel(excel_path, header=None)
+    result = {}
+
+    for key, locator in locators.items():
+        if isinstance(locator, str):
+            # 固定坐标定位
+            col = locator[0].upper()
+            row = int(locator[1:]) - 1  # Excel行号从1开始，DataFrame从0开始
+            col_idx = ord(col) - ord('A')
+
+            if row < len(df) and col_idx < len(df.columns):
+                value = df.iloc[row, col_idx]
+                result[key] = str(value) if pd.notna(value) else ""
+            else:
+                result[key] = ""
+
+        elif isinstance(locator, dict):
+            # 条件查找定位
+            find_col = locator['find_column'].upper()
+            find_val = locator['find_value']
+            return_col = locator['return_column'].upper()
+
+            find_col_idx = ord(find_col) - ord('A')
+            return_col_idx = ord(return_col) - ord('A')
+
+            if find_col_idx < len(df.columns) and return_col_idx < len(df.columns):
+                for row_idx in range(len(df)):
+                    cell_value = str(df.iloc[row_idx, find_col_idx])
+                    if find_val in cell_value:
+                        value = df.iloc[row_idx, return_col_idx]
+                        result[key] = str(value) if pd.notna(value) else ""
+                        break
+                else:
+                    result[key] = ""
+            else:
+                result[key] = ""
+
+    return result
 
 
 def get_report_sample_sync(report_url: str) -> str:
@@ -399,23 +477,25 @@ def get_report_sample_sync(report_url: str) -> str:
         loop.close()
 
 
-def execute_control_operations_sync(report_url: str, control_operations: List[dict]) -> str:
+def execute_control_operations_sync(report_url: str, control_operations: List[dict], return_locators: dict = None, return_name: str = None) -> str:
     """
     同步版本执行控件操作（供Agent工具调用）
 
     Args:
         report_url: FineReport报表的完整URL
         control_operations: 控件操作列表
+        return_locators: 返回数据定位器，格式: {'key': 'A5'} 或 {'key': {'find_column': 'A', 'find_value': '汉口支行', 'return_column': 'C'}}
+        return_name: 返回结果的键名
 
     Returns:
-        操作结果的描述字符串
+        操作结果的描述字符串，或包含数据的字典
     """
     # 在新的事件循环中运行异步函数
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
     try:
-        return loop.run_until_complete(execute_control_operations(report_url, control_operations))
+        return loop.run_until_complete(execute_control_operations(report_url, control_operations, return_locators, return_name))
     finally:
         loop.close()
 
@@ -425,9 +505,17 @@ __all__ = ['get_report_sample_sync', 'execute_control_operations_sync']
 
 
 if __name__ == '__main__':
-    # 测试报表抽样功能
+    # 测试控件操作功能
     test_url = "http://localhost:8075/webroot/decision/view/report?viewlet=WorkBook1.cpt"
-    # result = get_report_sample_sync(test_url)
+
+    # 测试1：基本控件操作
+    # p = [{'type': 'text', 'name': 'zzz', 'value': '新的值'}]
+    # result = execute_control_operations_sync(test_url, p)
+    # print(result)
+
+    # 测试2：控件操作 + 数据提取
     p = [{'type': 'text', 'name': 'zzz', 'value': '新的值'}]
-    result = execute_control_operations_sync(test_url, p)
+    # locators = {'bal': 'C3', 'avg_bal': 'D3'}
+    locators = {'bal': {'find_column': 'C', 'find_value': 'ZZDFSSD', 'return_column': 'E'}}
+    result = execute_control_operations_sync(test_url, p, locators, '2025-11-11')
     print(result)
