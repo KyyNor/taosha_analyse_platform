@@ -17,6 +17,11 @@ from utils.config import settings
 from utils.excel_parser import ensure_download_dir
 
 
+# 全局并发控制
+_batch_semaphore = asyncio.Semaphore(3)  # 单个batch内最多3个并发
+_global_semaphore = asyncio.Semaphore(12)  # 全局最多12个并发
+
+
 # 全局浏览器实例（复用）
 _browser_instance: Optional[Browser] = None
 
@@ -474,7 +479,7 @@ def extract_data_from_excel(excel_path: str, locators: dict) -> dict:
 
 def get_report_sample_sync(report_url: str) -> str:
     """
-    同步版本获取报表抽样信息（供Agent工具调用）
+    获取报表样例信息，可以获取报表的控件清单和最新的页面内容，用来了解报表，为后续的batch_filter_report_and_get_data做准备
 
     Args:
         report_url: FineReport报表的完整URL
@@ -482,41 +487,147 @@ def get_report_sample_sync(report_url: str) -> str:
     Returns:
         Markdown格式的抽样信息字符串
     """
-    # 在新的事件循环中运行异步函数
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    try:
-        return loop.run_until_complete(get_report_sample(report_url))
-    finally:
-        loop.close()
+    return asyncio.run(get_report_sample(report_url))
 
 
-def filter_report_and_get_data_sync(report_url: str, control_operations: List[dict], return_locators: dict = None, return_name: str = None) -> str:
+async def batch_filter_report_and_get_data(report_url: str, control_operations: List[dict], return_locators: dict = None) -> dict:
     """
-    同步版本执行控件操作并提取数据（供Agent工具调用）
+    批量执行FineReport报表的控件操作，支持多个值的并发处理
 
     Args:
         report_url: FineReport报表的完整URL
-        control_operations: 控件操作列表
-        return_locators: 返回数据定位器，格式: {'key': 'A5'} 或 {'key': {'find_column': 'A', 'find_value': '汉口支行', 'return_column': 'C'}}
-        return_name: 返回结果的键名
+        control_operations: 控件操作列表，value为数组格式，如 [{'type': '控件类型', 'name': '控件名称', 'value': ['控件新值1', '控件新值1']}, ...]
+        return_locators: 返回数据定位器，格式: {'key': 'A5'} 或 {'key': {'find_column': '查找的列(如A)', 'find_value': '查找的值(如汉口支行)', 'return_column': '返回的列(如C)'}}
 
     Returns:
-        操作结果的描述字符串，或包含数据的字典
+        包含所有批次结果的字典
     """
-    # 在新的事件循环中运行异步函数
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    logger.info(f"开始批量处理控件操作: {report_url}")
 
-    try:
-        return loop.run_until_complete(filter_report_and_get_data(report_url, control_operations, return_locators, return_name))
-    finally:
-        loop.close()
+    # 第一步：解析所有可能的值组合
+    value_combinations = _generate_value_combinations(control_operations)
+    total_combinations = len(value_combinations)
+    logger.info(f"生成 {total_combinations} 个值组合")
+
+    # 第二步：并发执行所有组合
+    tasks = []
+    for i, combination in enumerate(value_combinations):
+        task = _execute_single_combination(report_url, combination, return_locators, i)
+        tasks.append(task)
+
+    # 并发控制：单个batch最多3个并发
+    results = []
+    for i in range(0, len(tasks), 3):
+        batch_tasks = tasks[i:i + 3]
+        batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+        results.extend(batch_results)
+        logger.info(f"批次 {i//3 + 1}/{(len(tasks) + 2)//3} 完成")
+
+    # 第三步：整理结果
+    final_result = {}
+    for result in results:
+        if isinstance(result, Exception):
+            logger.error(f"组合执行失败: {result}")
+            continue
+        if isinstance(result, dict):
+            final_result.update(result)
+
+    logger.info(f"批量处理完成，成功处理 {len(final_result)} 个结果")
+    return final_result
+
+
+def _generate_value_combinations(control_operations: List[dict]) -> List[List[dict]]:
+    """
+    生成所有可能的控件操作值组合
+
+    Args:
+        control_operations: 控件操作列表，value为数组
+
+    Returns:
+        所有值组合的列表
+    """
+    if not control_operations:
+        return []
+
+    # 转换每个操作的value为数组
+    normalized_ops = []
+    for op in control_operations:
+        if isinstance(op.get('value'), list):
+            values = op['value']
+        else:
+            values = [op.get('value', '')]
+
+        normalized_ops.append({
+            'type': op.get('type', 'text'),
+            'name': op.get('name'),
+            'values': values
+        })
+
+    # 生成所有组合
+    from itertools import product
+
+    combination_values = list(product(*[op['values'] for op in normalized_ops]))
+
+    combinations = []
+    for values in combination_values:
+        combination = []
+        for i, op in enumerate(normalized_ops):
+            combination.append({
+                'type': op['type'],
+                'name': op['name'],
+                'value': values[i]
+            })
+        combinations.append(combination)
+
+    return combinations
+
+
+async def _execute_single_combination(report_url: str, control_operations: List[dict], return_locators: dict, index: int) -> dict:
+    """
+    执行单个值组合的操作
+
+    Args:
+        report_url: FineReport报表的完整URL
+        control_operations: 单个控件操作组合
+        return_locators: 返回数据定位器
+        index: 组合索引
+
+    Returns:
+        单个组合的结果
+    """
+    # 生成return_name：拼接所有操作的value
+    return_name = "_".join([str(op['value']) for op in control_operations])
+
+    # 并发控制
+    async with _global_semaphore:
+        async with _batch_semaphore:
+            try:
+                logger.debug(f"执行组合 {index + 1}: {return_name}")
+                result = await filter_report_and_get_data(report_url, control_operations, return_locators, return_name)
+                logger.debug(f"组合 {index + 1} 完成: {return_name}")
+                return result
+            except Exception as e:
+                logger.error(f"组合 {index + 1} 执行失败: {e}")
+                return {return_name: {"error": str(e)}}
+
+
+def batch_filter_report_and_get_data_sync(report_url: str, control_operations: List[dict], return_locators: dict = None) -> dict:
+    """
+    批量从帆软报表获取结构化数据
+
+    Args:
+        report_url: FineReport报表的完整URL
+        control_operations: 控件操作列表，value为数组格式，如 [{'type': '控件类型', 'name': '控件名称', 'value': ['控件新值1', '控件新值1']}, ...]
+        return_locators: 返回数据定位器，格式: {'key': 'A5'} 或 {'key': {'find_column': '查找的列(如A)', 'find_value': '查找的值(如汉口支行)', 'return_column': '返回的列(如C)'}}
+
+    Returns:
+        包含所有批次结果的字典
+    """
+    return asyncio.run(batch_filter_report_and_get_data(report_url, control_operations, return_locators))
 
 
 # 导出给Agent使用的工具函数
-__all__ = ['get_report_sample_sync', 'filter_report_and_get_data_sync']
+__all__ = ['get_report_sample_sync', 'batch_filter_report_and_get_data_sync']
 
 
 if __name__ == '__main__':
@@ -525,12 +636,12 @@ if __name__ == '__main__':
 
     # 测试1：基本控件操作
     # p = [{'type': 'text', 'name': 'zzz', 'value': '新的值'}]
-    # result = execute_control_operations_sync(test_url, p)
+    # result = filter_report_and_get_data_sync(test_url, p)
     # print(result)
 
-    # 测试2：控件操作 + 数据提取
-    p = [{'type': 'text', 'name': 'zzz', 'value': '新的值'}]
+    # 测试2：批量控件操作 + 数据提取
+    p = [{'type': 'text', 'name': 'zzz', 'value': ['ABC', 'DEF', 'ZZZ', 'VVV', 'VVV2', 'VV2V']}]
     # locators = {'bal': 'C3', 'avg_bal': 'D3'}
     locators = {'bal': {'find_column': 'C', 'find_value': '烦烦烦', 'return_column': 'E'}}
-    result = operate_controls_and_extract_data_sync(test_url, p, locators, '2025-11-11')
+    result = batch_filter_report_and_get_data_sync(test_url, p, locators)
     print(result)
