@@ -9,6 +9,8 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
 import json
 
+from langchain_core.tools import StructuredTool
+
 from services.llm_service.base_llm_service import BaseLLMService
 from services.agents.common_tools import get_hotboard, get_programmer_story
 from services.agents.fine_report_tools import get_report_sample_sync, batch_filter_report_and_get_data_sync
@@ -27,7 +29,6 @@ class AgentService:
     def _initialize_agent(self):
         """初始化Agent"""
         try:
-            # 创建ReAct Agent，添加热榜和程序员小故事工具
             tools = [get_report_sample_sync, batch_filter_report_and_get_data_sync]
             self.agent = create_agent(
                 model=self.llm_service.client,

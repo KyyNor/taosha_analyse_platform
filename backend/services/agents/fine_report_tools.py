@@ -335,7 +335,7 @@ def _generate_markdown_report(report_url: str, widgets_result: dict, page_info: 
     return "\n".join(markdown_lines)
 
 
-async def filter_report_and_get_data(report_url: str, control_operations: List[dict], return_locators: dict = None, return_name: str = None) -> str:
+async def filter_report_and_get_data(report_url: str, control_operations: List[dict], return_locators: dict = None, return_name: str = None) -> dict:
     """
     执行FineReport报表的控件操作，并返回数据内容
 
@@ -429,7 +429,7 @@ async def filter_report_and_get_data(report_url: str, control_operations: List[d
 
     except Exception as e:
         logger.error(f"执行控件操作时发生错误: {e}")
-        return f"# 错误\n执行控件操作失败: {str(e)}"
+        return {"error": f"# 错误\n执行控件操作失败: {str(e)}"}
 
 
 def extract_data_from_excel(excel_path: str, locators: dict) -> dict:
@@ -495,21 +495,7 @@ def get_report_sample_sync(report_url: str) -> str:
     Returns:
         Markdown格式的抽样信息字符串
     """
-    try:
-        # 尝试在当前事件循环中运行
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # 如果事件循环正在运行，使用线程池
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(lambda: asyncio.run(get_report_sample(report_url)))
-                return future.result()
-        else:
-            # 如果事件循环未运行，直接使用asyncio.run
-            return asyncio.run(get_report_sample(report_url))
-    except RuntimeError:
-        # 如果获取事件循环失败，使用asyncio.run
-        return asyncio.run(get_report_sample(report_url))
+    return asyncio.run(get_report_sample(report_url))
 
 
 async def batch_filter_report_and_get_data(report_url: str, control_operations: List[dict], return_locators: dict = None) -> dict:
@@ -625,13 +611,12 @@ async def _execute_single_combination(report_url: str, control_operations: List[
         async with _batch_semaphore:
             try:
                 logger.debug(f"执行组合 {index + 1}: {return_name}")
-                result = await filter_report_and_get_data(report_url, control_operations, return_locators, return_name)
+                _result = await filter_report_and_get_data(report_url, control_operations, return_locators, return_name)
                 logger.debug(f"组合 {index + 1} 完成: {return_name}")
-                return result
+                return _result
             except Exception as e:
                 logger.error(f"组合 {index + 1} 执行失败: {e}")
                 return {return_name: {"error": str(e)}}
-
 
 def batch_filter_report_and_get_data_sync(report_url: str, control_operations: List[dict], return_locators: dict = None) -> dict:
     """
@@ -645,21 +630,7 @@ def batch_filter_report_and_get_data_sync(report_url: str, control_operations: L
     Returns:
         包含所有批次结果的字典
     """
-    try:
-        # 尝试在当前事件循环中运行
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # 如果事件循环正在运行，使用线程池
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(lambda: asyncio.run(batch_filter_report_and_get_data(report_url, control_operations, return_locators)))
-                return future.result()
-        else:
-            # 如果事件循环未运行，直接使用asyncio.run
-            return asyncio.run(batch_filter_report_and_get_data(report_url, control_operations, return_locators))
-    except RuntimeError:
-        # 如果获取事件循环失败，使用asyncio.run
-        return asyncio.run(batch_filter_report_and_get_data(report_url, control_operations, return_locators))
+    return asyncio.run(batch_filter_report_and_get_data(report_url, control_operations, return_locators))
 
 
 # 导出给Agent使用的工具函数
