@@ -4,8 +4,8 @@
 app:
   name: "淘沙分析平台"
   version: "0.1.0"
-  debug: true
-  workers: 4
+  debug: false
+  workers: 2
 
 # 查询引擎配置
 query_engine:
