@@ -10,6 +10,7 @@ from typing import Optional, List
 from playwright.async_api import async_playwright, Browser, BrowserContext
 from loguru import logger
 from markitdown import MarkItDown
+import pandas as pd
 
 from utils.config import settings
 from utils.excel_parser import ensure_download_dir
@@ -356,6 +357,10 @@ async def download_multiple_reports(
             try:
                 widgets_json = json.dumps(widgets_result, ensure_ascii=False, indent=2)
                 logger.info(widgets_json)
+                
+                df = pd.DataFrame(widgets_result.get('widgets'))
+                markdown_table = df.to_markdown(index=False)
+                logger.info(markdown_table)
             except Exception as e:
                 logger.error(f"序列化widgets信息失败: {e}")
                 logger.info(f"返回结果: {widgets_result}")
