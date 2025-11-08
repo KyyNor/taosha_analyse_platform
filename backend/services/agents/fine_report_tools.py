@@ -241,13 +241,11 @@ async def get_report_sample(report_url: str) -> str:
     page = None
     try:
         # 获取全局 Browser 实例
-        browser = _async_browser
-        if not browser:
-            raise RuntimeError("Browser instance not initialized")
+        context = await get_async_browser_context()
 
         # 创建新 Page（不复用）
         logger.info("创建新的浏览器页面")
-        page = await browser.new_page()
+        page = await context.new_page()
 
         # 访问报表URL
         await page.goto(report_url, wait_until="networkidle")
