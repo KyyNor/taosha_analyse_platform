@@ -44,7 +44,7 @@ cd frontend && npm run type-check
 **入口**：`backend/main.py` - FastAPI应用，包含生命周期管理
 
 **核心服务**（`backend/services/`）：
-- **query_engine/**：查询引擎，支持DuckDB/Spark SQL
+- **query_engine/**：查询引擎，支持DuckDB/Spark SQL/Empty（测试专用）
 - **nlquery_service/**：基于LangGraph的NL2SQL服务，5节点工作流（知识库检查 → 上下文检索 → SQL生成 → SQL验证 → 结果解释）
 - **llm_service/**：LLM交互服务（SQL生成、验证、解释）
 - **vector_store/**：基于Qdrant的语义搜索，使用Qwen3嵌入模型，支持本地和远程部署
@@ -438,6 +438,11 @@ testcases/
 - 检查文件权限
 - SQLite：`sqlite3 backend/database/metadata.db ".tables"`
 
+**多worker环境问题**：
+- **DuckDB文件冲突**：在多worker环境下使用`query_engine_type: empty`避免文件锁定
+- **Phoenix端口冲突**：Phoenix追踪服务在多worker环境下可能出现端口4317冲突
+- **启动失败**：检查启动锁文件`.startup_lock`是否被异常占用，可手动删除
+
 **LLM API调用失败**：
 - 验证API密钥正确且有额度
 - 检查网络连接
@@ -457,6 +462,47 @@ testcases/
 - **类型错误**：注意 `AxiosResponse` 与原生 `Response` 的区别，特别是在处理流式数据时
 - **依赖导入**：Agent服务避免导入 `services` 模块（会触发向量存储初始化），直接导入需要的组件
 
+### EmptyQueryEngine轻量级测试引擎
+- **功能描述**：专门为多worker测试场景设计的轻量级查询引擎，完全避免文件冲突
+- **核心特性**：
+  - 不依赖外部数据库文件，完全基于内存操作
+  - 支持基本SQL语法解析（SELECT、INSERT、UPDATE、DELETE、CREATE TABLE）
+  - 内置测试数据（users、products表），支持动态数据管理
+  - 完善的WHERE条件和LIMIT子句解析
+- **技术实现**：
+  - `backend/services/query_engine/empty_engine_service.py` - EmptyQueryEngine核心实现
+  - 扩展`QueryEngineFactory`支持"empty"引擎类型
+  - 兼容现有QueryEngineService接口，无缝替换
+- **使用场景**：
+  - 多worker环境下的Playwright测试
+  - 开发环境快速验证业务逻辑
+  - CI/CD环境无数据库依赖测试
+- **优势**：
+  - 完全避免多worker文件竞争问题
+  - 轻量级，响应速度快
+  - 零配置，即开即用
+
+### FineReport工具优化
+- **功能增强**：改进Playwright浏览器初始化和会话管理
+- **核心改进**：
+  - 优化浏览器启动机制，支持多worker环境
+  - 简化会话池管理，提升稳定性
+  - 修复Windows环境下的异步执行问题
+  - 改进登录逻辑，提升页面访问效率
+- **新增功能**：
+  - 支持控件操作和数据提取
+  - 增强参数面板解析功能
+  - 支持批量报表处理
+  - 添加Excel格式数据返回选项
+
+### 多worker启动机制优化
+- **问题解决**：解决多worker环境下的重复初始化和资源竞争问题
+- **技术改进**：
+  - 实现启动锁机制，确保系统服务只初始化一次
+  - 优化向量数据库训练和元数据同步流程
+  - 改进Playwright浏览器实例管理
+  - 增强错误处理和资源清理机制
+
 ## Documentation Last Update
-上次更新时commit: c8c3ec1 - feat: 添加淘沙Agent智能对话功能
+上次更新时commit: ae28f6e - feat: 添加EmptyQueryEngine解决多worker测试场景冲突
 - 文档搜索用context7，其他搜索用tavily
