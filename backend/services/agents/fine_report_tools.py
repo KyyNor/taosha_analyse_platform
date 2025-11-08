@@ -430,7 +430,7 @@ async def _filter_report_and_get_data_async(context: BrowserContext, report_url:
 
 async def get_report_sample(report_url: str) -> str:
     """
-    获取FineReport报表的抽样信息（控件清单+页面内容）- 异步包装
+    获取报表样例信息，可以获取报表的控件清单和最新的页面内容，用来了解报表，为后续的batch_filter_report_and_get_data做准备
 
     Args:
         report_url: FineReport报表的完整URL
@@ -652,17 +652,18 @@ def get_report_sample_sync(report_url: str) -> str:
 
 async def batch_filter_report_and_get_data(report_url: str, control_operations: list, return_locators: dict = None) -> dict:
     """
-    异步批量执行FineReport报表的控件操作，支持多个值的真正并发处理
-    使用共享的BrowserContext，避免重复登录，每个组合创建独立的Page
+    批量从帆软报表获取结构化数据
 
     Args:
         report_url: FineReport报表的完整URL
         control_operations: 控件操作列表，value为数组格式，如 [{'type': '控件类型', 'name': '控件名称', 'value': ['控件新值1', '控件新值1']}, ...]
-        return_locators: 返回数据定位器，格式: {'key': 'A5'} 或 {'key': {'find_column': '查找的列(如A)', 'find_value': '查找的值(如汉口支行)', 'return_column': '返回的列(如C)'}}
+        return_locators: 返回数据定位器，格式 直接返回固定格: {'key': 'A5'} 、 按固定值查找返回：{'key': {'find_column': '查找的列(如A)', 'find_value': '查找的值(如汉口支行)', 'return_column': '返回的列(如C)'}}
 
     Returns:
         包含所有批次结果的字典
     """
+    
+    # 按相对值查找返回：{'key': {'find_column': '查找的列(如A)', 'find_value': 'w:acct_no(按control_operations中控件名为acct_no的值来查找)', 'return_column': '返回的列(如C)'}}
     logger.info(f"开始异步批量处理控件操作: {report_url}")
     logger.info(f"控件操作列表: {json.dumps(control_operations, ensure_ascii=False)}")
     logger.info(f"返回数据定位器: {json.dumps(return_locators, ensure_ascii=False)}")
@@ -746,66 +747,66 @@ def _generate_value_combinations(control_operations: list) -> list:
     return combinations
 
 
-async def _execute_single_combination(report_url: str, control_operations: list, return_locators: dict, index: int) -> dict:
-    """
-    执行单个值组合的操作
+# async def _execute_single_combination(report_url: str, control_operations: list, return_locators: dict, index: int) -> dict:
+#     """
+#     执行单个值组合的操作
 
-    Args:
-        report_url: FineReport报表的完整URL
-        control_operations: 单个控件操作组合
-        return_locators: 返回数据定位器
-        index: 组合索引
+#     Args:
+#         report_url: FineReport报表的完整URL
+#         control_operations: 单个控件操作组合
+#         return_locators: 返回数据定位器
+#         index: 组合索引
 
-    Returns:
-        单个组合的结果
-    """
-    # 生成return_name：拼接所有操作的value
-    return_name = "_".join([str(op['value']) for op in control_operations])
+#     Returns:
+#         单个组合的结果
+#     """
+#     # 生成return_name：拼接所有操作的value
+#     return_name = "_".join([str(op['value']) for op in control_operations])
 
-    try:
-        logger.debug(f"执行组合 {index + 1}: {return_name}")
-        _result = await filter_report_and_get_data(report_url, control_operations, return_locators, return_name)
-        logger.debug(f"组合 {index + 1} 完成: {return_name}")
-        return _result
-    except Exception as e:
-        logger.error(f"组合 {index + 1} 执行失败: {e}")
-        return {return_name: {"error": str(e)}}
+#     try:
+#         logger.debug(f"执行组合 {index + 1}: {return_name}")
+#         _result = await filter_report_and_get_data(report_url, control_operations, return_locators, return_name)
+#         logger.debug(f"组合 {index + 1} 完成: {return_name}")
+#         return _result
+#     except Exception as e:
+#         logger.error(f"组合 {index + 1} 执行失败: {e}")
+#         return {return_name: {"error": str(e)}}
 
 
-def batch_filter_report_and_get_data_sync(report_url: str, control_operations: list, return_locators: dict = None) -> dict:
-    """
-    批量从帆软报表获取结构化数据
+# def batch_filter_report_and_get_data_sync(report_url: str, control_operations: list, return_locators: dict = None) -> dict:
+#     """
+#     批量从帆软报表获取结构化数据
 
-    Args:
-        report_url: FineReport报表的完整URL
-        control_operations: 控件操作列表，value为数组格式，如 [{'type': '控件类型', 'name': '控件名称', 'value': ['控件新值1', '控件新值1']}, ...]
-        return_locators: 返回数据定位器，格式: {'key': 'A5'} 或 {'key': {'find_column': '查找的列(如A)', 'find_value': '查找的值(如汉口支行)', 'return_column': '返回的列(如C)'}}
+#     Args:
+#         report_url: FineReport报表的完整URL
+#         control_operations: 控件操作列表，value为数组格式，如 [{'type': '控件类型', 'name': '控件名称', 'value': ['控件新值1', '控件新值1']}, ...]
+#         return_locators: 返回数据定位器，格式: {'key': 'A5'} 或 {'key': {'find_column': '查找的列(如A)', 'find_value': '查找的值(如汉口支行)', 'return_column': '返回的列(如C)'}}
 
-    Returns:
-        包含所有批次结果的字典
-    """
-    logger.info(f"开始批量处理控件操作: {report_url}")
+#     Returns:
+#         包含所有批次结果的字典
+#     """
+#     logger.info(f"开始批量处理控件操作: {report_url}")
 
-    # 第一步：解析所有可能的值组合
-    value_combinations = _generate_value_combinations(control_operations)
-    total_combinations = len(value_combinations)
-    logger.info(f"生成 {total_combinations} 个值组合")
+#     # 第一步：解析所有可能的值组合
+#     value_combinations = _generate_value_combinations(control_operations)
+#     total_combinations = len(value_combinations)
+#     logger.info(f"生成 {total_combinations} 个值组合")
 
-    # 第二步：执行所有组合（同步串行执行，避免并发复杂度）
-    final_result = {}
-    for i, combination in enumerate(value_combinations):
-        try:
-            logger.debug(f"执行组合 {i + 1}/{total_combinations}")
-            return_name = "_".join([str(op['value']) for op in combination])
-            result = _filter_report_and_get_data_sync(report_url, combination, return_locators, return_name)
-            if isinstance(result, dict):
-                final_result.update(result)
-            logger.debug(f"组合 {i + 1} 完成")
-        except Exception as e:
-            logger.error(f"组合 {i + 1} 执行失败: {e}")
+#     # 第二步：执行所有组合（同步串行执行，避免并发复杂度）
+#     final_result = {}
+#     for i, combination in enumerate(value_combinations):
+#         try:
+#             logger.debug(f"执行组合 {i + 1}/{total_combinations}")
+#             return_name = "_".join([str(op['value']) for op in combination])
+#             result = _filter_report_and_get_data_sync(report_url, combination, return_locators, return_name)
+#             if isinstance(result, dict):
+#                 final_result.update(result)
+#             logger.debug(f"组合 {i + 1} 完成")
+#         except Exception as e:
+#             logger.error(f"组合 {i + 1} 执行失败: {e}")
 
-    logger.info(f"批量处理完成，成功处理 {len(final_result)} 个结果")
-    return final_result
+#     logger.info(f"批量处理完成，成功处理 {len(final_result)} 个结果")
+#     return final_result
 
 
 # 导出给Agent使用的工具函数（主要使用异步版本）
