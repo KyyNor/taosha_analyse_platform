@@ -241,7 +241,7 @@ def _get_report_sample_sync(report_url: str) -> str:
     page = None
     try:
         # 获取全局 Browser 实例
-        browser = _browser_instance
+        browser = _async_browser
         if not browser:
             raise RuntimeError("Browser instance not initialized")
 
@@ -466,126 +466,6 @@ def _generate_markdown_report(report_url: str, widgets_result: dict, page_info: 
     return "\n".join(markdown_lines)
 
 
-def _filter_report_and_get_data_sync(report_url: str, control_operations: list, return_locators: dict = None, return_name: str = None) -> dict:
-    """
-    同步执行FineReport报表的控件操作，并返回数据内容
-
-    Args:
-        report_url: FineReport报表的完整URL
-        control_operations: 控件操作列表，格式: [{'type': 'text', 'name': 'widget_name', 'value': 'new_value'}, ...]
-        return_locators: 返回数据定位器，格式: {'key': 'A5'} 或 {'key': {'find_column': 'A', 'find_value': '汉口支行', 'return_column': 'C'}}
-        return_name: 返回结果的键名
-
-    Returns:
-        操作结果的描述字符串，或包含数据的字典
-    """
-    logger.info(f"开始执行控件操作: {report_url}, 操作数量: {len(control_operations)}")
-
-    page = None
-    try:
-        # 获取全局 Browser 实例
-        browser = _browser_instance
-        if not browser:
-            raise RuntimeError("Browser instance not initialized")
-
-        # 创建新 Page（不复用）
-        logger.info("创建新的浏览器页面")
-        page = browser.new_page()
-
-        # 访问报表URL
-        page.goto(report_url, wait_until="networkidle")
-        logger.info(f"已访问报表页面: {report_url}")
-
-        # 等待页面加载完成
-        page.wait_for_load_state('networkidle')
-        page.wait_for_timeout(500)
-
-        # 检查登录状态
-        _check_fine_login_sync(page)
-
-        # 执行控件操作
-        logger.info("开始执行控件操作")
-
-        for operation in control_operations:
-            try:
-                widget_name = operation.get('name')
-                widget_value = operation.get('value')
-                widget_type = operation.get('type', 'text')
-
-                if not widget_name:
-                    logger.warning(f"操作缺少控件名称: {operation}")
-                    continue
-                page.evaluate(f'_g().getParameterContainer().getWidgetByName("{widget_name}").setValue("{widget_value}")')
-
-                logger.debug(f"控件 {widget_name} 操作成功")
-
-            except Exception as op_error:
-                error_msg = f"控件 {operation.get('name', 'unknown')} 操作失败: {str(op_error)}"
-                logger.error(error_msg)
-
-        # 提交参数并刷新页面
-        logger.info("提交参数并刷新页面")
-        try:
-            page.evaluate('_g().parameterCommit()')
-            logger.info("参数提交完成，等待页面刷新")
-
-            # 等待页面刷新完成
-            page.wait_for_load_state('networkidle')
-            page.wait_for_timeout(3000)
-
-            logger.info("页面刷新完成")
-
-        except Exception as commit_error:
-            error_msg = f"参数提交失败: {str(commit_error)}"
-            logger.error(error_msg)
-
-        # 如果需要返回数据，下载Excel并提取数据
-        if return_locators and return_name:
-            logger.info("下载Excel并提取数据")
-            file_path = _download_excel_sync(page)
-
-            if file_path:
-                # 提取数据
-                extracted_data = extract_data_from_excel(file_path, return_locators)
-                result = {return_name: extracted_data}
-            else:
-                result = {}
-
-            logger.info("控件操作和数据提取完成")
-            return result
-        else:
-            logger.info("控件操作执行完成")
-            return {}
-
-    except Exception as e:
-        logger.error(f"执行控件操作时发生错误: {e}")
-        return {"error": f"# 错误\n执行控件操作失败: {str(e)}"}
-
-    finally:
-        # 关闭页面
-        if page:
-            try:
-                page.close()
-            except Exception as e:
-                logger.warning(f"关闭页面失败: {e}")
-
-
-async def filter_report_and_get_data(report_url: str, control_operations: list, return_locators: dict = None, return_name: str = None) -> dict:
-    """
-    执行FineReport报表的控件操作，并返回数据内容 - 异步包装
-
-    Args:
-        report_url: FineReport报表的完整URL
-        control_operations: 控件操作列表，格式: [{'type': 'text', 'name': 'widget_name', 'value': 'new_value'}, ...]
-        return_locators: 返回数据定位器，格式: {'key': 'A5'} 或 {'key': {'find_column': 'A', 'find_value': '汉口支行', 'return_column': 'C'}}
-        return_name: 返回结果的键名
-
-    Returns:
-        操作结果的描述字符串，或包含数据的字典
-    """
-    return await asyncio.to_thread(_filter_report_and_get_data_sync, report_url, control_operations, return_locators, return_name)
-
-
 def extract_data_from_excel(excel_path: str, locators: dict) -> dict:
     """
     从Excel中提取数据
@@ -637,19 +517,6 @@ def extract_data_from_excel(excel_path: str, locators: dict) -> dict:
     return result
 
 
-def get_report_sample_sync(report_url: str) -> str:
-    """
-    获取报表样例信息，可以获取报表的控件清单和最新的页面内容，用来了解报表，为后续的batch_filter_report_and_get_data做准备
-
-    Args:
-        report_url: FineReport报表的完整URL
-
-    Returns:
-        Markdown格式的抽样信息字符串
-    """
-    return _get_report_sample_sync(report_url)
-
-
 async def batch_filter_report_and_get_data(report_url: str, control_operations: list, return_locators: dict = None) -> dict:
     """
     批量从帆软报表获取结构化数据
@@ -663,7 +530,7 @@ async def batch_filter_report_and_get_data(report_url: str, control_operations: 
         包含所有批次结果的字典
     """
     
-    # 按相对值查找返回：{'key': {'find_column': '查找的列(如A)', 'find_value': 'w:acct_no(按control_operations中控件名为acct_no的值来查找)', 'return_column': '返回的列(如C)'}}
+    # todo 按相对值查找返回：{'key': {'find_column': '查找的列(如A)', 'find_value': 'w:acct_no(按control_operations中控件名为acct_no的值来查找)', 'return_column': '返回的列(如C)'}}
     logger.info(f"开始异步批量处理控件操作: {report_url}")
     logger.info(f"控件操作列表: {json.dumps(control_operations, ensure_ascii=False)}")
     logger.info(f"返回数据定位器: {json.dumps(return_locators, ensure_ascii=False)}")
@@ -747,68 +614,6 @@ def _generate_value_combinations(control_operations: list) -> list:
     return combinations
 
 
-# async def _execute_single_combination(report_url: str, control_operations: list, return_locators: dict, index: int) -> dict:
-#     """
-#     执行单个值组合的操作
-
-#     Args:
-#         report_url: FineReport报表的完整URL
-#         control_operations: 单个控件操作组合
-#         return_locators: 返回数据定位器
-#         index: 组合索引
-
-#     Returns:
-#         单个组合的结果
-#     """
-#     # 生成return_name：拼接所有操作的value
-#     return_name = "_".join([str(op['value']) for op in control_operations])
-
-#     try:
-#         logger.debug(f"执行组合 {index + 1}: {return_name}")
-#         _result = await filter_report_and_get_data(report_url, control_operations, return_locators, return_name)
-#         logger.debug(f"组合 {index + 1} 完成: {return_name}")
-#         return _result
-#     except Exception as e:
-#         logger.error(f"组合 {index + 1} 执行失败: {e}")
-#         return {return_name: {"error": str(e)}}
-
-
-# def batch_filter_report_and_get_data_sync(report_url: str, control_operations: list, return_locators: dict = None) -> dict:
-#     """
-#     批量从帆软报表获取结构化数据
-
-#     Args:
-#         report_url: FineReport报表的完整URL
-#         control_operations: 控件操作列表，value为数组格式，如 [{'type': '控件类型', 'name': '控件名称', 'value': ['控件新值1', '控件新值1']}, ...]
-#         return_locators: 返回数据定位器，格式: {'key': 'A5'} 或 {'key': {'find_column': '查找的列(如A)', 'find_value': '查找的值(如汉口支行)', 'return_column': '返回的列(如C)'}}
-
-#     Returns:
-#         包含所有批次结果的字典
-#     """
-#     logger.info(f"开始批量处理控件操作: {report_url}")
-
-#     # 第一步：解析所有可能的值组合
-#     value_combinations = _generate_value_combinations(control_operations)
-#     total_combinations = len(value_combinations)
-#     logger.info(f"生成 {total_combinations} 个值组合")
-
-#     # 第二步：执行所有组合（同步串行执行，避免并发复杂度）
-#     final_result = {}
-#     for i, combination in enumerate(value_combinations):
-#         try:
-#             logger.debug(f"执行组合 {i + 1}/{total_combinations}")
-#             return_name = "_".join([str(op['value']) for op in combination])
-#             result = _filter_report_and_get_data_sync(report_url, combination, return_locators, return_name)
-#             if isinstance(result, dict):
-#                 final_result.update(result)
-#             logger.debug(f"组合 {i + 1} 完成")
-#         except Exception as e:
-#             logger.error(f"组合 {i + 1} 执行失败: {e}")
-
-#     logger.info(f"批量处理完成，成功处理 {len(final_result)} 个结果")
-#     return final_result
-
-
 # 导出给Agent使用的工具函数（主要使用异步版本）
 __all__ = ['get_report_sample', 'batch_filter_report_and_get_data']
 
@@ -825,5 +630,5 @@ if __name__ == '__main__':
     p = [{'type': 'text', 'name': 'zzz', 'value': ['ABC', 'DEF', 'ZZZ', 'VVV', 'VVV2', 'VV2V']}]
     # locators = {'bal': 'C3', 'avg_bal': 'D3'}
     locators = {'bal': {'find_column': 'C', 'find_value': '烦烦烦', 'return_column': 'E'}}
-    result = batch_filter_report_and_get_data_sync(test_url, p, locators)
+    result = batch_filter_report_and_get_data(test_url, p, locators)
     print(result)
