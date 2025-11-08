@@ -47,7 +47,8 @@
       "Bash(done)",
       "Bash(tree:*)",
       "mcp__docs-langchain__SearchDocsByLangChain",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "mcp__tavily__tavily_search"
     ],
     "deny": [],
     "ask": [],

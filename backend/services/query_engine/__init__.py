@@ -4,11 +4,13 @@
 提供统一的查询引擎接口，支持多种OLAP引擎：
 - DuckDB: 嵌入式分析数据库
 - Spark SQL: 分布式计算引擎
+- Empty: 轻量级测试引擎（无文件依赖）
 """
 
 from .base import QueryEngineService, QueryEngineFactory
 from .duckdb_service import DuckDBService
 from .spark_service import SparkSQLService
+from .empty_engine_service import EmptyQueryEngineService
 from utils.logger import get_logger
 from utils.config import settings
 
@@ -65,6 +67,7 @@ __all__ = [
     "QueryEngineFactory",
     "DuckDBService",
     "SparkSQLService",
+    "EmptyQueryEngineService",
     "get_query_engine",
     "set_query_engine",
     "get_database_service",  # 向后兼容

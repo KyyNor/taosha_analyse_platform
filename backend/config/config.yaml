@@ -10,7 +10,7 @@ app:
 # 查询引擎配置
 query_engine:
   dir: "./database"
-  service_type: "duckdb"  # duckdb 或 spark
+  service_type: "empty"  # duckdb 或 spark
   duckdb_path: "./database/taosha.duckdb"
   spark:
     jdbc_driver_class: 'org.apache.hive.jdbc.HiveDriver'

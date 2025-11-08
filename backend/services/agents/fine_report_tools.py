@@ -134,7 +134,7 @@ def _check_fine_login_sync(page: Page) -> bool:
             logger.info("等待登录完成...")
             try:
                 page.wait_for_url("**/decision/**", timeout=30000)
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(2000)
                 logger.info("登录成功，已跳转到系统主页")
                 return True
             except Exception as wait_error:
@@ -487,6 +487,8 @@ async def batch_filter_report_and_get_data(report_url: str, control_operations: 
         包含所有批次结果的字典
     """
     logger.info(f"开始批量处理控件操作: {report_url}")
+    logger.info(f"控件操作列表: {json.dumps(control_operations, ensure_ascii=False)}")
+    logger.info(f"返回数据定位器: {json.dumps(return_locators, ensure_ascii=False)}")
 
     # 第一步：解析所有可能的值组合
     value_combinations = _generate_value_combinations(control_operations)

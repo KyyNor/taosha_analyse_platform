@@ -33,6 +33,9 @@ class QueryEngineFactory:
         elif service_type.lower() == "spark":
             from .spark_service import SparkSQLService
             return SparkSQLService(**kwargs)
+        elif service_type.lower() == "empty":
+            from .empty_engine_service import EmptyQueryEngineService
+            return EmptyQueryEngineService(**kwargs)
         else:
             raise ValueError(f"不支持的查询引擎服务类型: {service_type}")
 

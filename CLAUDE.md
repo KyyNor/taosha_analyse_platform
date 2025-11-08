@@ -459,3 +459,4 @@ testcases/
 
 ## Documentation Last Update
 上次更新时commit: c8c3ec1 - feat: 添加淘沙Agent智能对话功能
+- 文档搜索用context7，其他搜索用tavily
