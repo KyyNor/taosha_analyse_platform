@@ -56,7 +56,7 @@ async def _login_once_async(context: BrowserContext):
     try:
         page = await context.new_page()
         # 访问任意报表URL触发登录
-        await page.goto("http://localhost:8075/webroot/decision", wait_until="networkidle")
+        await page.goto(settings.fine_report_login_url, wait_until="networkidle")
 
         # 检查是否需要登录
         current_url = page.url
@@ -809,9 +809,7 @@ def batch_filter_report_and_get_data_sync(report_url: str, control_operations: l
 
 
 # 导出给Agent使用的工具函数（主要使用异步版本）
-__all__ = ['get_report_sample', 'batch_filter_report_and_get_data',
-          'get_report_sample_sync', 'batch_filter_report_and_get_data_sync']  # 保留同步版本作为fallback
-
+__all__ = ['get_report_sample', 'batch_filter_report_and_get_data']
 
 if __name__ == '__main__':
     # 测试控件操作功能

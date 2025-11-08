@@ -13,7 +13,7 @@ from langchain_core.tools import StructuredTool
 
 from services.llm_service.base_llm_service import BaseLLMService
 from services.agents.common_tools import get_hotboard, get_programmer_story
-from services.agents.fine_report_tools import get_report_sample_sync, batch_filter_report_and_get_data_sync
+from services.agents.fine_report_tools import get_report_sample, batch_filter_report_and_get_data
 from utils.logger import logger
 
 
@@ -29,7 +29,7 @@ class AgentService:
     def _initialize_agent(self):
         """初始化Agent"""
         try:
-            tools = [get_report_sample_sync, batch_filter_report_and_get_data_sync]
+            tools = [get_report_sample, batch_filter_report_and_get_data]
             self.agent = create_agent(
                 model=self.llm_service.client,
                 tools=tools,
