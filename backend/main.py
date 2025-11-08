@@ -26,7 +26,7 @@ from models.db_base import get_db_session
 from services.vector_store.vector_training_service import VectorTrainingService
 from services.tracking_service.observability_service import initialize_observability
 from services.metadata_service.metadata_sync_service import MetadataSyncService
-from services.agents.fine_report_tools import get_browser, _cleanup_browser
+# from services.agents.fine_report_tools import get_browser, _cleanup_browser  # 已改为异步版本
 
 
 def _acquire_startup_lock():
@@ -185,10 +185,11 @@ async def lifespan(app: FastAPI):
     logger.info("=== 淘沙分析平台启动中 ===")
 
     try:
-        # 初始化 Playwright 浏览器（每个worker都需要）
-        logger.info("初始化 Playwright 浏览器...")
-        await get_browser()
-        logger.info("Playwright 浏览器初始化完成")
+        # 初始化异步 Playwright 浏览器（每个worker都需要）
+        logger.info("初始化异步 Playwright 浏览器...")
+        from services.agents.fine_report_tools import get_async_browser_context
+        await get_async_browser_context()  # 初始化异步浏览器并建立登录会话
+        logger.info("异步 Playwright 浏览器初始化完成")
 
         # 初始化查询引擎服务（每个worker都需要）
         query_engine = get_query_engine()
@@ -213,10 +214,11 @@ async def lifespan(app: FastAPI):
     # 关闭时的清理
     logger.info("=== 淘沙分析平台关闭中 ===")
     try:
-        # 清理 Playwright 浏览器（每个worker都需要清理）
-        logger.info("清理 Playwright 浏览器...")
-        await _cleanup_browser()
-        logger.info("Playwright 浏览器已清理")
+        # 清理异步 Playwright 浏览器（每个worker都需要清理）
+        logger.info("清理异步 Playwright 浏览器...")
+        from services.agents.fine_report_tools import cleanup_async_browser
+        await cleanup_async_browser()
+        logger.info("异步 Playwright 浏览器已清理")
 
         # 关闭查询引擎连接（每个worker都需要关闭）
         query_engine = get_query_engine()

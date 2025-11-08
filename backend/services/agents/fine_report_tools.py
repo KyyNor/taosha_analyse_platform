@@ -8,7 +8,7 @@ import json
 import uuid
 import sys
 from typing import Optional
-from playwright.sync_api import sync_playwright, Browser, Page
+from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from loguru import logger
 from markitdown import DocumentConverterResult, MarkItDown
 import pandas as pd
@@ -17,31 +17,105 @@ from utils.config import settings
 from utils.excel_parser import ensure_download_dir
 
 
-# 全局浏览器实例（每个worker进程一个）
-_browser_instance: Optional[Browser] = None
+# 全局异步浏览器实例（每个worker进程一个）
+_async_browser: Optional[Browser] = None
+_async_context: Optional[BrowserContext] = None  # 共享登录会话的上下文
 
 
-def _launch_browser_sync() -> Browser:
-    """同步启动浏览器"""
-    global _browser_instance
-    if _browser_instance is None:
-        logger.info("启动 Playwright 浏览器实例（同步模式）")
+async def get_async_browser_context() -> BrowserContext:
+    """获取全局异步 BrowserContext 实例，共享登录会话"""
+    global _async_browser, _async_context
+
+    if _async_context is None:
+        logger.info("启动异步 Playwright 浏览器实例")
         try:
-            playwright = sync_playwright().start()
-            _browser_instance = playwright.chromium.launch(
+            playwright = await async_playwright().start()
+            _async_browser = await playwright.chromium.launch(
                 headless=settings.fine_report_browser_headless,
                 args=['--no-sandbox', '--disable-dev-shm-usage']
             )
-            logger.info("Playwright 浏览器实例已启动")
+
+            # 创建共享的BrowserContext，用于session共享
+            _async_context = await _async_browser.new_context()
+
+            # 执行一次性登录
+            await _login_once_async(_async_context)
+
+            logger.info("异步 Playwright 浏览器实例已启动，登录会话已建立")
         except Exception as e:
-            logger.error(f"启动浏览器失败: {e}", exc_info=True)
+            logger.error(f"启动异步浏览器失败: {e}", exc_info=True)
             raise
-    return _browser_instance
+
+    return _async_context
 
 
-async def get_browser() -> Browser:
-    """获取全局 Browser 实例（在线程池中运行）"""
-    return await asyncio.to_thread(_launch_browser_sync)
+async def _login_once_async(context: BrowserContext):
+    """在BrowserContext级别执行一次性登录，所有Page共享会话"""
+    logger.info("执行一次性登录建立共享会话")
+    page = None
+    try:
+        page = await context.new_page()
+        # 访问任意报表URL触发登录
+        await page.goto("http://localhost:8075/webroot/decision", wait_until="networkidle")
+
+        # 检查是否需要登录
+        current_url = page.url
+        if "login" in current_url.lower():
+            logger.info("检测到需要登录，开始执行登录流程")
+
+            # 填写登录信息
+            if not settings.fine_report_user_name or not settings.fine_report_password:
+                logger.error("FineReport用户名或密码未配置")
+                return False
+
+            await page.fill('input[type="text"]', settings.fine_report_user_name)
+            await page.fill('input[type="password"]', settings.fine_report_password)
+            await page.click('div[class*="login-button"]')
+
+            # 等待登录完成
+            try:
+                await page.wait_for_url("**/decision/**", timeout=30000)
+                await page.wait_for_timeout(1000)
+                logger.info("一次性登录成功，会话已建立")
+                return True
+            except Exception:
+                current_url = page.url
+                if "decision" in current_url or "report" in current_url:
+                    logger.info("登录成功，会话已建立")
+                    return True
+                else:
+                    logger.error(f"登录失败，当前URL: {current_url}")
+                    return False
+
+        logger.info("无需登录，会话已就绪")
+        return True
+
+    except Exception as e:
+        logger.error(f"一次性登录失败: {e}")
+        return False
+    finally:
+        if page:
+            await page.close()
+
+
+async def cleanup_async_browser():
+    """清理异步浏览器资源"""
+    global _async_browser, _async_context
+    if _async_context:
+        try:
+            await _async_context.close()
+            logger.info("BrowserContext 已关闭")
+        except Exception as e:
+            logger.warning(f"关闭 BrowserContext 失败: {e}")
+        _async_context = None
+
+    if _async_browser:
+        try:
+            await _async_browser.close()
+            logger.info("异步浏览器实例已关闭")
+        except Exception as e:
+            logger.warning(f"关闭异步浏览器实例失败: {e}")
+        _async_browser = None
 
 
 def _cleanup_browser_sync():
@@ -248,6 +322,108 @@ def _get_report_sample_sync(report_url: str) -> str:
         if page:
             try:
                 page.close()
+            except Exception as e:
+                logger.warning(f"关闭页面失败: {e}")
+
+
+async def _filter_report_and_get_data_async(context: BrowserContext, report_url: str, control_operations: list, return_locators: dict = None, return_name: str = None) -> dict:
+    """
+    异步执行FineReport报表的控件操作，并返回数据内容
+    使用共享的BrowserContext，避免重复登录
+
+    Args:
+        context: 共享的BrowserContext实例
+        report_url: FineReport报表的完整URL
+        control_operations: 控件操作列表，格式: [{'type': 'text', 'name': 'widget_name', 'value': 'new_value'}, ...]
+        return_locators: 返回数据定位器，格式: {'key': 'A5'} 或 {'key': {'find_column': 'A', 'find_value': '汉口支行', 'return_column': 'C'}}
+        return_name: 返回结果的键名
+
+    Returns:
+        操作结果的描述字符串，或包含数据的字典
+    """
+    logger.info(f"异步执行控件操作: {report_url}, 操作数量: {len(control_operations)}")
+
+    page = None
+    try:
+        # 从共享context创建新页面
+        logger.info("创建新的浏览器页面（共享会话）")
+        page = await context.new_page()
+
+        # 访问报表URL并等待加载完成
+        await page.goto(report_url, wait_until="networkidle")
+        await page.wait_for_load_state('networkidle')
+        await page.wait_for_timeout(500)
+        logger.info(f"已访问报表页面: {report_url}")
+
+        # 执行控件操作（无需检查登录，因为context已共享登录会话）
+        logger.info("开始执行控件操作")
+        for operation in control_operations:
+            try:
+                widget_name = operation.get('name')
+                widget_value = operation.get('value')
+
+                if not widget_name:
+                    logger.warning(f"操作缺少控件名称: {operation}")
+                    continue
+                await page.evaluate(f'_g().getParameterContainer().getWidgetByName("{widget_name}").setValue("{widget_value}")')
+                logger.debug(f"控件 {widget_name} 操作成功")
+
+            except Exception as op_error:
+                error_msg = f"控件 {operation.get('name', 'unknown')} 操作失败: {str(op_error)}"
+                logger.error(error_msg)
+
+        # 提交参数并刷新页面
+        logger.info("提交参数并刷新页面")
+        try:
+            await page.evaluate('_g().parameterCommit()')
+            await page.wait_for_load_state('networkidle')
+            await page.wait_for_timeout(3000)
+            logger.info("页面刷新完成")
+        except Exception as commit_error:
+            error_msg = f"参数提交失败: {str(commit_error)}"
+            logger.error(error_msg)
+
+        # 如果需要返回数据，下载Excel并提取数据
+        if return_locators and return_name:
+            logger.info("下载Excel并提取数据")
+
+            # 内联异步下载Excel逻辑
+            file_path = None
+            try:
+                download_path = os.path.abspath(settings.fine_report_browser_download_path)
+
+                async with page.expect_download(timeout=settings.fine_report_download_timeout) as download_info:
+                    await page.evaluate('_g().exportReportToExcel("simple")')
+                    logger.info("已执行导出命令")
+
+                download = await download_info.value
+                file_name = f"report_{uuid.uuid4().hex[:8]}.xlsx"
+                file_path = os.path.join(download_path, file_name)
+                await download.save_as(file_path)
+                logger.info(f"文件已下载到: {file_path}")
+            except Exception as e:
+                logger.error(f"下载Excel文件失败: {e}")
+
+            if file_path:
+                extracted_data = extract_data_from_excel(file_path, return_locators)
+                result = {return_name: extracted_data}
+            else:
+                result = {}
+
+            logger.info("控件操作和数据提取完成")
+            return result
+        else:
+            logger.info("控件操作执行完成")
+            return {}
+
+    except Exception as e:
+        logger.error(f"异步执行控件操作时发生错误: {e}")
+        return {"error": f"# 错误\n执行控件操作失败: {str(e)}"}
+
+    finally:
+        if page:
+            try:
+                await page.close()
             except Exception as e:
                 logger.warning(f"关闭页面失败: {e}")
 
@@ -476,7 +652,8 @@ def get_report_sample_sync(report_url: str) -> str:
 
 async def batch_filter_report_and_get_data(report_url: str, control_operations: list, return_locators: dict = None) -> dict:
     """
-    批量执行FineReport报表的控件操作，支持多个值的并发处理
+    异步批量执行FineReport报表的控件操作，支持多个值的真正并发处理
+    使用共享的BrowserContext，避免重复登录，每个组合创建独立的Page
 
     Args:
         report_url: FineReport报表的完整URL
@@ -486,39 +663,40 @@ async def batch_filter_report_and_get_data(report_url: str, control_operations: 
     Returns:
         包含所有批次结果的字典
     """
-    logger.info(f"开始批量处理控件操作: {report_url}")
+    logger.info(f"开始异步批量处理控件操作: {report_url}")
     logger.info(f"控件操作列表: {json.dumps(control_operations, ensure_ascii=False)}")
     logger.info(f"返回数据定位器: {json.dumps(return_locators, ensure_ascii=False)}")
 
-    # 第一步：解析所有可能的值组合
+    # 第一步：获取共享的BrowserContext
+    context = await get_async_browser_context()
+
+    # 第二步：解析所有可能的值组合
     value_combinations = _generate_value_combinations(control_operations)
     total_combinations = len(value_combinations)
     logger.info(f"生成 {total_combinations} 个值组合")
 
-    # 第二步：并发执行所有组合
+    # 第三步：创建并发任务（每个组合创建独立的Page）
     tasks = []
     for i, combination in enumerate(value_combinations):
-        task = _execute_single_combination(report_url, combination, return_locators, i)
+        return_name = "_".join([str(op['value']) for op in combination])
+        # 创建异步任务，传入共享context
+        task = _filter_report_and_get_data_async(context, report_url, combination, return_locators, return_name)
         tasks.append(task)
 
-    # 并发控制：单个batch最多3个并发
-    results = []
-    for i in range(0, len(tasks), 3):
-        batch_tasks = tasks[i:i + 3]
-        batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
-        results.extend(batch_results)
-        logger.info(f"批次 {i//3 + 1}/{(len(tasks) + 2)//3} 完成")
+    # 第四步：真正并发执行所有任务（无并发数限制，发挥最大性能）
+    logger.info(f"开始并发执行 {total_combinations} 个值组合")
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # 第三步：整理结果
+    # 第五步：整理结果
     final_result = {}
-    for result in results:
+    for i, result in enumerate(results):
         if isinstance(result, Exception):
-            logger.error(f"组合执行失败: {result}")
+            logger.error(f"组合 {i + 1} 执行失败: {result}")
             continue
         if isinstance(result, dict):
             final_result.update(result)
 
-    logger.info(f"批量处理完成，成功处理 {len(final_result)} 个结果")
+    logger.info(f"异步批量处理完成，成功处理 {len(final_result)} 个结果")
     return final_result
 
 
@@ -630,8 +808,9 @@ def batch_filter_report_and_get_data_sync(report_url: str, control_operations: l
     return final_result
 
 
-# 导出给Agent使用的工具函数
-__all__ = ['get_report_sample_sync', 'batch_filter_report_and_get_data_sync']
+# 导出给Agent使用的工具函数（主要使用异步版本）
+__all__ = ['get_report_sample', 'batch_filter_report_and_get_data',
+          'get_report_sample_sync', 'batch_filter_report_and_get_data_sync']  # 保留同步版本作为fallback
 
 
 if __name__ == '__main__':
