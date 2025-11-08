@@ -509,7 +509,7 @@ async def batch_filter_report_and_get_data(report_url: str, control_operations: 
     Args:
         report_url: FineReport报表的完整URL
         control_operations: 控件操作列表，value为数组格式，如 [{'type': '控件类型', 'name': '控件名称', 'value': ['控件新值1', '控件新值1']}, ...]
-        return_locators: 返回数据定位器，格式 直接返回固定格: {'key': 'A5'} 、 按固定值查找返回：{'key': {'find_column': '查找的列(如A)', 'find_value': '查找的值(如汉口支行)', 'return_column': '返回的列(如C)'}}
+        return_locators: 返回数据定位器，格式 直接返回固定单元格(常用): {'key': 'A5'} 、 按固定值查找返回(类似vlookup)：{'key': {'find_column': '查找的列(如A)', 'find_value': '查找的固定值(如汉口支行)', 'return_column': '返回的列(如C)'}}
 
     Returns:
         包含所有批次结果的字典
@@ -528,16 +528,23 @@ async def batch_filter_report_and_get_data(report_url: str, control_operations: 
     total_combinations = len(value_combinations)
     logger.info(f"生成 {total_combinations} 个值组合")
 
-    # 第三步：创建并发任务（每个组合创建独立的Page）
+    # 第三步：创建并发任务（每个组合创建独立的Page），限制最大并发数为5
+    semaphore = asyncio.Semaphore(5)
+
+    async def limited_execute_task(combination, task_return_name):
+        """限制并发数的任务执行函数"""
+        async with semaphore:
+            return await _filter_report_and_get_data_async(context, report_url, combination, return_locators, task_return_name)
+
     tasks = []
     for i, combination in enumerate(value_combinations):
         return_name = "_".join([str(op['value']) for op in combination])
-        # 创建异步任务，传入共享context
-        task = _filter_report_and_get_data_async(context, report_url, combination, return_locators, return_name)
+        # 创建带并发限制的异步任务，传入共享context
+        task = limited_execute_task(combination, return_name)
         tasks.append(task)
 
-    # 第四步：真正并发执行所有任务（无并发数限制，发挥最大性能）
-    logger.info(f"开始并发执行 {total_combinations} 个值组合")
+    # 第四步：并发执行所有任务（最大并发数限制为5）
+    logger.info(f"开始并发执行 {total_combinations} 个值组合（最大并发数：5）")
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     # 第五步：整理结果
