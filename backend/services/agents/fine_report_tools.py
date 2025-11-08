@@ -137,9 +137,9 @@ async def _cleanup_browser():
     await asyncio.to_thread(_cleanup_browser_sync)
 
 
-def _download_excel_sync(page: Page) -> str:
+async def _download_excel(page: Page) -> str:
     """
-    同步下载Excel文件并返回文件路径
+    下载Excel文件并返回文件路径
 
     Args:
         page: Playwright页面对象
@@ -150,10 +150,10 @@ def _download_excel_sync(page: Page) -> str:
     try:
         download_path = os.path.abspath(settings.fine_report_browser_download_path)
 
-        with page.expect_download(timeout=settings.fine_report_download_timeout) as download_info:
+        async with page.expect_download(timeout=settings.fine_report_download_timeout) as download_info:
             # 执行JavaScript触发Excel导出
             logger.info("执行JavaScript导出Excel")
-            page.evaluate('_g().exportReportToExcel("simple")')
+            await page.evaluate('_g().exportReportToExcel("simple")')
             logger.info("已执行导出命令")
 
         # 等待下载完成
@@ -174,9 +174,9 @@ def _download_excel_sync(page: Page) -> str:
         return None
 
 
-def _check_fine_login_sync(page: Page) -> bool:
+async def _check_fine_login(page: Page) -> bool:
     """
-    同步登录FineReport系统（内部使用，不暴露给大模型）
+    登录FineReport系统（内部使用，不暴露给大模型）
 
     Args:
         page: 当前的Playwright Page对象
@@ -197,18 +197,18 @@ def _check_fine_login_sync(page: Page) -> bool:
 
             # 填写登录信息
             logger.debug("填写登录表单")
-            page.fill('input[type="text"]', settings.fine_report_user_name)
-            page.fill('input[type="password"]', settings.fine_report_password)
+            await page.fill('input[type="text"]', settings.fine_report_user_name)
+            await page.fill('input[type="password"]', settings.fine_report_password)
 
             # 点击登录按钮
             logger.debug("点击登录按钮")
-            page.click('div[class*="login-button"]')
+            await page.click('div[class*="login-button"]')
 
             # 等待登录完成，等待跳转到系统主页
             logger.info("等待登录完成...")
             try:
-                page.wait_for_url("**/decision/**", timeout=30000)
-                page.wait_for_timeout(2000)
+                await page.wait_for_url("**/decision/**", timeout=30000)
+                await page.wait_for_timeout(2000)
                 logger.info("登录成功，已跳转到系统主页")
                 return True
             except Exception as wait_error:
@@ -226,9 +226,9 @@ def _check_fine_login_sync(page: Page) -> bool:
         return False
 
 
-def _get_report_sample_sync(report_url: str) -> str:
+async def get_report_sample(report_url: str) -> str:
     """
-    同步获取FineReport报表的抽样信息（控件清单+页面内容）
+    获取报表样例信息，可以获取报表的控件清单和最新的页面内容，用来了解报表，为后续的batch_filter_report_and_get_data做准备
 
     Args:
         report_url: FineReport报表的完整URL
@@ -247,18 +247,18 @@ def _get_report_sample_sync(report_url: str) -> str:
 
         # 创建新 Page（不复用）
         logger.info("创建新的浏览器页面")
-        page = browser.new_page()
+        page = await browser.new_page()
 
         # 访问报表URL
-        page.goto(report_url, wait_until="networkidle")
+        await page.goto(report_url, wait_until="networkidle")
         logger.info(f"已访问报表页面: {report_url}")
 
         # 等待页面加载完成
-        page.wait_for_load_state('networkidle')
-        page.wait_for_timeout(500)
+        await page.wait_for_load_state('networkidle')
+        await page.wait_for_timeout(500)
 
         # 检查登录状态
-        _check_fine_login_sync(page)
+        await _check_fine_login(page)
 
         # 获取控件信息
         logger.info("获取参数面板控件信息")
@@ -295,10 +295,10 @@ def _get_report_sample_sync(report_url: str) -> str:
         }
         """
 
-        widgets_result = page.evaluate(widgets_script)
+        widgets_result = await page.evaluate(widgets_script)
 
         # 下载Excel文件
-        file_path = _download_excel_sync(page)
+        file_path = await _download_excel(page)
         if not file_path:
             return '{"success": false, "error": "Excel下载失败"}'
 
@@ -321,7 +321,7 @@ def _get_report_sample_sync(report_url: str) -> str:
         # 关闭页面
         if page:
             try:
-                page.close()
+                await page.close()
             except Exception as e:
                 logger.warning(f"关闭页面失败: {e}")
 
@@ -426,19 +426,6 @@ async def _filter_report_and_get_data_async(context: BrowserContext, report_url:
                 await page.close()
             except Exception as e:
                 logger.warning(f"关闭页面失败: {e}")
-
-
-async def get_report_sample(report_url: str) -> str:
-    """
-    获取报表样例信息，可以获取报表的控件清单和最新的页面内容，用来了解报表，为后续的batch_filter_report_and_get_data做准备
-
-    Args:
-        report_url: FineReport报表的完整URL
-
-    Returns:
-        Markdown格式的抽样信息字符串
-    """
-    return await asyncio.to_thread(_get_report_sample_sync, report_url)
 
 
 def _generate_markdown_report(report_url: str, widgets_result: dict, page_info: DocumentConverterResult) -> str:
