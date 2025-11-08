@@ -158,13 +158,13 @@ async def _download_excel(page: Page) -> str:
 
         # 等待下载完成
         logger.info("等待文件下载完成")
-        download = download_info.value
+        download = await download_info.value
 
         # 使用UUID生成唯一文件名
         file_name = f"report_{uuid.uuid4().hex[:8]}.xlsx"
         file_path = os.path.join(download_path, file_name)
 
-        download.save_as(file_path)
+        await download.save_as(file_path)
         logger.info(f"文件已下载到: {file_path}")
 
         return file_path
