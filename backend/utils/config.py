@@ -155,6 +155,7 @@ class ConfigManager:
             fine_report_browser_timeout: int = self._config_data.get('fine_report', {}).get('browser', {}).get('timeout', 30000)
             fine_report_browser_wait_timeout: int = self._config_data.get('fine_report', {}).get('browser', {}).get('wait_timeout', 5000)
             fine_report_browser_download_path: str = self._config_data.get('fine_report', {}).get('browser', {}).get('download_path', './downloads/fine_report')
+            fine_report_browser_screenshot_path: str = self._config_data.get('fine_report', {}).get('browser', {}).get('screenshot_path', './downloads/screenshot')
             fine_report_download_timeout: int = self._config_data.get('fine_report', {}).get('download_timeout', 60000)
 
             class Config:

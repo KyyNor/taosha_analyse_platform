@@ -313,6 +313,10 @@ async def get_report_sample(report_url: str) -> str:
 
     except Exception as e:
         logger.error(f"获取报表抽样信息时发生错误: {e}")
+        try:
+            await page.screenshot(path=settings.fine_report_browser_screenshot_path)
+        except Exception as e:
+            pass
         return f"# 错误\n获取报表抽样信息失败: {str(e)}"
 
     finally:
@@ -386,21 +390,7 @@ async def _filter_report_and_get_data_async(context: BrowserContext, report_url:
             logger.info("下载Excel并提取数据")
 
             # 内联异步下载Excel逻辑
-            file_path = None
-            try:
-                download_path = os.path.abspath(settings.fine_report_browser_download_path)
-
-                async with page.expect_download(timeout=settings.fine_report_download_timeout) as download_info:
-                    await page.evaluate('_g().exportReportToExcel("simple")')
-                    logger.info("已执行导出命令")
-
-                download = await download_info.value
-                file_name = f"report_{uuid.uuid4().hex[:8]}.xlsx"
-                file_path = os.path.join(download_path, file_name)
-                await download.save_as(file_path)
-                logger.info(f"文件已下载到: {file_path}")
-            except Exception as e:
-                logger.error(f"下载Excel文件失败: {e}")
+            file_path = _download_excel(page)
 
             if file_path:
                 extracted_data = extract_data_from_excel(file_path, return_locators)
@@ -416,6 +406,10 @@ async def _filter_report_and_get_data_async(context: BrowserContext, report_url:
 
     except Exception as e:
         logger.error(f"异步执行控件操作时发生错误: {e}")
+        try:
+            await page.screenshot(path=settings.fine_report_browser_screenshot_path)
+        except Exception as e:
+            pass
         return {"error": f"# 错误\n执行控件操作失败: {str(e)}"}
 
     finally:

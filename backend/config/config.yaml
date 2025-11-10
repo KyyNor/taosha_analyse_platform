@@ -145,6 +145,7 @@ fine_report:
     timeout: 30000  # 页面加载超时（毫秒）
     wait_timeout: 5000  # 元素等待超时（毫秒）
     download_path: "./downloads/fine_report"  # 下载目录
+    screenshot_path: "./downloads/screenshot"  # 下载目录
   download_timeout: 60000  # 下载超时（毫秒）
 
 # 环境变量前缀
