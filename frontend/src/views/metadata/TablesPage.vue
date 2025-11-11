@@ -484,6 +484,10 @@ const isNewTable = ref(false)
 const columns = ref<any[]>([])
 const availableRelations = ref<any[]>([])
 
+// State for change detection
+const originalTableData = ref<any>(null)
+const originalColumnsData = ref<any[]>([])
+
 // Filters
 const filters = reactive({
   search: ''
@@ -597,6 +601,8 @@ const openTableDetail = async (table: any, editMode: boolean = false) => {
 // Enter edit mode
 const enterEditMode = () => {
   isDetailEditMode.value = true
+  // Store original data when entering edit mode
+  storeOriginalData()
 }
 
 // Close detail modal
@@ -646,6 +652,104 @@ const loadColumns = async (table?: any) => {
   }
 }
 
+// Store original data for change detection
+const storeOriginalData = () => {
+  if (!editingTable.value) return
+
+  // Store original table data
+  originalTableData.value = {
+    id: editingTable.value.id,
+    comment: tableForm.comment,
+    remark: tableForm.remark,
+    is_available: editingTable.value.is_available
+  }
+
+  // Store original columns data (deep clone)
+  originalColumnsData.value = JSON.parse(JSON.stringify(columns.value))
+}
+
+// Check if data has changes
+const hasChanges = (): boolean => {
+  if (!originalTableData.value) return false
+
+  // Check table changes
+  const tableChanged = originalTableData.value.comment !== tableForm.comment ||
+                      originalTableData.value.remark !== tableForm.remark
+
+  // Check column changes
+  const columnsChanged = JSON.stringify(originalColumnsData.value) !== JSON.stringify(columns.value)
+
+  return tableChanged || columnsChanged
+}
+
+// Get changed data for batch update
+const getChangedData = () => {
+  let changedTable = null
+  const changedColumns = []
+
+  // Check table changes
+  if (!isNewTable.value && originalTableData.value) {
+    const tableUpdates: any = { id: editingTable.value.id }
+
+    if (originalTableData.value.comment !== tableForm.comment) {
+      tableUpdates.comment = tableForm.comment
+    }
+    if (originalTableData.value.remark !== tableForm.remark) {
+      tableUpdates.remark = tableForm.remark
+    }
+
+    if (Object.keys(tableUpdates).length > 1) { // More than just id
+      changedTable = tableUpdates
+    }
+  }
+
+  // Check column changes
+  if (originalColumnsData.value.length > 0) {
+    for (let i = 0; i < columns.value.length; i++) {
+      const current = columns.value[i]
+      const original = originalColumnsData.value.find((col: any) => col.id === current.id)
+
+      if (original) {
+        // Existing column - check for changes
+        const columnUpdates: any = { id: current.id }
+
+        if (original.name !== current.name) columnUpdates.name = current.name
+        if (original.type !== current.type) columnUpdates.type = current.type
+        if (original.comment !== current.comment) columnUpdates.comment = current.comment
+        if (original.remark !== current.remark) columnUpdates.remark = original.remark
+        if (original.businessType !== current.businessType) columnUpdates.business_type = current.businessType
+        if (original.relationConfigId !== current.relationConfigId) columnUpdates.relation_config_id = current.relationConfigId
+        if (original.isAvailable !== current.isAvailable) columnUpdates.is_available = current.isAvailable ? 0 : 1
+
+        if (Object.keys(columnUpdates).length > 1) { // More than just id
+          changedColumns.push(columnUpdates)
+        }
+      }
+    }
+  } else {
+    // New table - include all columns
+    for (const column of columns.value) {
+      if (typeof column.id === 'number' && column.id > 1000000) {
+        // New column, will be handled separately
+        continue
+      }
+
+      changedColumns.push({
+        id: column.id,
+        name: column.name,
+        type: column.type,
+        comment: column.comment,
+        remark: column.remark,
+        business_type: column.businessType,
+        relation_config_id: column.relationConfigId,
+        is_available: column.isAvailable ? 0 : 1
+      })
+    }
+  }
+
+  return { changedTable, changedColumns }
+}
+
 // Add new column
 const addNewColumn = () => {
   const newColumn = {
@@ -685,44 +789,56 @@ const saveTableDetail = async () => {
       })
       tableId = (response as any).data?.id  // 从data字段获取表ID
       success('表已创建')
-    } else {
-      // Update existing table
-      await metadataService.updateTable(editingTable.value.id, {
-        comment: tableForm.comment,
-        remark: tableForm.remark
-      })
-      tableId = editingTable.value.id
-      success('表已更新')
-    }
 
-    // Save columns using new API
-    if (columns.value.length > 0) {
-      for (const column of columns.value) {
-        const columnData = {
-          table_id: tableId,
-          name: column.name,
-          type: column.type,
-          comment: column.comment,
-          remark: column.remark,
-          is_available: column.isAvailable ? 0 : 1, // 转换为后端格式：0=启用，1=不启用
-          business_type: column.businessType,
-          relation_config_id: column.relationConfigId || null
+      // For new table, save all columns using individual API calls
+      if (columns.value.length > 0) {
+        for (const column of columns.value) {
+          if (typeof column.id === 'number' && column.id > 1000000) {
+            // New column (temporary ID), create it
+            const columnData = {
+              table_id: tableId,
+              name: column.name,
+              type: column.type,
+              comment: column.comment,
+              remark: column.remark,
+              is_available: column.isAvailable ? 0 : 1,
+              business_type: column.businessType,
+              relation_config_id: column.relationConfigId || null
+            }
+            await metadataService.createColumn(columnData)
+          }
         }
-
-        if (typeof column.id === 'number' && column.id > 1000000) {
-          // New column (temporary ID), create it
-          await metadataService.createColumn(columnData)
-        } else if (typeof column.id === 'number') {
-          // Existing column, update it
-          await metadataService.updateColumn(column.id, columnData)
-        }
+        success('字段配置已保存')
       }
-      success('字段配置已保存')
+    } else {
+      // For existing table, use batch update API
+      const { changedTable, changedColumns } = getChangedData()
+
+      if (changedTable || changedColumns.length > 0) {
+        const result = await metadataService.batchUpdateTableAndColumns({
+          table: changedTable,
+          columns: changedColumns
+        })
+
+        if (result.error_count > 0) {
+          error(`部分保存失败：${result.error_count} 个失败，${result.success_count} 个成功`)
+          if (result.errors.length > 0) {
+            console.error('批量保存错误详情:', result.errors)
+          }
+        } else {
+          success('保存成功')
+        }
+      } else {
+        success('无变更需要保存')
+      }
+
+      tableId = editingTable.value.id
     }
 
     closeDetailModal()
     await loadTables()
   } catch (err) {
+    console.error('保存失败:', err)
     error(isNewTable.value ? '创建表失败' : '更新表失败')
   } finally {
     saving.value = false

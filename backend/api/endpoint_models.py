@@ -108,3 +108,16 @@ class ThemeTableRelationRequest(BaseModel):
     table_id: int = Field(..., description="表ID")
 
 
+class BatchUpdateRequest(BaseModel):
+    """批量更新表和字段请求"""
+    table: Dict[str, Any] = Field(default=None, description="表更新数据")
+    columns: List[Dict[str, Any]] = Field(default_factory=list, description="字段更新列表")
+
+
+class BatchUpdateResult(BaseModel):
+    """批量更新结果"""
+    success_count: int = Field(..., description="成功操作数量")
+    error_count: int = Field(..., description="失败操作数量")
+    errors: List[Dict[str, Any]] = Field(default_factory=list, description="错误详情")
+
+

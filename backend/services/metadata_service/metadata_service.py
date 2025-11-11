@@ -324,6 +324,116 @@ class MetadataService:
             logger.error(f"删除列元数据失败: {e}")
             return False
 
+    def batch_update_table_and_columns(self, table: Dict[str, Any], columns: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """批量更新表和字段元数据"""
+        try:
+            success_count = 0
+            error_count = 0
+            errors = []
+
+            # 开始事务
+            with self.db.begin():
+                # 处理表更新
+                if table:
+                    try:
+                        table_id = table.get('id')
+                        if not table_id:
+                            error_count += 1
+                            errors.append({
+                                'type': 'table',
+                                'data': table,
+                                'error': '表ID不能为空'
+                            })
+                            continue
+
+                        # 准备更新数据
+                        update_data = {}
+                        if 'comment' in table:
+                            update_data['comment'] = table['comment']
+                        if 'remark' in table:
+                            update_data['remark'] = table['remark']
+                        if 'is_available' in table:
+                            update_data['is_available'] = table['is_available']
+
+                        # 执行更新
+                        if update_data:
+                            self.table_repo.update(table_id, **update_data)
+                            success_count += 1
+                            logger.debug(f"更新表成功: ID {table_id}")
+                        else:
+                            logger.debug(f"表无更新数据: ID {table_id}")
+                            success_count += 1
+
+                    except Exception as e:
+                        error_count += 1
+                        errors.append({
+                            'type': 'table',
+                            'id': table.get('id'),
+                            'error': str(e)
+                        })
+                        logger.error(f"更新表失败: ID {table.get('id')}, 错误: {e}")
+
+                # 处理字段更新
+                for column_data in columns:
+                    try:
+                        column_id = column_data.get('id')
+                        if not column_id:
+                            error_count += 1
+                            errors.append({
+                                'type': 'column',
+                                'data': column_data,
+                                'error': '字段ID不能为空'
+                            })
+                            continue
+
+                        # 准备更新数据
+                        update_data = {}
+                        if 'name' in column_data:
+                            update_data['name'] = column_data['name']
+                        if 'type' in column_data:
+                            update_data['type'] = column_data['type']
+                        if 'comment' in column_data:
+                            update_data['comment'] = column_data['comment']
+                        if 'remark' in column_data:
+                            update_data['remark'] = column_data['remark']
+                        if 'is_available' in column_data:
+                            update_data['is_available'] = column_data['is_available']
+                        if 'business_type' in column_data:
+                            update_data['business_type'] = column_data['business_type']
+                        if 'relation_config_id' in column_data:
+                            update_data['relation_config_id'] = column_data['relation_config_id']
+
+                        # 执行更新
+                        if update_data:
+                            self.column_repo.update(column_id, **update_data)
+                            success_count += 1
+                            logger.debug(f"更新字段成功: ID {column_id}")
+                        else:
+                            logger.debug(f"字段无更新数据: ID {column_id}")
+                            success_count += 1
+
+                    except Exception as e:
+                        error_count += 1
+                        errors.append({
+                            'type': 'column',
+                            'id': column_data.get('id'),
+                            'error': str(e)
+                        })
+                        logger.error(f"更新字段失败: ID {column_data.get('id')}, 错误: {e}")
+
+            result = {
+                'success_count': success_count,
+                'error_count': error_count,
+                'errors': errors
+            }
+
+            logger.info(f"批量更新完成: 成功 {success_count}, 失败 {error_count}")
+            return result
+
+        except Exception as e:
+            logger.error(f"批量更新元数据失败: {e}")
+            raise
+
 
 class RelationFieldConfigService:
     """关联字段配置管理服务"""

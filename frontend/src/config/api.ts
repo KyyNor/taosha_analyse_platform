@@ -44,7 +44,8 @@ export const API_ENDPOINTS = {
       CREATE: '/metadata/tables',            // 创建表
       UPDATE: '/metadata/tables/:id',        // 更新表
       DELETE: '/metadata/tables/:id',        // 删除表
-      SCHEMA: '/metadata/tables/:tableName/schema'  // 获取表结构
+      SCHEMA: '/metadata/tables/:tableName/schema',  // 获取表结构
+      BATCH_UPDATE: '/metadata/table/batch'   // 批量更新表和字段
     },
 
     // 字段管理

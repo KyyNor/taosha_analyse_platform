@@ -336,6 +336,33 @@ class MetadataService {
     const response = await api.get(buildApiUrl(API_ENDPOINTS.METADATA.SEARCH, params))
     return response.data
   }
+
+  // Batch update table and columns
+  async batchUpdateTableAndColumns(data: {
+    table?: {
+      id: number
+      comment?: string
+      remark?: string
+      is_available?: number
+    }
+    columns: Array<{
+      id: number
+      name?: string
+      type?: string
+      comment?: string
+      remark?: string
+      is_available?: number
+      business_type?: string
+      relation_config_id?: number
+    }>
+  }): Promise<{
+    success_count: number
+    error_count: number
+    errors: any[]
+  }> {
+    const response = await api.put(buildApiUrl(API_ENDPOINTS.METADATA.TABLES.BATCH_UPDATE), data)
+    return response.data
+  }
 }
 
 export default new MetadataService()

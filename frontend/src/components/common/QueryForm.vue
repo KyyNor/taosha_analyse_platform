@@ -348,7 +348,8 @@ const loadThemes = async () => {
 // Load available tables
 const loadAvailableTables = async () => {
   try {
-    availableTables.value = await metadataService.getTables(undefined, true)
+    // Load tables without field information for better performance
+    availableTables.value = await metadataService.getTables(undefined, false)
   } catch (error) {
     console.error('Failed to load tables:', error)
   }

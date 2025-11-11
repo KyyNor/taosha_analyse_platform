@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from api.endpoint_models import TableMetadataRequest, TableMetadataUpdate, ColumnMetadataRequest, ColumnMetadataUpdate, \
     GlossaryTermRequest, GlossaryTermUpdate, RelationFieldConfigRequest, RelationFieldConfigUpdate, \
-    PromptTemplateRequest, PromptTemplateUpdate, DataThemeRequest, DataThemeUpdate, ThemeTableRelationRequest
+    PromptTemplateRequest, PromptTemplateUpdate, DataThemeRequest, DataThemeUpdate, ThemeTableRelationRequest, \
+    BatchUpdateRequest, BatchUpdateResult
 from models.db_base import get_db
 from services import get_metadata_service, get_glossary_service, get_relation_field_config_service, \
     get_prompt_template_service, get_data_theme_service
@@ -92,6 +93,21 @@ async def delete_table_metadata(table_id: int, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="删除表元数据失败")
     except Exception as e:
         logger.error(f"删除表元数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/table/batch")
+async def batch_update_metadata(request: BatchUpdateRequest, db: Session = Depends(get_db)):
+    """批量更新表和字段元数据"""
+    try:
+        metadata_service = get_metadata_service(db)
+        result = metadata_service.batch_update_table_and_columns(
+            table=request.table,
+            columns=request.columns
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"批量更新元数据失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
