@@ -629,25 +629,20 @@ const loadColumns = async (table?: any) => {
   if (!targetTable) return
 
   try {
-    // Get tables data with field information for the current table
-    const tables = await metadataService.getTables(true, false) // Include fields, filter by active
-    const currentTable = tables.find((t: any) => t.name === targetTable.name)
+    // Get columns directly for the target table - much more efficient!
+    const columnsData = await metadataService.getColumns(targetTable.id)
 
-    if (currentTable && (currentTable as any).columns) {
-      // Transform API response to match our component format
-      columns.value = (currentTable as any).columns.map((column: any, index: number) => ({
-        id: column.id || index + 1, // Use real column ID if available
-        name: column.name,
-        type: column.type,
-        comment: column.comment,
-        remark: column.remark,
-        businessType: column.business_type,
-        relationConfigId: column.relation_config_id,
-        isAvailable: column.is_available === undefined ? true : column.is_available === 0
-      }))
-    } else {
-      columns.value = []
-    }
+    // Transform API response to match our component format
+    columns.value = columnsData.map((column: any) => ({
+      id: column.id,
+      name: column.name,
+      type: column.type,
+      comment: column.comment,
+      remark: column.remark,
+      businessType: column.business_type,
+      relationConfigId: column.relation_config_id,
+      isAvailable: column.is_available === 0 // 0=enabled, 1=disabled
+    }))
   } catch (err) {
     error('加载字段列表失败')
   }

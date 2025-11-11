@@ -306,6 +306,31 @@ class MetadataService:
 
     # 已废弃: 使用 delete_column_by_table_id(table_id, column_name) 替代
 
+    def get_columns_by_table_id(self, table_id: int) -> List[Dict[str, Any]]:
+        """根据表ID获取所有字段"""
+        try:
+            columns = self.column_repo.get_by_table_id(table_id)
+
+            # 转换为字典格式
+            columns_list = []
+            for column in columns:
+                columns_list.append({
+                    "id": column.id,
+                    "table_id": column.table_id,
+                    "name": column.name,
+                    "type": column.type,
+                    "comment": column.comment or "",
+                    "remark": column.remark or "",
+                    "is_available": int(column.is_available or 0),
+                    "business_type": column.business_type or "",
+                    "relation_config_id": column.relation_config_id
+                })
+
+            return columns_list
+        except Exception as e:
+            logger.error(f"获取表字段失败: {e}")
+            raise
+
     def delete_column_by_table_id(self, table_id: int, column_name: str) -> bool:
         """删除列元数据（按表ID）"""
         try:

@@ -112,6 +112,34 @@ async def batch_update_metadata(request: BatchUpdateRequest, db: Session = Depen
 
 
 # 列元数据管理
+@router.get("/columns")
+async def get_columns_by_table(table_id: int, db: Session = Depends(get_db)):
+    """根据表ID获取所有字段"""
+    try:
+        metadata_service = get_metadata_service(db)
+        columns = metadata_service.get_columns_by_table_id(table_id)
+
+        # 转换为前端需要的格式
+        columns_list = []
+        for column in columns:
+            columns_list.append({
+                "id": column.id,
+                "table_id": column.table_id,
+                "name": column.name,
+                "type": column.type,
+                "comment": column.comment or "",
+                "remark": column.remark or "",
+                "is_available": int(column.is_available or 0),
+                "business_type": column.business_type or "",
+                "relation_config_id": column.relation_config_id
+            })
+
+        return {"success": True, "data": columns_list}
+    except Exception as e:
+        logger.error(f"获取字段列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/columns")
 async def add_column_metadata(request: ColumnMetadataRequest, db: Session = Depends(get_db)):
     """添加列元数据"""
