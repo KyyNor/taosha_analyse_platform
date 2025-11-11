@@ -543,7 +543,8 @@ const loadTables = async () => {
   try {
     loading.value = true
 
-    tables.value = await metadataService.getTables()
+    // Load tables without field information for better performance
+    tables.value = await metadataService.getTables(false, false)
 
     // Apply client-side search
     if (filters.search) {
@@ -628,8 +629,8 @@ const loadColumns = async (table?: any) => {
   if (!targetTable) return
 
   try {
-    // Get tables data to find the current table with its columns
-    const tables = await metadataService.getTables()
+    // Get tables data with field information for the current table
+    const tables = await metadataService.getTables(true, false) // Include fields, filter by active
     const currentTable = tables.find((t: any) => t.name === targetTable.name)
 
     if (currentTable && (currentTable as any).columns) {
