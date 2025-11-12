@@ -1126,7 +1126,7 @@ wheels = [
 
 [[package]]
 name = "langfuse"
-version = "3.8.1"
+version = "3.9.2"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
 dependencies = [
     { name = "backoff" },
@@ -1140,9 +1140,9 @@ dependencies = [
     { name = "requests" },
     { name = "wrapt" },
 ]
-sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/ca/0b/81f9c6a982f79c112b7f10bfd6f3a4871e6fa3e4fe8d078b6112abfd3c08/langfuse-3.8.1.tar.gz", hash = "sha256:2464ae3f8386d80e1252a0e7406e3be4121e792a74f1b1c21d9950f658e5168d", size = 197401, upload-time = "2025-10-22T13:35:52.572Z" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/75/6e/8c3ca648cf1640ac30021bbb18bde629b03a5c44763ed442b44083ed4a36/langfuse-3.9.2.tar.gz", hash = "sha256:4ab2c79c2309d146f207bc65603e0ca26ef540690296cebaec594c9faec899e2", size = 206089, upload-time = "2025-11-11T13:19:59.375Z" }
 wheels = [
-    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/b2/f9/538af0fc4219eb2484ba319483bce3383146f7a0923d5f39e464ad9a504b/langfuse-3.8.1-py3-none-any.whl", hash = "sha256:5b94b66ec0b0de388a8ea1f078b32c1666b5825b36eab863a21fdee78c53b3bb", size = 364580, upload-time = "2025-10-22T13:35:50.597Z" },
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/0f/9d/8a6099a271dfeda9f7cb817911c6f87fe84256762d447f11aa2f8efd5809/langfuse-3.9.2-py3-none-any.whl", hash = "sha256:9783af051ec07408b2e97548328b2218c9b7aad22e8bcc3d274fdea3d641b621", size = 374873, upload-time = "2025-11-11T13:19:57.416Z" },
 ]
 
 [[package]]
@@ -2892,7 +2892,7 @@ requires-dist = [
     { name = "jaydebeapi", specifier = ">=1.2.3" },
     { name = "langchain", specifier = ">=1.0.2" },
     { name = "langchain-openai", specifier = ">=1.0.1" },
-    { name = "langfuse", specifier = ">=3.8.1" },
+    { name = "langfuse", specifier = ">=3.9.2" },
     { name = "langgraph", specifier = ">=1.0.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "markitdown", specifier = ">=0.1.3" },

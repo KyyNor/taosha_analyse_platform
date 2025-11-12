@@ -9,6 +9,8 @@ import { api } from './client'
 // 聊天请求接口
 export interface ChatRequest {
   message: string
+  session_id?: string
+  user_id?: string
   conversation_history?: Array<{
     role: 'user' | 'assistant'
     content: string
@@ -19,12 +21,14 @@ export interface ChatRequest {
 export interface ChatResponse {
   content: string
   status: string
+  session_id?: string
 }
 
 // 流式聊天数据类型
 export interface StreamData {
   type: 'start' | 'content' | 'end' | 'error'
   content: string
+  session_id?: string  // 仅在start消息中包含
 }
 
 // 健康检查响应

@@ -14,6 +14,8 @@ export const useAgentStore = defineStore('agent', () => {
   const isProcessing = ref(false)
   const processingText = ref('正在思考中...')
   const currentResponse = ref('')
+  const currentSessionId = ref<string | null>(null)
+  const currentUserId = ref<string>('api_user')
 
   // Getters
   const conversationHistory = computed(() => {
@@ -55,6 +57,8 @@ export const useAgentStore = defineStore('agent', () => {
       // Start streaming response
       const response = await agentService.chatStream({
         message: userMessage,
+        session_id: currentSessionId.value || undefined,
+        user_id: currentUserId.value,
         conversation_history: conversationHistory.value.slice(0, -1) // Exclude current user message
       })
 
@@ -83,6 +87,10 @@ export const useAgentStore = defineStore('agent', () => {
               switch (data.type) {
                 case 'start':
                   processingText.value = '正在生成回答...'
+                  // 提取并保存session_id
+                  if (data.session_id) {
+                    currentSessionId.value = data.session_id
+                  }
                   break
                 case 'content':
                   currentResponse.value += data.content
@@ -122,6 +130,7 @@ export const useAgentStore = defineStore('agent', () => {
   const clearMessages = () => {
     messages.value = []
     currentResponse.value = ''
+    currentSessionId.value = null  // 清理session_id，下次请求将生成新的
   }
 
   const generateId = () => {
@@ -134,6 +143,8 @@ export const useAgentStore = defineStore('agent', () => {
     isProcessing,
     processingText,
     currentResponse,
+    currentSessionId,
+    currentUserId,
 
     // Getters
     conversationHistory,
