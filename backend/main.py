@@ -147,9 +147,6 @@ async def _initialize_system_services():
             else:
                 logger.error(f"元数据同步失败: {sync_result.get('error', 'Unknown error')}")
 
-        # 初始化可观测性服务（外部追踪）
-        initialize_observability()
-
         logger.info("=== 系统服务初始化完成 ===")
 
     except Exception as e:
@@ -198,8 +195,11 @@ async def lifespan(app: FastAPI):
         # 初始化异步查询服务（每个worker都需要）
         async_query_service = get_async_query_service()
         logger.info("异步查询服务初始化完成")
+        
+        # 初始化可观测性服务（外部追踪）
+        initialize_observability()
 
-        # 初始化系统服务（向量数据库训练、元数据同步、可观测服务）
+        # 初始化系统服务（向量数据库训练、元数据同步）
         # 这些服务在多worker环境下只需要运行一次
         await _initialize_system_services()
 

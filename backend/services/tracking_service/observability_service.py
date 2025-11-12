@@ -8,11 +8,12 @@ from utils.logger import logger
 
 # 全局追踪处理器实例
 _tracing_handler = None
-
+_langfuse_client = None
 
 def initialize_observability():
     """根据配置初始化追踪处理器"""
     global _tracing_handler
+    global _langfuse_client
 
     if settings.tracing_type == "langfuse":
         try:
@@ -23,10 +24,10 @@ def initialize_observability():
             os.environ["LANGFUSE_PUBLIC_KEY"] = settings.langfuse_public_key
             os.environ["LANGFUSE_SECRET_KEY"] = settings.langfuse_secret_key
             os.environ["LANGFUSE_HOST"] = settings.langfuse_host
-            langfuse = get_client()
+            _langfuse_client = get_client()
 
             # Verify connection
-            if langfuse.auth_check():
+            if _langfuse_client.auth_check():
                 logger.info("Langfuse client is authenticated and ready!")
                 _tracing_handler = CallbackHandler()
             else:
@@ -72,3 +73,7 @@ def get_tracing_handler():
         追踪处理器实例，如果未初始化或禁用则返回 None
     """
     return _tracing_handler
+
+
+def get_langfuse_client():
+    return _langfuse_client
