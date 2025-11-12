@@ -10,7 +10,8 @@ from langchain_core.runnables import RunnableConfig
 import json
 
 from langchain_core.tools import StructuredTool
-
+from langchain.agents.middleware import SummarizationMiddleware, PIIMiddleware, TodoListMiddleware
+  
 from services.llm_service.base_llm_service import BaseLLMService
 from services.agents.common_tools import get_hotboard, get_programmer_story
 from services.agents.fine_report_tools import get_report_sample, batch_filter_report_and_get_data
@@ -33,7 +34,27 @@ class AgentService:
             self.agent = create_agent(
                 model=self.llm_service.client,
                 tools=tools,
-                system_prompt="""你是一个智能助手，使用提供的工具来帮助用户回答问题。"""
+                system_prompt="""你是一个智能助手，使用提供的工具来帮助用户回答问题。""",
+                middleware=[
+                    SummarizationMiddleware(
+                        model=self.llm_service.client,
+                        max_tokens_before_summary=50000,
+                        messages_to_keep=20,
+                        summary_prompt="请你总结以上内容。"
+                    ),
+                    PIIMiddleware("credit_card", strategy="mask", apply_to_output=True),
+                    TodoListMiddleware(),
+                    # LLMToolSelectorMiddleware(
+                    #     model="gpt-4o-mini",  # Use cheaper model for selection
+                    #     max_tools=3,  # Limit to 3 most relevant tools
+                    #     always_include=["search"],  # Always include certain tools
+                    # ),
+                    # ContextEditingMiddleware(
+                    #     edits=[
+                    #         ClearToolUsesEdit(trigger=1000),  # Clear old tool uses
+                    #     ],
+                    # ),
+                ]
             )
             logger.info("Agent初始化成功")
         except Exception as e:
