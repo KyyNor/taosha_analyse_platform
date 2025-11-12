@@ -8,9 +8,11 @@ import json
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
+from langfuse import observe
 from utils.logger import logger
 
 
+@observe(name="get_hotboard")
 def get_hotboard(platform: str) -> str:
     """
     获取各大平台的热门榜单，支持bilibili、weibo、zhihu、douyin、v2ex、ithome平台
@@ -75,6 +77,7 @@ def get_hotboard(platform: str) -> str:
         return json.dumps({"error": f"获取热榜时发生错误: {str(e)}"}, ensure_ascii=False)
 
 
+@observe(name="get_programmer_story")
 def get_programmer_story() -> str:
     """
     获取程序员历史上的今天小故事
@@ -133,6 +136,7 @@ def get_programmer_story() -> str:
         return json.dumps({"error": f"获取程序员小故事时发生错误: {str(e)}"}, ensure_ascii=False)
 
 
+@observe(name="get_date_range")
 def get_date_range(range_type: str) -> str:
     """
     获取指定时间范围的日期列表

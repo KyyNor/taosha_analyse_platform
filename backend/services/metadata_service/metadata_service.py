@@ -369,25 +369,25 @@ class MetadataService:
                                 'data': table,
                                 'error': '表ID不能为空'
                             })
-                            continue
-
-                        # 准备更新数据
-                        update_data = {}
-                        if 'comment' in table:
-                            update_data['comment'] = table['comment']
-                        if 'remark' in table:
-                            update_data['remark'] = table['remark']
-                        if 'is_available' in table:
-                            update_data['is_available'] = table['is_available']
-
-                        # 执行更新
-                        if update_data:
-                            self.table_repo.update(table_id, **update_data)
-                            success_count += 1
-                            logger.debug(f"更新表成功: ID {table_id}")
+                            # 跳过表更新，继续处理字段
                         else:
-                            logger.debug(f"表无更新数据: ID {table_id}")
-                            success_count += 1
+                            # 准备更新数据
+                            update_data = {}
+                            if 'comment' in table:
+                                update_data['comment'] = table['comment']
+                            if 'remark' in table:
+                                update_data['remark'] = table['remark']
+                            if 'is_available' in table:
+                                update_data['is_available'] = table['is_available']
+
+                            # 执行更新
+                            if update_data:
+                                self.table_repo.update(table_id, **update_data)
+                                success_count += 1
+                                logger.debug(f"更新表成功: ID {table_id}")
+                            else:
+                                logger.debug(f"表无更新数据: ID {table_id}")
+                                success_count += 1
 
                     except Exception as e:
                         error_count += 1

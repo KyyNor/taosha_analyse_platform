@@ -13,6 +13,7 @@ from loguru import logger
 from markitdown import DocumentConverterResult, MarkItDown
 import pandas as pd
 
+from langfuse import observe
 from utils.config import settings
 from utils.excel_parser import ensure_download_dir
 
@@ -226,6 +227,7 @@ async def _check_fine_login(page: Page) -> bool:
         return False
 
 
+@observe(name="get_report_sample")
 async def get_report_sample(report_url: str) -> str:
     """
     获取报表样例信息，可以获取报表的控件清单和最新的页面内容，用来了解报表，为后续的batch_filter_report_and_get_data做准备
@@ -496,6 +498,7 @@ def extract_data_from_excel(excel_path: str, locators: dict) -> dict:
     return result
 
 
+@observe(name="batch_filter_report_and_get_data")
 async def batch_filter_report_and_get_data(report_url: str, control_operations: list, return_locators: dict = None) -> dict:
     """
     批量从帆软报表获取结构化数据

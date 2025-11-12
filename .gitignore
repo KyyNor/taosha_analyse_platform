@@ -115,6 +115,8 @@ backend/database/*.log
 backend/database/phoenix.*
 backend/cache/*
 
+backend/config/config.yaml
+
 # ChromaDB files
 backend/database/chromadb/
 
