@@ -7,7 +7,7 @@ import asyncio
 import json
 import uuid
 import sys
-from typing import Optional
+from typing import Optional, Dict, List, Union, Any
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from loguru import logger
 from markitdown import DocumentConverterResult, MarkItDown
@@ -16,6 +16,60 @@ import pandas as pd
 from langfuse import observe
 from utils.config import settings
 from utils.excel_parser import ensure_download_dir
+from services.agents.models.fine_report_models import ConditionalLocator, ControlOperation
+
+
+def excel_column_to_index(column: str) -> int:
+    """
+    将Excel列名转换为数字索引（从0开始）
+
+    Args:
+        column: Excel列名，如 'A'=1, 'B'=2, 'AA'=27, 'AB'=28 等
+
+    Returns:
+        int: 从0开始的列索引
+
+    Examples:
+        >>> excel_column_to_index('A')
+        0
+        >>> excel_column_to_index('AB')
+        27
+    """
+    if not column or not column.isalpha() or not column.isupper():
+        raise ValueError(f"无效的Excel列名: {column}")
+
+    result = 0
+    for char in column:
+        result = result * 26 + (ord(char) - ord('A') + 1)
+
+    return result - 1  # 转换为从0开始的索引
+
+
+def validate_excel_columns(locators: Dict[str, Any]) -> None:
+    """
+    验证定位器中的Excel列名格式
+
+    Args:
+        locators: 定位器字典
+
+    Raises:
+        ValueError: 当列名格式不正确时抛出异常
+    """
+    for key, locator in locators.items():
+        if isinstance(locator, dict):
+            # 验证find_column和return_column
+            find_column = locator.get('find_column', '')
+            return_column = locator.get('return_column', '')
+
+            if not find_column or not excel_column_to_index.__code__:
+                # 如果列名为空，让后续的Pydantic验证处理
+                continue
+
+            try:
+                excel_column_to_index(find_column)
+                excel_column_to_index(return_column)
+            except ValueError as e:
+                raise ValueError(f"定位器 '{key}' 的列名格式错误: {e}")
 
 
 # 全局异步浏览器实例（每个worker进程一个）
@@ -447,7 +501,7 @@ def _generate_markdown_report(report_url: str, widgets_result: dict, page_info: 
     return "\n".join(markdown_lines)
 
 
-def extract_data_from_excel(excel_path: str, locators: dict) -> dict:
+def extract_data_from_excel(excel_path: str, locators: Dict[str, Any]) -> Dict[str, str]:
     """
     从Excel中提取数据
 
@@ -457,87 +511,176 @@ def extract_data_from_excel(excel_path: str, locators: dict) -> dict:
 
     Returns:
         提取的数据字典
+
+    Examples:
+        >>> locators = {
+        ...     'balance': {
+        ...         'find_column': 'A',
+        ...         'find_value': '汉口银行',
+        ...         'find_value_type': 'static',
+        ...         'return_column': 'C'
+        ...     }
+        ... }
+        >>> result = extract_data_from_excel('data.xlsx', locators)
     """
     df = pd.read_excel(excel_path, header=None)
     result = {}
 
     for key, locator in locators.items():
-        if isinstance(locator, str):
-            # 固定坐标定位
-            col = locator[0].upper()
-            row = int(locator[1:]) - 1  # Excel行号从1开始，DataFrame从0开始
-            col_idx = ord(col) - ord('A')
+        if not isinstance(locator, dict):
+            logger.warning(f"定位器 '{key}' 格式不正确，已跳过。仅支持字典格式的条件查找。")
+            result[key] = ""
+            continue
 
-            if row < len(df) and col_idx < len(df.columns):
-                value = df.iloc[row, col_idx]
-                result[key] = str(value) if pd.notna(value) else ""
-            else:
+        try:
+            # 解析条件查找定位器
+            find_column = locator.get('find_column', '').upper()
+            find_value = str(locator.get('find_value', ''))
+            return_column = locator.get('return_column', '').upper()
+
+            # 验证必要的字段
+            if not find_column or not return_column:
+                logger.warning(f"定位器 '{key}' 缺少必要的列信息，已跳过")
+                result[key] = ""
+                continue
+
+            # 转换Excel列名为数字索引
+            find_col_idx = excel_column_to_index(find_column)
+            return_col_idx = excel_column_to_index(return_column)
+
+            # 验证列索引是否超出范围
+            if find_col_idx >= len(df.columns) or return_col_idx >= len(df.columns):
+                logger.warning(
+                    f"定位器 '{key}' 的列索引超出范围。"
+                    f"查找列 {find_column}({find_col_idx})，返回列 {return_column}({return_col_idx})，"
+                    f"Excel总列数: {len(df.columns)}"
+                )
+                result[key] = ""
+                continue
+
+            # 执行条件查找
+            found = False
+            for row_idx in range(len(df)):
+                cell_value = str(df.iloc[row_idx, find_col_idx])
+                if find_value in cell_value:
+                    value = df.iloc[row_idx, return_col_idx]
+                    result[key] = str(value) if pd.notna(value) else ""
+                    found = True
+                    break
+
+
+            if not found:
+                logger.info(f"定位器 '{key}' 未找到匹配的数据: 查找列={find_column}, 查找值={find_value}")
                 result[key] = ""
 
-        elif isinstance(locator, dict):
-            # 条件查找定位
-            find_col = locator['find_column'].upper()
-            find_val = locator['find_value']
-            return_col = locator['return_column'].upper()
-
-            find_col_idx = ord(find_col) - ord('A')
-            return_col_idx = ord(return_col) - ord('A')
-
-            if find_col_idx < len(df.columns) and return_col_idx < len(df.columns):
-                for row_idx in range(len(df)):
-                    cell_value = str(df.iloc[row_idx, find_col_idx])
-                    if find_val in cell_value:
-                        value = df.iloc[row_idx, return_col_idx]
-                        result[key] = str(value) if pd.notna(value) else ""
-                        break
-                else:
-                    result[key] = ""
-            else:
-                result[key] = ""
+        except ValueError as e:
+            logger.error(f"定位器 '{key}' 列名格式错误: {e}")
+            result[key] = ""
+        except Exception as e:
+            logger.error(f"处理定位器 '{key}' 时发生未知错误: {e}", exc_info=True)
+            result[key] = ""
 
     return result
 
 
 @observe(name="batch_filter_report_and_get_data")
-async def batch_filter_report_and_get_data(report_url: str, control_operations: list, return_locators: dict = None) -> dict:
+async def batch_filter_report_and_get_data(report_url: str, control_operations: List[Dict[str, Any]], return_locators: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     批量从帆软报表获取结构化数据
 
     Args:
         report_url: FineReport报表的完整URL
-        control_operations: 控件操作列表，value为数组格式，如 [{'type': '控件类型', 'name': '控件名称', 'value': ['控件新值1', '控件新值1']}, ...]
-        return_locators: 返回数据定位器，格式 直接返回固定单元格(常用): {'key': 'A5'} 、 按固定值查找返回(类似vlookup)：{'key': {'find_column': '查找的列(如A)', 'find_value': '查找的固定值(如汉口支行)', 'return_column': '返回的列(如C)'}}
+        control_operations: 控件操作列表，value为数组格式，如 [{'type': 'text', 'name': '控件名称', 'value': ['控件值1', '控件值2']}, ...]
+        return_locators: 返回数据定位器，支持以下格式：
+            - 静态查找：{'key': {'find_column': 'A', 'find_value': '汉口银行', 'find_value_type': 'static', 'return_column': 'C'}}
+            - 动态查找：{'key': {'find_column': 'A', 'find_value': '控件名', 'find_value_type': 'dynamic', 'return_column': 'C'}}
+            其中find_column和return_column只能传Excel列名字母（如A、B、AA等）
 
     Returns:
         包含所有批次结果的字典
+
+    Examples:
+        >>> # 静态查找示例
+        >>> result = await batch_filter_report_and_get_data(
+        ...     "http://example.com/report",
+        ...     [],
+        ...     {
+        ...         'bank_balance': {
+        ...             'find_column': 'A',
+        ...             'find_value': '汉口银行',
+        ...             'find_value_type': 'static',
+        ...             'return_column': 'C'
+        ...         }
+        ...     }
+        ... )
+        >>>
+        >>> # 动态查找示例
+        >>> result = await batch_filter_report_and_get_data(
+        ...     "http://example.com/report",
+        ...     [{'type': 'text', 'name': 'acct_no', 'value': ['1150032', '224801']}],
+        ...     {
+        ...         'account_balance': {
+        ...             'find_column': 'A',
+        ...             'find_value': 'acct_no',  # 引用控件名
+        ...             'find_value_type': 'dynamic',
+        ...             'return_column': 'C'
+        ...         }
+        ...     }
+        ... )
     """
-    
-    # todo 按相对值查找返回：{'key': {'find_column': '查找的列(如A)', 'find_value': 'w:acct_no(按control_operations中控件名为acct_no的值来查找)', 'return_column': '返回的列(如C)'}}
     logger.info(f"开始异步批量处理控件操作: {report_url}")
     logger.info(f"控件操作列表: {json.dumps(control_operations, ensure_ascii=False)}")
     logger.info(f"返回数据定位器: {json.dumps(return_locators, ensure_ascii=False)}")
 
+    # 验证输入参数
+    if not report_url:
+        raise ValueError("report_url 不能为空")
+
+    if not isinstance(control_operations, list):
+        raise ValueError("control_operations 必须是列表格式")
+
+    if return_locators and not isinstance(return_locators, dict):
+        raise ValueError("return_locators 必须是字典格式")
+
+    # 使用Pydantic模型进行参数验证
+    try:
+        from services.agents.models.fine_report_models import FilterReportRequest
+        request_model = FilterReportRequest(
+            report_url=report_url,
+            control_operations=control_operations,
+            return_locators=return_locators or {}
+        )
+        logger.info("参数验证通过")
+    except Exception as e:
+        logger.warning(f"参数验证失败，但继续执行: {e}")
+
     # 第一步：获取共享的BrowserContext
     context = await get_async_browser_context()
 
-    # 第二步：解析所有可能的值组合
-    value_combinations = _generate_value_combinations(control_operations)
-    total_combinations = len(value_combinations)
-    logger.info(f"生成 {total_combinations} 个值组合")
+    # 第二步：生成控件操作组合并预解析动态查找值
+    combinations_data = _generate_value_combinations_with_parsing(control_operations, return_locators)
+    control_combinations = combinations_data['control_combinations']
+    locator_combinations = combinations_data['locator_combinations']
+
+    total_combinations = len(control_combinations)
+    logger.info(f"生成 {total_combinations} 个值组合，已预解析动态查找值")
 
     # 第三步：创建并发任务（每个组合创建独立的Page），限制最大并发数为5
     semaphore = asyncio.Semaphore(5)
 
-    async def limited_execute_task(combination, task_return_name):
+    async def limited_execute_task(control_combo, locator_combo, task_return_name):
         """限制并发数的任务执行函数"""
         async with semaphore:
-            return await _filter_report_and_get_data_async(context, report_url, combination, return_locators, task_return_name)
+            return await _filter_report_and_get_data_async(
+                context, report_url, control_combo, locator_combo, task_return_name
+            )
 
     tasks = []
-    for i, combination in enumerate(value_combinations):
-        return_name = "_".join([str(op['value']) for op in combination])
-        # 创建带并发限制的异步任务，传入共享context
-        task = limited_execute_task(combination, return_name)
+    for i, control_combo in enumerate(control_combinations):
+        locator_combo = locator_combinations[i]
+        return_name = "_".join([str(op['value']) for op in control_combo])
+        # 创建带并发限制的异步任务，传入共享context和解析后的定位器
+        task = limited_execute_task(control_combo, locator_combo, return_name)
         tasks.append(task)
 
     # 第四步：并发执行所有任务（最大并发数限制为5）
@@ -546,61 +689,147 @@ async def batch_filter_report_and_get_data(report_url: str, control_operations: 
 
     # 第五步：整理结果
     final_result = {}
+    success_count = 0
     for i, result in enumerate(results):
         if isinstance(result, Exception):
             logger.error(f"组合 {i + 1} 执行失败: {result}")
             continue
         if isinstance(result, dict):
             final_result.update(result)
+            success_count += 1
 
-    logger.info(f"异步批量处理完成，成功处理 {len(final_result)} 个结果")
+    logger.info(f"异步批量处理完成，成功处理 {success_count}/{total_combinations} 个结果")
     return final_result
 
 
-def _generate_value_combinations(control_operations: list) -> list:
+def _generate_value_combinations_with_parsing(control_operations: List[Dict[str, Any]], return_locators: Optional[Dict[str, Any]] = None) -> Dict[str, List[Dict[str, Any]]]:
     """
-    生成所有可能的控件操作值组合
+    生成控件操作值组合并预解析动态查找值
 
     Args:
-        control_operations: 控件操作列表，value为数组
+        control_operations: 控件操作列表
+        return_locators: 返回数据定位器字典，支持动态值引用
 
     Returns:
-        所有值组合的列表
+        dict: {
+            'control_combinations': list,  # 控件操作组合列表
+            'locator_combinations': list   # 解析后的定位器组合列表
+        }
+
+    Examples:
+        >>> control_operations = [{'type': 'text', 'name': 'acct_no', 'value': ['1150032', '224801']}]
+        >>> return_locators = {
+        ...     'balance': {
+        ...         'find_column': 'A',
+        ...         'find_value': 'acct_no',
+        ...         'find_value_type': 'dynamic',
+        ...         'return_column': 'C'
+        ...     }
+        ... }
+        >>> result = _generate_value_combinations_with_parsing(control_operations, return_locators)
     """
+    # 1. 生成控件操作组合
     if not control_operations:
-        return []
+        control_combinations = [[]]  # 一个空组合
+    else:
+        # 转换每个操作的value为数组
+        normalized_ops = []
+        for op in control_operations:
+            if isinstance(op.get('value'), list):
+                values = op['value']
+            else:
+                values = [op.get('value', '')]
 
-    # 转换每个操作的value为数组
-    normalized_ops = []
-    for op in control_operations:
-        if isinstance(op.get('value'), list):
-            values = op['value']
-        else:
-            values = [op.get('value', '')]
-
-        normalized_ops.append({
-            'type': op.get('type', 'text'),
-            'name': op.get('name'),
-            'values': values
-        })
-
-    # 生成所有组合
-    from itertools import product
-
-    combination_values = list(product(*[op['values'] for op in normalized_ops]))
-
-    combinations = []
-    for values in combination_values:
-        combination = []
-        for i, op in enumerate(normalized_ops):
-            combination.append({
-                'type': op['type'],
-                'name': op['name'],
-                'value': values[i]
+            normalized_ops.append({
+                'type': op.get('type', 'text'),
+                'name': op.get('name'),
+                'values': values
             })
-        combinations.append(combination)
 
-    return combinations
+        # 生成所有组合
+        from itertools import product
+        combination_values = list(product(*[op['values'] for op in normalized_ops]))
+
+        control_combinations = []
+        for values in combination_values:
+            combination = []
+            for i, op in enumerate(normalized_ops):
+                combination.append({
+                    'type': op['type'],
+                    'name': op['name'],
+                    'value': values[i]
+                })
+            control_combinations.append(combination)
+
+    # 2. 生成解析后的定位器组合
+    if not return_locators:
+        # 如果没有定位器，返回空定位器组合
+        locator_combinations = [{}] * len(control_combinations)
+    else:
+        locator_combinations = []
+
+        for control_combo in control_combinations:
+            # 建立控件名到值的映射
+            control_value_map = {}
+            for op in control_combo:
+                control_value_map[op['name']] = str(op['value'])
+
+            # 解析当前组合对应的定位器
+            parsed_locators = {}
+
+            for key, locator in return_locators.items():
+                if not isinstance(locator, dict):
+                    # 如果不是字典格式，保持原样（向后兼容）
+                    logger.warning(f"定位器 '{key}' 不是字典格式，已跳过。建议使用条件查找格式。")
+                    parsed_locators[key] = locator
+                    continue
+
+                try:
+                    find_column = locator.get('find_column', '').upper()
+                    find_value = str(locator.get('find_value', ''))
+                    find_value_type = locator.get('find_value_type', 'static')
+                    return_column = locator.get('return_column', '').upper()
+
+                    # 验证必要的字段
+                    if not find_column or not return_column:
+                        logger.warning(f"定位器 '{key}' 缺少必要的列信息，已跳过")
+                        parsed_locators[key] = ""
+                        continue
+
+                    # 解析动态查找值
+                    if find_value_type == 'dynamic':
+                        # 动态值：从控件映射中获取实际值
+                        actual_value = control_value_map.get(find_value, '')
+                        if not actual_value:
+                            logger.warning(f"定位器 '{key}' 引用的控件 '{find_value}' 未找到对应值")
+                            actual_value = ""
+
+                        # 构造解析后的定位器（静态值）
+                        parsed_locators[key] = {
+                            'find_column': find_column,
+                            'find_value': actual_value,
+                            'find_value_type': 'static',  # 解析后都为静态
+                            'return_column': return_column
+                        }
+                    else:
+                        # 静态值：直接使用原值
+                        parsed_locators[key] = {
+                            'find_column': find_column,
+                            'find_value': find_value,
+                            'find_value_type': 'static',
+                            'return_column': return_column
+                        }
+
+                except Exception as e:
+                    logger.error(f"解析定位器 '{key}' 时发生错误: {e}", exc_info=True)
+                    parsed_locators[key] = ""
+
+            locator_combinations.append(parsed_locators)
+
+    return {
+        'control_combinations': control_combinations,
+        'locator_combinations': locator_combinations
+    }
 
 
 # 导出给Agent使用的工具函数（主要使用异步版本）
