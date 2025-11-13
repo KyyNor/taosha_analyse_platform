@@ -594,28 +594,28 @@ async def batch_filter_report_and_get_data(report_url: str, control_operations: 
 
     # 第二步：生成控件操作组合并预解析动态查找值
     combinations_data = _generate_value_combinations_with_parsing(control_operations, return_locators)
-    control_combinations = combinations_data['control_combinations']
-    locator_combinations = combinations_data['locator_combinations']
 
-    total_combinations = len(control_combinations)
+    total_combinations = len(combinations_data)
     logger.info(f"生成 {total_combinations} 个值组合，已预解析动态查找值")
 
     # 第三步：创建并发任务（每个组合创建独立的Page），限制最大并发数为5
     semaphore = asyncio.Semaphore(5)
 
-    async def limited_execute_task(control_combo, locator_combo, task_return_name):
+    async def limited_execute_task(combination, task_return_name):
         """限制并发数的任务执行函数"""
         async with semaphore:
             return await _filter_report_and_get_data_async(
-                context, report_url, control_combo, locator_combo, task_return_name
+                context, report_url,
+                combination['control_operations'],
+                combination['return_locators'],
+                task_return_name
             )
 
     tasks = []
-    for i, control_combo in enumerate(control_combinations):
-        locator_combo = locator_combinations[i]
-        return_name = "_".join([str(op['value']) for op in control_combo])
+    for combination in combinations_data:
+        return_name = "_".join([str(op['value']) for op in combination['control_operations']])
         # 创建带并发限制的异步任务，传入共享context和解析后的定位器
-        task = limited_execute_task(control_combo, locator_combo, return_name)
+        task = limited_execute_task(combination, return_name)
         tasks.append(task)
 
     # 第四步：并发执行所有任务（最大并发数限制为5）
@@ -637,7 +637,7 @@ async def batch_filter_report_and_get_data(report_url: str, control_operations: 
     return final_result
 
 
-def _generate_value_combinations_with_parsing(control_operations: List[Dict[str, Any]], return_locators: Optional[Dict[str, Any]] = None) -> Dict[str, List[Dict[str, Any]]]:
+def _generate_value_combinations_with_parsing(control_operations: List[Dict[str, Any]], return_locators: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """
     生成控件操作值组合并预解析动态查找值
 
@@ -646,22 +646,24 @@ def _generate_value_combinations_with_parsing(control_operations: List[Dict[str,
         return_locators: 返回数据定位器字典，支持动态值引用
 
     Returns:
-        dict: {
-            'control_combinations': list,  # 控件操作组合列表
-            'locator_combinations': list   # 解析后的定位器组合列表
-        }
+        list: 组合列表，每个元素包含:
+            - control_operations: 控件操作组合
+            - return_locators: 解析后的定位器组合
 
     Examples:
-        >>> control_operations = [{'type': 'text', 'name': 'acct_no', 'value': ['1150032', '224801']}]
-        >>> return_locators = {
-        ...     'balance': {
-        ...         'find_column': 'A',
-        ...         'find_value': 'acct_no',
-        ...         'find_value_type': 'dynamic',
-        ...         'return_column': 'C'
-        ...     }
-        ... }
+        >>> control_operations = [{'type': 'text', 'name': 'acct_no', 'value': ['控件值1', '控件值2']}]
+        >>> return_locators = {'key': {'find_column': 'A', 'find_value': 'acct_no', 'find_value_type': 'dynamic', 'return_column': 'C'}}
         >>> result = _generate_value_combinations_with_parsing(control_operations, return_locators)
+        # 返回: [
+        #   {
+        #     'control_operations': [{'type': 'text', 'name': 'acct_no', 'value': '控件值1'}],
+        #     'return_locators': {'key': {'find_column': 'A', 'find_value': '控件值1', 'find_value_type': 'static', 'return_column': 'C'}}
+        #   },
+        #   {
+        #     'control_operations': [{'type': 'text', 'name': 'acct_no', 'value': '控件值2'}],
+        #     'return_locators': {'key': {'find_column': 'A', 'find_value': '控件值2', 'find_value_type': 'static', 'return_column': 'C'}}
+        #   }
+        # ]
     """
     # 1. 生成控件操作组合
     if not control_operations:
@@ -696,22 +698,19 @@ def _generate_value_combinations_with_parsing(control_operations: List[Dict[str,
                 })
             control_combinations.append(combination)
 
-    # 2. 生成解析后的定位器组合
-    if not return_locators:
-        # 如果没有定位器，返回空定位器组合
-        locator_combinations = [{}] * len(control_combinations)
-    else:
-        locator_combinations = []
+    # 2. 生成组合列表，每个元素包含控件操作和解析后的定位器
+    result_combinations = []
 
-        for control_combo in control_combinations:
-            # 建立控件名到值的映射
-            control_value_map = {}
-            for op in control_combo:
-                control_value_map[op['name']] = str(op['value'])
+    for control_combo in control_combinations:
+        # 建立控件名到值的映射
+        control_value_map = {}
+        for op in control_combo:
+            control_value_map[op['name']] = str(op['value'])
 
-            # 解析当前组合对应的定位器
-            parsed_locators = {}
+        # 解析当前组合对应的定位器
+        parsed_locators = {}
 
+        if return_locators:
             for key, locator in return_locators.items():
                 if not isinstance(locator, dict):
                     # 如果不是字典格式，保持原样（向后兼容）
@@ -759,12 +758,13 @@ def _generate_value_combinations_with_parsing(control_operations: List[Dict[str,
                     logger.error(f"解析定位器 '{key}' 时发生错误: {e}", exc_info=True)
                     parsed_locators[key] = ""
 
-            locator_combinations.append(parsed_locators)
+        # 添加到结果组合列表
+        result_combinations.append({
+            'control_operations': control_combo,
+            'return_locators': parsed_locators
+        })
 
-    return {
-        'control_combinations': control_combinations,
-        'locator_combinations': locator_combinations
-    }
+    return result_combinations
 
 
 # 导出给Agent使用的工具函数（主要使用异步版本）
