@@ -86,11 +86,11 @@ class FilterReportRequest(BaseModel):
         ...,
         description="FineReport报表的完整URL"
     )
-    control_operations: list = Field(
+    control_operations: list[ControlOperation] = Field(
         ...,
         description="控件操作列表"
     )
-    return_locators: Union[ExcelLocatorDict, Dict] = Field(
+    return_locators: ExcelLocatorDict = Field(
         default=None,
         description="返回数据定位器字典"
     )
@@ -100,18 +100,3 @@ class FilterReportRequest(BaseModel):
         extra = "forbid"
         use_enum_values = True
 
-
-# Excel列名验证函数
-def validate_excel_column(column: str) -> bool:
-    """
-    验证Excel列名格式是否正确
-
-    Args:
-        column: Excel列名（如A、B、AA等）
-
-    Returns:
-        bool: 是否为有效的Excel列名
-    """
-    if not column or not column.isalpha() or not column.isupper():
-        return False
-    return True

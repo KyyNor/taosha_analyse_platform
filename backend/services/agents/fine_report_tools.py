@@ -16,7 +16,8 @@ import pandas as pd
 from langfuse import observe
 from utils.config import settings
 from utils.excel_parser import ensure_download_dir
-from services.agents.models.fine_report_models import ConditionalLocator, ControlOperation
+from services.agents.models.fine_report_models import ConditionalLocator, ControlOperation, FilterReportRequest
+from langchain.tools import tool
 
 
 def excel_column_to_index(column: str) -> int:
@@ -43,33 +44,6 @@ def excel_column_to_index(column: str) -> int:
         result = result * 26 + (ord(char) - ord('A') + 1)
 
     return result - 1  # 转换为从0开始的索引
-
-
-def validate_excel_columns(locators: Dict[str, Any]) -> None:
-    """
-    验证定位器中的Excel列名格式
-
-    Args:
-        locators: 定位器字典
-
-    Raises:
-        ValueError: 当列名格式不正确时抛出异常
-    """
-    for key, locator in locators.items():
-        if isinstance(locator, dict):
-            # 验证find_column和return_column
-            find_column = locator.get('find_column', '')
-            return_column = locator.get('return_column', '')
-
-            if not find_column or not excel_column_to_index.__code__:
-                # 如果列名为空，让后续的Pydantic验证处理
-                continue
-
-            try:
-                excel_column_to_index(find_column)
-                excel_column_to_index(return_column)
-            except ValueError as e:
-                raise ValueError(f"定位器 '{key}' 的列名格式错误: {e}")
 
 
 # 全局异步浏览器实例（每个worker进程一个）
@@ -171,25 +145,6 @@ async def cleanup_async_browser():
         except Exception as e:
             logger.warning(f"关闭异步浏览器实例失败: {e}")
         _async_browser = None
-
-
-def _cleanup_browser_sync():
-    """同步清理浏览器"""
-    global _browser_instance
-    if _browser_instance:
-        try:
-            logger.info("关闭 Playwright 浏览器实例")
-            _browser_instance.close()
-            _browser_instance = None
-            logger.info("Playwright 浏览器实例已关闭")
-        except Exception as e:
-            logger.warning(f"关闭浏览器实例失败: {e}")
-            _browser_instance = None
-
-
-async def _cleanup_browser():
-    """清理 Browser 实例（在线程池中运行）"""
-    await asyncio.to_thread(_cleanup_browser_sync)
 
 
 async def _download_excel(page: Page) -> str:
@@ -384,6 +339,33 @@ async def get_report_sample(report_url: str) -> str:
                 logger.warning(f"关闭页面失败: {e}")
 
 
+
+def _generate_markdown_report(report_url: str, widgets_result: dict, page_info: DocumentConverterResult) -> str:
+    """生成Markdown格式的抽样报告"""
+
+    # 添加控件信息
+    df = pd.DataFrame(widgets_result.get('widgets'))
+    widgets_result_table = df.to_markdown(index=False)
+
+    markdown_lines = [
+        "# FineReport报表抽样信息",
+        "",
+        "## 基本信息",
+        f"- **报表URL**: {report_url}",
+        "",
+        "- **控件信息**：",
+        "",
+        f"{widgets_result_table}",
+        "",
+        "- **页面信息**：",
+        "",
+        f"{page_info}"
+    ]
+
+    return "\n".join(markdown_lines)
+
+
+
 async def _filter_report_and_get_data_async(context: BrowserContext, report_url: str, control_operations: list, return_locators: dict = None, return_name: str = None) -> dict:
     """
     异步执行FineReport报表的控件操作，并返回数据内容
@@ -475,32 +457,6 @@ async def _filter_report_and_get_data_async(context: BrowserContext, report_url:
             except Exception as e:
                 logger.warning(f"关闭页面失败: {e}")
 
-
-def _generate_markdown_report(report_url: str, widgets_result: dict, page_info: DocumentConverterResult) -> str:
-    """生成Markdown格式的抽样报告"""
-
-    # 添加控件信息
-    df = pd.DataFrame(widgets_result.get('widgets'))
-    widgets_result_table = df.to_markdown(index=False)
-
-    markdown_lines = [
-        "# FineReport报表抽样信息",
-        "",
-        "## 基本信息",
-        f"- **报表URL**: {report_url}",
-        "",
-        "- **控件信息**：",
-        "",
-        f"{widgets_result_table}",
-        "",
-        "- **页面信息**：",
-        "",
-        f"{page_info}"
-    ]
-
-    return "\n".join(markdown_lines)
-
-
 def extract_data_from_excel(excel_path: str, locators: Dict[str, Any]) -> Dict[str, str]:
     """
     从Excel中提取数据
@@ -584,6 +540,7 @@ def extract_data_from_excel(excel_path: str, locators: Dict[str, Any]) -> Dict[s
 
 
 @observe(name="batch_filter_report_and_get_data")
+@tool(args_schema=FilterReportRequest)
 async def batch_filter_report_and_get_data(report_url: str, control_operations: List[Dict[str, Any]], return_locators: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     批量从帆软报表获取结构化数据
@@ -631,28 +588,6 @@ async def batch_filter_report_and_get_data(report_url: str, control_operations: 
     logger.info(f"开始异步批量处理控件操作: {report_url}")
     logger.info(f"控件操作列表: {json.dumps(control_operations, ensure_ascii=False)}")
     logger.info(f"返回数据定位器: {json.dumps(return_locators, ensure_ascii=False)}")
-
-    # 验证输入参数
-    if not report_url:
-        raise ValueError("report_url 不能为空")
-
-    if not isinstance(control_operations, list):
-        raise ValueError("control_operations 必须是列表格式")
-
-    if return_locators and not isinstance(return_locators, dict):
-        raise ValueError("return_locators 必须是字典格式")
-
-    # 使用Pydantic模型进行参数验证
-    try:
-        from services.agents.models.fine_report_models import FilterReportRequest
-        request_model = FilterReportRequest(
-            report_url=report_url,
-            control_operations=control_operations,
-            return_locators=return_locators or {}
-        )
-        logger.info("参数验证通过")
-    except Exception as e:
-        logger.warning(f"参数验证失败，但继续执行: {e}")
 
     # 第一步：获取共享的BrowserContext
     context = await get_async_browser_context()
