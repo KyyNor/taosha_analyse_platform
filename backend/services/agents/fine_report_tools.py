@@ -5,6 +5,7 @@ FineReport工具包
 import os
 import asyncio
 import json
+from pathlib import Path
 import uuid
 import sys
 from typing import Optional, Dict, List, Union, Any
@@ -264,7 +265,7 @@ async def get_report_sample(report_url: str) -> str:
 
         # 等待页面加载完成
         await page.wait_for_load_state('networkidle')
-        await page.wait_for_timeout(500)
+        await page.wait_for_timeout(2000)
 
         # 检查登录状态
         await _check_fine_login(page)
@@ -325,7 +326,10 @@ async def get_report_sample(report_url: str) -> str:
     except Exception as e:
         logger.error(f"获取报表抽样信息时发生错误: {e}")
         try:
-            await page.screenshot(path=settings.fine_report_browser_screenshot_path)
+            screenshot_bytes = await page.screenshot()
+            output_screenshot_path = f"{settings.fine_report_browser_screenshot_path}{os.sep}report_{uuid.uuid4().hex[:8]}.png"
+            await Path(output_screenshot_path).write_bytes(screenshot_bytes)
+            logger.warning(f"已保存错误截图:{output_screenshot_path}")
         except Exception as e:
             pass
         return f"# 错误\n获取报表抽样信息失败: {str(e)}"
@@ -392,7 +396,7 @@ async def _filter_report_and_get_data_async(context: BrowserContext, report_url:
         # 访问报表URL并等待加载完成
         await page.goto(report_url, wait_until="networkidle")
         await page.wait_for_load_state('networkidle')
-        await page.wait_for_timeout(500)
+        await page.wait_for_timeout(2000)
         logger.info(f"已访问报表页面: {report_url}")
 
         # 执行控件操作（无需检查登录，因为context已共享登录会话）
@@ -445,7 +449,10 @@ async def _filter_report_and_get_data_async(context: BrowserContext, report_url:
     except Exception as e:
         logger.error(f"异步执行控件操作时发生错误: {e}")
         try:
-            await page.screenshot(path=settings.fine_report_browser_screenshot_path)
+            screenshot_bytes = await page.screenshot()
+            output_screenshot_path = f"{settings.fine_report_browser_screenshot_path}{os.sep}report_{uuid.uuid4().hex[:8]}.png"
+            await Path(output_screenshot_path).write_bytes(screenshot_bytes)
+            logger.warning(f"已保存错误截图:{output_screenshot_path}")
         except Exception as e:
             pass
         return {"error": f"# 错误\n执行控件操作失败: {str(e)}"}
@@ -540,8 +547,7 @@ def extract_data_from_excel(excel_path: str, locators: Dict[str, Any]) -> Dict[s
 
 
 @observe(name="batch_filter_report_and_get_data")
-@tool(args_schema=FilterReportRequest)
-async def batch_filter_report_and_get_data(report_url: str, control_operations: List[Dict[str, Any]], return_locators: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+async def _batch_filter_report_and_get_data_async(report_url: str, control_operations: List[Dict[str, Any]], return_locators: Dict[str, Any] = None) -> Dict[str, Any]:
     """
     批量从帆软报表获取结构化数据
 
@@ -586,8 +592,8 @@ async def batch_filter_report_and_get_data(report_url: str, control_operations: 
         ... )
     """
     logger.info(f"开始异步批量处理控件操作: {report_url}")
-    logger.info(f"控件操作列表: {json.dumps(control_operations, ensure_ascii=False)}")
-    logger.info(f"返回数据定位器: {json.dumps(return_locators, ensure_ascii=False)}")
+    logger.info(f"控件操作列表: {json.dumps([c.model_dump() for c in control_operations], indent=2, ensure_ascii=False)}")
+    logger.info(f"返回数据定位器: {json.dumps(return_locators.model_dump(), indent=2, ensure_ascii=False)}")
 
     # 第一步：获取共享的BrowserContext
     context = await get_async_browser_context()
@@ -637,7 +643,40 @@ async def batch_filter_report_and_get_data(report_url: str, control_operations: 
     return final_result
 
 
-def _generate_value_combinations_with_parsing(control_operations: List[Dict[str, Any]], return_locators: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+@tool(args_schema=FilterReportRequest)
+def batch_filter_report_and_get_data(report_url: str, control_operations: List[Dict[str, Any]], return_locators: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    批量从帆软报表获取结构化数据
+
+    Args:
+        report_url: FineReport报表的完整URL
+        control_operations: 控件操作列表，value为数组格式，如 [{'type': 'text', 'name': '控件名称', 'value': ['控件值1', '控件值2']}, ...]
+        return_locators: 返回数据定位器，支持以下格式：
+            - 静态查找：{'key': {'find_column': 'A', 'find_value': '汉口银行', 'find_value_type': 'static', 'return_column': 'C'}}
+            - 动态查找：{'key': {'find_column': 'A', 'find_value': '控件名', 'find_value_type': 'dynamic', 'return_column': 'C'}}
+            其中find_column和return_column只能传Excel列名字母（如A、B、AA等）
+
+    Returns:
+        包含所有批次结果的字典
+    """
+    import asyncio
+
+    # 获取或创建事件循环
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    # 运行异步函数
+    return loop.run_until_complete(
+        _batch_filter_report_and_get_data_async(
+            report_url, control_operations, return_locators
+        )
+    )
+
+
+def _generate_value_combinations_with_parsing(control_operations: List[Dict[str, Any]], return_locators: Dict[str, Any] = None) -> List[Dict[str, Any]]:
     """
     生成控件操作值组合并预解析动态查找值
 

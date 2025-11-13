@@ -4,7 +4,7 @@ FineReport工具Pydantic模型定义
 """
 
 from typing import Dict, Literal, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, RootModel
 
 
 class ConditionalLocator(BaseModel):
@@ -37,21 +37,15 @@ class ConditionalLocator(BaseModel):
         use_enum_values = True
 
 
-class ExcelLocatorDict(BaseModel):
+class ExcelLocatorDict(RootModel[Dict[str, ConditionalLocator]]):
     """
     Excel数据定位器字典
     支持多个数据字段的定位配置
     """
-    __root__: Dict[str, ConditionalLocator]
 
     def get_dict(self) -> Dict[str, ConditionalLocator]:
         """获取字典格式数据"""
-        return self.__root__
-
-    class Config:
-        """Pydantic配置"""
-        extra = "forbid"
-        use_enum_values = True
+        return self.root
 
 
 class ControlOperation(BaseModel):
