@@ -66,7 +66,7 @@ class AgentService:
             logger.error(f"Agent初始化失败: {e}")
             raise
 
-    @observe("agent_chat_stream")
+    @observe(name="agent_chat_stream")
     async def chat_stream(self, message: str, session_id: str, user_id: str, conversation_history: list = None) -> AsyncGenerator[str, None]:
         """
         流式对话接口

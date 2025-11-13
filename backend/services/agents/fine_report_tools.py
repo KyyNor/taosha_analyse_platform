@@ -392,7 +392,7 @@ async def _filter_report_and_get_data_async(context: BrowserContext, report_url:
             logger.info("下载Excel并提取数据")
 
             # 内联异步下载Excel逻辑
-            file_path = _download_excel(page)
+            file_path = await _download_excel(page)
 
             if file_path:
                 extracted_data = extract_data_from_excel(file_path, return_locators)

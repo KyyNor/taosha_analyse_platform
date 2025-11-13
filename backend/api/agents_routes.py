@@ -56,8 +56,13 @@ async def chat_endpoint(request: ChatRequest) -> ChatResponse:
         langfuse_client = get_langfuse_client()
 
         
-        with langfuse_client.start_as_current_span(name="api_chat"):
+        with langfuse_client.start_as_current_span(name="api_chat") as span:
             with propagate_attributes(user_id=user_id, session_id=session_id):
+                span.update_trace(
+                    user_id=user_id,
+                    session_id=session_id,
+                    input=request.message
+                )
                 async for chunk in agent_service.chat_stream(
                     message=request.message,
                     session_id=session_id,
@@ -65,6 +70,9 @@ async def chat_endpoint(request: ChatRequest) -> ChatResponse:
                     conversation_history=request.conversation_history
                 ):
                     response_content += chunk
+                    
+                span.update(output={"response": ''.join(response_content)})
+
 
         return ChatResponse(content=response_content, session_id=session_id)
 
@@ -98,10 +106,15 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
             yield f"data: {json.dumps({'type': 'start', 'content': '', 'session_id': session_id})}\n\n"
 
             langfuse_client = get_langfuse_client()
-
+            output_collected = [] 
             
-            with langfuse_client.start_as_current_span(name="api_chat_stream"):
+            with langfuse_client.start_as_current_span(name="api_chat_stream") as span:
                 with propagate_attributes(user_id=user_id, session_id=session_id):
+                    span.update_trace(
+                        user_id=user_id,
+                        session_id=session_id,
+                        input=request.message
+                    )
                     # 流式发送Agent响应
                     async for chunk in agent_service.chat_stream(
                         message=request.message,
@@ -109,12 +122,15 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                         user_id=user_id,
                         conversation_history=request.conversation_history
                     ):
+                        output_collected.append(chunk)
                         # 发送数据块
                         data = {
                             "type": "content",
                             "content": chunk
                         }
                         yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+                    
+                    span.update(output={"response": ''.join(output_collected)})
 
             # 发送结束标记
             yield f"data: {json.dumps({'type': 'end', 'content': ''})}\n\n"
