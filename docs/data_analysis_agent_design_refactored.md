@@ -65,6 +65,12 @@
 
 **开发计划**：
 
+- 数据分析工具集（优先级：P0）
+- 多模态信息检索（优先级：P0）
+- 报表元数据配置管理（优先级：P0）
+- Generative UI - 动态可视化组件（优先级：P1） **难点**
+- 会话管理与历史记录（优先级：P0） **难点**
+
 ---
 
 ### 3.2 数据分析工具集（优先级：P0）
@@ -273,6 +279,11 @@ CREATE TABLE query_results (
 - 自动化的定时报表和监控能力
 
 **开发计划**：
+- 意图识别与路由决策（优先级：P0）
+- DeepAgent工作流（优先级：P1） **难点**
+- 收藏功能（优先级：P2）**难点**
+- 数据导出与分享（优先级：P2）
+- 定时报表任务（优先级：P2）
 
 ---
 
@@ -615,4 +626,556 @@ CREATE TABLE task_executions (
     execution_time INTEGER,
     created_at TIMESTAMP
 );
+```
+
+---
+
+## 11. 多源数据分析收藏功能详细设计
+
+### 11.1 功能场景描述
+
+**典型使用场景**：用户想查看某个机构最近12个月存款余额、活期存款日均、贷款余额的趋势图，完成分析后希望收藏。这些数据来自三张不同的报表表，需要调用3次工具获取结果，然后整合成一个趋势图展示。
+
+**核心挑战**：
+- 多数据源的数据整合和标准化
+- Generative UI的代码化和可复用性
+- 收藏时的参数提取和模板化
+- 执行时的工具链路复现和智能图表生成
+
+### 11.2 推荐方案：混合模式 - 数据整合 + 智能图表配置
+
+**核心思路**：
+1. **数据获取固化** - 3个报表查询工具调用完全固定
+2. **数据整合标准化** - 使用预定义的数据整合模式
+3. **图表配置智能化** - LLM负责图表的样式和配置决策，但基于模板
+
+### 11.3 数据结构设计
+
+```python
+class MultiSourceAnalysisFavorite:
+    def __init__(self):
+        # 固化的数据获取步骤
+        self.data_acquisition_steps = [
+            {
+                "tool": "report_query",
+                "name": "deposit_balance",
+                "params": {
+                    "report_id": "deposit_balance_trend",
+                    "org_code": "{{org_code}}",
+                    "date_range": "{{date_range}}"
+                }
+            },
+            {
+                "tool": "report_query",
+                "name": "current_deposit_avg",
+                "params": {
+                    "report_id": "current_deposit_avg",
+                    "org_code": "{{org_code}}",
+                    "date_range": "{{date_range}}"
+                }
+            },
+            {
+                "tool": "report_query",
+                "name": "loan_balance",
+                "params": {
+                    "report_id": "loan_balance_trend",
+                    "org_code": "{{org_code}}",
+                    "date_range": "{{date_range}}"
+                }
+            }
+        ]
+
+        # 数据整合配置
+        self.data_integration = {
+            "strategy": "time_series_merge",
+            "merge_key": "date",
+            "value_mapping": {
+                "存款余额": "deposit_balance.value",
+                "活期存款日均": "current_deposit_avg.value",
+                "贷款余额": "loan_balance.value"
+            },
+            "data_cleaning": [
+                {"type": "fill_missing_dates", "method": "forward_fill"},
+                {"type": "normalize_units", "target_unit": "万元"}
+            ]
+        }
+
+        # 图表智能配置（由LLM生成但相对固定）
+        self.chart_config = {
+            "type": "multi_line_trend",
+            "title_template": "{{org_name}}最近12个月主要指标趋势",
+            "x_axis": {
+                "field": "date",
+                "label": "月份",
+                "format": "YYYY-MM"
+            },
+            "y_axis": {
+                "label": "金额(万元)",
+                "format": "number"
+            },
+            "series": [
+                {
+                    "field": "存款余额",
+                    "color": "#1890ff",
+                    "style": "solid"
+                },
+                {
+                    "field": "活期存款日均",
+                    "color": "#52c41a",
+                    "style": "dashed"
+                },
+                {
+                    "field": "贷款余额",
+                    "color": "#ff4d4f",
+                    "style": "solid"
+                }
+            ],
+            "interactions": {
+                "zoom": True,
+                "tooltip": True,
+                "legend": True
+            }
+        }
+
+        # 参数模板
+        self.parameters = [
+            {
+                "name": "org_code",
+                "type": "organization_select",
+                "label": "机构",
+                "required": True
+            },
+            {
+                "name": "date_range",
+                "type": "date_range",
+                "label": "时间范围",
+                "default": "last_12_months"
+            }
+        ]
+```
+
+### 11.4 执行流程设计
+
+```python
+async def execute_multi_source_favorite(favorite: MultiSourceAnalysisFavorite, user_params: dict):
+    # 1. 执行数据获取
+    data_sources = {}
+    for step in favorite.data_acquisition_steps:
+        rendered_params = render_template(step.params, user_params)
+        result = await execute_tool(step.tool, rendered_params)
+        data_sources[step.name] = result
+
+    # 2. 数据整合（标准化流程）
+    integrated_data = await integrate_data_sources(
+        data_sources,
+        favorite.data_integration
+    )
+
+    # 3. 生成最终图表配置
+    final_chart_config = generate_chart_config(
+        base_config=favorite.chart_config,
+        data=integrated_data,
+        user_params=user_params
+    )
+
+    return {
+        "chart_data": integrated_data,
+        "chart_config": final_chart_config,
+        "raw_data": data_sources  # 可选，用于调试
+    }
+
+async def integrate_data_sources(sources: dict, integration_config: dict):
+    """标准化的数据整合流程"""
+    import pandas as pd
+
+    # 1. 转换为DataFrame
+    dfs = {}
+    for name, data in sources.items():
+        dfs[name] = pd.DataFrame(data['data'])
+
+    # 2. 按时间合并
+    merged_df = None
+    merge_key = integration_config['merge_key']
+
+    for name, df in dfs.items():
+        if merged_df is None:
+            merged_df = df[[merge_key, 'value']].rename(columns={'value': name})
+        else:
+            merged_df = merged_df.merge(
+                df[[merge_key, 'value']].rename(columns={'value': name}),
+                on=merge_key,
+                how='outer'
+            )
+
+    # 3. 应用清洗规则
+    for cleaning_rule in integration_config['data_cleaning']:
+        merged_df = apply_cleaning_rule(merged_df, cleaning_rule)
+
+    # 4. 转换为图表数据格式
+    chart_data = []
+    for _, row in merged_df.iterrows():
+        chart_data.append({
+            "date": row[merge_key],
+            **{name: row[name] for name in integration_config['value_mapping'].keys()}
+        })
+
+    return chart_data
+```
+
+### 11.5 收藏创建时的智能分析
+
+```python
+async def create_multi_source_favorite(conversation_id: str):
+    # 1. 分析对话，识别多数据源模式
+    analysis = await analyze_conversation_pattern(conversation_id)
+
+    if analysis['pattern'] == 'multi_source_trend_analysis':
+        # 2. 提取数据源
+        data_sources = extract_data_sources(conversation_id)
+
+        # 3. 生成整合配置
+        integration_config = generate_integration_config(data_sources)
+
+        # 4. 分析图表偏好
+        chart_preferences = analyze_chart_preferences(conversation_id)
+
+        favorite = MultiSourceAnalysisFavorite(
+            data_acquisition_steps=data_sources['steps'],
+            data_integration=integration_config,
+            chart_config=chart_preferences
+        )
+
+        return await save_favorite(favorite)
+
+def extract_data_sources(conversation_messages):
+    """从对话中提取数据源信息"""
+    sources = []
+
+    for msg in conversation_messages:
+        if msg['role'] == 'assistant' and 'tool_calls' in msg:
+            for tool_call in msg['tool_calls']:
+                if tool_call['tool'] in ['report_query', 'sql_query']:
+                    sources.append({
+                        'tool': tool_call['tool'],
+                        'name': generate_source_name(tool_call),
+                        'params': tool_call['params']
+                    })
+
+    return {'steps': sources}
+
+async def analyze_conversation_pattern(conversation_id: str):
+    """分析对话模式，识别是否为多源分析"""
+    messages = await get_conversation_messages(conversation_id)
+
+    tool_calls = []
+    for msg in messages:
+        if msg.get('tool_calls'):
+            tool_calls.extend(msg['tool_calls'])
+
+    # 分析工具调用模式
+    data_tools = [tc for tc in tool_calls if tc['tool'] in ['report_query', 'sql_query']]
+
+    if len(data_tools) >= 2:
+        return {
+            'pattern': 'multi_source_trend_analysis',
+            'data_source_count': len(data_tools),
+            'data_types': [tc.get('data_type', 'unknown') for tc in data_tools]
+        }
+
+    return {'pattern': 'single_source_analysis'}
+```
+
+### 11.6 前端收藏界面设计
+
+```vue
+<template>
+  <div class="multi-source-favorite">
+    <h3>多源趋势分析收藏</h3>
+
+    <!-- 数据源预览 -->
+    <div class="data-sources">
+      <h4>数据源</h4>
+      <div v-for="(source, index) in favorite.data_acquisition_steps"
+           :key="index"
+           class="data-source">
+        <span class="source-name">{{source.name}}</span>
+        <span class="source-tool">{{source.tool}}</span>
+        <div class="source-params">
+          <span v-for="(value, key) in source.params" :key="key" class="param-item">
+            {{key}}: {{formatParam(value)}}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 参数配置 -->
+    <div class="parameters">
+      <h4>参数配置</h4>
+      <div v-for="param in favorite.parameters" :key="param.name" class="param-config">
+        <label>{{param.label}}</label>
+        <component
+          :is="getParamComponent(param.type)"
+          v-model="paramValues[param.name]"
+          v-bind="getParamProps(param)"
+          :required="param.required"
+        />
+        <small class="param-description">{{param.description}}</small>
+      </div>
+    </div>
+
+    <!-- 图表预览 -->
+    <div class="chart-preview">
+      <h4>图表效果预览</h4>
+      <GenericChart
+        :config="favorite.chart_config"
+        :data="mockChartData"
+        :height="300"
+      />
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="actions">
+      <button @click="saveFavorite" class="btn-primary">保存收藏</button>
+      <button @click="testExecution" class="btn-secondary">测试执行</button>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import GenericChart from '@/components/charts/GenericChart.vue'
+import OrganizationSelect from '@/components/form/OrganizationSelect.vue'
+import DateRangePicker from '@/components/form/DateRangePicker.vue'
+
+interface FavoriteData {
+  data_acquisition_steps: any[]
+  data_integration: any
+  chart_config: any
+  parameters: any[]
+}
+
+const props = defineProps<{
+  favorite: FavoriteData
+}>()
+
+const paramValues = ref({})
+
+// 获取参数组件
+const getParamComponent = (type: string) => {
+  const componentMap = {
+    'organization_select': OrganizationSelect,
+    'date_range': DateRangePicker
+  }
+  return componentMap[type] || 'input'
+}
+
+// 获取参数属性
+const getParamProps = (param: any) => {
+  return {
+    placeholder: param.description,
+    options: param.options,
+    ...param.props
+  }
+}
+
+// 格式化参数显示
+const formatParam = (value: string) => {
+  return value.replace(/\{\{(\w+)\}\}/g, '[$1]')
+}
+
+// 模拟图表数据
+const mockChartData = computed(() => {
+  return [
+    { date: '2024-01', 存款余额: 1000, 活期存款日均: 800, 贷款余额: 600 },
+    { date: '2024-02', 存款余额: 1050, 活期存款日均: 820, 贷款余额: 620 },
+    { date: '2024-03', 存款余额: 1100, 活期存款日均: 850, 贷款余额: 650 }
+  ]
+})
+
+// 保存收藏
+const saveFavorite = async () => {
+  // 收藏保存逻辑
+}
+
+// 测试执行
+const testExecution = async () => {
+  // 测试执行逻辑
+}
+</script>
+
+<style scoped>
+.multi-source-favorite {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.data-sources, .parameters, .chart-preview {
+  margin-bottom: 30px;
+  padding: 20px;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+}
+
+.data-source {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.source-name {
+  font-weight: bold;
+  margin-right: 10px;
+  min-width: 120px;
+}
+
+.source-tool {
+  background: #1890ff;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-right: 10px;
+}
+
+.source-params {
+  flex: 1;
+}
+
+.param-item {
+  margin-right: 15px;
+  font-size: 12px;
+  color: #666;
+}
+
+.param-config {
+  margin-bottom: 20px;
+}
+
+.param-config label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.param-description {
+  display: block;
+  margin-top: 4px;
+  color: #666;
+  font-size: 12px;
+}
+
+.actions {
+  text-align: center;
+  margin-top: 30px;
+}
+
+.btn-primary, .btn-secondary {
+  padding: 10px 20px;
+  margin: 0 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: #1890ff;
+  color: white;
+}
+
+.btn-secondary {
+  background: #f0f0f0;
+  color: #333;
+}
+</style>
+```
+
+### 11.7 数据库表结构扩展
+
+```sql
+-- 扩展favorites表，支持多源分析
+ALTER TABLE favorites ADD COLUMN favorite_type ENUM('simple', 'multi_source', 'workflow') DEFAULT 'simple';
+ALTER TABLE favorites ADD COLUMN data_acquisition_steps JSON;
+ALTER TABLE favorites ADD COLUMN data_integration_config JSON;
+ALTER TABLE favorites ADD COLUMN chart_config_template JSON;
+
+-- 创建多源分析执行记录表
+CREATE TABLE multi_source_executions (
+    id UUID PRIMARY KEY,
+    favorite_id UUID,
+    user_id VARCHAR(255),
+    parameters JSON,
+    execution_status ENUM('running', 'completed', 'failed') DEFAULT 'running',
+    data_sources JSON,              -- 原始数据源结果
+    integrated_data JSON,           -- 整合后的数据
+    final_chart_config JSON,        -- 最终图表配置
+    execution_time INTEGER,         -- 执行时间(ms)
+    error_message TEXT,
+    created_at TIMESTAMP,
+    FOREIGN KEY (favorite_id) REFERENCES favorites(id)
+);
+
+-- 创建数据源配置表
+CREATE TABLE data_source_templates (
+    id UUID PRIMARY KEY,
+    name VARCHAR(255),
+    description TEXT,
+    tool_type ENUM('report_query', 'sql_query', 'api_call'),
+    default_params JSON,
+    parameter_schema JSON,          -- 参数定义
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+```
+
+### 11.8 后端API接口
+
+```python
+# 创建多源分析收藏
+@router.post("/favorites/multi-source")
+async def create_multi_source_favorite(
+    request: CreateMultiSourceFavoriteRequest,
+    current_user: User = Depends(get_current_user)
+):
+    favorite_service = MultiSourceFavoriteService()
+
+    favorite = await favorite_service.create_from_conversation(
+        conversation_id=request.conversation_id,
+        user_id=current_user.id,
+        custom_config=request.custom_config
+    )
+
+    return {"favorite_id": favorite.id, "status": "created"}
+
+# 执行多源分析收藏
+@router.post("/favorites/{favorite_id}/execute-multi-source")
+async def execute_multi_source_favorite(
+    favorite_id: str,
+    request: ExecuteMultiSourceRequest,
+    current_user: User = Depends(get_current_user)
+):
+    favorite_service = MultiSourceFavoriteService()
+
+    execution_id = await favorite_service.execute_favorite(
+        favorite_id=favorite_id,
+        user_id=current_user.id,
+        parameters=request.parameters
+    )
+
+    return {"execution_id": execution_id, "status": "started"}
+
+# 获取执行结果
+@router.get("/multi-source-executions/{execution_id}")
+async def get_execution_result(
+    execution_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    favorite_service = MultiSourceFavoriteService()
+
+    result = await favorite_service.get_execution_result(execution_id)
+
+    return result
 ```
