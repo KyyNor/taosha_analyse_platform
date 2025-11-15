@@ -4,7 +4,7 @@ Agent API路由
 """
 import json
 import uuid
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from services.tracking_service.observability_service import get_langfuse_client
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -13,6 +13,7 @@ from langfuse import propagate_attributes
 
 from services.agents.agent_service import agent_service
 from utils.logger import logger
+import time
 
 
 router = APIRouter(prefix="/agents")
@@ -156,6 +157,66 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
         }
     )
 
+
+class Message(BaseModel):
+    role: str
+    content: str
+
+class ChatCompletionRequest(BaseModel):
+    model: str
+    messages: List[Message]
+    stream: Optional[bool] = True
+    temperature: Optional[float] = 0.7
+    max_tokens: Optional[int] = None
+
+class ChatCompletionChoice(BaseModel):
+    index: int
+    message: Message
+    finish_reason: str
+
+class Usage(BaseModel):
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+class ChatCompletionResponse(BaseModel):
+    id: str
+    object: str = "chat.completion"
+    created: int
+    model: str
+    choices: List[ChatCompletionChoice]
+    usage: Usage
+    
+@router.post("/chat/completions", response_model=ChatCompletionResponse)
+async def chat_completions(request: ChatCompletionRequest):
+    # 提取用户最新消息（或整个对话历史）
+    user_input = "\n".join([msg.content for msg in request.messages if msg.role == "user"])
+
+    try:
+        # todo 调用 LangChain Agent
+        response_text = agent_service.chat_stream(user_input)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
+
+    # 构造 OpenAI 兼容响应
+    response = ChatCompletionResponse(
+        id=f"chatcmpl-{uuid.uuid4().hex}",
+        created=int(time.time()),
+        model=request.model,
+        choices=[
+            ChatCompletionChoice(
+                index=0,
+                message=Message(role="assistant", content=response_text),
+                finish_reason="stop"
+            )
+        ],
+        usage=Usage(
+            prompt_tokens=len(user_input.split()),
+            completion_tokens=len(response_text.split()),
+            total_tokens=len(user_input.split()) + len(response_text.split())
+        )
+    )
+    return response
 
 @router.get("/health")
 async def health_check() -> Dict[str, Any]:

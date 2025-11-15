@@ -48,7 +48,8 @@
       "Bash(tree:*)",
       "mcp__docs-langchain__SearchDocsByLangChain",
       "Bash(git pull:*)",
-      "mcp__tavily__tavily_search"
+      "mcp__tavily__tavily_search",
+      "Bash(npx create-next-app:*)"
     ],
     "deny": [],
     "ask": [],

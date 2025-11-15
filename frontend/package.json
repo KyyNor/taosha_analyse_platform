@@ -1,51 +1,30 @@
 {
-  "name": "taosha-frontend",
-  "version": "1.0.0",
-  "description": "淘沙分析平台前端",
-  "type": "module",
+  "name": "taosha",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc && vite build",
-    "preview": "vite preview",
-    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
-    "lint:style": "stylelint \"src/**/*.{css,scss,vue}\" --fix",
-    "type-check": "vue-tsc --noEmit"
+    "dev": "next dev --turbopack --hostname 0.0.0.0 --port 3000",
+    "build": "next build --turbopack",
+    "start": "next start --hostname 0.0.0.0 --port 3000",
+    "lint": "eslint"
   },
   "dependencies": {
-    "@vueuse/core": "^10.6.1",
-    "axios": "^1.6.2",
-    "dayjs": "^1.11.10",
-    "echarts": "^5.4.3",
-    "highlight.js": "^11.11.1",
-    "marked": "^16.4.1",
-    "pinia": "^2.1.7",
-    "prismjs": "^1.30.0",
-    "socket.io-client": "^4.7.4",
-    "vue": "^3.3.8",
-    "vue-router": "^4.2.5"
+    "@copilotkit/react-core": "^1.10.6",
+    "@copilotkit/react-ui": "^1.10.6",
+    "@copilotkit/runtime": "^1.10.6",
+    "next": "15.5.6",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
   },
   "devDependencies": {
-    "@types/node": "^20.9.0",
-    "@vitejs/plugin-vue": "^4.4.1",
-    "@vue/eslint-config-prettier": "^8.0.0",
-    "@vue/eslint-config-typescript": "^12.0.0",
-    "@vue/tsconfig": "^0.4.0",
-    "autoprefixer": "^10.4.16",
-    "daisyui": "^4.4.6",
-    "eslint": "^8.54.0",
-    "eslint-plugin-vue": "^9.18.1",
-    "postcss": "^8.4.31",
-    "prettier": "^3.1.0",
-    "stylelint": "^15.11.0",
-    "stylelint-config-standard": "^34.0.0",
-    "tailwindcss": "^3.3.5",
-    "typescript": "~5.2.2",
-    "vite": "^4.5.0",
-    "vue-tsc": "^1.8.22"
-  },
-  "engines": {
-    "node": ">=18.0.0",
-    "pnpm": ">=8.0.0"
-  },
-  "packageManager": "pnpm@8.11.0"
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
 }
