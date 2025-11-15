@@ -1,117 +1,156 @@
-import Image from "next/image";
+import Link from "next/link";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { CopilotChat } from "@copilotkit/react-ui";
+import {
+  Database,
+  BookOpen,
+  GitBranch,
+  MessageSquare,
+  Palette,
+  Settings,
+  Bot,
+  BarChart3
+} from "lucide-react";
 
-// export default function Home() {
-//   return (
-//     <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-//       <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-//         <Image
-//           className="dark:invert"
-//           src="/next.svg"
-//           alt="Next.js logo"
-//           width={180}
-//           height={38}
-//           priority
-//         />
-//         <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-//           <li className="mb-2 tracking-[-.01em]">
-//             Get started by editing{" "}
-//             <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-//               app/page.tsx
-//             </code>
-//             .
-//           </li>
-//           <li className="tracking-[-.01em]">
-//             Save and see your changes instantly.
-//           </li>
-//         </ol>
-
-//         <div className="flex gap-4 items-center flex-col sm:flex-row">
-//           <a
-//             className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-//             href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//             target="_blank"
-//             rel="noopener noreferrer"
-//           >
-//             <Image
-//               className="dark:invert"
-//               src="/vercel.svg"
-//               alt="Vercel logomark"
-//               width={20}
-//               height={20}
-//             />
-//             Deploy now
-//           </a>
-//           <a
-//             className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-//             href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//             target="_blank"
-//             rel="noopener noreferrer"
-//           >
-//             Read our docs
-//           </a>
-//         </div>
-//       </main>
-//       <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-//         <a
-//           className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-//           href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//           target="_blank"
-//           rel="noopener noreferrer"
-//         >
-//           <Image
-//             aria-hidden
-//             src="/file.svg"
-//             alt="File icon"
-//             width={16}
-//             height={16}
-//           />
-//           Learn
-//         </a>
-//         <a
-//           className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-//           href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//           target="_blank"
-//           rel="noopener noreferrer"
-//         >
-//           <Image
-//             aria-hidden
-//             src="/window.svg"
-//             alt="Window icon"
-//             width={16}
-//             height={16}
-//           />
-//           Examples
-//         </a>
-//         <a
-//           className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-//           href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//           target="_blank"
-//           rel="noopener noreferrer"
-//         >
-//           <Image
-//             aria-hidden
-//             src="/globe.svg"
-//             alt="Globe icon"
-//             width={16}
-//             height={16}
-//           />
-//           Go to nextjs.org →
-//         </a>
-//       </footer>
-//     </div>
-//   );
-// }
+const navigationItems = [
+  {
+    title: "表配置管理",
+    description: "管理数据库表的基础配置和元数据信息",
+    href: "/metadata/tables",
+    icon: Database,
+    color: "text-blue-600"
+  },
+  {
+    title: "业务术语",
+    description: "维护业务术语表，支持自然语言查询理解",
+    href: "/metadata/glossary",
+    icon: BookOpen,
+    color: "text-green-600"
+  },
+  {
+    title: "关联配置",
+    description: "配置表之间的关系和关联规则",
+    href: "/metadata/relations",
+    icon: GitBranch,
+    color: "text-purple-600"
+  },
+  {
+    title: "提示词配置",
+    description: "配置AI提示词模板，优化查询生成效果",
+    href: "/metadata/prompts",
+    icon: MessageSquare,
+    color: "text-orange-600"
+  },
+  {
+    title: "数据主题",
+    description: "按主题组织数据，支持业务场景分类",
+    href: "/metadata/themes",
+    icon: Palette,
+    color: "text-pink-600"
+  },
+  {
+    title: "AI助手",
+    description: "智能对话助手，支持自然语言数据查询",
+    href: "/agent",
+    icon: Bot,
+    color: "text-indigo-600"
+  }
+];
 
 export default function Home() {
   return (
-    <CopilotChat
-      instructions={"You are assisting the user as best as you can. Answer in the best way possible given the data you have."}
-      labels={{
-        title: "Your Assistant",
-        initial: "Hi! 👋 How can I assist you today?",
-      }}
-    />
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
+      <div className="container mx-auto px-4 py-8">
+        {/* 页面头部 */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold tracking-tight mb-4">
+            淘沙分析平台
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            基于AI的自然语言转SQL分析平台，让数据分析变得简单高效
+          </p>
+        </div>
+
+        {/* 功能导航 */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-12">
+          {navigationItems.map((item) => (
+            <Card key={item.href} className="hover:shadow-lg transition-shadow cursor-pointer group">
+              <Link href={item.href}>
+                <CardHeader>
+                  <div className="flex items-center space-x-3">
+                    <item.icon className={`h-8 w-8 ${item.color} group-hover:scale-110 transition-transform`} />
+                    <div>
+                      <CardTitle className="text-lg">{item.title}</CardTitle>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription className="text-sm">
+                    {item.description}
+                  </CardDescription>
+                </CardContent>
+              </Link>
+            </Card>
+          ))}
+        </div>
+
+        {/* AI助手区域 */}
+        <Card className="max-w-4xl mx-auto">
+          <CardHeader>
+            <div className="flex items-center space-x-2">
+              <Bot className="h-6 w-6 text-indigo-600" />
+              <CardTitle>AI智能助手</CardTitle>
+            </div>
+            <CardDescription>
+              有任何关于数据分析的问题？AI助手随时为您服务
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-96">
+              <CopilotChat
+                instructions={"你是淘沙分析平台的AI助手，专门帮助用户进行数据分析和查询。你的职责包括：1. 帮助用户理解数据结构和表关系 2. 协助编写自然语言查询 3. 解释查询结果和数据洞察 4. 提供数据分析建议。请用中文回答，保持专业和友好的语气。"}
+                labels={{
+                  title: "淘沙AI助手",
+                  initial: "👋 您好！我是淘沙数据分析助手，请问有什么可以帮助您的吗？您可以询问任何关于数据查询、分析的问题。",
+                }}
+                className="h-full"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 统计信息 */}
+        <div className="mt-12 text-center">
+          <div className="grid gap-4 md:grid-cols-4 max-w-4xl mx-auto">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold text-blue-600">100+</div>
+                <p className="text-sm text-muted-foreground">数据表</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold text-green-600">50+</div>
+                <p className="text-sm text-muted-foreground">业务术语</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold text-purple-600">1000+</div>
+                <p className="text-sm text-muted-foreground">查询记录</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold text-orange-600">95%</div>
+                <p className="text-sm text-muted-foreground">查询成功率</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
