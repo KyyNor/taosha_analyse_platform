@@ -187,36 +187,40 @@ class ChatCompletionResponse(BaseModel):
     choices: List[ChatCompletionChoice]
     usage: Usage
     
-@router.post("/chat/completions", response_model=ChatCompletionResponse)
+@router.post("/chat/completions")
 async def chat_completions(request: ChatCompletionRequest):
     # 提取用户最新消息（或整个对话历史）
-    user_input = "\n".join([msg.content for msg in request.messages if msg.role == "user"])
+    # user_input = "\n".join([msg.content for msg in request.messages if msg.role == "user"])
 
-    try:
-        # todo 调用 LangChain Agent
-        response_text = agent_service.chat_stream(user_input)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
+    # try:
+    #     # todo 调用 LangChain Agent
+    #     response_text = agent_service.chat_stream(user_input)
+    # except Exception as e:
+    #     raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
 
-    # 构造 OpenAI 兼容响应
-    response = ChatCompletionResponse(
-        id=f"chatcmpl-{uuid.uuid4().hex}",
-        created=int(time.time()),
-        model=request.model,
-        choices=[
-            ChatCompletionChoice(
-                index=0,
-                message=Message(role="assistant", content=response_text),
-                finish_reason="stop"
-            )
-        ],
-        usage=Usage(
-            prompt_tokens=len(user_input.split()),
-            completion_tokens=len(response_text.split()),
-            total_tokens=len(user_input.split()) + len(response_text.split())
-        )
+    # # 构造 OpenAI 兼容响应
+    # response = ChatCompletionResponse(
+    #     id=f"chatcmpl-{uuid.uuid4().hex}",
+    #     created=int(time.time()),
+    #     model=request.model,
+    #     choices=[
+    #         ChatCompletionChoice(
+    #             index=0,
+    #             message=Message(role="assistant", content=response_text),
+    #             finish_reason="stop"
+    #         )
+    #     ],
+    #     usage=Usage(
+    #         prompt_tokens=len(user_input.split()),
+    #         completion_tokens=len(response_text.split()),
+    #         total_tokens=len(user_input.split()) + len(response_text.split())
+    #     )
+    # )
+    user_msg = request.messages[-1]["content"]
+    return StreamingResponse(
+        agent_service.agent_stream_to_openai(user_msg),
+        media_type="text/event-stream",
     )
-    return response
 
 @router.get("/health")
 async def health_check() -> Dict[str, Any]:
