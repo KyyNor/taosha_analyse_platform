@@ -33,7 +33,7 @@ interface MetadataStore {
   setEditingRelation: (relation: RelationConfig | null) => void
   setSelectedTheme: (theme: DataTheme | null) => void
   setEditingTheme: (theme: DataTheme | null) => void
-  setActiveTab: (tab: string) => void
+  setActiveTab: (tab: 'tables' | 'glossary' | 'relations' | 'prompts' | 'themes') => void
   setSearchQuery: (query: string) => void
   setFilters: (filters: Partial<MetadataStore['filters']>) => void
   clearSelections: () => void

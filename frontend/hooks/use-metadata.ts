@@ -5,10 +5,12 @@ import metadataService from '@/lib/services/metadataService'
 import type { TableMetadata, GlossaryTerm, DataTheme, RelationConfig, Notification } from '@/types/index'
 
 // 辅助函数：创建通知
-const createNotification = (type: Notification['type'], title: string, message: string): Omit<Notification, 'id' | 'timestamp'> => ({
+const createNotification = (type: Notification['type'], title: string, message: string): Notification => ({
   type,
   title,
-  message
+  message,
+  id: Date.now().toString(),
+  timestamp: new Date().toISOString()
 })
 
 // 表数据查询
@@ -35,19 +37,12 @@ export function useCreateTable() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tables'] })
       setEditingTable(null)
-      addNotification({
-        ...createNotification('success', '创建成功', '表配置已创建'),
-        id: Date.now().toString(),
-        timestamp: new Date().toISOString()
-      })
+      addNotification(createNotification('success', '创建成功', '表配置已创建'))
     },
     onError: (error: any) => {
       addNotification({
-        id: Date.now().toString(),
-        type: 'error',
-        title: '创建失败',
-        message: error.message || '创建表配置失败',
-        timestamp: new Date().toISOString()
+        ...createNotification('error', '创建失败', '创建表配置失败'),
+        message: error.message || '创建表配置失败'
       })
     }
   })
@@ -65,21 +60,12 @@ export function useUpdateTable() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tables'] })
       setEditingTable(null)
-      addNotification({
-        id: Date.now().toString(),
-        type: 'success',
-        title: '更新成功',
-        message: '表配置已更新',
-        timestamp: new Date().toISOString()
-      })
+      addNotification(createNotification('success', '更新成功', '表配置已更新'))
     },
     onError: (error: any) => {
       addNotification({
-        id: Date.now().toString(),
-        type: 'error',
-        title: '更新失败',
-        message: error.message || '更新表配置失败',
-        timestamp: new Date().toISOString()
+        ...createNotification('error', '更新失败', '更新表配置失败'),
+        message: error.message || '更新表配置失败'
       })
     }
   })
@@ -94,18 +80,11 @@ export function useDeleteTable() {
     mutationFn: metadataService.deleteTable,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tables'] })
-      addNotification({
-        id: Date.now().toString(),
-        type: 'success',
-        title: '删除成功',
-        message: '表配置已删除'
-      })
+      addNotification(createNotification('success', '删除成功', '表配置已删除'))
     },
     onError: (error: any) => {
       addNotification({
-        id: Date.now().toString(),
-        type: 'error',
-        title: '删除失败',
+        ...createNotification('error', '删除失败', '删除表配置失败'),
         message: error.message || '删除表配置失败'
       })
     }
@@ -140,18 +119,11 @@ export function useCreateGlossaryTerm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['glossary'] })
       setEditingGlossary(null)
-      addNotification({
-        id: Date.now().toString(),
-        type: 'success',
-        title: '创建成功',
-        message: '业务术语已创建'
-      })
+      addNotification(createNotification('success', '创建成功', '业务术语已创建'))
     },
     onError: (error: any) => {
       addNotification({
-        id: Date.now().toString(),
-        type: 'error',
-        title: '创建失败',
+        ...createNotification('error', '创建失败', '创建业务术语失败'),
         message: error.message || '创建业务术语失败'
       })
     }
@@ -170,18 +142,11 @@ export function useUpdateGlossaryTerm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['glossary'] })
       setEditingGlossary(null)
-      addNotification({
-        id: Date.now().toString(),
-        type: 'success',
-        title: '更新成功',
-        message: '业务术语已更新'
-      })
+      addNotification(createNotification('success', '更新成功', '业务术语已更新'))
     },
     onError: (error: any) => {
       addNotification({
-        id: Date.now().toString(),
-        type: 'error',
-        title: '更新失败',
+        ...createNotification('error', '更新失败', '更新业务术语失败'),
         message: error.message || '更新业务术语失败'
       })
     }
@@ -216,18 +181,11 @@ export function useBatchUpdate() {
     mutationFn: metadataService.batchUpdateTableAndColumns,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['tables'] })
-      addNotification({
-        id: Date.now().toString(),
-        type: 'success',
-        title: '批量更新成功',
-        message: `成功更新 ${data.success_count} 项，失败 ${data.error_count} 项`
-      })
+      addNotification(createNotification('success', '批量更新成功', `成功更新 ${data.success_count} 项，失败 ${data.error_count} 项`))
     },
     onError: (error: any) => {
       addNotification({
-        id: Date.now().toString(),
-        type: 'error',
-        title: '批量更新失败',
+        ...createNotification('error', '批量更新失败', '批量更新操作失败'),
         message: error.message || '批量更新操作失败'
       })
     }

@@ -9,7 +9,7 @@ import { DataTable, Column } from '@/components/ui/data-table'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { useTables, useCreateTable, useUpdateTable, useDeleteTable } from '@/hooks/use-metadata'
-import { useMetadataStore, useAppStore } from '@/store'
+import { useMetadataStore } from '@/store'
 import { useTableForm } from '@/hooks/use-table-form'
 import {
   Form,
@@ -34,10 +34,10 @@ const tableColumns: Column<TableMetadata>[] = [
     sortable: true,
     searchable: true,
     width: 200,
-    render: (value: string, record: TableMetadata) => (
+    render: (value: TableMetadata[keyof TableMetadata]) => (
       <div className="flex items-center gap-2">
         <Database className="h-4 w-4 text-muted-foreground" />
-        <span className="font-medium">{value}</span>
+        <span className="font-medium">{String(value)}</span>
       </div>
     )
   },
@@ -46,21 +46,21 @@ const tableColumns: Column<TableMetadata>[] = [
     title: '表注释',
     dataIndex: 'comment',
     searchable: true,
-    render: (value: string) => value || <span className="text-muted-foreground">-</span>
+    render: (value: TableMetadata[keyof TableMetadata]) => value ? String(value) : <span className="text-muted-foreground">-</span>
   },
   {
     key: 'dataSource',
     title: '数据源',
     dataIndex: 'dataSource',
     width: 120,
-    render: (value: string) => value ? <Badge variant="secondary">{value}</Badge> : <span className="text-muted-foreground">-</span>
+    render: (value: TableMetadata[keyof TableMetadata]) => value ? <Badge variant="secondary">{String(value)}</Badge> : <span className="text-muted-foreground">-</span>
   },
   {
     key: 'updateMethod',
     title: '更新方式',
     dataIndex: 'updateMethod',
     width: 120,
-    render: (value: string) => value ? <Badge variant="outline">{value}</Badge> : <span className="text-muted-foreground">-</span>
+    render: (value: TableMetadata[keyof TableMetadata]) => value ? <Badge variant="outline">{String(value)}</Badge> : <span className="text-muted-foreground">-</span>
   },
   {
     key: 'isAvailable',
@@ -68,9 +68,9 @@ const tableColumns: Column<TableMetadata>[] = [
     dataIndex: 'isAvailable',
     width: 80,
     sortable: true,
-    render: (value: boolean) => (
-      <Badge variant={value ? 'default' : 'secondary'}>
-        {value ? '启用' : '禁用'}
+    render: (value: TableMetadata[keyof TableMetadata]) => (
+      <Badge variant={value === true ? 'default' : 'secondary'}>
+        {value === true ? '启用' : '禁用'}
       </Badge>
     )
   },
@@ -80,7 +80,7 @@ const tableColumns: Column<TableMetadata>[] = [
     dataIndex: 'createdAt',
     width: 160,
     sortable: true,
-    render: (value: string) => new Date(value).toLocaleString('zh-CN')
+    render: (value: TableMetadata[keyof TableMetadata]) => value ? new Date(String(value)).toLocaleString('zh-CN') : '-'
   },
   {
     key: 'updatedAt',
@@ -88,7 +88,7 @@ const tableColumns: Column<TableMetadata>[] = [
     dataIndex: 'updatedAt',
     width: 160,
     sortable: true,
-    render: (value: string) => new Date(value).toLocaleString('zh-CN')
+    render: (value: TableMetadata[keyof TableMetadata]) => value ? new Date(String(value)).toLocaleString('zh-CN') : '-'
   }
 ]
 
@@ -219,20 +219,17 @@ function TableFormDialog() {
 // 主页面组件
 export default function TablesPage() {
   const { data: tables = [], isLoading, error } = useTables()
-  const createTableMutation = useCreateTable()
-  const updateTableMutation = useUpdateTable()
-  const deleteTableMutation = useDeleteTable()
+  const _createTableMutation = useCreateTable()
+  const _updateTableMutation = useUpdateTable()
+  const _deleteTableMutation = useDeleteTable()
 
   const {
     searchQuery,
     setSearchQuery,
-    editingTable,
     setEditingTable,
     filters,
     setFilters
   } = useMetadataStore()
-
-  const addNotification = useAppStore(state => state.addNotification)
 
   // 操作处理
   const handleCreate = () => {
@@ -241,12 +238,6 @@ export default function TablesPage() {
 
   const handleEdit = (record: TableMetadata) => {
     setEditingTable(record)
-  }
-
-  const handleDelete = async (record: TableMetadata) => {
-    if (confirm(`确定要删除表 "${record.name}" 吗？`)) {
-      deleteTableMutation.mutate(record.id)
-    }
   }
 
   // 过滤器组件

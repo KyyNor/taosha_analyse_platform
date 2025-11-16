@@ -11,13 +11,11 @@ import {
 } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -29,7 +27,7 @@ import {
 } from 'lucide-react'
 
 // 数据列定义
-export interface Column<T> {
+export interface Column<T = Record<string, unknown>> {
   key: string
   title: string
   dataIndex: keyof T
@@ -37,7 +35,7 @@ export interface Column<T> {
   align?: 'left' | 'center' | 'right'
   sortable?: boolean
   searchable?: boolean
-  render?: (value: any, record: T, index: number) => React.ReactNode
+  render?: (value: T[keyof T], record: T, index: number) => React.ReactNode
   className?: string
 }
 
@@ -56,13 +54,13 @@ interface DataTableProps<T> {
     current: number
     pageSize: number
     total: number
-    onChange: (page: number, pageSize: number) => void
+    onChange: (_page: number, _pageSize: number) => void
     showSizeChanger?: boolean
     showQuickJumper?: boolean
   }
   rowSelection?: {
     selectedRowKeys?: React.Key[]
-    onChange?: (selectedRowKeys: React.Key[], selectedRows: T[]) => void
+    onChange?: (_selectedRowKeys: React.Key[], _selectedRows: T[]) => void
   }
   scroll?: {
     x?: number | string
@@ -76,10 +74,10 @@ interface DataTableProps<T> {
   className?: string
   actions?: React.ReactNode
   onRow?: (record: T, index: number) => {
-    onClick?: (event: React.MouseEvent) => void
-    onDoubleClick?: (event: React.MouseEvent) => void
-    onMouseEnter?: (event: React.MouseEvent) => void
-    onMouseLeave?: (event: React.MouseEvent) => void
+    onClick?: (_event: React.MouseEvent) => void
+    onDoubleClick?: (_event: React.MouseEvent) => void
+    onMouseEnter?: (_event: React.MouseEvent) => void
+    onMouseLeave?: (_event: React.MouseEvent) => void
     className?: string
   }
 }
@@ -97,7 +95,6 @@ const Pagination = ({
   total,
   onChange,
   showSizeChanger = true,
-  showQuickJumper = true,
 }: NonNullable<DataTableProps<any>['pagination']>) => {
   const totalPages = Math.ceil(total / pageSize)
 
@@ -165,7 +162,7 @@ const Pagination = ({
 }
 
 // 主组件
-export function DataTable<T extends Record<string, any>>({
+export function DataTable<T>({
   data,
   columns,
   loading = false,
@@ -179,10 +176,8 @@ export function DataTable<T extends Record<string, any>>({
   rowSelection,
   scroll,
   size = 'middle',
-  bordered = false,
   striped = false,
   hoverable = true,
-  compact = false,
   className,
   actions,
   onRow,
@@ -276,7 +271,7 @@ export function DataTable<T extends Record<string, any>>({
 
   // 处理行选择
   const handleRowSelect = (record: T, checked: boolean) => {
-    const key = record.id || record.key || JSON.stringify(record)
+    const key = (record as any).id || (record as any).key || JSON.stringify(record)
 
     let newSelectedRows: React.Key[]
     if (checked) {
@@ -289,16 +284,16 @@ export function DataTable<T extends Record<string, any>>({
     rowSelection?.onChange?.(newSelectedRows,
       newSelectedRows.map(rowKey =>
         data.find(item =>
-          (item.id || item.key || JSON.stringify(item)) === rowKey
-        )!
-      )
+          ((item as any).id || (item as any).key || JSON.stringify(item)) === rowKey
+        )
+      ).filter((item): item is T => item !== undefined)
     )
   }
 
   // 处理全选
   const handleSelectAll = (checked: boolean) => {
     const keys = paginatedData.map(record =>
-      record.id || record.key || JSON.stringify(record)
+      (record as any).id || (record as any).key || JSON.stringify(record)
     )
     setSelectedRows(checked ? keys : [])
 
@@ -462,12 +457,12 @@ export function DataTable<T extends Record<string, any>>({
               paginatedData.map((record, index) => {
                 const rowProps = onRow?.(record, index) || {}
                 const isSelected = selectedRows.includes(
-                  record.id || record.key || JSON.stringify(record)
+                  (record as any).id || (record as any).key || JSON.stringify(record)
                 )
 
                 return (
                   <TableRow
-                    key={record.id || record.key || index}
+                    key={(record as any).id || (record as any).key || index}
                     className={`
                       ${hoverable ? 'hover:bg-muted/50' : ''}
                       ${striped && index % 2 === 1 ? 'bg-muted/25' : ''}
@@ -490,7 +485,6 @@ export function DataTable<T extends Record<string, any>>({
 
                     {/* 数据列 */}
                     {visibleColumnsData.map(column => {
-                      const value = record[column.dataIndex]
                       const alignClasses = {
                         left: 'text-left',
                         center: 'text-center',
@@ -507,8 +501,8 @@ export function DataTable<T extends Record<string, any>>({
                           `}
                         >
                           {column.render
-                            ? column.render(value, record, index)
-                            : value ?? '-'
+                            ? column.render(record[column.dataIndex], record, index)
+                            : String(record[column.dataIndex] ?? '-')
                           }
                         </TableCell>
                       )

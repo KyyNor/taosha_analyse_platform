@@ -36,15 +36,25 @@ export function useTableForm(defaultValues?: Partial<TableFormData>) {
 
   const handleSubmit = form.handleSubmit(async (data) => {
     try {
+      // 转换数据以匹配API期望的格式
+      const apiData = {
+        name: data.name,
+        comment: data.comment || '',
+        remark: data.remark || '',
+        isAvailable: data.isAvailable,
+        dataSource: data.dataSource,
+        updateMethod: data.updateMethod,
+      }
+
       if (editingTable?.id) {
         // 更新现有表
         await updateTableMutation.mutateAsync({
           id: editingTable.id,
-          data
+          data: apiData
         })
       } else {
         // 创建新表
-        await createTableMutation.mutateAsync(data)
+        await createTableMutation.mutateAsync(apiData)
       }
       setEditingTable(null)
       form.reset()
