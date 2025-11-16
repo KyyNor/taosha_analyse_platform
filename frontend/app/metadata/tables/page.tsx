@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DataTable, Column } from '@/components/ui/data-table'
+import Layout from '@/components/layout/Layout'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { useTables, useCreateTable, useUpdateTable, useDeleteTable } from '@/hooks/use-metadata'
@@ -288,7 +289,7 @@ export default function TablesPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto py-6">
+      <Layout>
         <Card>
           <CardContent className="py-12">
             <EmptyState
@@ -301,114 +302,70 @@ export default function TablesPage() {
             />
           </CardContent>
         </Card>
-      </div>
+      </Layout>
     )
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* 页面头部 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">表配置管理</h1>
-          <p className="text-muted-foreground">
-            管理数据库表的基础配置和元数据信息
-          </p>
+    <Layout>
+      <div className="space-y-6">
+        {/* 页面头部 */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">表配置管理</h1>
+            <p className="text-muted-foreground">
+              管理数据库表的基础配置和元数据信息
+            </p>
+          </div>
+          <Button onClick={handleCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            新增表
+          </Button>
         </div>
-        <Button onClick={handleCreate}>
-          <Plus className="h-4 w-4 mr-2" />
-          新增表
-        </Button>
+
+        {/* 表格 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>表列表</CardTitle>
+            <CardDescription>
+              所有数据库表的基础配置信息
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="py-12">
+                <LoadingSpinner text="加载中..." />
+              </div>
+            ) : tables.length === 0 ? (
+              <EmptyState
+                icon={<Database className="h-12 w-12 text-muted-foreground" />}
+                title="暂无表配置"
+                description="还没有添加任何表配置，点击上方按钮创建第一个表配置"
+                action={{
+                  label: '新增表',
+                  onClick: handleCreate
+                }}
+              />
+            ) : (
+              <DataTable
+                columns={tableColumns}
+                data={tables}
+                loading={isLoading}
+                searchable={true}
+                searchPlaceholder="搜索表名、注释或数据源..."
+                onRow={(record) => ({
+                  className: 'cursor-pointer',
+                  onDoubleClick: () => handleEdit(record)
+                })}
+                actions={<FilterControls />}
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 表单弹窗 */}
+        <TableFormDialog />
       </div>
-
-      {/* 统计卡片 */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">总表数</CardTitle>
-            <Database className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{tables.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">启用表</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {tables.filter(t => t.isAvailable).length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">禁用表</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              {tables.filter(t => !t.isAvailable).length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">有数据源</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {tables.filter(t => t.dataSource).length}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 表格 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>表列表</CardTitle>
-          <CardDescription>
-            所有数据库表的基础配置信息
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="py-12">
-              <LoadingSpinner text="加载中..." />
-            </div>
-          ) : tables.length === 0 ? (
-            <EmptyState
-              icon={<Database className="h-12 w-12 text-muted-foreground" />}
-              title="暂无表配置"
-              description="还没有添加任何表配置，点击上方按钮创建第一个表配置"
-              action={{
-                label: '新增表',
-                onClick: handleCreate
-              }}
-            />
-          ) : (
-            <DataTable
-              columns={tableColumns}
-              data={tables}
-              loading={isLoading}
-              searchable={true}
-              searchPlaceholder="搜索表名、注释或数据源..."
-              onRow={(record) => ({
-                className: 'cursor-pointer',
-                onDoubleClick: () => handleEdit(record)
-              })}
-              actions={<FilterControls />}
-            />
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 表单弹窗 */}
-      <TableFormDialog />
-    </div>
+    </Layout>
   )
 }
