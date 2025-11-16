@@ -98,7 +98,7 @@ const Pagination = ({
   onChange,
   showSizeChanger = true,
   showQuickJumper = true,
-}: DataTableProps<any>['pagination']) => {
+}: NonNullable<DataTableProps<any>['pagination']>) => {
   const totalPages = Math.ceil(total / pageSize)
 
   return (

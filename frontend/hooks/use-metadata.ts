@@ -2,7 +2,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMetadataStore } from '@/store/use-metadata-store'
 import { useAppStore } from '@/store/use-app-store'
 import metadataService from '@/lib/services/metadataService'
-import type { TableMetadata, GlossaryTerm, DataTheme, RelationConfig } from '@/types/index'
+import type { TableMetadata, GlossaryTerm, DataTheme, RelationConfig, Notification } from '@/types/index'
+
+// 辅助函数：创建通知
+const createNotification = (type: Notification['type'], title: string, message: string): Omit<Notification, 'id' | 'timestamp'> => ({
+  type,
+  title,
+  message
+})
 
 // 表数据查询
 export function useTables() {
@@ -29,10 +36,9 @@ export function useCreateTable() {
       queryClient.invalidateQueries({ queryKey: ['tables'] })
       setEditingTable(null)
       addNotification({
+        ...createNotification('success', '创建成功', '表配置已创建'),
         id: Date.now().toString(),
-        type: 'success',
-        title: '创建成功',
-        message: '表配置已创建'
+        timestamp: new Date().toISOString()
       })
     },
     onError: (error: any) => {
@@ -40,7 +46,8 @@ export function useCreateTable() {
         id: Date.now().toString(),
         type: 'error',
         title: '创建失败',
-        message: error.message || '创建表配置失败'
+        message: error.message || '创建表配置失败',
+        timestamp: new Date().toISOString()
       })
     }
   })
@@ -62,7 +69,8 @@ export function useUpdateTable() {
         id: Date.now().toString(),
         type: 'success',
         title: '更新成功',
-        message: '表配置已更新'
+        message: '表配置已更新',
+        timestamp: new Date().toISOString()
       })
     },
     onError: (error: any) => {
@@ -70,7 +78,8 @@ export function useUpdateTable() {
         id: Date.now().toString(),
         type: 'error',
         title: '更新失败',
-        message: error.message || '更新表配置失败'
+        message: error.message || '更新表配置失败',
+        timestamp: new Date().toISOString()
       })
     }
   })

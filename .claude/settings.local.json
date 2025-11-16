@@ -49,7 +49,8 @@
       "mcp__docs-langchain__SearchDocsByLangChain",
       "Bash(git pull:*)",
       "mcp__tavily__tavily_search",
-      "Bash(npx create-next-app:*)"
+      "Bash(npx create-next-app:*)",
+      "Bash(npx shadcn@latest add:*)"
     ],
     "deny": [],
     "ask": [],

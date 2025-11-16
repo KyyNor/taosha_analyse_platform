@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -12,10 +11,10 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { useTables, useCreateTable, useUpdateTable, useDeleteTable } from '@/hooks/use-metadata'
 import { useMetadataStore, useAppStore } from '@/store'
 import { useTableForm } from '@/hooks/use-table-form'
-import { useForm } from 'react-hook-form'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -23,7 +22,7 @@ import {
 } from '@/components/ui/form'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Edit, Trash2, Database, Search, Filter } from 'lucide-react'
+import { Plus, Database, Search, Filter } from 'lucide-react'
 import type { TableMetadata } from '@/types/index'
 
 // 表格列定义
@@ -259,13 +258,15 @@ export default function TablesPage() {
       </div>
 
       <div className="flex items-center gap-2">
-        <Input
-          placeholder="搜索表名或注释..."
-          value={searchQuery || ''}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-64"
-          startIcon={<Search className="h-4 w-4" />}
-        />
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="搜索表名或注释..."
+            value={searchQuery || ''}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 w-64"
+          />
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
@@ -301,7 +302,7 @@ export default function TablesPage() {
           <CardContent className="py-12">
             <EmptyState
               title="加载失败"
-              description={error}
+              description={typeof error === 'string' ? error : error?.message || '未知错误'}
               action={{
                 label: '重试',
                 onClick: () => window.location.reload()

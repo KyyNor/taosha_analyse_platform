@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { CopilotChat } from "@copilotkit/react-ui";
 import {
   Database,
@@ -8,9 +7,7 @@ import {
   GitBranch,
   MessageSquare,
   Palette,
-  Settings,
-  Bot,
-  BarChart3
+  Bot
 } from "lucide-react";
 
 const navigationItems = [
