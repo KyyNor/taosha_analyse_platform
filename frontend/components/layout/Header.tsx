@@ -41,7 +41,7 @@ export default function Header() {
               onMouseEnter={() => setOpen(true)}
               onMouseLeave={() => setOpen(false)}
               align="end"
-              className="min-w-[12rem]"
+              className="min-w-[12rem] bg-background border border-solid"
             >
               <DropdownMenuItem asChild>
                 <Link href="/metadata/tables">数据表</Link>

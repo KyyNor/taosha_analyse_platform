@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getFavorites, executeFavorite, updateFavorite, deleteFavorite } from "@/lib/services/favoritesService";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 
 export default function Page() {
   const [loading, setLoading] = useState(false);

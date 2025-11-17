@@ -68,6 +68,10 @@ interface AgentState {
 interface AgentActions {
   sendMessage: (message: string) => Promise<void>;
   clearMessages: () => void;
+  addMessage: (role: 'user' | 'assistant' | 'system', content: string, options?: {
+    tool_calls?: ToolCall[];
+    thinking?: string;
+  }) => ChatMessage;
   setSidebarOpen: (open: boolean) => void;
 }
 
@@ -268,6 +272,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     // Actions
     sendMessage,
     clearMessages,
+    addMessage,
     setSidebarOpen: setSidebarOpenCallback,
   }), [
     messages,
@@ -281,6 +286,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     hasMessages,
     sendMessage,
     clearMessages,
+    addMessage,
     setSidebarOpenCallback,
   ]);
 

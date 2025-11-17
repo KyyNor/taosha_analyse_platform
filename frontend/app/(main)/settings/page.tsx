@@ -10,7 +10,7 @@ export default function Page() {
 
   const save = async () => {
     // 预留：可接入后端设置保存接口或写入浏览器存储
-    console.log("save", { apiBase, wsBase, notes });
+    console.log("save", { apiBase, notes });
   };
 
   return (

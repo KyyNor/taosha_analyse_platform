@@ -5,7 +5,7 @@ import QueryResultsTable from "../../../components/query/QueryResultsTable";
 import QueryProgress from "../../../components/common/QueryProgress";
 import Welcome from "../../../components/common/Welcome";
 import { runQuery } from "../../../lib/services/queryService";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 
 export default function Page() {
   const [initialQuery, setInitialQuery] = useState("");
