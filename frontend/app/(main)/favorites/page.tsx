@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getFavorites, executeFavorite, updateFavorite, deleteFavorite } from "@/lib/services/favoritesService";
+import { toast } from "@/components/ui/sonner";
 
 export default function Page() {
   const [loading, setLoading] = useState(false);
@@ -39,7 +40,12 @@ export default function Page() {
   const columns = useMemo(() => Object.keys(filtered[0] ?? {}), [filtered]);
 
   const onExecute = async (id: number) => {
-    await executeFavorite(id);
+    try {
+      await executeFavorite(id);
+      toast.success("已执行收藏查询");
+    } catch {
+      toast.error("执行失败");
+    }
   };
 
   const onEdit = (item: any) => {
@@ -50,15 +56,25 @@ export default function Page() {
 
   const onSave = async () => {
     if (!currentItem) return;
-    await updateFavorite(Number(currentItem.id), title.trim());
-    setEditOpen(false);
-    setCurrentItem(null);
-    await load();
+    try {
+      await updateFavorite(Number(currentItem.id), title.trim());
+      toast.success("收藏已更新");
+      setEditOpen(false);
+      setCurrentItem(null);
+      await load();
+    } catch {
+      toast.error("更新失败");
+    }
   };
 
   const onDelete = async (id: number) => {
-    await deleteFavorite(id);
-    await load();
+    try {
+      await deleteFavorite(id);
+      toast.success("收藏已删除");
+      await load();
+    } catch {
+      toast.error("删除失败");
+    }
   };
 
   return (

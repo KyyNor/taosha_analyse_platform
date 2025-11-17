@@ -4,7 +4,8 @@ import QueryForm from "../../../components/common/QueryForm";
 import QueryResultsTable from "../../../components/query/QueryResultsTable";
 import QueryProgress from "../../../components/common/QueryProgress";
 import Welcome from "../../../components/common/Welcome";
-import { runQuery, fetchHistory } from "../../../lib/services/queryService";
+import { runQuery } from "../../../lib/services/queryService";
+import { toast } from "@/components/ui/sonner";
 
 export default function Page() {
   const [initialQuery, setInitialQuery] = useState("");
@@ -22,8 +23,9 @@ export default function Page() {
       const res = await runQuery({ text: payload.text });
       setResultData(res?.data ?? []);
       setGeneratedSQL(res?.sql);
+      toast.success("查询已完成");
     } catch (e) {
-      // 可进一步接入 toast
+      toast.error("查询失败");
     } finally {
       setIsQueryRunning(false);
       setHasActiveQuery(false);
@@ -33,6 +35,7 @@ export default function Page() {
   const handleCancelQuery = () => {
     setIsQueryRunning(false);
     setHasActiveQuery(false);
+    toast.info("已取消查询");
   };
 
   const quickExamples = [

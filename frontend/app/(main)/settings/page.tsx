@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 
 export default function Page() {
   const [apiBase, setApiBase] = useState<string>(process.env.NEXT_PUBLIC_API_BASE || "/api");
-  const [wsBase, setWsBase] = useState<string>(process.env.NEXT_PUBLIC_WS_BASE || "ws://localhost:50020/ws");
   const [notes, setNotes] = useState<string>("");
 
   const save = async () => {
@@ -19,10 +18,6 @@ export default function Page() {
       <div className="space-y-3">
         <label className="text-sm">API 基础路径</label>
         <Input value={apiBase} onChange={(e) => setApiBase(e.target.value)} />
-      </div>
-      <div className="space-y-3">
-        <label className="text-sm">WebSocket 基础路径</label>
-        <Input value={wsBase} onChange={(e) => setWsBase(e.target.value)} />
       </div>
       <div className="space-y-3">
         <label className="text-sm">备注</label>

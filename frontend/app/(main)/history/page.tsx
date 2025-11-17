@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getQueryHistory, getQueryHistoryDetail } from "@/lib/services/historyService";
+import { toast } from "@/components/ui/sonner";
 
 export default function Page() {
   const [loading, setLoading] = useState(false);
@@ -40,9 +41,13 @@ export default function Page() {
 
   const openDetail = async (taskId: string) => {
     setCurrentTaskId(taskId);
-    const res = await getQueryHistoryDetail(taskId);
-    setDetailLogs(res?.data ?? []);
-    setDetailOpen(true);
+    try {
+      const res = await getQueryHistoryDetail(taskId);
+      setDetailLogs(res?.data ?? []);
+      setDetailOpen(true);
+    } catch {
+      toast.error("加载详情失败");
+    }
   };
 
   return (

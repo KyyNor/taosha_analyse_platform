@@ -2,6 +2,7 @@ import "../styles/globals.css";
 import { ReactNode } from "react";
 import { AppProvider } from "../lib/state/app";
 import { ThemeProvider } from "../lib/state/theme";
+import { Toaster } from "../components/ui/sonner";
 
 export const metadata = {
   title: "Taosha Analyse Platform",
@@ -13,7 +14,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="zh-CN">
       <body className="min-h-dvh bg-background text-foreground">
         <ThemeProvider>
-          <AppProvider>{children}</AppProvider>
+          <AppProvider>
+            {children}
+            <Toaster richColors closeButton />
+          </AppProvider>
         </ThemeProvider>
       </body>
     </html>
