@@ -16,11 +16,9 @@ import { cn } from "@/lib/utils";
 
 interface MessageItemProps {
   message: ChatMessage;
-  showThinkingChain?: boolean;
-  showToolCalls?: boolean;
 }
 
-export function MessageItem({ message, showThinkingChain = false, showToolCalls = false }: MessageItemProps) {
+export function MessageItem({ message }: MessageItemProps) {
   const [thinkingOpen, setThinkingOpen] = useState(false);
   const [toolCallsOpen, setToolCallsOpen] = useState(false);
 
@@ -119,7 +117,7 @@ export function MessageItem({ message, showThinkingChain = false, showToolCalls 
             </div>
 
             {/* Thinking Chain Display */}
-            {isAssistant && message.thinking && showThinkingChain && (
+            {isAssistant && message.thinking && (
               <Collapsible
                 open={thinkingOpen}
                 onOpenChange={setThinkingOpen}
@@ -155,7 +153,7 @@ export function MessageItem({ message, showThinkingChain = false, showToolCalls 
             )}
 
             {/* Tool Calls Display */}
-            {isAssistant && message.tool_calls && message.tool_calls.length > 0 && showToolCalls && (
+            {isAssistant && message.tool_calls && message.tool_calls.length > 0 && (
               <Collapsible
                 open={toolCallsOpen}
                 onOpenChange={setToolCallsOpen}

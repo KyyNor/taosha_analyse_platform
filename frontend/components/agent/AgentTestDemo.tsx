@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ChatMessage } from "@/lib/state/agent";
 
 export function AgentTestDemo() {
-  const { clearMessages, toggleThinkingChain, toggleToolCalls, addMessage } = useAgentState();
+  const { clearMessages, addMessage } = useAgentState();
 
   // 添加测试消息
   const addTestMessages = () => {
@@ -85,22 +85,6 @@ export function AgentTestDemo() {
           <Button
             variant="outline"
             size="sm"
-            onClick={toggleThinkingChain}
-          >
-            切换思维链
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={toggleToolCalls}
-          >
-            切换工具调用
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
             onClick={addTestMessages}
           >
             添加测试消息
@@ -118,7 +102,7 @@ export function AgentTestDemo() {
 
       <p className="text-xs text-muted-foreground mt-2">
         • 点击"添加测试消息"可以看到思维链和工具调用的展示效果
-        • 使用侧边栏开关控制思维链和工具调用的显示
+        • 思维链和工具调用默认折叠，可直接点击展开查看
         • 在实际使用中，消息会通过后端API获取
       </p>
     </div>

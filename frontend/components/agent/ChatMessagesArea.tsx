@@ -13,8 +13,6 @@ export function ChatMessagesArea() {
     messages,
     isProcessing,
     processingText,
-    showThinkingChain,
-    showToolCalls,
   } = useAgentState();
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -38,8 +36,6 @@ export function ChatMessagesArea() {
               <MessageItem
                 key={message.id}
                 message={message}
-                showThinkingChain={showThinkingChain}
-                showToolCalls={showToolCalls}
               />
             ))}
 

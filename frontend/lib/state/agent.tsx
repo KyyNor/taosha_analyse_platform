@@ -57,10 +57,6 @@ interface AgentState {
   currentSessionId: string | null;
   currentUserId: string;
 
-  // 显示控制
-  showThinkingChain: boolean;
-  showToolCalls: boolean;
-
   // UI状态
   sidebarOpen: boolean;
 
@@ -72,8 +68,6 @@ interface AgentState {
 interface AgentActions {
   sendMessage: (message: string) => Promise<void>;
   clearMessages: () => void;
-  toggleThinkingChain: () => void;
-  toggleToolCalls: () => void;
   setSidebarOpen: (open: boolean) => void;
 }
 
@@ -88,8 +82,6 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   const [currentResponse, setCurrentResponse] = useState('');
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [currentUserId] = useState<string>('api_user');
-  const [showThinkingChain, setShowThinkingChain] = useState(false);
-  const [showToolCalls, setShowToolCalls] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Refs for streaming
@@ -246,15 +238,6 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Toggle functions
-  const toggleThinkingChain = useCallback(() => {
-    setShowThinkingChain(prev => !prev);
-  }, []);
-
-  const toggleToolCalls = useCallback(() => {
-    setShowToolCalls(prev => !prev);
-  }, []);
-
   const setSidebarOpenCallback = useCallback((open: boolean) => {
     setSidebarOpen(open);
   }, []);
@@ -276,8 +259,6 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     currentResponse,
     currentSessionId,
     currentUserId,
-    showThinkingChain,
-    showToolCalls,
     sidebarOpen,
 
     // Computed
@@ -287,8 +268,6 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     // Actions
     sendMessage,
     clearMessages,
-    toggleThinkingChain,
-    toggleToolCalls,
     setSidebarOpen: setSidebarOpenCallback,
   }), [
     messages,
@@ -297,15 +276,11 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     currentResponse,
     currentSessionId,
     currentUserId,
-    showThinkingChain,
-    showToolCalls,
     sidebarOpen,
     conversationHistory,
     hasMessages,
     sendMessage,
     clearMessages,
-    toggleThinkingChain,
-    toggleToolCalls,
     setSidebarOpenCallback,
   ]);
 
