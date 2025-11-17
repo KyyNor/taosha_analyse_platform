@@ -1,3 +1,5 @@
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../ui/table";
+
 type Props = {
   data: Array<Record<string, any>>;
   generatedSQL?: string;
@@ -17,24 +19,24 @@ export default function QueryResultsTable({ data = [], generatedSQL, loading }: 
       {generatedSQL ? (
         <pre className="mb-4 rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap">{generatedSQL}</pre>
       ) : null}
-      <table className="min-w-full text-sm">
-        <thead>
-          <tr className="border-b">
+      <Table className="min-w-full text-sm">
+        <TableHeader>
+          <TableRow>
             {columns.map((c) => (
-              <th key={c} className="px-3 py-2 text-left font-medium text-muted-foreground">{c}</th>
+              <TableHead key={c} className="px-3 py-2 text-left font-medium text-muted-foreground">{c}</TableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {data.map((row, i) => (
-            <tr key={i} className="border-b">
+            <TableRow key={i} className="border-b">
               {columns.map((c) => (
-                <td key={c} className="px-3 py-2">{String(row[c])}</td>
+                <TableCell key={c} className="px-3 py-2">{String(row[c])}</TableCell>
               ))}
-            </tr>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
