@@ -50,12 +50,17 @@
       "Bash(git pull:*)",
       "mcp__tavily__tavily_search",
       "Bash(npx create-next-app:*)",
-      "Bash(npx shadcn@latest add:*)"
+      "Bash(npx shadcn@latest add:*)",
+      "mcp__shadcn__get_project_registries"
     ],
     "deny": [],
     "ask": [],
     "additionalDirectories": [
       "D:\\"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "shadcn"
+  ]
 }
