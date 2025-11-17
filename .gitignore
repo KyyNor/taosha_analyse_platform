@@ -151,3 +151,9 @@ temp/
 
 backend/database/Qwen3-Embedding-0___6B/
 backend/database/bge-m3-onnx/
+
+.next
+
+# allow Next.js frontend libs
+!frontend/lib/
+!frontend/lib/**
