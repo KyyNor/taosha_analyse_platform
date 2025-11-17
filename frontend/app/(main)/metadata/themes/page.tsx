@@ -26,7 +26,7 @@ export default function Page() {
 
   // 表格列配置
   const columns = [
-    { key: "theme_id", label: "主题ID", type: "number" as const },
+    { key: "id", label: "主题ID", type: "number" as const },
     { key: "theme_name", label: "主题名称", type: "text" as const },
     { key: "theme_description", label: "主题描述", type: "text" as const, maxLength: 80 },
     { key: "theme_type", label: "主题类型", type: "text" as const },
@@ -39,11 +39,11 @@ export default function Page() {
 
   // 操作处理
   const handleView = (item: any, index: number) => {
-    router.push(`/metadata/themes/${item.theme_id}`);
+    router.push(`/metadata/themes/${item.id}`);
   };
 
   const handleEdit = (item: any, index: number) => {
-    router.push(`/metadata/themes/${item.theme_id}?mode=edit`);
+    router.push(`/metadata/themes/${item.id}?mode=edit`);
   };
 
   const handleAdd = () => {

@@ -130,7 +130,7 @@ export default function TableDetailPage() {
           <CardContent className="space-y-4">
             <div>
               <label className="text-sm font-medium text-muted-foreground">表ID</label>
-              <p className="text-lg font-semibold">{tableData.table_id}</p>
+              <p className="text-lg font-semibold">{tableData.id}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">表名</label>

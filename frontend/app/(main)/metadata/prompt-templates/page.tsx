@@ -26,7 +26,7 @@ export default function Page() {
 
   // 表格列配置
   const columns = [
-    { key: "template_id", label: "模板ID", type: "number" as const },
+    { key: "id", label: "模板ID", type: "number" as const },
     { key: "template_name", label: "模板名称", type: "text" as const },
     { key: "template_description", label: "模板描述", type: "text" as const, maxLength: 60 },
     { key: "template_type", label: "模板类型", type: "text" as const },
@@ -39,11 +39,11 @@ export default function Page() {
 
   // 操作处理
   const handleView = (item: any, index: number) => {
-    router.push(`/metadata/prompt-templates/${item.template_id}`);
+    router.push(`/metadata/prompt-templates/${item.id}`);
   };
 
   const handleEdit = (item: any, index: number) => {
-    router.push(`/metadata/prompt-templates/${item.template_id}?mode=edit`);
+    router.push(`/metadata/prompt-templates/${item.id}?mode=edit`);
   };
 
   const handleAdd = () => {

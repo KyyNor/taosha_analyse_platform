@@ -26,7 +26,7 @@ export default function Page() {
 
   // 表格列配置
   const columns = [
-    { key: "config_id", label: "配置ID", type: "number" as const },
+    { key: "id", label: "配置ID", type: "number" as const },
     { key: "source_table", label: "源表", type: "text" as const },
     { key: "source_column", label: "源字段", type: "text" as const },
     { key: "target_table", label: "目标表", type: "text" as const },
@@ -39,11 +39,11 @@ export default function Page() {
 
   // 操作处理
   const handleView = (item: any, index: number) => {
-    router.push(`/metadata/relations/${item.config_id}`);
+    router.push(`/metadata/relations/${item.id}`);
   };
 
   const handleEdit = (item: any, index: number) => {
-    router.push(`/metadata/relations/${item.config_id}?mode=edit`);
+    router.push(`/metadata/relations/${item.id}?mode=edit`);
   };
 
   const handleAdd = () => {

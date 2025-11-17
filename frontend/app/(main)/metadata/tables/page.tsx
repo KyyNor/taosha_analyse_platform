@@ -25,7 +25,7 @@ export default function Page() {
 
   // 表格列配置
   const columns = [
-    { key: "table_id", label: "表ID", type: "number" as const },
+    { key: "id", label: "表ID", type: "number" as const },
     { key: "table_name", label: "表名", type: "text" as const },
     { key: "table_comment", label: "表描述", type: "text" as const, maxLength: 50 },
     { key: "is_available", label: "是否可用", type: "boolean" as const },
@@ -35,11 +35,11 @@ export default function Page() {
 
   // 操作处理
   const handleView = (item: any, index: number) => {
-    router.push(`/metadata/tables/${item.table_id}`);
+    router.push(`/metadata/tables/${item.id}`);
   };
 
   const handleEdit = (item: any, index: number) => {
-    router.push(`/metadata/tables/${item.table_id}?mode=edit`);
+    router.push(`/metadata/tables/${item.id}?mode=edit`);
   };
 
   const handleAdd = () => {

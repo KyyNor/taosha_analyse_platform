@@ -26,7 +26,7 @@ export default function Page() {
 
   // 表格列配置
   const columns = [
-    { key: "term_id", label: "术语ID", type: "number" as const },
+    { key: "id", label: "术语ID", type: "number" as const },
     { key: "term_name", label: "术语名称", type: "text" as const },
     { key: "term_definition", label: "术语定义", type: "text" as const, maxLength: 80 },
     { key: "business_domain", label: "业务域", type: "text" as const },
@@ -38,11 +38,11 @@ export default function Page() {
 
   // 操作处理
   const handleView = (item: any, index: number) => {
-    router.push(`/metadata/glossary/${item.term_id}`);
+    router.push(`/metadata/glossary/${item.id}`);
   };
 
   const handleEdit = (item: any, index: number) => {
-    router.push(`/metadata/glossary/${item.term_id}?mode=edit`);
+    router.push(`/metadata/glossary/${item.id}?mode=edit`);
   };
 
   const handleAdd = () => {
