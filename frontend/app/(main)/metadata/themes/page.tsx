@@ -30,9 +30,7 @@ export default function Page() {
     { key: "theme_name", label: "主题名称", type: "text" as const },
     { key: "theme_description", label: "主题描述", type: "text" as const, maxLength: 80 },
     { key: "theme_type", label: "主题类型", type: "text" as const },
-    { key: "parent_theme", label: "父主题", type: "text" as const },
-    { key: "is_active", label: "是否启用", type: "boolean" as const },
-    { key: "table_count", label: "表数量", type: "number" as const },
+    { key: "department", label: "关联部门", type: "text" as const },
     { key: "created_at", label: "创建时间", type: "datetime" as const },
     { key: "updated_at", label: "更新时间", type: "datetime" as const },
   ];

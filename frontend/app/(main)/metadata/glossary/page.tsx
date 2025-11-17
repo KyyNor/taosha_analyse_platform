@@ -27,11 +27,11 @@ export default function Page() {
   // 表格列配置
   const columns = [
     { key: "id", label: "术语ID", type: "number" as const },
-    { key: "term_name", label: "术语名称", type: "text" as const },
-    { key: "term_definition", label: "术语定义", type: "text" as const, maxLength: 80 },
-    { key: "business_domain", label: "业务域", type: "text" as const },
+    { key: "name", label: "术语名称", type: "text" as const },
+    { key: "type", label: "术语类型", type: "text" as const },
     { key: "content", label: "内容配置", type: "object" as const, maxLength: 100 },
-    { key: "is_active", label: "是否启用", type: "boolean" as const },
+    { key: "creator", label: "创建者", type: "text" as const },
+    { key: "is_basic", label: "基础术语", type: "boolean" as const },
     { key: "created_at", label: "创建时间", type: "datetime" as const },
     { key: "updated_at", label: "更新时间", type: "datetime" as const },
   ];

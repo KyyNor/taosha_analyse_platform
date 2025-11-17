@@ -27,12 +27,9 @@ export default function Page() {
   // 表格列配置
   const columns = [
     { key: "id", label: "配置ID", type: "number" as const },
-    { key: "source_table", label: "源表", type: "text" as const },
-    { key: "source_column", label: "源字段", type: "text" as const },
-    { key: "target_table", label: "目标表", type: "text" as const },
-    { key: "target_column", label: "目标字段", type: "text" as const },
-    { key: "relation_type", label: "关系类型", type: "text" as const },
-    { key: "description", label: "描述", type: "text" as const, maxLength: 50 },
+    { key: "relation_family", label: "关系族", type: "text" as const },
+    { key: "relation_subfamily", label: "关系子族", type: "text" as const },
+    { key: "relation_desc", label: "关系描述", type: "text" as const, maxLength: 80 },
     { key: "created_at", label: "创建时间", type: "datetime" as const },
     { key: "updated_at", label: "更新时间", type: "datetime" as const },
   ];

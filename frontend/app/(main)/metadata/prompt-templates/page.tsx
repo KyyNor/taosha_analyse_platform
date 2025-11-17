@@ -27,12 +27,9 @@ export default function Page() {
   // 表格列配置
   const columns = [
     { key: "id", label: "模板ID", type: "number" as const },
-    { key: "template_name", label: "模板名称", type: "text" as const },
-    { key: "template_description", label: "模板描述", type: "text" as const, maxLength: 60 },
-    { key: "template_type", label: "模板类型", type: "text" as const },
+    { key: "name", label: "模板名称", type: "text" as const },
+    { key: "fields", label: "字段配置", type: "object" as const, maxLength: 80 },
     { key: "template", label: "模板内容", type: "text" as const, maxLength: 100 },
-    { key: "version", label: "版本", type: "text" as const },
-    { key: "is_active", label: "是否启用", type: "boolean" as const },
     { key: "created_at", label: "创建时间", type: "datetime" as const },
     { key: "updated_at", label: "更新时间", type: "datetime" as const },
   ];

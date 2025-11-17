@@ -26,8 +26,9 @@ export default function Page() {
   // 表格列配置
   const columns = [
     { key: "id", label: "表ID", type: "number" as const },
-    { key: "table_name", label: "表名", type: "text" as const },
-    { key: "table_comment", label: "表描述", type: "text" as const, maxLength: 50 },
+    { key: "name", label: "表名", type: "text" as const },
+    { key: "comment", label: "表描述", type: "text" as const, maxLength: 50 },
+    { key: "remark", label: "备注", type: "text" as const, maxLength: 50 },
     { key: "is_available", label: "是否可用", type: "boolean" as const },
     { key: "created_at", label: "创建时间", type: "datetime" as const },
     { key: "updated_at", label: "更新时间", type: "datetime" as const },

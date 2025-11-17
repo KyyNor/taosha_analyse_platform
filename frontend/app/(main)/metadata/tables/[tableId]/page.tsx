@@ -89,13 +89,17 @@ export default function TableDetailPage() {
 
   // 字段表格列配置
   const columnsColumns = [
-    { key: "column_name", label: "字段名", type: "text" as const },
-    { key: "column_type", label: "字段类型", type: "text" as const },
-    { key: "is_nullable", label: "可为空", type: "boolean" as const },
-    { key: "column_default", label: "默认值", type: "text" as const },
-    { key: "column_comment", label: "字段描述", type: "text" as const, maxLength: 50 },
-    { key: "is_primary_key", label: "主键", type: "boolean" as const },
-    { key: "ordinal_position", label: "位置", type: "number" as const },
+    { key: "id", label: "字段ID", type: "number" as const },
+    { key: "table_id", label: "表ID", type: "number" as const },
+    { key: "name", label: "字段名", type: "text" as const },
+    { key: "type", label: "字段类型", type: "text" as const },
+    { key: "comment", label: "字段描述", type: "text" as const, maxLength: 50 },
+    { key: "remark", label: "备注", type: "text" as const, maxLength: 50 },
+    { key: "is_available", label: "是否可用", type: "boolean" as const },
+    { key: "business_type", label: "业务类型", type: "text" as const },
+    { key: "relation_config_id", label: "关系配置", type: "number" as const },
+    { key: "created_at", label: "创建时间", type: "datetime" as const },
+    { key: "updated_at", label: "更新时间", type: "datetime" as const },
   ];
 
   return (
@@ -134,11 +138,15 @@ export default function TableDetailPage() {
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">表名</label>
-              <p className="text-lg">{tableData.table_name}</p>
+              <p className="text-lg">{tableData.name}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">表描述</label>
-              <p className="text-sm">{tableData.table_comment || '-'}</p>
+              <p className="text-sm">{tableData.comment || '-'}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">备注</label>
+              <p className="text-sm">{tableData.remark || '-'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">状态</label>
