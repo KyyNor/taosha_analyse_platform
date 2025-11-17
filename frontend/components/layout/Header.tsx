@@ -11,7 +11,7 @@ import {
 const items = [
   { href: "/nlquery", label: "查询" },
   { href: "/agent", label: "Agent" },
-  { href: "/history", label: "日志" },
+  { href: "/history", label: "历史" },
   { href: "/favorites", label: "收藏" },
   { href: "/settings", label: "设置" }
 ];
