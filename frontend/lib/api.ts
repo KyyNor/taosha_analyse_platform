@@ -9,4 +9,9 @@ api.interceptors.response.use(
   (err) => Promise.reject(err)
 );
 
+export function buildApiUrl(path: string): string {
+  const baseURL = process.env.NEXT_PUBLIC_API_BASE || "/api";
+  return `${baseURL}${path}`;
+}
+
 export default api;
