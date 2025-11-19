@@ -1,14 +1,14 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { useEffect, useState } from "react";
+import { MetadataTable } from "@/components/ui/MetadataTable";
 import { getPromptTemplates } from "@/lib/services/metadataService";
+import { useRouter } from "next/navigation";
+import { FileText } from "lucide-react";
 
 export default function Page() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
-  const [q, setQ] = useState("");
+  const router = useRouter();
 
   const load = async () => {
     setLoading(true);
@@ -24,49 +24,50 @@ export default function Page() {
     load();
   }, []);
 
-  const filtered = useMemo(() => {
-    const t = q.trim().toLowerCase();
-    if (!t) return data;
-    return data.filter((row: any) => {
-      return Object.values(row ?? {}).some((v) => String(v ?? "").toLowerCase().includes(t));
-    });
-  }, [q, data]);
+  // 表格列配置
+  const columns = [
+    { key: "id", label: "模板ID", type: "number" as const },
+    { key: "name", label: "模板名称", type: "text" as const },
+    { key: "fields", label: "字段配置", type: "object" as const, maxLength: 80 },
+    { key: "template", label: "模板内容", type: "text" as const, maxLength: 100 },
+    { key: "created_at", label: "创建时间", type: "datetime" as const },
+    { key: "updated_at", label: "更新时间", type: "datetime" as const },
+  ];
 
-  const columns = useMemo(() => Object.keys(filtered[0] ?? {}), [filtered]);
+  // 操作处理
+  const handleView = (item: any, index: number) => {
+    router.push(`/metadata/prompt-templates/${item.id}`);
+  };
+
+  const handleEdit = (item: any, index: number) => {
+    router.push(`/metadata/prompt-templates/${item.id}?mode=edit`);
+  };
+
+  const handleAdd = () => {
+    router.push('/metadata/prompt-templates/new');
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Input placeholder="搜索..." value={q} onChange={(e) => setQ(e.target.value)} />
-        <Button variant="outline" onClick={load} disabled={loading}>刷新</Button>
+    <div className="container mx-auto py-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <FileText className="h-6 w-6" />
+          提示词模板管理
+        </h1>
+        <p className="text-muted-foreground">管理AI查询的提示词模板</p>
       </div>
-      <div className="rounded-md border">
-        {loading ? (
-          <div className="p-4 text-sm text-muted-foreground">加载中...</div>
-        ) : (
-          <Table className="min-w-full text-sm">
-            <TableHeader>
-              <TableRow>
-                {columns.map((c) => (
-                  <TableHead key={c} className="px-3 py-2 text-left">{c}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((row, i) => (
-                <TableRow key={i}>
-                  {columns.map((c) => (
-                    <TableCell key={c} className="px-3 py-2">{String(row[c])}</TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-        {!loading && filtered.length === 0 ? (
-          <div className="p-4 text-sm text-muted-foreground">暂无数据</div>
-        ) : null}
-      </div>
+
+      <MetadataTable
+        data={data}
+        columns={columns}
+        loading={loading}
+        onRefresh={load}
+        onAdd={handleAdd}
+        onView={handleView}
+        onEdit={handleEdit}
+        searchPlaceholder="搜索模板名称或描述..."
+        emptyText="暂无提示词模板"
+      />
     </div>
   );
 }

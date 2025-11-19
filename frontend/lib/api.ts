@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE || "/api"
+  baseURL: process.env.NEXT_PUBLIC_API_BASE || "/api/taosha/v1"
 });
 
 api.interceptors.response.use(
