@@ -1,0 +1,3 @@
+是这样的，我现在向量是用fastembed启动的，他在多个worker的时候会启动多个实例，这样会多内存占用， @embeddings_model/start_embeddings_models.sh 我想把embeddings和rerank模型的启动独
+立出来，启动后以接口暴露，然后主程序以openai兼容的接口访问它，这样多个worker也只会启一个实例了。现在我想你帮我规划一下，用什么来驱动embeddings和rerank模型合适？fastembed？llama 
+cpp？还是其他的。另外，我希望 @embeddings_model/start_embeddings_models.sh 启动时能如果模型文件不存在，可以自动用modelscope下载。
