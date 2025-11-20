@@ -50,14 +50,16 @@ def excel_column_to_index(column: str) -> int:
 # 全局异步浏览器实例（每个worker进程一个）
 _async_browser: Optional[Browser] = None
 _async_context: Optional[BrowserContext] = None  # 共享登录会话的上下文
+_async_context_initialized: bool = False  # 标记是否已初始化
+_async_context_login_attempted: bool = False  # 标记是否已尝试登录
 
 
 async def get_async_browser_context() -> BrowserContext:
-    """获取全局异步 BrowserContext 实例，共享登录会话"""
-    global _async_browser, _async_context
+    """获取全局异步 BrowserContext 实例，懒加载模式"""
+    global _async_browser, _async_context, _async_context_initialized, _async_context_login_attempted
 
     if _async_context is None:
-        logger.info("启动异步 Playwright 浏览器实例")
+        logger.info("首次调用：启动异步 Playwright 浏览器实例")
         try:
             playwright = await async_playwright().start()
             _async_browser = await playwright.chromium.launch(
@@ -67,11 +69,9 @@ async def get_async_browser_context() -> BrowserContext:
 
             # 创建共享的BrowserContext，用于session共享
             _async_context = await _async_browser.new_context()
+            _async_context_initialized = True
 
-            # 执行一次性登录
-            await _login_once_async(_async_context)
-
-            logger.info("异步 Playwright 浏览器实例已启动，登录会话已建立")
+            logger.info("异步 Playwright 浏览器实例已启动，等待首次使用时登录")
         except Exception as e:
             logger.error(f"启动异步浏览器失败: {e}", exc_info=True)
             raise
@@ -81,12 +81,20 @@ async def get_async_browser_context() -> BrowserContext:
 
 async def _login_once_async(context: BrowserContext):
     """在BrowserContext级别执行一次性登录，所有Page共享会话"""
+    global _async_context_login_attempted
+
+    if _async_context_login_attempted:
+        logger.debug("登录已尝试过，跳过重复登录")
+        return True
+
     logger.info("执行一次性登录建立共享会话")
+    _async_context_login_attempted = True
+
     page = None
     try:
         page = await context.new_page()
         # 访问任意报表URL触发登录
-        await page.goto(settings.fine_report_login_url, wait_until="networkidle")
+        await page.goto(settings.fine_report_login_url, wait_until="networkidle", timeout=10000)
 
         # 检查是否需要登录
         current_url = page.url
@@ -102,9 +110,9 @@ async def _login_once_async(context: BrowserContext):
             await page.fill('input[type="password"]', settings.fine_report_password)
             await page.click('div[class*="login-button"]')
 
-            # 等待登录完成
+            # 等待登录完成（缩短超时时间）
             try:
-                await page.wait_for_url("**/decision/**", timeout=30000)
+                await page.wait_for_url("**/decision/**", timeout=15000)
                 await page.wait_for_timeout(1000)
                 logger.info("一次性登录成功，会话已建立")
                 return True
@@ -128,9 +136,22 @@ async def _login_once_async(context: BrowserContext):
             await page.close()
 
 
+async def _ensure_login_async(context: BrowserContext) -> bool:
+    """确保已登录，如果未登录则执行登录"""
+    global _async_context_login_attempted
+
+    if not _async_context_login_attempted:
+        logger.info("首次使用：执行FineReport登录")
+        return await _login_once_async(context)
+    else:
+        logger.debug("登录状态已就绪")
+        return True
+
+
 async def cleanup_async_browser():
     """清理异步浏览器资源"""
-    global _async_browser, _async_context
+    global _async_browser, _async_context, _async_context_initialized, _async_context_login_attempted
+
     if _async_context:
         try:
             await _async_context.close()
@@ -146,6 +167,11 @@ async def cleanup_async_browser():
         except Exception as e:
             logger.warning(f"关闭异步浏览器实例失败: {e}")
         _async_browser = None
+
+    # 重置状态标记
+    _async_context_initialized = False
+    _async_context_login_attempted = False
+    logger.info("浏览器状态已重置")
 
 
 async def _download_excel(page: Page) -> str:
@@ -255,6 +281,11 @@ async def get_report_sample(report_url: str) -> str:
         # 获取全局 Browser 实例
         context = await get_async_browser_context()
 
+        # 确保已登录（懒加载）
+        if not await _ensure_login_async(context):
+            logger.error("FineReport登录失败")
+            return '{"success": false, "error": "登录失败"}'
+
         # 创建新 Page（不复用）
         logger.info("创建新的浏览器页面")
         page = await context.new_page()
@@ -267,8 +298,15 @@ async def get_report_sample(report_url: str) -> str:
         await page.wait_for_load_state('networkidle')
         await page.wait_for_timeout(2000)
 
-        # 检查登录状态
-        await _check_fine_login(page)
+        # 检查登录状态（如果登录失败或会话过期）
+        current_url = page.url
+        if "login" in current_url.lower():
+            logger.info("检测到会话过期，尝试重新登录")
+            if await _check_fine_login(page):
+                # 重新访问报表URL
+                await page.goto(report_url, wait_until="networkidle")
+                await page.wait_for_load_state('networkidle')
+                await page.wait_for_timeout(2000)
 
         # 获取控件信息
         logger.info("获取参数面板控件信息")
@@ -597,6 +635,11 @@ async def _batch_filter_report_and_get_data_async(report_url: str, control_opera
 
     # 第一步：获取共享的BrowserContext
     context = await get_async_browser_context()
+
+    # 确保已登录（懒加载）
+    if not await _ensure_login_async(context):
+        logger.error("FineReport登录失败")
+        return {"error": "登录失败，无法执行批量操作"}
 
     # 第二步：生成控件操作组合并预解析动态查找值
     combinations_data = _generate_value_combinations_with_parsing(control_operations, return_locators)
