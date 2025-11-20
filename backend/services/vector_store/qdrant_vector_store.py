@@ -5,15 +5,14 @@ Qdrant 向量存储实现
 import uuid
 from typing import List, Dict
 
-from fastembed import TextEmbedding
-from fastembed.common.model_description import PoolingType, ModelSource
-from fastembed.rerank.cross_encoder import TextCrossEncoder
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import MatchAny, FieldCondition, Filter
 from qdrant_client.models import Distance, VectorParams, PointStruct
 
 from utils.config import settings
 from utils.logger import logger
+from services.llm_service.embedding_service import get_embedding_service
+from services.llm_service.rerank_service import get_rerank_service
 
 
 class QdrantVectorStore():
@@ -27,18 +26,8 @@ class QdrantVectorStore():
         """初始化 Qdrant 存储
         """
         self.collection_name = settings.vector_store_collection_name
-        self.embedding_model = settings.embedding_model
-        self.embedding_type = settings.embedding_type
-        self.embedding_dimension = settings.embedding_dimensions
-        self.embedding_api_key = settings.embedding_api_key
-        self.embedding_base_url = settings.embedding_base_url
-        self.embedding_model_path = settings.embedding_model_path
-        self.embedding_pooling = settings.embedding_pooling
-        self.embedding_reranker_model = settings.embedding_reranker_model
-
         self.qdrant_url = settings.qdrant_url
         self.qdrant_api_key = settings.qdrant_api_key
-
         self.qdrant_timeout = settings.qdrant_timeout
 
         try:
@@ -57,7 +46,12 @@ class QdrantVectorStore():
 
             self.client = QdrantClient(**client_kwargs)
 
-            self._init_embedding_models()
+            # 初始化Embedding和Rerank服务
+            self.embedding_service = get_embedding_service()
+            self.rerank_service = get_rerank_service()
+
+            # 获取嵌入维度
+            self.embedding_dimension = self.embedding_service.embedding_dimension
 
             # 检查集合是否已存在，如果不存在则创建
             try:
@@ -104,10 +98,13 @@ class QdrantVectorStore():
             metadatas = [{} for _ in documents]
 
         try:
+            # 生成嵌入向量
+            embeddings = self.embedding_service.embed_documents(documents)
+
             # 构建 Point 对象
             points = []
-            for _id, document, metadata in zip(
-                ids, documents, metadatas
+            for _id, document, metadata, embedding in zip(
+                ids, documents, metadatas, embeddings
             ):
                 # 将文档内容添加到元数据中
                 metadata_with_content = {
@@ -118,7 +115,7 @@ class QdrantVectorStore():
 
                 point = PointStruct(
                     id=_id,
-                    vector=list(self.embedding.embed(document))[0],
+                    vector=embedding,
                     payload=metadata_with_content
                 )
                 points.append(point)
@@ -166,38 +163,49 @@ class QdrantVectorStore():
                     must = [FieldCondition(key="id", match=MatchAny(any=allowed_ids))]
                 )
 
-            # 执行搜索
+            # 生成查询向量
+            query_embedding = self.embedding_service.embed_query(query)
+
+            # 执行向量搜索
             results = self.client.query_points(
                 collection_name=self.collection_name,
-                query=list(self.embedding.embed(query))[0],
+                query=query_embedding,
                 limit=rerank_top_k,
                 query_filter=filters,
                 score_threshold=score_threshold,
             )
 
-            content_hits = []
-            for i, hit in enumerate(results.points):
-                content_hits.append(hit.payload["content"])
+            # 提取文档内容和元数据
+            documents_with_metadata = []
+            for hit in results.points:
+                documents_with_metadata.append({
+                    "content": hit.payload["content"],
+                    "id": hit.id,
+                    "score": hit.score,
+                    "metadata": hit.payload
+                })
 
-            # 重新打分，并排序，ranking 保存的是 [(序号，分数)]
-            new_scores = list(self.reranker.rerank(query, content_hits))
-            ranking = [(i, score) for i, score in enumerate(new_scores)]
-            ranking.sort(key=lambda x: x[1], reverse=True)
-            top_k_ranking_index = [i for i, score in ranking[:top_k] if i <= top_k]
+            # 使用reranker重新排序
+            reranked_documents = self.rerank_service.rerank_with_metadata(
+                query=query,
+                documents=documents_with_metadata,
+                content_field="content",
+                top_k=top_k
+            )
 
-            rerank_result = []
-            for i, hit in enumerate(results.points):
-                if i in top_k_ranking_index:
-                    rerank_result.append({
-                        "id": hit.id,
-                        "content": hit.payload["content"],
-                        "score": hit.score,
-                        "rerank_score": ranking[i][1],
-                        "metadata": hit.payload
-                    })
+            # 格式化返回结果
+            final_result = []
+            for doc in reranked_documents:
+                final_result.append({
+                    "id": doc["id"],
+                    "content": doc["content"],
+                    "score": doc.get("score", 0.0),
+                    "rerank_score": doc.get("rerank_score", 0.0),
+                    "metadata": doc.get("metadata", {})
+                })
 
-            logger.debug(f"搜索查询: {query[:50]}... 返回 {len(rerank_result)} 结果（过滤后）")
-            return rerank_result
+            logger.debug(f"搜索查询: {query[:50]}... 返回 {len(final_result)} 结果（重排序后）")
+            return final_result
 
         except Exception as e:
             logger.error(f"搜索文档失败: {e}")
@@ -261,48 +269,22 @@ class QdrantVectorStore():
         try:
             # 尝试获取集合信息
             self.client.get_collection(self.collection_name)
-            return True
+
+            # 检查embedding和rerank服务
+            embedding_health = self.embedding_service.health_check()
+            rerank_health = self.rerank_service.health_check()
+
+            if not embedding_health:
+                logger.warning("Embedding服务健康检查失败")
+
+            if not rerank_health:
+                logger.warning("Rerank服务健康检查失败")
+
+            return embedding_health  # 至少embedding服务需要正常工作
 
         except Exception as e:
             logger.error(f"Qdrant 健康检查失败: {e}")
             return False
-
-    def _init_embedding_models(self):
-        if self.embedding_pooling.upper() == "CLS":
-            pooling_type = PoolingType.CLS
-        elif self.embedding_pooling.upper() == "MEAN":
-            pooling_type = PoolingType.MEAN
-        else:
-            pooling_type = PoolingType.CLS
-
-        logger.info(f"开始加载自定义嵌入式模型：{self.embedding_model}")
-        TextEmbedding.add_custom_model(
-            model=self.embedding_model,
-            pooling=pooling_type,
-            normalization=True,
-            sources=ModelSource(url=self.embedding_model_path),
-            dim=self.embedding_dimension,
-            model_file="model.onnx",
-        )
-
-        self.embedding = TextEmbedding(
-            model_name=self.embedding_model,
-            cache_dir=self.embedding_model_path,
-            local_files_only=True,
-        )
-
-        logger.info(f"开始加载自定义Reranker模型：{self.embedding_reranker_model}")
-        TextCrossEncoder.add_custom_model(
-            model=self.embedding_reranker_model,
-            sources=ModelSource(url=self.embedding_model_path),
-            model_file="model.onnx",
-        )
-
-        self.reranker = TextCrossEncoder(
-            model_name=self.embedding_reranker_model,
-            cache_dir=self.embedding_model_path,
-            local_files_only=True,
-        )
 
 
 # 全局缓存实例

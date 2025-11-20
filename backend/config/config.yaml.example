@@ -45,16 +45,14 @@ openai:
   model: "kimi-k2-0905-preview"
   temperature: 0.1
 
-# Embedding配置 (用于ChromaDB向量存储)
+# Embedding配置 (用于向量存储)
 embedding:
-  type: "local"  # remote 或 local
-  api_key: ""  # remote需配置环境变量 EMBEDDING_API_KEY
-  base_url: ""  # remote需配置环境变量 EMBEDDING_BASE_URL
-  model: "bge-small-zh"  # FastEmbed模型名称
-  model_path: "/mnt/c/Users/Administrator/Desktop/淘沙打包/嵌入式模型/新建文件夹"  # 模型路径
-  dimensions: 512  # embedding维度
-  pooling: "CLS" # 池化方式: CLS 或 MEAN (BGE、ms-marco-MiniLM为CLS，jina-embeddings-v2、all-MiniLM-L6-v2、nomic-embed-*为MEAN)
-  reranker_model: "jina-reranker-v2_int8"
+  type: "localai"  # localai 或 remote
+  api_key: ""  # LocalAI通常不需要，remote需配置环境变量 EMBEDDING_API_KEY
+  base_url: "http://localhost:8080/v1"  # LocalAI服务地址或remote需配置环境变量 EMBEDDING_BASE_URL
+  model: "qwen3-embedding-0.6b"  # LocalAI中的embedding模型名称
+  dimensions: 1024  # embedding维度（可选，系统会自动检测）
+  reranker_model: "bge-reranker-v2-m3"  # reranker模型名称
 
 # 向量存储配置
 vector_store:

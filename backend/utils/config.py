@@ -94,14 +94,12 @@ class ConfigManager:
             openai_temperature: float = self._config_data.get('openai', {}).get('temperature', 0.1)
 
             # Embedding配置
-            embedding_type: str = self._config_data.get('embedding', {}).get('type', 'remote')  # remote 或 local
+            embedding_type: str = self._config_data.get('embedding', {}).get('type', 'localai')  # localai 或 remote
             embedding_api_key: Optional[str] = os.getenv("EMBEDDING_API_KEY") or self._config_data.get('embedding', {}).get('api_key')
             embedding_base_url: Optional[str] = os.getenv("EMBEDDING_BASE_URL") or self._config_data.get('embedding', {}).get('base_url')
-            embedding_model: str = self._config_data.get('embedding', {}).get('model', 'text-embedding-3-small')
+            embedding_model: str = self._config_data.get('embedding', {}).get('model', 'bge-large-zh-v1.5')
             embedding_dimensions: int = self._config_data.get('embedding', {}).get('dimensions', 1024)
-            embedding_model_path: Optional[str] = self._config_data.get('embedding', {}).get('model_path')
-            embedding_pooling: str = self._config_data.get('embedding', {}).get('pooling', "CLS")
-            embedding_reranker_model: str = self._config_data.get('embedding', {}).get('reranker_model', 'text-embedding-3-small')
+            embedding_reranker_model: str = self._config_data.get('embedding', {}).get('reranker_model', 'bge-reranker-v2-m3')
 
             # 向量存储配置
             vector_store_collection_name: str = self._config_data.get('vector_store', {}).get('collection_name', 'taosha_knowledge')
