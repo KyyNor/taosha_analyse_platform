@@ -15,6 +15,7 @@ dependencies = [
     "jaydebeapi>=1.2.3",
     "langchain>=1.0.2",
     "langchain-community>=0.4.1",
+    "langchain-localai>=1.0.0",
     "langchain-oceanbase>=0.2.6",
     "langchain-openai>=1.0.1",
     "langfuse>=3.9.2",

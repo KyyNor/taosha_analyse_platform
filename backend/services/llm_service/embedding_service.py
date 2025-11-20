@@ -3,7 +3,7 @@ Embedding服务 - 基于LocalAI的文本嵌入服务
 """
 
 from typing import List
-from langchain_openai import OpenAIEmbeddings
+from langchain_localai import LocalAIEmbeddings
 from utils.logger import logger
 from utils.config import settings
 
@@ -33,14 +33,13 @@ class EmbeddingService:
             logger.info(f"初始化LocalAI Embedding服务: {self.base_url}")
 
             # 初始化LangChain OpenAIEmbeddings客户端
-            self.client = OpenAIEmbeddings(
+            self.client = LocalAIEmbeddings(
                 model=self.model,
                 openai_api_base=self.base_url,
                 openai_api_key=self.api_key,
                 chunk_size=1000,
                 max_retries=3,
                 request_timeout=60,
-                tiktoken_enabled=False  # LocalAI模型通常不需要tiktoken
             )
 
             logger.info(f"LocalAI Embedding服务初始化完成，模型: {self.model}")

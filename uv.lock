@@ -1395,6 +1395,19 @@ wheels = [
 ]
 
 [[package]]
+name = "langchain-localai"
+version = "1.0.0"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+dependencies = [
+    { name = "langchain-core" },
+    { name = "openai" },
+]
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/c2/a7/3c9b122629debf2458e3c9920e2ddfbf82782e6605c272ef5abb3bc1d4a0/langchain_localai-1.0.0.tar.gz", hash = "sha256:0c4be1263d3d2d87c0e68b7c4beae112657d253a3a05009f6b1b815eb45e0765", size = 6305, upload-time = "2025-11-02T15:37:32.934Z" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/97/03/b81ccaed613573c0e56e62384994be4924b105323d5c0a8bfe077213d86c/langchain_localai-1.0.0-py3-none-any.whl", hash = "sha256:4f2370783620614700639487613f84033d396d9160aded6af00bf6b0bea82c8a", size = 7356, upload-time = "2025-11-02T15:37:32.058Z" },
+]
+
+[[package]]
 name = "langchain-oceanbase"
 version = "0.2.6"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
@@ -3340,6 +3353,7 @@ dependencies = [
     { name = "jaydebeapi" },
     { name = "langchain" },
     { name = "langchain-community" },
+    { name = "langchain-localai" },
     { name = "langchain-oceanbase" },
     { name = "langchain-openai" },
     { name = "langfuse" },
@@ -3381,6 +3395,7 @@ requires-dist = [
     { name = "jaydebeapi", specifier = ">=1.2.3" },
     { name = "langchain", specifier = ">=1.0.2" },
     { name = "langchain-community", specifier = ">=0.4.1" },
+    { name = "langchain-localai", specifier = ">=1.0.0" },
     { name = "langchain-oceanbase", specifier = ">=0.2.6" },
     { name = "langchain-openai", specifier = ">=1.0.1" },
     { name = "langfuse", specifier = ">=3.9.2" },
