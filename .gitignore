@@ -157,3 +157,7 @@ backend/database/bge-m3-onnx/
 # allow Next.js frontend libs
 !frontend/lib/
 !frontend/lib/**
+
+# Embeddings model - ignore everything except specific files
+embeddings_model/*
+!embeddings_model/start_embeddings_models.sh
