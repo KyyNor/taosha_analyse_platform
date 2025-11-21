@@ -32,7 +32,7 @@ cd frontend && npm run type-check
 ```
 
 ### 常用URL
-- 前端应用：http://localhost:5173
+- 前端应用：http://localhost:3000（Next.js开发服务器）
 - 后端API：http://localhost:8000
 - API文档：http://localhost:8000/docs
 - Phoenix追踪：http://localhost:7788
@@ -65,19 +65,31 @@ cd frontend && npm run type-check
 - `metadata_routes.py`：元数据CRUD操作
 - `endpoint_models.py`：请求/响应模型定义
 
-### 前端（Vue 3 + TypeScript）
+### 前端（Next.js + TypeScript + React）
+
+**架构迁移**：
+- 已从Vue 3完整迁移至Next.js 14，提供更现代的React生态
+- 使用App Router架构，支持服务器组件和客户端组件
+- 集成CopilotKit提供AI对话能力
+- 完整的TypeScript类型安全和ESLint配置
 
 **结构**：
+- `src/app/`：Next.js App Router页面结构
 - `src/components/`：功能组件（查询、布局、公共组件）
-- `src/services/api/`：HTTP客户端和API服务层
-- `src/stores/`：Pinia状态管理
-- `src/views/`：页面组件
-- `src/utils/`：工具函数（格式化、时间处理、SQL高亮）
+- `src/services/`：API客户端和HTTP请求封装
+- `src/stores/`：状态管理（基于React Context/Zustand）
+- `src/lib/`：工具函数和配置
 - `src/types/`：TypeScript接口定义
 
-**技术栈**：Vite、Pinia、Axios、ECharts、Tailwind CSS + DaisyUI
+**技术栈**：Next.js 14、React 18、TypeScript、Tailwind CSS、Radix UI、Axios、React Query
 
-**核心功能**：HTTP长轮询实时进度更新、SQL语法高亮、元数据管理UI、结果数据可视化、响应式设计
+**核心功能**：
+- 基于CopilotKit的智能对话界面
+- 实时流式对话响应（Server-Sent Events）
+- 完整的元数据管理页面（表、术语表、主题）
+- 历史查询和收藏管理功能
+- 响应式设计，支持移动端和桌面端
+- 完善的UI组件库（骨架屏、分页、侧边栏等）
 
 ## 开发工作流
 
@@ -126,16 +138,21 @@ npm run dev
 # 生产构建
 npm run build
 
+# 启动生产服务器
+npm start
+
 # 类型检查和代码检查
-npm run type-check
 npm run lint
+npm run type-check
 ```
 
 **代码风格**：
-- 使用 `<script setup lang="ts">` 语法
-- 组件：`PascalCase`（如 `QueryForm.vue`）
-- 组合函数：`camelCase`（如 `useQueryStore.ts`）
-- 启用严格的TypeScript模式
+- 使用React函数组件和TypeScript
+- 组件：`PascalCase`（如 `QueryForm.tsx`）
+- Hooks：`camelCase`（如 `useQueryStore.ts`）
+- 使用客户端组件 `'use client'` 指令
+- 遵循React和Next.js最佳实践
+- 启用严格的TypeScript和ESLint规则
 
 ## 测试
 
@@ -482,18 +499,60 @@ testcases/
   - 轻量级，响应速度快
   - 零配置，即开即用
 
-### FineReport工具优化
-- **功能增强**：改进Playwright浏览器初始化和会话管理
-- **核心改进**：
-  - 优化浏览器启动机制，支持多worker环境
-  - 简化会话池管理，提升稳定性
-  - 修复Windows环境下的异步执行问题
-  - 改进登录逻辑，提升页面访问效率
-- **新增功能**：
-  - 支持控件操作和数据提取
-  - 增强参数面板解析功能
-  - 支持批量报表处理
-  - 添加Excel格式数据返回选项
+### FineReport工具性能优化
+- **架构升级**：完全异步化Playwright实现，支持真正的并发执行
+- **性能提升**：
+  - 异步并发处理，大幅提升报表生成速度
+  - 优化浏览器上下文管理，减少资源开销
+  - 改进get_report_sample函数使用浏览器上下文
+  - 添加并发限制机制，防止资源耗尽
+- **功能增强**：
+  - 支持动态值预解析和多列名处理
+  - 完善的错误处理和调试能力
+  - 支持批量报表处理和Excel数据导出
+  - 优化工具值组合生成逻辑
+- **技术改进**：
+  - 使用Pydantic模型规范化数据结构
+  - 完整的LangChain工具集成
+  - 懒加载机制，提升应用启动速度
+  - 完善的文档注释和类型注解
+
+### LocalAI集成与嵌入服务优化
+- **本地化部署**：支持LocalAI集成，提供完全离线的AI服务能力
+- **嵌入服务优化**：
+  - 专用LocalAI集成，替代云端API调用
+  - 支持本地嵌入模型部署和推理
+  - 优化重排序服务，提供更精准的语义搜索
+- **架构优势**：
+  - 降低网络延迟，提升响应速度
+  - 完全内网离线部署能力
+  - 数据隐私和安全保障
+  - 成本可控，无API调用费用
+
+### 元数据管理功能重构
+- **完整管理界面**：实现表、术语表、主题的完整管理页面
+- **功能特性**：
+  - 数据表展示和搜索功能
+  - 字段编辑和性能优化
+  - 术语表基础字段支持
+  - 主题关联管理
+- **技术实现**：
+  - 修复字段映射和编译错误
+  - 优化数据表格类型系统
+  - 完善的CRUD操作支持
+  - 响应式设计和用户体验优化
+
+### Agent服务LangChain 1.0集成
+- **框架升级**：集成LangChain 1.0中间件，提供更强大的AI能力
+- **功能增强**：
+  - Session ID和User ID处理机制
+  - 优化异步调用和错误处理
+  - 完善的LangFuse追踪集成
+  - 更好的工具管理和状态追踪
+- **架构优势**：
+  - 向后兼容性保证
+  - 更好的性能和稳定性
+  - 丰富的调试和监控能力
 
 ### 多worker启动机制优化
 - **问题解决**：解决多worker环境下的重复初始化和资源竞争问题
@@ -504,5 +563,5 @@ testcases/
   - 增强错误处理和资源清理机制
 
 ## Documentation Last Update
-上次更新时commit: ae28f6e - feat: 添加EmptyQueryEngine解决多worker测试场景冲突
+上次更新时commit: 326a780 - feat: 优化FineReport服务懒加载，提升启动速度
 - 文档搜索用context7，其他搜索用tavily
