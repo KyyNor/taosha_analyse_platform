@@ -10,7 +10,7 @@ api.interceptors.response.use(
 );
 
 export function buildApiUrl(path: string): string {
-  const baseURL = process.env.NEXT_PUBLIC_API_BASE || "/api";
+  const baseURL = process.env.NEXT_PUBLIC_API_BASE || "/api/taosha/v1";
   return `${baseURL}${path}`;
 }
 

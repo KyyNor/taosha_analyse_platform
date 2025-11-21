@@ -33,7 +33,7 @@ export async function chat(request: ChatRequest) {
  * 使用Server-Sent Events (SSE)进行实时响应
  */
 export async function chatStream(request: ChatRequest, signal?: AbortSignal): Promise<Response> {
-  const url = buildApiUrl("/agents/chat-stream");
+  const url = buildApiUrl("/agents/chat/stream");
 
   const response = await fetch(url, {
     method: "POST",
