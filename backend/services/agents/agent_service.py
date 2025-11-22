@@ -2,7 +2,6 @@
 Agent服务
 基于LangChain ReAct Agent的对话问答服务
 """
-import asyncio
 from typing import AsyncGenerator, AsyncIterable, Dict, Any
 from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage, AIMessage
@@ -67,7 +66,7 @@ class AgentService:
             raise
 
     @observe(name="agent_chat_stream")
-    async def chat_stream(self, message: str, session_id: str, user_id: str, conversation_history: list = None) -> AsyncGenerator[str, None]:
+    async def chat_stream(self, message: str, session_id: str, user_id: str, conversation_history: list = None) -> AsyncGenerator[dict, None]:
         """
         流式对话接口
 
@@ -96,47 +95,24 @@ class AgentService:
 
             logger.info(f"正在处理Agent请求，共{len(messages)}条消息，session_id: {session_id}")
 
-            # 使用stream方法获取流式响应，配置CallbackHandler
+            # 使用stream_mode="messages"直接获取LLM token流，利用LangChain原生流式
             callbacks = [self.tracing_handler] if self.tracing_handler else []
             async for chunk in self.agent.astream(
                 {"messages": messages},
                 config=RunnableConfig(
                     recursion_limit=10,
                     callbacks=callbacks
-                )
+                ),
+                stream_mode="messages"  # 直接获取LangChain token
             ):
-                # 解析chunk并提取内容
-                if isinstance(chunk, dict):
-                    # 检查是否包含agent或model的输出
-                    for key, value in chunk.items():
-                        if key in ["agent", "model"] and isinstance(value, dict):
-                            if "messages" in value:
-                                for msg in value["messages"]:
-                                    if hasattr(msg, "content") and msg.content:
-                                        # 流式返回内容
-                                        if isinstance(msg.content, str):
-                                            for char in msg.content:
-                                                yield char
-                                                await asyncio.sleep(0.01)  # 控制流式速度
-                                        elif isinstance(msg.content, list):
-                                            # 处理多模态内容
-                                            for content in msg.content:
-                                                if hasattr(content, "text") and content.text:
-                                                    for char in content.text:
-                                                        yield char
-                                                        await asyncio.sleep(0.01)
-
-                        elif isinstance(value, str):
-                            # 直接返回字符串内容
-                            for char in value:
-                                yield char
-                                await asyncio.sleep(0.01)
+                # 直接返回LangChain token的content，利用其原生流式控制
+                yield chunk
 
             logger.info(f"Agent流式响应完成，session_id: {session_id}")
 
         except Exception as e:
             logger.error(f"Agent流式响应错误: {e}")
-            yield f"[错误] Agent服务出现错误: {str(e)}"
+            # yield f"[错误] Agent服务出现错误: {str(e)}"
 
     def to_openai_chunk(self, role: str, content: str, finish_reason=None):
         """生成一个符合 OpenAI 格式的 SSE chunk"""

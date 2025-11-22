@@ -109,6 +109,7 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
             langfuse_client = get_langfuse_client()
             output_collected = [] 
             
+            index = 0
             with langfuse_client.start_as_current_span(name="api_chat_stream") as span:
                 with propagate_attributes(user_id=user_id, session_id=session_id):
                     span.update_trace(
@@ -123,13 +124,17 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                         user_id=user_id,
                         conversation_history=request.conversation_history
                     ):
-                        output_collected.append(chunk)
+                        # output_collected.append(chunk)
+                        output_collected.append( '#' )
+                        index = index + 1
+                        if index % 20 == 0:
+                            logger.info(f"chat stream index : {index}")
                         # 发送数据块
-                        data = {
-                            "type": "content",
-                            "content": chunk
-                        }
-                        yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+                        # data = {
+                            # "type": "content",
+                            # "content": chunk
+                        # }
+                        yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
                     
                     span.update(output={"response": ''.join(output_collected)})
 
