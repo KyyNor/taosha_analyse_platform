@@ -136,25 +136,43 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         }
         break;
       case 'content':
-        setCurrentResponse(prev => prev + data.content);
-        // Update the assistant message content
-        setMessages(prev => {
-          const newMessages = [...prev];
-          const lastMessage = newMessages[newMessages.length - 1];
-          if (lastMessage && lastMessage.role === 'assistant' && lastMessage.id === currentMessageIdRef.current) {
-            lastMessage.content = currentResponse + data.content;
-          }
-          return newMessages;
+        // Store the current message ID to avoid async issues
+        const currentMessageId = currentMessageIdRef.current;
+
+        // Update the current response first
+        setCurrentResponse(prev => {
+          const newResponse = prev + data.content;
+
+          // Fix: Create new message object instead of direct mutation
+          setMessages(messagesPrev => {
+            const newMessages = [...messagesPrev];
+            const lastMessage = newMessages[newMessages.length - 1];
+
+            if (lastMessage && lastMessage.role === 'assistant' && lastMessage.id === currentMessageId) {
+              // Create new object to trigger React re-render
+              newMessages[newMessages.length - 1] = {
+                ...lastMessage,
+                content: newResponse
+              };
+            }
+            return newMessages;
+          });
+          return newResponse;
         });
         break;
       case 'end':
+        console.log('✅ Stream ended, message completed');
         setProcessingText('回答完成');
-        currentMessageIdRef.current = null;
+        // Delay clearing the message ID to ensure all content is processed
+        setTimeout(() => {
+          currentMessageIdRef.current = null;
+        }, 100);
         break;
       case 'error':
+        console.error('❌ Stream error:', data.content);
         throw new Error(data.content);
     }
-  }, [currentResponse]);
+  }, []);
 
   // Send message
   const sendMessage = useCallback(async (userMessage: string) => {
@@ -166,7 +184,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     // Set processing state
     setIsProcessing(true);
     setProcessingText('正在思考中...');
-    setCurrentResponse('');
+    setCurrentResponse(''); // Reset for new streaming response
 
     try {
       // Import agent service dynamically to avoid circular dependencies
@@ -221,10 +239,10 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       currentMessageIdRef.current = null;
 
     } finally {
-      // Reset processing state
+      // Reset processing state (but keep currentResponse for potential reuse)
       setIsProcessing(false);
       setProcessingText('正在思考中...');
-      setCurrentResponse('');
+      // Note: Don't reset currentResponse here as it should be preserved in the message content
       abortControllerRef.current = null;
     }
   }, [isProcessing, addMessage, currentSessionId, currentUserId, conversationHistory, processStreamData]);
@@ -255,6 +273,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     };
   });
 
+  
   const value = useMemo<FullAgentState>(() => ({
     // State
     messages,
