@@ -4,7 +4,6 @@ import { AgentProvider } from "@/lib/state/agent";
 import { ChatSidebarLayout } from "@/components/agent/ChatSidebar";
 import { ChatMessagesArea } from "@/components/agent/ChatMessagesArea";
 import { ChatInput } from "@/components/agent/ChatInput";
-import { AgentTestDemo } from "@/components/agent/AgentTestDemo";
 import { useAgentState } from "@/lib/state/agent";
 
 function AgentPageContent() {
@@ -12,9 +11,6 @@ function AgentPageContent() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Test Demo (仅开发阶段) */}
-      <AgentTestDemo />
-
       {/* Chat Messages Area */}
       <div className="flex-1">
         <ChatMessagesArea />
