@@ -68,17 +68,18 @@ class AgentService:
     @observe(name="agent_chat_stream")
     async def chat_stream(self, message: str, session_id: str, user_id: str, conversation_history: list = None) -> AsyncGenerator[dict, None]:
         """
-        流式对话接口
+        流式对话接口，使用astream_events获取Agent执行事件
 
         Args:
             message: 用户消息
+            session_id: 会话ID
+            user_id: 用户ID
             conversation_history: 对话历史列表
 
         Yields:
-            str: 流式响应的token
+            dict: 结构化的事件数据
         """
         try:
-
             # 构建消息历史
             messages = []
 
@@ -95,24 +96,114 @@ class AgentService:
 
             logger.info(f"正在处理Agent请求，共{len(messages)}条消息，session_id: {session_id}")
 
-            # 使用stream_mode="messages"直接获取LLM token流，利用LangChain原生流式
+            # 使用astream_events获取离散的Agent执行事件
             callbacks = [self.tracing_handler] if self.tracing_handler else []
-            async for chunk in self.agent.astream(
+            current_tool_call = None
+
+            async for event in self.agent.astream_events(
                 {"messages": messages},
                 config=RunnableConfig(
                     recursion_limit=10,
                     callbacks=callbacks
-                ),
-                stream_mode="messages"  # 直接获取LangChain token
+                )
             ):
-                # 直接返回LangChain token的content，利用其原生流式控制
-                yield chunk
+                event_type = event.get("event", "")
+                data = event.get("data", {})
+
+                # 过滤并处理关键事件
+                if event_type == "on_chain_start":
+                    # 链开始，可选：发送thinking事件
+                    pass
+
+                elif event_type == "on_chat_model_stream":
+                    # LLM token流
+                    chunk = data.get("chunk")
+                    if chunk and hasattr(chunk, "content") and chunk.content:
+                        yield {
+                            "event": "text",
+                            "data": {
+                                "content": chunk.content,
+                                "type": "token"
+                            }
+                        }
+
+                    # 处理工具调用chunks
+                    if chunk and hasattr(chunk, "tool_call_chunks"):
+                        for tool_chunk in chunk.tool_call_chunks:
+                            if tool_chunk:
+                                # 工具调用开始或继续
+                                if tool_chunk.get("name"):
+                                    current_tool_call = {
+                                        "id": tool_chunk.get("id", ""),
+                                        "name": tool_chunk.get("name", ""),
+                                        "args": tool_chunk.get("args", "")
+                                    }
+                                    yield {
+                                        "event": "tool_call",
+                                        "data": {
+                                            "id": current_tool_call["id"],
+                                            "name": current_tool_call["name"],
+                                            "args": current_tool_call["args"],
+                                            "status": "pending",
+                                            "type": "start"
+                                        }
+                                    }
+                                elif current_tool_call:
+                                    # 参数增量更新
+                                    if tool_chunk.get("args"):
+                                        current_tool_call["args"] += tool_chunk["args"]
+                                        yield {
+                                            "event": "tool_call",
+                                            "data": {
+                                                "id": current_tool_call["id"],
+                                                "args": current_tool_call["args"],
+                                                "type": "args_update"
+                                            }
+                                        }
+
+                elif event_type == "on_tool_end":
+                    # 工具执行完成
+                    output = data.get("output")
+                    tool_name = data.get("name", "unknown")
+
+                    if current_tool_call:
+                        yield {
+                            "event": "tool_result",
+                            "data": {
+                                "id": current_tool_call.get("id", ""),
+                                "name": tool_name,
+                                "result": output,
+                                "status": "completed"
+                            }
+                        }
+                        current_tool_call = None
+
+                elif event_type == "on_tool_error":
+                    # 工具执行出错
+                    error = data.get("error", "Unknown error")
+
+                    if current_tool_call:
+                        yield {
+                            "event": "tool_result",
+                            "data": {
+                                "id": current_tool_call.get("id", ""),
+                                "name": current_tool_call.get("name", "unknown"),
+                                "result": str(error),
+                                "status": "failed"
+                            }
+                        }
+                        current_tool_call = None
 
             logger.info(f"Agent流式响应完成，session_id: {session_id}")
 
         except Exception as e:
             logger.error(f"Agent流式响应错误: {e}")
-            # yield f"[错误] Agent服务出现错误: {str(e)}"
+            yield {
+                "event": "error",
+                "data": {
+                    "error": str(e)
+                }
+            }
 
     def to_openai_chunk(self, role: str, content: str, finish_reason=None):
         """生成一个符合 OpenAI 格式的 SSE chunk"""
