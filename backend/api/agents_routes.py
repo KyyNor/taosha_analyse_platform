@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from langfuse import propagate_attributes
 
 from services.agents.agent_service import agent_service
+from services.agents.json_encoder import LangChainJSONEncoder, serialize_event_data
 from utils.logger import logger
 import time
 
@@ -146,8 +147,22 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                             content = event_data.get("data", {}).get("content", "")
                             full_response += content
 
-                        # 发送SSE格式的事件
-                        sse_line = f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                        # 发送SSE格式的事件，使用自定义编码器处理LangChain对象
+                        try:
+                            sse_line = f"data: {serialize_event_data(event_data)}\n\n"
+                        except Exception as e:
+                            logger.warning(f"事件序列化失败: {e}, 使用fallback处理")
+                            # Fallback: 尝试用标准编码器，如果还是失败就记录错误信息
+                            try:
+                                event_data_fallback = {
+                                    "event": event_type,
+                                    "data": {"error": "failed to serialize event data"}
+                                }
+                                sse_line = f"data: {json.dumps(event_data_fallback, ensure_ascii=False)}\n\n"
+                            except Exception as fallback_error:
+                                logger.error(f"事件序列化fallback也失败: {fallback_error}")
+                                continue
+
                         logger.debug(f"发送SSE事件 #{event_count}: {event_type}")
                         yield sse_line
                         await asyncio.sleep(0)  # 立即刷新缓冲区，不阻塞等待
@@ -213,41 +228,6 @@ class ChatCompletionResponse(BaseModel):
     model: str
     choices: List[ChatCompletionChoice]
     usage: Usage
-    
-@router.post("/chat/completions")
-async def chat_completions(request: ChatCompletionRequest):
-    # 提取用户最新消息（或整个对话历史）
-    # user_input = "\n".join([msg.content for msg in request.messages if msg.role == "user"])
-
-    # try:
-    #     # todo 调用 LangChain Agent
-    #     response_text = agent_service.chat_stream(user_input)
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
-
-    # # 构造 OpenAI 兼容响应
-    # response = ChatCompletionResponse(
-    #     id=f"chatcmpl-{uuid.uuid4().hex}",
-    #     created=int(time.time()),
-    #     model=request.model,
-    #     choices=[
-    #         ChatCompletionChoice(
-    #             index=0,
-    #             message=Message(role="assistant", content=response_text),
-    #             finish_reason="stop"
-    #         )
-    #     ],
-    #     usage=Usage(
-    #         prompt_tokens=len(user_input.split()),
-    #         completion_tokens=len(response_text.split()),
-    #         total_tokens=len(user_input.split()) + len(response_text.split())
-    #     )
-    # )
-    user_msg = request.messages[-1]["content"]
-    return StreamingResponse(
-        agent_service.agent_stream_to_openai(user_msg),
-        media_type="text/event-stream",
-    )
 
 @router.get("/health")
 async def health_check() -> Dict[str, Any]:

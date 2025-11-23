@@ -18,6 +18,7 @@ from services.llm_service.base_llm_service import BaseLLMService
 from services.tracking_service.observability_service import get_langfuse_client, get_tracing_handler
 from services.agents.common_tools import get_hotboard, get_programmer_story
 from services.agents.fine_report_tools import get_report_sample, batch_filter_report_and_get_data
+from services.agents.json_encoder import to_serializable
 from utils.logger import logger
 
 
@@ -167,12 +168,15 @@ class AgentService:
                     tool_name = data.get("name", "unknown")
 
                     if current_tool_call:
+                        # 将输出转换为可序列化的格式
+                        serializable_output = to_serializable(output)
+
                         yield {
                             "event": "tool_result",
                             "data": {
                                 "id": current_tool_call.get("id", ""),
                                 "name": tool_name,
-                                "result": output,
+                                "result": serializable_output,
                                 "status": "completed"
                             }
                         }
@@ -204,40 +208,6 @@ class AgentService:
                     "error": str(e)
                 }
             }
-
-    def to_openai_chunk(self, role: str, content: str, finish_reason=None):
-        """生成一个符合 OpenAI 格式的 SSE chunk"""
-        chunk = {
-            "id": f"chatcmpl-{uuid.uuid4().hex}",
-            "object": "chat.completion.chunk",
-            "created": int(uuid.uuid1().time),
-            "model": "gpt-4o-mini",
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {} if finish_reason else {"role": role, "content": content},
-                    "finish_reason": finish_reason,
-                }
-            ],
-        }
-        return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
-    
-    async def agent_stream_to_openai(self, user_input: str) -> AsyncIterable[str]:
-        """实时消费 agent.stream() 并转成 OpenAI 格式"""
-        # 开始：先推一个 role=assistant
-        yield self.to_openai_chunk("assistant", "")
-
-        # 逐条事件解析
-        async for event in self.agent.astream({"messages": [("user", user_input)]}):
-            # event 结构：{node_name: {messages: [AIMessage, ...]}}
-            for node, payload in event.items():
-                msg = payload["messages"][-1]
-                if hasattr(msg, "content"):
-                    yield self.to_openai_chunk("", msg.content)
-
-        # 结束标志
-        yield self.to_openai_chunk("", "", finish_reason="stop")
-        yield "data: [DONE]\n\n"
 
 # 全局Agent服务实例
 agent_service = AgentService()
