@@ -24,15 +24,24 @@ export interface ConversationHistory {
   content: string;
 }
 
-// Stream data types
+// AIMessageChunk数据接口
+interface AIMessageChunkData {
+  type: 'content' | 'start' | 'end' | 'error';
+  content: string | Array<{type: string, [key: string]: any}>;
+  content_blocks?: Array<{type: string, [key: string]: any}>;
+  tool_calls?: Array<{name: string, args: any, id: string}>;
+  additional_kwargs?: Record<string, any>;
+  response_metadata?: Record<string, any>;
+  id?: string;
+  chunk_position?: 'last' | null;
+  session_id?: string;
+  error_message?: string;
+}
+
+// Stream data types (保持向后兼容)
 interface StreamStartData {
   type: 'start';
   session_id?: string;
-}
-
-interface StreamContentData {
-  type: 'content';
-  content: string;
 }
 
 interface StreamEndData {
@@ -42,9 +51,11 @@ interface StreamEndData {
 interface StreamErrorData {
   type: 'error';
   content: string;
+  error_message?: string;
 }
 
-type StreamData = StreamStartData | StreamContentData | StreamEndData | StreamErrorData;
+// 扩展StreamData类型，支持AIMessageChunk格式
+type StreamData = StreamStartData | AIMessageChunkData | StreamEndData | StreamErrorData;
 
 interface AgentState {
   // 消息状态
@@ -106,7 +117,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
 
   // Helper function to generate ID
   const generateId = useCallback(() => {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    return Date.now().toString(36) + Math.random().toString(36).substring(2);
   }, []);
 
   // Add message helper
@@ -131,17 +142,39 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     switch (data.type) {
       case 'start':
         setProcessingText('正在生成回答...');
-        if (data.session_id) {
+        if ('session_id' in data && data.session_id) {
           setCurrentSessionId(data.session_id);
         }
         break;
+
       case 'content':
         // Store the current message ID to avoid async issues
         const currentMessageId = currentMessageIdRef.current;
 
+        // 处理复合内容格式
+        let contentText = '';
+        if (typeof data.content === 'string') {
+          contentText = data.content;
+        } else if (Array.isArray(data.content)) {
+          // 从内容块中提取文本和其他类型内容
+          const textBlocks = data.content.filter(block => block.type === 'text');
+          contentText = textBlocks.map(block => block.text || '').join('');
+
+          // 可以处理其他类型的内容块（如thinking、tool_call等）
+          const otherBlocks = data.content.filter(block => block.type !== 'text');
+          if (otherBlocks.length > 0) {
+            console.log('Non-text content blocks:', otherBlocks);
+          }
+        }
+
+        // 处理工具调用
+        if (data.tool_calls && data.tool_calls.length > 0) {
+          console.log('Tool calls detected:', data.tool_calls);
+        }
+
         // Update the current response first
         setCurrentResponse(prev => {
-          const newResponse = prev + data.content;
+          const newResponse = prev + contentText;
 
           // Fix: Create new message object instead of direct mutation
           setMessages(messagesPrev => {
@@ -160,6 +193,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
           return newResponse;
         });
         break;
+
       case 'end':
         console.log('✅ Stream ended, message completed');
         setProcessingText('回答完成');
@@ -168,9 +202,11 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
           currentMessageIdRef.current = null;
         }, 100);
         break;
+
       case 'error':
-        console.error('❌ Stream error:', data.content);
-        throw new Error(data.content);
+        const errorMessage = 'error_message' in data ? data.error_message : (data.content || 'Unknown error');
+        console.error('❌ Stream error:', errorMessage);
+        throw new Error(typeof errorMessage === 'string' ? errorMessage : 'Unknown error occurred');
     }
   }, []);
 

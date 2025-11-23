@@ -82,6 +82,21 @@ async def chat_endpoint(request: ChatRequest) -> ChatResponse:
         raise HTTPException(status_code=500, detail=f"聊天服务错误: {str(e)}")
 
 
+def format_aimessage_chunk(chunk):
+    """安全格式化AIMessageChunk为可序列化的字典"""
+    chunk_data = {
+        'type': 'content',
+        'content': chunk.content if hasattr(chunk, 'content') else str(chunk),
+        'content_blocks': getattr(chunk, 'content_blocks', []),
+        'tool_calls': getattr(chunk, 'tool_calls', []),
+        'additional_kwargs': getattr(chunk, 'additional_kwargs', {}),
+        'response_metadata': getattr(chunk, 'response_metadata', {}),
+        'id': getattr(chunk, 'id', None),
+        'chunk_position': getattr(chunk, 'chunk_position', None)
+    }
+    return chunk_data
+
+
 @router.post("/chat/stream")
 async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
     """
@@ -118,7 +133,7 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                         input=request.message
                     )
                     # 流式发送Agent响应
-                    async for chunk in agent_service.chat_stream(
+                    async for chunk, _ in agent_service.chat_stream(
                         message=request.message,
                         session_id=session_id,
                         user_id=user_id,
@@ -130,11 +145,8 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                         if index % 20 == 0:
                             logger.info(f"chat stream index : {index}")
                         # 发送数据块
-                        # data = {
-                            # "type": "content",
-                            # "content": chunk
-                        # }
-                        yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+                        chunk_data = format_aimessage_chunk(chunk)
+                        yield f"data: {json.dumps(chunk_data, ensure_ascii=False)}\n\n"
                     
                     span.update(output={"response": ''.join(output_collected)})
 
@@ -147,7 +159,8 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
             logger.error(f"流式聊天错误: {e}")
             error_data = {
                 "type": "error",
-                "content": f"流式聊天服务错误: {str(e)}"
+                "content": "",
+                "error_message": f"流式聊天服务错误: {str(e)}"
             }
             yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
 
