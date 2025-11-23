@@ -159,6 +159,7 @@ export default function TableDetailPage() {
           </CardContent>
         </Card>
 
+        
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">统计信息</CardTitle>
@@ -175,26 +176,6 @@ export default function TableDetailPage() {
             <div>
               <label className="text-sm font-medium text-muted-foreground">更新时间</label>
               <p className="text-sm">{formatDateTime(tableData.updated_at)}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">技术信息</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">存储引擎</label>
-              <p className="text-sm">{tableData.engine || '-'}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">字符集</label>
-              <p className="text-sm">{tableData.charset || '-'}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">排序规则</label>
-              <p className="text-sm">{tableData.collation || '-'}</p>
             </div>
           </CardContent>
         </Card>

@@ -8,7 +8,7 @@ export async function getTables(params?: { fields?: boolean; table_name?: string
 
 export async function getTableById(tableId: number) {
   const res = await api.get(`/metadata/tables/${tableId}`);
-  return res.data;
+  return res.data.data;
 }
 
 export async function getColumnsByTable(tableId: number) {
