@@ -367,6 +367,33 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       }
 
       let eventCount = 0;
+      const eventQueue: StreamEventData[] = [];
+      let isProcessingQueue = false;
+
+      // 处理事件队列，实现打字机效果
+      const processEventQueue = async () => {
+        if (isProcessingQueue || eventQueue.length === 0) return;
+        isProcessingQueue = true;
+
+        while (eventQueue.length > 0) {
+          const data = eventQueue.shift();
+          if (data) {
+            // 调试日志：验证流式接收
+            console.log(`[SSE Event ${eventCount}] ${data.event}:`, data);
+            console.time(`Event_${eventCount}`);
+            processStreamData(data);
+            console.timeEnd(`Event_${eventCount}`);
+
+            // 仅对text事件添加延迟，实现打字机效果
+            if (data.event === 'text') {
+              await new Promise(resolve => setTimeout(resolve, 50)); // 50ms延迟
+            }
+          }
+        }
+
+        isProcessingQueue = false;
+      };
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -379,17 +406,18 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
             try {
               eventCount++;
               const data = JSON.parse(line.slice(6)) as StreamEventData;
-              // 调试日志：验证流式接收
-              console.log(`[SSE Event ${eventCount}] ${data.event}:`, data);
-              console.time(`Event_${eventCount}`);
-              processStreamData(data);
-              console.timeEnd(`Event_${eventCount}`);
+              eventQueue.push(data);
+              // 立即处理队列
+              await processEventQueue();
             } catch (e) {
               console.warn('Failed to parse SSE data:', line, e);
             }
           }
         }
       }
+
+      // 处理剩余的事件
+      await processEventQueue();
 
     } catch (error) {
       console.error('Error sending message:', error);
