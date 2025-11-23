@@ -1,4 +1,4 @@
-import api, { buildApiUrl } from "../api";
+import api from "../api";
 
 export interface ChatRequest {
   message: string;
@@ -31,9 +31,14 @@ export async function chat(request: ChatRequest) {
 /**
  * 发送聊天消息（流式）
  * 使用Server-Sent Events (SSE)进行实时响应
+ * 绕过Next.js代理缓冲，直接访问后端流式API
  */
 export async function chatStream(request: ChatRequest, signal?: AbortSignal): Promise<Response> {
-  const url = buildApiUrl("/agents/chat/stream");
+  // 使用专用的流式API地址，避免Next.js代理缓冲
+  const baseUrl = process.env.NEXT_PUBLIC_API_STREAM_BASE
+    || process.env.NEXT_PUBLIC_API_BASE
+    || "/api/taosha/v1";
+  const url = `${baseUrl}/agents/chat/stream`;
 
   const response = await fetch(url, {
     method: "POST",
