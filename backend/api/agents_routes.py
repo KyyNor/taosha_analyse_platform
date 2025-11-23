@@ -4,6 +4,7 @@ Agent API路由
 """
 import json
 import uuid
+import asyncio
 from typing import Dict, Any, List, Optional
 from services.tracking_service.observability_service import get_langfuse_client
 from fastapi import APIRouter, HTTPException, Request
@@ -115,9 +116,11 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
 
             # 发送流开始事件
             yield f"data: {json.dumps({'event': 'start', 'data': {'session_id': session_id}}, ensure_ascii=False)}\n\n"
+            await asyncio.sleep(0)  # 强制刷新缓冲区
 
             langfuse_client = get_langfuse_client()
             full_response = ""
+            event_count = 0
 
             with langfuse_client.start_as_current_span(name="api_chat_stream") as span:
                 with propagate_attributes(user_id=user_id, session_id=session_id):
@@ -136,6 +139,7 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                     ):
                         # 直接转发Agent服务返回的事件
                         event_type = event_data.get("event", "unknown")
+                        event_count += 1
 
                         # 仅收集文本响应用于追踪
                         if event_type == "text":
@@ -143,14 +147,19 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                             full_response += content
 
                         # 发送SSE格式的事件
-                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                        sse_line = f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                        logger.debug(f"发送SSE事件 #{event_count}: {event_type}")
+                        yield sse_line
+                        await asyncio.sleep(0)  # 立即刷新缓冲区，不阻塞等待
 
                     span.update(output={"response": full_response})
 
             # 发送结束事件
+            event_count += 1
             yield f"data: {json.dumps({'event': 'end', 'data': {}}, ensure_ascii=False)}\n\n"
+            await asyncio.sleep(0)  # 最后一次刷新
 
-            logger.info(f"流式聊天完成, session_id: {session_id}")
+            logger.info(f"流式聊天完成, session_id: {session_id}, 共发送{event_count}个事件")
 
         except Exception as e:
             logger.error(f"流式聊天错误: {e}")
@@ -161,6 +170,7 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                 }
             }
             yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+            await asyncio.sleep(0)
 
     return StreamingResponse(
         generate_stream(),

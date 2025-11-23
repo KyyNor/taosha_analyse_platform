@@ -366,6 +366,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         throw new Error('无法获取响应流');
       }
 
+      let eventCount = 0;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -376,8 +377,13 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
+              eventCount++;
               const data = JSON.parse(line.slice(6)) as StreamEventData;
+              // 调试日志：验证流式接收
+              console.log(`[SSE Event ${eventCount}] ${data.event}:`, data);
+              console.time(`Event_${eventCount}`);
               processStreamData(data);
+              console.timeEnd(`Event_${eventCount}`);
             } catch (e) {
               console.warn('Failed to parse SSE data:', line, e);
             }

@@ -34,7 +34,7 @@ class AgentService:
     def _initialize_agent(self):
         """初始化Agent"""
         try:
-            tools = [get_report_sample, batch_filter_report_and_get_data]
+            tools = [get_report_sample, batch_filter_report_and_get_data, get_hotboard, get_programmer_story]
             self.agent = create_agent(
                 model=self.llm_service.client,
                 tools=tools,
