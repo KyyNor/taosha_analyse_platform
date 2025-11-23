@@ -44,6 +44,24 @@ async def get_all_table_metadata(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/tables/{table_id}")
+async def get_table_metadata(table_id: int, db: Session = Depends(get_db)):
+    """根据ID获取单个表元数据及其所有字段"""
+    try:
+        metadata_service = get_metadata_service(db)
+        table = metadata_service.get_table_by_id(table_id)
+
+        if not table:
+            raise HTTPException(status_code=404, detail=f"表不存在: ID {table_id}")
+
+        return {"success": True, "data": table}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取表元数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/tables")
 async def add_table_metadata(request: TableMetadataRequest, db: Session = Depends(get_db)):
     """添加表元数据"""
@@ -119,22 +137,8 @@ async def get_columns_by_table(table_id: int, db: Session = Depends(get_db)):
         metadata_service = get_metadata_service(db)
         columns = metadata_service.get_columns_by_table_id(table_id)
 
-        # 转换为前端需要的格式
-        columns_list = []
-        for column in columns:
-            columns_list.append({
-                "id": column.id,
-                "table_id": column.table_id,
-                "name": column.name,
-                "type": column.type,
-                "comment": column.comment or "",
-                "remark": column.remark or "",
-                "is_available": int(column.is_available or 0),
-                "business_type": column.business_type or "",
-                "relation_config_id": column.relation_config_id
-            })
-
-        return {"success": True, "data": columns_list}
+        # metadata_service 已返回字典列表，直接返回
+        return {"success": True, "data": columns}
     except Exception as e:
         logger.error(f"获取字段列表失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -86,6 +86,31 @@ class MetadataService:
             table_name_filter=table_name_filter
         ).get("tables", [])
 
+    def get_table_by_id(self, table_id: int) -> Optional[Dict[str, Any]]:
+        """根据ID获取单个表信息（不包含字段列表）"""
+        try:
+            table = self.table_repo.get_with_columns(table_id)
+            if not table:
+                logger.warning(f"表不存在: ID {table_id}")
+                return None
+
+            # 转换为字典格式，只返回表信息
+            table_dict = {
+                "id": table.id,
+                "name": table.name,
+                "comment": table.comment or "",
+                "remark": table.remark or "",
+                "is_available": int(table.is_available or 0),
+                "created_at": table.created_at,
+                "updated_at": table.updated_at
+            }
+
+            logger.info(f"获取表信息成功: ID {table_id}")
+            return table_dict
+
+        except Exception as e:
+            logger.error(f"获取表信息失败: {e}")
+            raise
 
     def add_table(self, table_name: str, comment: str = "", remark: str = "", is_available: int = 0) -> Optional[Dict[str, Any]]:
         """添加表元数据"""
