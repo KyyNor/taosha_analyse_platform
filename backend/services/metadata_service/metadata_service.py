@@ -635,6 +635,33 @@ class GlossaryService:
         """获取所有术语"""
         return self.get_glossary().get("terms", [])
 
+    def get_term_by_id(self, term_id: int) -> Optional[Dict[str, Any]]:
+        """根据ID获取术语"""
+        try:
+            term = self.repo.get_by_id(term_id)
+            if term:
+                # 解析 JSON content
+                try:
+                    content_data = json.loads(term.content) if term.content else {}
+                except json.JSONDecodeError:
+                    content_data = {}
+                    logger.warning(f"术语 {term.name} 的 content 字段不是有效的 JSON 格式")
+
+                return {
+                    "id": term.id,
+                    "name": term.name,
+                    "type": term.type,
+                    "content": content_data,
+                    "creator": term.creator or "",
+                    "is_basic": term.is_basic or False,
+                    "created_at": term.created_at,
+                    "updated_at": term.updated_at
+                }
+            return None
+        except Exception as e:
+            logger.error(f"获取术语失败: {e}")
+            return None
+
     def find_term(self, query: str) -> Optional[Dict[str, Any]]:
         """根据查询找到匹配的术语"""
         query_lower = query.lower()
