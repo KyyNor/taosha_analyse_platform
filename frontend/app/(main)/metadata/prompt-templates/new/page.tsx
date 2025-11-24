@@ -13,15 +13,8 @@ import { toast } from "sonner";
 
 interface NewPromptTemplate {
   name: string;
-  fields: any[];
+  fields: string[];
   template: string;
-}
-
-interface TemplateField {
-  name: string;
-  type: string;
-  required: boolean;
-  description: string;
 }
 
 export default function NewPromptTemplatePage() {
@@ -29,19 +22,16 @@ export default function NewPromptTemplatePage() {
 
   const [templateData, setTemplateData] = useState<NewPromptTemplate>({
     name: '',
-    fields: [],
+    fields: [''],
     template: '',
   });
 
   const [saving, setSaving] = useState(false);
 
   // 字段数据更新处理
-  const handleFieldsChange = (index: number, field: keyof TemplateField, value: any) => {
+  const handleFieldsChange = (index: number, value: string) => {
     const updatedFields = [...templateData.fields];
-    updatedFields[index] = {
-      ...updatedFields[index],
-      [field]: value
-    };
+    updatedFields[index] = value;
 
     setTemplateData(prev => ({
       ...prev,
@@ -51,59 +41,55 @@ export default function NewPromptTemplatePage() {
 
   // 添加新字段
   const addField = () => {
-    const newField: TemplateField = {
-      name: '',
-      type: 'string',
-      required: false,
-      description: ''
-    };
-
     setTemplateData(prev => ({
       ...prev,
-      fields: [...prev.fields, newField]
+      fields: [...prev.fields, '']
     }));
   };
 
   // 删除字段
   const removeField = (index: number) => {
-    const updatedFields = templateData.fields.filter((_, i) => i !== index);
-    setTemplateData(prev => ({
-      ...prev,
-      fields: updatedFields
-    }));
+    // 至少保留一个字段
+    if (templateData.fields.length > 1) {
+      const updatedFields = templateData.fields.filter((_, i) => i !== index);
+      setTemplateData(prev => ({
+        ...prev,
+        fields: updatedFields
+      }));
+    }
   };
 
   // 验证字段配置中的占位符
   const validatePlaceholders = () => {
     const errors: string[] = [];
     const templateText = templateData.template;
-    const fieldNames = templateData.fields.map(field => field.name).filter(name => name);
+    const fieldNames = templateData.fields.filter(name => name.trim());
 
-    // 查找模板中的占位符 {{field_name}}
-    const placeholderRegex = /\{\{([^}]+)\}\}/g;
-    const placeholders = [];
+    // 查找模板中的占位符 {field_name}，严格匹配{}格式，避免匹配{{}}或JSON
+    const placeholderRegex = /(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})/g;
+    const placeholders = new Set<string>();
     let match;
 
     while ((match = placeholderRegex.exec(templateText)) !== null) {
-      placeholders.push(match[1].trim());
+      placeholders.add(match[1]);
+    }
+
+    // 如果字段列表为空且没有占位符，这是无参数模板，完全有效
+    if (fieldNames.length === 0 && placeholders.size === 0) {
+      return errors;
     }
 
     // 检查模板中使用了未定义的字段
-    const undefinedFields = placeholders.filter(placeholder =>
-      !fieldNames.includes(placeholder)
-    );
-
-    // 检查定义了但模板中未使用的字段
-    const unusedFields = fieldNames.filter(fieldName =>
-      !placeholders.includes(fieldName)
-    );
-
-    if (undefinedFields.length > 0) {
-      errors.push(`模板中使用了未定义的字段: ${undefinedFields.join(', ')}`);
+    const definedFields = new Set(fieldNames);
+    const missingFields = Array.from(placeholders).filter(p => !definedFields.has(p));
+    if (missingFields.length > 0) {
+      errors.push(`模板中使用了未定义的字段: ${missingFields.join(', ')}`);
     }
 
+    // 检查定义了但模板中未使用的字段
+    const unusedFields = fieldNames.filter(fieldName => !placeholders.has(fieldName));
     if (unusedFields.length > 0) {
-      errors.push(`定义了但模板中未使用的字段: ${unusedFields.join(', ')}`);
+      errors.push(`字段列表中有未使用的字段: ${unusedFields.join(', ')}`);
     }
 
     return errors;
@@ -120,14 +106,6 @@ export default function NewPromptTemplatePage() {
 
     if (!templateData.template || templateData.template.trim() === '') {
       errors.push('模板内容不能为空');
-    }
-
-    // 验证字段配置
-    for (let i = 0; i < templateData.fields.length; i++) {
-      const field = templateData.fields[i];
-      if (!field.name || field.name.trim() === '') {
-        errors.push(`字段 ${i + 1} 的名称不能为空`);
-      }
     }
 
     // 验证占位符
@@ -147,9 +125,12 @@ export default function NewPromptTemplatePage() {
 
     setSaving(true);
     try {
+      // 过滤掉空白字段
+      const fieldsArray = templateData.fields.filter(f => f.trim());
+
       const createResult = await createPromptTemplate({
         name: templateData.name,
-        fields: templateData.fields,
+        fields: fieldsArray,
         template: templateData.template,
       });
 
@@ -247,83 +228,53 @@ export default function NewPromptTemplatePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {templateData.fields.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded">
-                  暂无字段配置
-                  <p className="text-sm mt-2">点击上方"添加字段"按钮开始配置</p>
-                </div>
-              ) : (
-                templateData.fields.map((field: any, index: number) => (
-                  <div key={index} className="border rounded-lg p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium">字段 {index + 1}</h4>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeField(index)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        删除
-                      </Button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor={`field-name-${index}`}>字段名称 *</Label>
-                        <Input
-                          id={`field-name-${index}`}
-                          value={field.name}
-                          onChange={(e) => handleFieldsChange(index, 'name', e.target.value)}
-                          placeholder="例如：user_query"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor={`field-type-${index}`}>字段类型</Label>
-                        <Input
-                          id={`field-type-${index}`}
-                          value={field.type}
-                          onChange={(e) => handleFieldsChange(index, 'type', e.target.value)}
-                          placeholder="例如：string, number"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label htmlFor={`field-desc-${index}`}>字段描述</Label>
-                      <Textarea
-                        id={`field-desc-${index}`}
-                        value={field.description}
-                        onChange={(e) => handleFieldsChange(index, 'description', e.target.value)}
-                        placeholder="请输入字段的用途说明"
-                        rows={2}
-                      />
-                    </div>
+              <div className="space-y-2">
+                {templateData.fields.map((field: string, index: number) => (
+                  <div key={index} className="flex gap-2 items-center">
+                    <Input
+                      value={field}
+                      onChange={(e) => handleFieldsChange(index, e.target.value)}
+                      placeholder="字段名（如：user_input）"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeField(index)}
+                      disabled={templateData.fields.length <= 1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
-                ))
-              )}
+                ))}
+              </div>
+              <p className="text-sm text-gray-500 mt-2">
+                字段名将在模板中作为占位符使用，格式：<code className="px-1 py-0.5 bg-gray-100 rounded">{"{字段名}"}</code>。不添加字段表示模板没有参数（固定内容）。
+              </p>
             </CardContent>
           </Card>
 
           {/* 模板内容 */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">模板内容 *</CardTitle>
+              <CardTitle className="text-lg">提示词模板 *</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2 mb-4">
-                <Label>使用说明</Label>
-                <p className="text-sm text-gray-600">
-                  在模板中使用双花括号引用字段，如 <code className="px-1 py-0.5 bg-gray-100 rounded">{"{{user_query}}"}</code>
-                </p>
-              </div>
               <Textarea
                 value={templateData.template}
                 onChange={(e) => setTemplateData(prev => ({ ...prev, template: e.target.value }))}
-                placeholder="请输入提示词模板内容，使用 {{field_name}} 格式引用字段"
+                placeholder="请输入提示词模板，使用 {字段名} 作为占位符"
                 rows={12}
                 className="font-mono text-sm"
               />
+              <div className="mt-2 p-4 bg-gray-50 rounded-lg border">
+                <p className="text-sm">
+                  <span className="text-amber-600 font-medium">★ 占位符格式：</span>
+                  使用 <span className="font-mono bg-amber-100 px-1 py-0.5 rounded">{"{字段名}"}</span> 标记占位符，
+                  使用 <span className="font-mono bg-amber-100 px-1 py-0.5 rounded">{"@[模板名称]"}</span> 标记模板替换
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -331,23 +282,24 @@ export default function NewPromptTemplatePage() {
         {/* 侧边栏信息 */}
         <div className="space-y-6">
           {/* 字段预览 */}
-          {templateData.fields.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">字段预览</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {templateData.fields.map((field: any, index: number) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      {field.name || `field${index + 1}`}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">字段列表</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {templateData.fields.filter(f => f.trim()).length === 0 ? (
+                <p className="text-sm text-gray-500 italic">无参数模板</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {templateData.fields.filter(f => f.trim()).map((field: string, index: number) => (
+                    <Badge key={index} variant="outline" className="text-xs">
+                      {field}
                     </Badge>
-                    <span className="text-xs text-gray-500">{field.type}</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* 使用指南 */}
           <Card className="border-l-4 border-l-blue-500">
@@ -361,10 +313,10 @@ export default function NewPromptTemplatePage() {
                 <div className="flex-1">
                   <h3 className="text-sm font-medium text-blue-800">使用指南</h3>
                   <div className="mt-2 text-sm text-blue-700 space-y-1">
-                    <p>• 字段名称在模板中使用双花括号引用</p>
-                    <p>• 确保所有使用的字段都已定义</p>
-                    <p>• 建议为字段提供清晰的描述</p>
-                    <p>• 模板内容应包含完整的使用说明</p>
+                    <p>• 占位符格式：使用单花括号 {"{字段名}"} 标记变量</p>
+                    <p>• 模板引用：使用 {"@[模板名称]"} 引用其他模板</p>
+                    <p>• 无参数模板：字段为空时表示模板包含固定内容</p>
+                    <p>• 严格匹配：系统会验证占位符与字段的一致性</p>
                   </div>
                 </div>
               </div>
@@ -384,8 +336,8 @@ export default function NewPromptTemplatePage() {
                   <h3 className="text-sm font-medium text-green-800">示例模板</h3>
                   <div className="mt-2 text-sm text-green-700 space-y-1">
                     <p className="font-mono text-xs bg-gray-50 p-2 rounded">
-                      {"根据用户查询：{{query}}"}<br/>
-                      {"在数据表 {{table_name}} 中查找相关信息"}
+                      {"根据用户查询：{query}"}<br/>
+                      {"在数据表 {table_name} 中查找相关信息"}
                     </p>
                   </div>
                 </div>

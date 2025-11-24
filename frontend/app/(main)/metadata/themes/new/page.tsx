@@ -19,20 +19,8 @@ interface NewDataTheme {
 }
 
 const THEME_TYPES = [
-  { value: "business", label: "业务主题" },
-  { value: "technical", label: "技术主题" },
-  { value: "analysis", label: "分析主题" },
-  { value: "report", label: "报表主题" },
-];
-
-const DEPARTMENTS = [
-  { value: "IT", label: "信息技术部" },
-  { value: "Finance", label: "财务部" },
-  { value: "HR", label: "人力资源部" },
-  { value: "Marketing", label: "市场部" },
-  { value: "Operations", label: "运营部" },
-  { value: "Sales", label: "销售部" },
-  { value: "Analytics", label: "数据分析部" },
+  { value: "normal", label: "一般主题" },
+  { value: "public", label: "通用主题" },
 ];
 
 export default function NewDataThemePage() {
@@ -68,10 +56,7 @@ export default function NewDataThemePage() {
       errors.push('主题类型不能为空');
     }
 
-    if (!themeData.department) {
-      errors.push('关联部门不能为空');
-    }
-
+  
     return errors;
   };
 
@@ -189,23 +174,14 @@ export default function NewDataThemePage() {
                 </div>
               </div>
               <div>
-                <Label htmlFor="department">关联部门 *</Label>
-                <Select
+                <Label htmlFor="department">关联部门</Label>
+                <Input
+                  id="department"
                   value={themeData.department}
-                  onValueChange={(value) => handleThemeDataChange('department', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择关联部门" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DEPARTMENTS.map((dept) => (
-                      <SelectItem key={dept.value} value={dept.value}>
-                        {dept.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="mt-1 text-sm text-gray-500">选择主要负责此主题的业务部门</p>
+                  onChange={(e) => handleThemeDataChange('department', e.target.value)}
+                  placeholder="请输入关联部门"
+                />
+                <p className="mt-1 text-sm text-gray-500">输入主要负责此主题的业务部门</p>
               </div>
               <div>
                 <Label htmlFor="theme-description">主题描述</Label>
@@ -255,10 +231,8 @@ export default function NewDataThemePage() {
                 <div className="flex-1">
                   <h3 className="text-sm font-medium text-blue-800">主题类型说明</h3>
                   <div className="mt-2 text-sm text-blue-700 space-y-1">
-                    <p><strong>业务主题：</strong>面向业务领域的数据组织</p>
-                    <p><strong>技术主题：</strong>面向技术实现的数据管理</p>
-                    <p><strong>分析主题：</strong>面向数据分析的专题组织</p>
-                    <p><strong>报表主题：</strong>面向报表输出的数据集合</p>
+                    <p><strong>一般主题：</strong>面向特定业务领域的数据组织</p>
+                    <p><strong>通用主题：</strong>面向多个业务领域的共享数据集合</p>
                   </div>
                 </div>
               </div>
