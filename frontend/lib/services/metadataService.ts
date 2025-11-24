@@ -31,6 +31,11 @@ export async function deleteTable(tableId: number) {
   return res.data;
 }
 
+export async function batchUpdateTableAndColumns(tableId: number, data: { table: any; columns: any[] }) {
+  const res = await api.put(`/metadata/table/batch`, data);
+  return res.data;
+}
+
 // 关系配置管理
 export async function getRelations() {
   const res = await api.get("/metadata/relation-configs");
