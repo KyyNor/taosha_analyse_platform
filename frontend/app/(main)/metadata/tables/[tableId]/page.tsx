@@ -138,6 +138,7 @@ export default function TableDetailPage() {
       // 准备批量更新数据
       const updateData = {
         table: {
+          id: Number(tableId),
           name: tableData.name,
           comment: tableData.comment,
           remark: tableData.remark,

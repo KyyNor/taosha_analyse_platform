@@ -398,6 +398,8 @@ class MetadataService:
                         else:
                             # 准备更新数据
                             update_data = {}
+                            if 'name' in table:
+                                update_data['name'] = table['name']
                             if 'comment' in table:
                                 update_data['comment'] = table['comment']
                             if 'remark' in table:
@@ -407,7 +409,7 @@ class MetadataService:
 
                             # 执行更新
                             if update_data:
-                                self.table_repo.update(table_id, **update_data)
+                                self.table_repo.update_without_commit(table_id, **update_data)
                                 success_count += 1
                                 logger.debug(f"更新表成功: ID {table_id}")
                             else:
@@ -455,7 +457,7 @@ class MetadataService:
 
                         # 执行更新
                         if update_data:
-                            self.column_repo.update(column_id, **update_data)
+                            self.column_repo.update_without_commit(column_id, **update_data)
                             success_count += 1
                             logger.debug(f"更新字段成功: ID {column_id}")
                         else:
@@ -637,7 +639,7 @@ class GlossaryService:
             # 将 content 转换为 JSON 字符串
             content_json = json.dumps(content, ensure_ascii=False)
 
-            term = self.repo.create(
+            self.repo.create(
                 name=name,
                 type=term_type,
                 content=content_json,
@@ -824,7 +826,7 @@ class PromptTemplateService:
             # 将 fields 转换为 JSON 字符串
             fields_json = json.dumps(fields, ensure_ascii=False)
 
-            template_obj = self.repo.create(
+            self.repo.create(
                 name=name,
                 fields=fields_json,
                 template=template

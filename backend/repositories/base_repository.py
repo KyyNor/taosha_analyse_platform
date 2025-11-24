@@ -126,6 +126,31 @@ class BaseRepository(Generic[T]):
             logger.error(f"更新 {self.model_class.__name__} 记录失败: {e}")
             raise
 
+    def update_without_commit(self, id: int, **kwargs) -> Optional[T]:
+        """
+        更新记录但不提交事务（用于批量操作）
+
+        Args:
+            id: 记录ID
+            **kwargs: 更新字段
+
+        Returns:
+            更新后的模型实例或None
+        """
+        try:
+            instance = self.db.query(self.model_class).filter(self.model_class.id == id).first()
+            if instance:
+                for key, value in kwargs.items():
+                    if hasattr(instance, key):
+                        setattr(instance, key, value)
+                # 不在这里commit，由调用方控制
+                logger.debug(f"更新 {self.model_class.__name__} 记录成功: ID={id}")
+                return instance
+            return None
+        except SQLAlchemyError as e:
+            logger.error(f"更新 {self.model_class.__name__} 记录失败: {e}")
+            raise
+
     def delete(self, id: int) -> bool:
         """
         删除记录
