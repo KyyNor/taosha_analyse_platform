@@ -494,6 +494,23 @@ class RelationFieldConfigService:
         self.db = db
         self.repo = RelationFieldConfigRepository(db)
 
+    def get_relation_config_by_id(self, config_id: int) -> Optional[Dict[str, Any]]:
+        """根据ID获取关联字段配置"""
+        try:
+            config = self.repo.get_by_id(config_id)
+            if config:
+                return {
+                    "id": config.id,
+                    "relation_id": f"{config.relation_family}|{config.relation_subfamily}",  # 拼接的关联ID，用于前端显示
+                    "relation_family": config.relation_family,
+                    "relation_subfamily": config.relation_subfamily,
+                    "relation_desc": config.relation_desc or ""
+                }
+            return None
+        except Exception as e:
+            logger.error(f"获取关联字段配置失败: {e}")
+            return None
+
     def get_all_relation_configs(self) -> List[Dict[str, Any]]:
         """获取所有关联字段配置"""
         try:

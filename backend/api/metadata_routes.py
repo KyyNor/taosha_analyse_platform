@@ -285,6 +285,23 @@ async def delete_term(term_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/glossary/terms/{term_id}")
+async def get_term_by_id(term_id: int, db: Session = Depends(get_db)):
+    """根据ID获取术语"""
+    try:
+        glossary_service = get_glossary_service(db)
+        term = glossary_service.get_term_by_id(term_id)
+        if term:
+            return {"success": True, "data": term}
+        else:
+            raise HTTPException(status_code=404, detail="术语不存在")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取术语失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/glossary/terms/type/{term_type}")
 async def get_terms_by_type(term_type: str, db: Session = Depends(get_db)):
     """根据类型获取术语"""
@@ -337,6 +354,23 @@ async def get_non_basic_terms(db: Session = Depends(get_db)):
 
 
 # 关联字段配置管理
+@router.get("/relation-configs/{config_id}")
+async def get_relation_config_by_id(config_id: int, db: Session = Depends(get_db)):
+    """根据ID获取关联字段配置"""
+    try:
+        relation_service = get_relation_field_config_service(db)
+        config = relation_service.get_relation_config_by_id(config_id)
+        if config:
+            return {"success": True, "data": config}
+        else:
+            raise HTTPException(status_code=404, detail="关联字段配置不存在")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取关联字段配置失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/relation-configs")
 async def get_all_relation_configs(db: Session = Depends(get_db)):
     """获取所有关联字段配置"""
@@ -408,6 +442,23 @@ async def delete_relation_config(config_id: int, db: Session = Depends(get_db)):
 
 
 # 提示词模板管理
+@router.get("/prompt-templates/{template_id}")
+async def get_prompt_template_by_id(template_id: int, db: Session = Depends(get_db)):
+    """根据ID获取提示词模板"""
+    try:
+        template_service = get_prompt_template_service(db)
+        template = template_service.get_template_by_id(template_id)
+        if template:
+            return {"success": True, "data": template}
+        else:
+            raise HTTPException(status_code=404, detail="提示词模板不存在")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取提示词模板失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/prompt-templates")
 async def get_all_prompt_templates(db: Session = Depends(get_db)):
     """获取所有提示词模板"""
