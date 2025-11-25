@@ -85,6 +85,30 @@ export default function GlossaryTermDetailPage() {
     }));
   };
 
+  // 解析内容
+  const parseContent = (type: string, content: any) => {
+    if (typeof content === 'string') {
+      try {
+        return JSON.parse(content);
+      } catch {
+        return {
+          content: '',
+          question: '',
+          answer: '',
+          remark: '',
+          col_name: '',
+          dict_map: []
+        };
+      }
+    }
+    return content;
+  };
+
+  // 构建内容
+  const buildContent = (type: string, content: any) => {
+    return content;
+  };
+
   // 内容数据更新处理
   const handleContentChange = (field: string, value: any) => {
     if (!termData) return;

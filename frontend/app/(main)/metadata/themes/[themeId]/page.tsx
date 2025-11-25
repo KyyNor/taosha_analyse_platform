@@ -32,18 +32,6 @@ const THEME_TYPES = [
   { value: "public", label: "通用主题" },
 ];
 
-const DEPARTMENTS = [
-  { value: "信息技术部", label: "信息技术部" },
-  { value: "财务部", label: "财务部" },
-  { value: "人力资源部", label: "人力资源部" },
-  { value: "市场部", label: "市场部" },
-  { value: "运营部", label: "运营部" },
-  { value: "销售部", label: "销售部" },
-  { value: "数据分析部", label: "数据分析部" },
-  { value: "风控部", label: "风控部" },
-  { value: "产品部", label: "产品部" },
-  { value: "客服部", label: "客服部" },
-];
 
 export default function DataThemeDetailPage() {
   const params = useParams();
@@ -367,24 +355,15 @@ export default function DataThemeDetailPage() {
                 <div>
                   <Label htmlFor="department">关联部门 *</Label>
                   {isEditing ? (
-                    <Select
+                    <Input
+                      id="department"
                       value={themeData.department}
-                      onValueChange={(value) => handleThemeDataChange('department', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="选择关联部门" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DEPARTMENTS.map((dept) => (
-                          <SelectItem key={dept.value} value={dept.value}>
-                            {dept.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(e) => handleThemeDataChange('department', e.target.value)}
+                      placeholder="请输入关联部门"
+                    />
                   ) : (
                     <div className="mt-1 p-2 bg-gray-50 rounded border min-h-[40px] flex items-center">
-                      {DEPARTMENTS.find(d => d.value === themeData.department)?.label || themeData.department}
+                      {themeData.department || '未设置'}
                     </div>
                   )}
                 </div>
@@ -413,16 +392,14 @@ export default function DataThemeDetailPage() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center justify-between">
                 关联数据表
-                {!isEditing && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setAddingTable(true)}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    添加表
-                  </Button>
-                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAddingTable(true)}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  添加表
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -497,8 +474,7 @@ export default function DataThemeDetailPage() {
                           {availableTables.map((table) => (
                             <div
                               key={table.id}
-                              className="p-3 hover:bg-gray-50 cursor-pointer flex items-center justify-between"
-                              onClick={() => handleAddTable(table.id)}
+                              className="p-3 hover:bg-gray-50 flex items-center justify-between"
                             >
                               <div>
                                 <h4 className="font-medium">{table.table_name}</h4>
@@ -506,7 +482,14 @@ export default function DataThemeDetailPage() {
                                   <p className="text-sm text-gray-500">{table.table_comment}</p>
                                 )}
                               </div>
-                              <Button variant="outline" size="sm">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAddTable(table.id);
+                                }}
+                              >
                                 <Plus className="h-4 w-4 mr-1" />
                                 添加
                               </Button>
