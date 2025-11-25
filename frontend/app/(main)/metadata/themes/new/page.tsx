@@ -43,7 +43,7 @@ export default function NewDataThemePage() {
   // 加载所有可用的表
   const loadAllTables = async () => {
     try {
-      const res = await getTables();
+      const res = await getTables({ fields: false });
       if (res.success) {
         setAllTables(res.data);
       }
@@ -306,9 +306,9 @@ export default function NewDataThemePage() {
                       {selectedTables.map((table) => (
                         <div key={table.id} className="flex items-center justify-between p-4 border rounded-lg">
                           <div className="flex-1">
-                            <h4 className="font-medium">{table.table_name}</h4>
-                            {table.table_comment && (
-                              <p className="text-sm text-gray-500 mt-1">{table.table_comment}</p>
+                            <h4 className="font-medium">{table.name}</h4>
+                            {table.comment && (
+                              <p className="text-sm text-gray-500 mt-1">{table.comment}</p>
                             )}
                           </div>
                           <div className="text-green-600">
@@ -424,7 +424,7 @@ export default function NewDataThemePage() {
             <div className="flex-1 overflow-y-auto border rounded">
               {allTables.filter(table =>
                 !selectedTables.some(selected => selected.id === table.id) &&
-                (tableSearch === "" || table.table_name.toLowerCase().includes(tableSearch.toLowerCase()))
+                (tableSearch === "" || table.name.toLowerCase().includes(tableSearch.toLowerCase()))
               ).length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   {tableSearch ? "没有找到匹配的表" : "没有可关联的表"}
@@ -433,16 +433,16 @@ export default function NewDataThemePage() {
                 <div className="divide-y">
                   {allTables.filter(table =>
                     !selectedTables.some(selected => selected.id === table.id) &&
-                    (tableSearch === "" || table.table_name.toLowerCase().includes(tableSearch.toLowerCase()))
+                    (tableSearch === "" || table.name.toLowerCase().includes(tableSearch.toLowerCase()))
                   ).map((table) => (
                     <div
                       key={table.id}
                       className="p-3 hover:bg-gray-50 flex items-center justify-between"
                     >
                       <div>
-                        <h4 className="font-medium">{table.table_name}</h4>
-                        {table.table_comment && (
-                          <p className="text-sm text-gray-500">{table.table_comment}</p>
+                        <h4 className="font-medium">{table.name}</h4>
+                        {table.comment && (
+                          <p className="text-sm text-gray-500">{table.comment}</p>
                         )}
                       </div>
                       <Button
