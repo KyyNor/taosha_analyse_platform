@@ -15,7 +15,7 @@ interface NewTable {
   name: string;
   comment: string;
   remark: string;
-  is_available: boolean;
+  is_available: number; // 0=可用，1=不可用
 }
 
 export default function NewTablePage() {
@@ -25,7 +25,7 @@ export default function NewTablePage() {
     name: '',
     comment: '',
     remark: '',
-    is_available: true,
+    is_available: 0, // 默认可用
   });
 
   const [saving, setSaving] = useState(false);
@@ -65,7 +65,7 @@ export default function NewTablePage() {
         name: tableData.name,
         comment: tableData.comment,
         remark: tableData.remark,
-        is_available: tableData.is_available ? 1 : 0,
+        is_available: tableData.is_available,
       });
 
       toast.success('表创建成功，您可以在详情页面添加字段信息');
@@ -162,8 +162,8 @@ export default function NewTablePage() {
           <div className="flex items-center space-x-2">
             <Switch
               id="table-available"
-              checked={tableData.is_available}
-              onCheckedChange={(checked) => handleTableDataChange('is_available', checked)}
+              checked={tableData.is_available === 0}
+              onCheckedChange={(checked) => handleTableDataChange('is_available', checked ? 0 : 1)}
             />
             <Label htmlFor="table-available">启用表</Label>
           </div>

@@ -683,13 +683,13 @@ class GlossaryService:
         """根据类型获取术语"""
         return [term for term in self.get_terms() if term.get("type") == term_type]
 
-    def add_term(self, name: str, term_type: str, content: Dict[str, Any], creator: str, is_basic: bool = False) -> bool:
-        """添加术语"""
+    def add_term(self, name: str, term_type: str, content: Dict[str, Any], creator: str, is_basic: bool = False) -> Optional[int]:
+        """添加术语，返回创建的术语ID"""
         try:
             # 将 content 转换为 JSON 字符串
             content_json = json.dumps(content, ensure_ascii=False)
 
-            self.repo.create(
+            term = self.repo.create(
                 name=name,
                 type=term_type,
                 content=content_json,
@@ -698,11 +698,11 @@ class GlossaryService:
             )
 
             logger.info(f"添加术语成功: {name}, 基础术语: {is_basic}")
-            return True
+            return term.id if term else None
 
         except Exception as e:
             logger.error(f"添加术语失败: {e}")
-            return False
+            return None
 
     def update_term(self, term_id: int, name: str = None, term_type: str = None,
                    content: Dict[str, Any] = None, is_basic: bool = None) -> bool:

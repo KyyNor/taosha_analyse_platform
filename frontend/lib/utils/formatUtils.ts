@@ -72,10 +72,18 @@ export function truncateText(text: string | null | undefined, maxLength: number 
 
 /**
  * 格式化布尔值
+ * 支持0/1整数值和布尔值，0=可用，1=不可用
  */
-export function formatBoolean(value: boolean | null | undefined): string {
+export function formatBoolean(value: boolean | number | null | undefined): string {
   if (value === null || value === undefined) return '-';
-  return value ? '是' : '否';
+
+  // 处理数值类型：0=可用，1=不可用
+  if (typeof value === 'number') {
+    return value === 0 ? '可用' : '不可用';
+  }
+
+  // 处理布尔类型
+  return value ? '可用' : '不可用';
 }
 
 /**

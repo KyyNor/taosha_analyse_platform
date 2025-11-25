@@ -158,13 +158,17 @@ export default function NewGlossaryTermPage() {
       const createResult = await createGlossaryTerm({
         name: termData.name,
         type: termData.type,
-        content: termData.content, 
+        content: termData.content,
         creator: "系统用户", // 可以从用户上下文获取
         is_basic: termData.is_basic,
       });
 
-      toast.success('术语创建成功');
-      router.push(`/metadata/glossary/${createResult.data.id}`);
+      if (createResult.success) {
+        toast.success('术语创建成功');
+        router.push(`/metadata/glossary/${createResult.data.id}`);
+      } else {
+        throw new Error(createResult.message || '创建失败');
+      }
     } catch (error) {
       console.error('Failed to create term:', error);
       toast.error('创建失败，请重试');

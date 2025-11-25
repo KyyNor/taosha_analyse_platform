@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getThemeById, updateTheme, getThemeTables, addTableToTheme, removeTableFromTheme } from "@/lib/services/metadataService";
+import { getThemeById, updateTheme, getThemeTables, addTableToTheme, removeTableFromTheme, getTables } from "@/lib/services/metadataService";
 import { ArrowLeft, Save, X, Edit3, Eye, Plus, Trash2, Link } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,20 +28,21 @@ interface ThemeTable {
 }
 
 const THEME_TYPES = [
-  { value: "business", label: "业务主题" },
-  { value: "technical", label: "技术主题" },
-  { value: "analysis", label: "分析主题" },
-  { value: "report", label: "报表主题" },
+  { value: "normal", label: "一般主题" },
+  { value: "public", label: "通用主题" },
 ];
 
 const DEPARTMENTS = [
-  { value: "IT", label: "信息技术部" },
-  { value: "Finance", label: "财务部" },
-  { value: "HR", label: "人力资源部" },
-  { value: "Marketing", label: "市场部" },
-  { value: "Operations", label: "运营部" },
-  { value: "Sales", label: "销售部" },
-  { value: "Analytics", label: "数据分析部" },
+  { value: "信息技术部", label: "信息技术部" },
+  { value: "财务部", label: "财务部" },
+  { value: "人力资源部", label: "人力资源部" },
+  { value: "市场部", label: "市场部" },
+  { value: "运营部", label: "运营部" },
+  { value: "销售部", label: "销售部" },
+  { value: "数据分析部", label: "数据分析部" },
+  { value: "风控部", label: "风控部" },
+  { value: "产品部", label: "产品部" },
+  { value: "客服部", label: "客服部" },
 ];
 
 export default function DataThemeDetailPage() {
@@ -53,9 +54,11 @@ export default function DataThemeDetailPage() {
 
   const [themeData, setThemeData] = useState<DataTheme | null>(null);
   const [themeTables, setThemeTables] = useState<ThemeTable[]>([]);
+  const [allTables, setAllTables] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [addingTable, setAddingTable] = useState(false);
+  const [tableSearch, setTableSearch] = useState("");
 
   // 加载主题数据
   const loadTheme = async () => {
@@ -87,10 +90,23 @@ export default function DataThemeDetailPage() {
     }
   };
 
+  // 加载所有可用的表
+  const loadAllTables = async () => {
+    try {
+      const res = await getTables();
+      if (res.success) {
+        setAllTables(res.data);
+      }
+    } catch (error) {
+      console.error("Failed to load all tables:", error);
+    }
+  };
+
   useEffect(() => {
     if (themeId) {
       loadTheme();
       loadThemeTables();
+      loadAllTables();
     }
   }, [themeId]);
 
@@ -186,6 +202,8 @@ export default function DataThemeDetailPage() {
     try {
       await addTableToTheme(Number(themeId), tableId);
       toast.success('表已添加到主题');
+      setAddingTable(false); // 关闭对话框
+      setTableSearch(""); // 清空搜索
       loadThemeTables(); // 重新加载表列表
     } catch (error) {
       console.error('Failed to add table to theme:', error);
@@ -206,6 +224,12 @@ export default function DataThemeDetailPage() {
       toast.error('移除表失败');
     }
   };
+
+  // 过滤可选择的表（排除已经关联的表）
+  const availableTables = allTables.filter(table =>
+    !themeTables.some(themeTable => themeTable.id === table.id) &&
+    (tableSearch === "" || table.table_name.toLowerCase().includes(tableSearch.toLowerCase()))
+  );
 
   if (loading) {
     return (
@@ -433,6 +457,79 @@ export default function DataThemeDetailPage() {
                   ))}
                 </div>
               )}
+
+              {/* 表选择对话框 */}
+              {addingTable && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold">选择要关联的数据表</h3>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setAddingTable(false);
+                          setTableSearch("");
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {/* 搜索框 */}
+                    <div className="mb-4">
+                      <Input
+                        placeholder="搜索表名..."
+                        value={tableSearch}
+                        onChange={(e) => setTableSearch(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+
+                    {/* 表列表 */}
+                    <div className="flex-1 overflow-y-auto border rounded">
+                      {availableTables.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                          {tableSearch ? "没有找到匹配的表" : "没有可关联的表"}
+                        </div>
+                      ) : (
+                        <div className="divide-y">
+                          {availableTables.map((table) => (
+                            <div
+                              key={table.id}
+                              className="p-3 hover:bg-gray-50 cursor-pointer flex items-center justify-between"
+                              onClick={() => handleAddTable(table.id)}
+                            >
+                              <div>
+                                <h4 className="font-medium">{table.table_name}</h4>
+                                {table.table_comment && (
+                                  <p className="text-sm text-gray-500">{table.table_comment}</p>
+                                )}
+                              </div>
+                              <Button variant="outline" size="sm">
+                                <Plus className="h-4 w-4 mr-1" />
+                                添加
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 flex justify-end">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setAddingTable(false);
+                          setTableSearch("");
+                        }}
+                      >
+                        取消
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -480,10 +577,8 @@ export default function DataThemeDetailPage() {
                 <div className="flex-1">
                   <h3 className="text-sm font-medium text-blue-800">主题类型说明</h3>
                   <div className="mt-2 text-sm text-blue-700 space-y-1">
-                    <p><strong>业务主题：</strong>面向业务领域的数据组织</p>
-                    <p><strong>技术主题：</strong>面向技术实现的数据管理</p>
-                    <p><strong>分析主题：</strong>面向数据分析的专题组织</p>
-                    <p><strong>报表主题：</strong>面向报表输出的数据集合</p>
+                    <p><strong>一般主题：</strong>针对特定业务领域的数据组织</p>
+                    <p><strong>通用主题：</strong>跨业务领域的通用数据集合</p>
                   </div>
                 </div>
               </div>

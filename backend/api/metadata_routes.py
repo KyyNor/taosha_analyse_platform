@@ -233,15 +233,19 @@ async def add_term(request: GlossaryTermRequest, db: Session = Depends(get_db)):
     try:
         creator: str = "api_user"
         glossary_service = get_glossary_service(db)
-        success = glossary_service.add_term(
+        term_id = glossary_service.add_term(
             request.name,
             request.type,
             request.content,
             creator,
             request.is_basic  # 传递 is_basic 参数
         )
-        if success:
-            return {"success": True, "message": f"术语已添加: {request.name}"}
+        if term_id:
+            return {
+                "success": True,
+                "message": f"术语已添加: {request.name}",
+                "data": {"id": term_id}
+            }
         else:
             raise HTTPException(status_code=400, detail="添加术语失败")
     except Exception as e:

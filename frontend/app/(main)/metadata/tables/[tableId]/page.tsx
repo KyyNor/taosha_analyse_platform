@@ -386,8 +386,8 @@ export default function TableDetailPage() {
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="table-available"
-                    checked={tableData.is_available}
-                    onCheckedChange={(checked) => handleTableDataChange('is_available', checked)}
+                    checked={tableData.is_available === 0}
+                    onCheckedChange={(checked) => handleTableDataChange('is_available', checked ? 0 : 1)}
                   />
                   <Label htmlFor="table-available">可用状态</Label>
                 </div>
@@ -413,8 +413,8 @@ export default function TableDetailPage() {
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">状态</label>
                   <div className="mt-1">
-                    <Badge variant={tableData.is_available ? "default" : "secondary"}>
-                      {tableData.is_available ? '可用' : '不可用'}
+                    <Badge variant={tableData.is_available === 0 ? "default" : "secondary"}>
+                      {tableData.is_available === 0 ? '可用' : '不可用'}
                     </Badge>
                   </div>
                 </div>
@@ -533,8 +533,8 @@ export default function TableDetailPage() {
                         <div className="flex items-center space-x-2">
                           <Switch
                             id={`column-available-${index}`}
-                            checked={column.is_available}
-                            onCheckedChange={(checked) => handleColumnDataChange(index, 'is_available', checked)}
+                            checked={column.is_available === 0}
+                            onCheckedChange={(checked) => handleColumnDataChange(index, 'is_available', checked ? 0 : 1)}
                           />
                           <Label htmlFor={`column-available-${index}`}>可用</Label>
                         </div>
