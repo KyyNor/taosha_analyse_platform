@@ -14,6 +14,7 @@ from langfuse import propagate_attributes
 
 from services.agents.agent_service import agent_service
 from services.agents.json_encoder import LangChainJSONEncoder, serialize_event_data
+from services.agents.vercel_bridge import LangChainToVercelBridge
 from utils.logger import logger
 import time
 
@@ -189,6 +190,92 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
 
     return StreamingResponse(
         generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
+@router.post("/chat/vercel-stream")
+async def chat_vercel_stream_endpoint(request: ChatRequest) -> StreamingResponse:
+    """
+    Vercel AI SDK兼容的流式聊天接口
+
+    将LangChain Agent的astream_events转换为Vercel AI SDK兼容的SSE流格式
+    用于支持生成式UI功能
+
+    事件类型（Vercel格式）：
+    - assistant_message_start: 消息开始
+    - text_delta: 文本增量
+    - tool_call_start: 工具调用开始
+    - tool_call_input: 工具输入参数
+    - tool_call_result: 工具执行结果
+    - tool_call_error: 工具调用错误
+    - assistant_message_complete: 消息完成
+    - done: 流结束
+    - error: 错误信息
+
+    Args:
+        request: 聊天请求
+
+    Returns:
+        StreamingResponse: Vercel格式的流式响应
+    """
+    async def generate_vercel_stream():
+        """生成Vercel AI SDK兼容的流式响应"""
+        try:
+            # 处理默认值
+            user_id = request.user_id or "api_user"
+            session_id = request.session_id or str(uuid.uuid4())
+
+            logger.info(f"收到Vercel格式流式聊天请求: {request.message[:100]}..., user_id: {user_id}, session_id: {session_id}")
+
+            # 创建桥接器实例
+            bridge = LangChainToVercelBridge()
+
+            langfuse_client = get_langfuse_client()
+
+            with langfuse_client.start_as_current_span(name="api_chat_vercel_stream") as span:
+                with propagate_attributes(user_id=user_id, session_id=session_id):
+                    span.update_trace(
+                        user_id=user_id,
+                        session_id=session_id,
+                        input=request.message
+                    )
+
+                    # 获取LangChain的原始事件流
+                    langchain_stream = agent_service.chat_stream(
+                        message=request.message,
+                        session_id=session_id,
+                        user_id=user_id,
+                        conversation_history=request.conversation_history
+                    )
+
+                    # 使用桥接器转换为Vercel格式并流式输出
+                    event_count = 0
+                    async for sse_message in bridge.convert_stream(langchain_stream):
+                        event_count += 1
+                        logger.debug(f"发送Vercel SSE事件 #{event_count}")
+                        yield sse_message
+                        await asyncio.sleep(0)  # 立即刷新缓冲区
+
+                    span.update(output={"response": bridge.current_text_buffer})
+
+            logger.info(f"Vercel流式聊天完成, session_id: {session_id}, 共发送{event_count}个事件")
+
+        except Exception as e:
+            logger.error(f"Vercel流式聊天错误: {e}")
+            error_message = f"data: {json.dumps({'type': 'error', 'error': str(e)}, ensure_ascii=False)}\n\n"
+            yield error_message
+            await asyncio.sleep(0)
+
+    return StreamingResponse(
+        generate_vercel_stream(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

@@ -16,8 +16,9 @@ from langfuse import observe, propagate_attributes
 
 from services.llm_service.base_llm_service import BaseLLMService
 from services.tracking_service.observability_service import get_langfuse_client, get_tracing_handler
-from services.agents.common_tools import get_hotboard, get_programmer_story
+from services.agents.common_tools import get_hotboard, get_programmer_story, get_date_range
 from services.agents.fine_report_tools import get_report_sample, batch_filter_report_and_get_data
+from services.agents.weather_tool import get_weather
 from services.agents.json_encoder import to_serializable
 from utils.logger import logger
 
@@ -35,7 +36,7 @@ class AgentService:
     def _initialize_agent(self):
         """初始化Agent"""
         try:
-            tools = [get_report_sample, batch_filter_report_and_get_data, get_hotboard, get_programmer_story]
+            tools = [get_report_sample, batch_filter_report_and_get_data, get_hotboard, get_programmer_story, get_date_range, get_weather]
             self.agent = create_agent(
                 model=self.llm_service.client,
                 tools=tools,

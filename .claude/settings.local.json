@@ -52,7 +52,8 @@
       "Bash(npx create-next-app:*)",
       "Bash(npx shadcn@latest add:*)",
       "mcp__shadcn__get_project_registries",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "WebFetch(domain:python.langchain.com)"
     ],
     "deny": [],
     "ask": [],
