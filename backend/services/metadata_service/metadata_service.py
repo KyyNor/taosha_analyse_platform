@@ -504,7 +504,9 @@ class RelationFieldConfigService:
                     "relation_id": f"{config.relation_family}|{config.relation_subfamily}",  # 拼接的关联ID，用于前端显示
                     "relation_family": config.relation_family,
                     "relation_subfamily": config.relation_subfamily,
-                    "relation_desc": config.relation_desc or ""
+                    "relation_desc": config.relation_desc or "",
+                    "created_at": config.created_at.isoformat() if config.created_at else None,
+                    "updated_at": config.updated_at.isoformat() if config.updated_at else None
                 }
             return None
         except Exception as e:
@@ -521,7 +523,9 @@ class RelationFieldConfigService:
                     "relation_id": f"{config.relation_family}|{config.relation_subfamily}",  # 拼接的关联ID，用于前端显示
                     "relation_family": config.relation_family,
                     "relation_subfamily": config.relation_subfamily,
-                    "relation_desc": config.relation_desc or ""
+                    "relation_desc": config.relation_desc or "",
+                    "created_at": config.created_at.isoformat() if config.created_at else None,
+                    "updated_at": config.updated_at.isoformat() if config.updated_at else None
                 }
                 for config in configs
             ]
@@ -544,7 +548,9 @@ class RelationFieldConfigService:
                 "relation_id": f"{config.relation_family}|{config.relation_subfamily}",  # 拼接的关联ID，用于前端显示
                 "relation_family": config.relation_family,
                 "relation_subfamily": config.relation_subfamily,
-                "relation_desc": config.relation_desc or ""
+                "relation_desc": config.relation_desc or "",
+                "created_at": config.created_at.isoformat() if config.created_at else None,
+                "updated_at": config.updated_at.isoformat() if config.updated_at else None
             }
 
             logger.info(f"添加关联字段配置成功: {family}|{subfamily}")

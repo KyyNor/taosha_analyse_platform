@@ -20,7 +20,7 @@ export default function Header() {
   const [open, setOpen] = useState(false);
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur">
-      <div className="mx-auto max-w-7xl px-6 h-14 flex items-center justify-between">
+      <div className="mx-auto max-w-screen-2xl px-6 h-14 flex items-center justify-between">
         <Link href="/nlquery" className="font-semibold">淘沙分析平台</Link>
         <nav className="flex items-center gap-4 text-sm">
           {items.map((i) => (
