@@ -16,7 +16,7 @@ interface GlossaryTerm {
   id: number;
   name: string;
   type: string;
-  content: any;
+  content: string; // 改为字符串
   creator: string;
   is_basic: boolean;
   created_at: string;
@@ -40,63 +40,14 @@ export default function GlossaryTermDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // 根据术语类型解析内容
-  const parseContent = (type: string, contentStr: string) => {
+  // 格式化JSON字符串显示
+  const formatContent = (contentStr: string) => {
     try {
-      if (!contentStr) return {};
-      const content = typeof contentStr === "string" ? JSON.parse(contentStr) : contentStr;
-
-      switch (type) {
-        case "concept":
-          return {
-            definition: content.definition || "",
-            example: content.example || "",
-            context: content.context || "",
-          };
-        case "sql_qa":
-          return {
-            question: content.question || "",
-            answer: content.answer || "",
-            sql_template: content.sql_template || "",
-          };
-        case "dict_mapping":
-          return {
-            source_value: content.source_value || "",
-            target_value: content.target_value || "",
-            description: content.description || "",
-          };
-        default:
-          return content;
-      }
+      if (!contentStr) return "{}";
+      const parsed = JSON.parse(contentStr);
+      return JSON.stringify(parsed, null, 2);
     } catch (error) {
-      console.error("解析内容失败:", error);
-      return {};
-    }
-  };
-
-  // 根据术语类型构建内容
-  const buildContent = (type: string, contentData: any) => {
-    switch (type) {
-      case "concept":
-        return {
-          definition: contentData.definition || "",
-          example: contentData.example || "",
-          context: contentData.context || "",
-        };
-      case "sql_qa":
-        return {
-          question: contentData.question || "",
-          answer: contentData.answer || "",
-          sql_template: contentData.sql_template || "",
-        };
-      case "dict_mapping":
-        return {
-          source_value: contentData.source_value || "",
-          target_value: contentData.target_value || "",
-          description: contentData.description || "",
-        };
-      default:
-        return contentData;
+      return contentStr; // 如果解析失败，返回原始字符串
     }
   };
 
