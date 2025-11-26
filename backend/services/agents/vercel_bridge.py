@@ -5,6 +5,7 @@ Vercel AI SDK 桥接层
 import json
 import uuid
 from typing import AsyncGenerator, Dict, Any, Optional
+from langchain_core.messages import BaseMessage, ToolMessage, HumanMessage, AIMessage
 from utils.logger import logger
 
 
@@ -117,11 +118,18 @@ class LangChainToVercelBridge:
 
                     # 解析工具输出（如果是JSON字符串）
                     parsed_output = tool_output
-                    if isinstance(tool_output, str):
-                        try:
-                            parsed_output = json.loads(tool_output)
-                        except json.JSONDecodeError:
-                            parsed_output = {"result": tool_output}
+                    
+                    if isinstance(tool_output, ToolMessage):
+                        tool_output_content = tool_output.content
+                    else:
+                        tool_output_content = tool_output
+                        
+                    logger.info(f"工具输出类型: {type(tool_output)} , 内容: {str(tool_output)[:100]}...")
+                    
+                    try:
+                        parsed_output = json.loads(tool_output_content)
+                    except json.JSONDecodeError:
+                        parsed_output = tool_output_content
 
                     # 发送工具调用结果
                     yield self._format_sse_message({

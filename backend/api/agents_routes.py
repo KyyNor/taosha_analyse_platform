@@ -249,11 +249,8 @@ async def chat_vercel_stream_endpoint(request: ChatRequest) -> StreamingResponse
                     )
 
                     # 获取LangChain的原始事件流
-                    langchain_stream = agent_service.chat_stream(
-                        message=request.message,
-                        session_id=session_id,
-                        user_id=user_id,
-                        conversation_history=request.conversation_history
+                    langchain_stream = agent_service.agent.astream_events(
+                        {"messages": request.message},
                     )
 
                     # 使用桥接器转换为Vercel格式并流式输出
