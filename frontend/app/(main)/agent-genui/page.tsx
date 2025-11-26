@@ -50,9 +50,14 @@ export default function AgentGenUIPage() {
     setInput('');
     setIsLoading(true);
 
+  const baseUrl = process.env.NEXT_PUBLIC_API_STREAM_BASE
+    || process.env.NEXT_PUBLIC_API_BASE
+    || "/api/taosha/v1";
+  const url = `${baseUrl}/agents/chat/vercel-stream`;
+
     try {
       // 构建请求
-      const response = await fetch('/api/taosha/v1/agents/chat/vercel-stream', {
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
