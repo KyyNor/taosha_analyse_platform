@@ -1,13 +1,16 @@
 "use client";
 import { createContext, useContext, useMemo, useState, useCallback, useRef } from "react";
 
+import type { MessagePart, SSEEvent } from "@/types/agent";
+
 // Types
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
-  content: string;
+  content?: string; // 兼容字段
   timestamp: Date;
-  tool_calls?: ToolCall[];
+  parts?: MessagePart[]; // Vercel格式的消息部分
+  tool_calls?: ToolCall[]; // 兼容字段
   thinking?: string; // 思维链内容
 }
 
@@ -24,64 +27,8 @@ export interface ConversationHistory {
   content: string;
 }
 
-// 新的Agent事件数据格式
-
-// 流开始事件
-interface StreamStartEvent {
-  event: 'start';
-  data: {
-    session_id?: string;
-  };
-}
-
-// 文本响应事件
-interface StreamTextEvent {
-  event: 'text';
-  data: {
-    content: string;
-    type: 'token';
-  };
-}
-
-// 工具调用事件
-interface StreamToolCallEvent {
-  event: 'tool_call';
-  data: {
-    id: string;
-    name: string;
-    args: string | Record<string, any>;
-    status?: 'pending';
-    type?: 'start' | 'args_update';
-  };
-}
-
-// 工具结果事件
-interface StreamToolResultEvent {
-  event: 'tool_result';
-  data: {
-    id: string;
-    name: string;
-    result: any;
-    status: 'completed' | 'failed';
-  };
-}
-
-// 流结束事件
-interface StreamEndEvent {
-  event: 'end';
-  data: Record<string, any>;
-}
-
-// 错误事件
-interface StreamErrorEvent {
-  event: 'error';
-  data: {
-    error: string;
-  };
-}
-
-// 联合类型
-type StreamEventData = StreamStartEvent | StreamTextEvent | StreamToolCallEvent | StreamToolResultEvent | StreamEndEvent | StreamErrorEvent;
+// Vercel AI SDK 格式事件类型（来自SSEEvent）
+type StreamEventData = SSEEvent;
 
 interface AgentState {
   // 消息状态
@@ -166,164 +113,192 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   // 保持工具调用状态
   const pendingToolCallsRef = useRef<Map<string, ToolCall>>(new Map());
 
-  // Process stream data - 新的事件格式处理
+  // Process stream data - Vercel AI SDK格式事件处理
   const processStreamData = useCallback((eventData: StreamEventData) => {
-    const event = eventData.event;
+    const eventType = eventData.type;
+    const currentMessageId = currentMessageIdRef.current;
 
-    switch (event) {
-      case 'start':
+    switch (eventType) {
+      case 'assistant_message_start':
         setProcessingText('正在生成回答...');
-        if (eventData.data.session_id) {
-          setCurrentSessionId(eventData.data.session_id);
-        }
         break;
 
-      case 'text':
-        // 文本token，添加到当前助手消息
-        const currentMessageId = currentMessageIdRef.current;
-        const content = eventData.data.content;
-
-        setCurrentResponse(prev => {
-          const newResponse = prev + content;
-
-          setMessages(messagesPrev => {
-            const newMessages = [...messagesPrev];
+      case 'text_delta':
+        // 文本增量
+        if (eventData.content) {
+          setMessages(prev => {
+            const newMessages = [...prev];
             const lastMessage = newMessages[newMessages.length - 1];
 
             if (lastMessage && lastMessage.role === 'assistant' && lastMessage.id === currentMessageId) {
-              newMessages[newMessages.length - 1] = {
-                ...lastMessage,
-                content: newResponse
-              };
-            }
-            return newMessages;
-          });
-          return newResponse;
-        });
-        break;
+              // 查找或创建文本部分
+              const existingTextIndex = (lastMessage.parts || []).findIndex(part => part.type === 'text');
+              const updatedParts = [...(lastMessage.parts || [])];
 
-      case 'tool_call':
-        // 工具调用事件
-        const toolData = eventData.data;
-        const toolId = toolData.id;
-
-        if (toolData.type === 'start' || !toolData.type) {
-          // 新的工具调用开始
-          const toolCall: ToolCall = {
-            id: toolId,
-            name: toolData.name,
-            arguments: typeof toolData.args === 'string' ? { raw: toolData.args } : (toolData.args as Record<string, any>),
-            status: 'pending'
-          };
-
-          pendingToolCallsRef.current.set(toolId, toolCall);
-
-          // 更新当前消息的工具调用列表
-          setMessages(messagesPrev => {
-            const newMessages = [...messagesPrev];
-            const lastMessage = newMessages[newMessages.length - 1];
-
-            if (lastMessage && lastMessage.role === 'assistant') {
-              const updatedToolCalls = [...(lastMessage.tool_calls || [])];
-              const existingIndex = updatedToolCalls.findIndex(tc => tc.id === toolId);
-              if (existingIndex >= 0) {
-                updatedToolCalls[existingIndex] = toolCall;
-              } else {
-                updatedToolCalls.push(toolCall);
-              }
-
-              newMessages[newMessages.length - 1] = {
-                ...lastMessage,
-                tool_calls: updatedToolCalls
-              };
-            }
-            return newMessages;
-          });
-        } else if (toolData.type === 'args_update') {
-          // 参数更新
-          const existingToolCall = pendingToolCallsRef.current.get(toolId);
-          if (existingToolCall) {
-            const updatedArgs = typeof toolData.args === 'string'
-              ? { raw: toolData.args }
-              : (toolData.args as Record<string, any>);
-
-            const updatedToolCall = {
-              ...existingToolCall,
-              arguments: updatedArgs
-            };
-
-            pendingToolCallsRef.current.set(toolId, updatedToolCall);
-
-            // 更新消息中的工具调用参数
-            setMessages(messagesPrev => {
-              const newMessages = [...messagesPrev];
-              const lastMessage = newMessages[newMessages.length - 1];
-
-              if (lastMessage && lastMessage.role === 'assistant' && lastMessage.tool_calls) {
-                const updatedToolCalls = lastMessage.tool_calls.map(tc =>
-                  tc.id === toolId ? updatedToolCall : tc
-                );
-
-                newMessages[newMessages.length - 1] = {
-                  ...lastMessage,
-                  tool_calls: updatedToolCalls
+              if (existingTextIndex >= 0) {
+                // 更新现有文本部分
+                updatedParts[existingTextIndex] = {
+                  type: 'text',
+                  text: (updatedParts[existingTextIndex] as any).text + eventData.content
                 };
+              } else {
+                // 添加新的文本部分
+                updatedParts.unshift({
+                  type: 'text',
+                  text: eventData.content
+                });
               }
-              return newMessages;
-            });
-          }
+
+              newMessages[newMessages.length - 1] = {
+                ...lastMessage,
+                parts: updatedParts,
+                content: updatedParts.find(p => p.type === 'text')?.text || ''
+              };
+            }
+            return newMessages;
+          });
         }
         break;
 
-      case 'tool_result':
-        // 工具执行结果
-        const resultData = eventData.data;
-        const resultToolId = resultData.id;
+      case 'tool_call_start':
+        // 工具调用开始
+        if (eventData.toolCallId && eventData.toolName) {
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastMessage = newMessages[newMessages.length - 1];
 
-        setMessages(messagesPrev => {
-          const newMessages = [...messagesPrev];
-          const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage && lastMessage.role === 'assistant' && lastMessage.id === currentMessageId) {
+              const toolCallPart: MessagePart = {
+                type: 'tool-call',
+                toolCallId: eventData.toolCallId!,
+                toolName: eventData.toolName!
+              };
 
-          if (lastMessage && lastMessage.role === 'assistant' && lastMessage.tool_calls) {
-            const updatedToolCalls = lastMessage.tool_calls.map(tc => {
-              if (tc.id === resultToolId) {
-                return {
-                  ...tc,
-                  status: resultData.status as 'completed' | 'failed',
-                  result: resultData.result
-                };
-              }
-              return tc;
-            });
-
-            newMessages[newMessages.length - 1] = {
-              ...lastMessage,
-              tool_calls: updatedToolCalls
-            };
-          }
-          return newMessages;
-        });
-
-        // 清理ref中的工具调用
-        pendingToolCallsRef.current.delete(resultToolId);
+              newMessages[newMessages.length - 1] = {
+                ...lastMessage,
+                parts: [...(lastMessage.parts || []), toolCallPart]
+              };
+            }
+            return newMessages;
+          });
+        }
         break;
 
-      case 'end':
+      case 'tool_call_input':
+        // 工具输入参数
+        if (eventData.toolCallId) {
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastMessage = newMessages[newMessages.length - 1];
+
+            if (lastMessage && lastMessage.role === 'assistant' && lastMessage.id === currentMessageId) {
+              const updatedParts = lastMessage.parts?.map(part => {
+                if (part.type === 'tool-call' && part.toolCallId === eventData.toolCallId) {
+                  return {
+                    ...part,
+                    args: eventData.input
+                  };
+                }
+                return part;
+              }) || [];
+
+              newMessages[newMessages.length - 1] = {
+                ...lastMessage,
+                parts: updatedParts
+              };
+            }
+            return newMessages;
+          });
+        }
+        break;
+
+      case 'tool_call_result':
+        // 工具执行结果
+        if (eventData.toolCallId && eventData.toolName) {
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastMessage = newMessages[newMessages.length - 1];
+
+            if (lastMessage && lastMessage.role === 'assistant' && lastMessage.id === currentMessageId) {
+              const toolResultPart: MessagePart = {
+                type: 'tool-result',
+                toolCallId: eventData.toolCallId!,
+                toolName: eventData.toolName!,
+                result: eventData.result
+              };
+
+              // 替换对应的tool-call部分或添加新的
+              const updatedParts = (lastMessage.parts || []).map(part => {
+                if (part.type === 'tool-call' && part.toolCallId === eventData.toolCallId) {
+                  return toolResultPart;
+                }
+                return part;
+              });
+
+              // 如果没有找到对应的tool-call，则添加新的
+              if (!updatedParts.some(part => part.type === 'tool-result' && part.toolCallId === eventData.toolCallId)) {
+                updatedParts.push(toolResultPart);
+              }
+
+              newMessages[newMessages.length - 1] = {
+                ...lastMessage,
+                parts: updatedParts
+              };
+            }
+            return newMessages;
+          });
+        }
+        break;
+
+      case 'tool_call_error':
+        // 工具调用错误
+        if (eventData.toolCallId && eventData.toolName) {
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastMessage = newMessages[newMessages.length - 1];
+
+            if (lastMessage && lastMessage.role === 'assistant' && lastMessage.id === currentMessageId) {
+              const toolErrorPart: MessagePart = {
+                type: 'tool-result',
+                toolCallId: eventData.toolCallId!,
+                toolName: eventData.toolName!,
+                result: { error: eventData.error },
+                isError: true
+              };
+
+              const updatedParts = (lastMessage.parts || []).map(part => {
+                if (part.type === 'tool-call' && part.toolCallId === eventData.toolCallId) {
+                  return toolErrorPart;
+                }
+                return part;
+              });
+
+              if (!updatedParts.some(part => part.type === 'tool-result' && part.toolCallId === eventData.toolCallId)) {
+                updatedParts.push(toolErrorPart);
+              }
+
+              newMessages[newMessages.length - 1] = {
+                ...lastMessage,
+                parts: updatedParts
+              };
+            }
+            return newMessages;
+          });
+        }
+        break;
+
+      case 'assistant_message_complete':
+      case 'done':
         console.log('✅ Stream ended, message completed');
         setProcessingText('回答完成');
-        // 清理ref中的所有待处理工具调用
-        pendingToolCallsRef.current.clear();
-        // Delay clearing the message ID to ensure all content is processed
         setTimeout(() => {
           currentMessageIdRef.current = null;
         }, 100);
         break;
 
       case 'error':
-        const errorMessage = eventData.data.error || 'Unknown error occurred';
+        const errorMessage = eventData.error || 'Unknown error occurred';
         console.error('❌ Stream error:', errorMessage);
-        // 清理ref
-        pendingToolCallsRef.current.clear();
         throw new Error(errorMessage);
     }
   }, []);
@@ -367,32 +342,6 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       }
 
       let eventCount = 0;
-      const eventQueue: StreamEventData[] = [];
-      let isProcessingQueue = false;
-
-      // 处理事件队列，实现打字机效果
-      const processEventQueue = async () => {
-        if (isProcessingQueue || eventQueue.length === 0) return;
-        isProcessingQueue = true;
-
-        while (eventQueue.length > 0) {
-          const data = eventQueue.shift();
-          if (data) {
-            // 调试日志：验证流式接收
-            console.log(`[SSE Event ${eventCount}] ${data.event}:`, data);
-            console.time(`Event_${eventCount}`);
-            processStreamData(data);
-            console.timeEnd(`Event_${eventCount}`);
-
-            // 仅对text事件添加延迟，实现打字机效果
-            if (data.event === 'text') {
-              await new Promise(resolve => setTimeout(resolve, 50)); // 50ms延迟
-            }
-          }
-        }
-
-        isProcessingQueue = false;
-      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -402,13 +351,21 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         const lines = chunk.split('\n');
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
+          if (line.startsWith('data: ') && line.trim() !== 'data: ') {
             try {
               eventCount++;
-              const data = JSON.parse(line.slice(6)) as StreamEventData;
-              eventQueue.push(data);
-              // 立即处理队列
-              await processEventQueue();
+              const jsonStr = line.slice(6); // 移除 "data: " 前缀
+              const data = JSON.parse(jsonStr) as StreamEventData;
+
+              // 调试日志：验证流式接收
+              console.log(`[SSE Event ${eventCount}] ${data.type}:`, data);
+
+              processStreamData(data);
+
+              // 仅对text_delta事件添加延迟，实现打字机效果
+              if (data.type === 'text_delta') {
+                await new Promise(resolve => setTimeout(resolve, 30)); // 30ms延迟
+              }
             } catch (e) {
               console.warn('Failed to parse SSE data:', line, e);
             }
@@ -416,9 +373,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // 处理剩余的事件
-      await processEventQueue();
-
+  
     } catch (error) {
       console.error('Error sending message:', error);
 

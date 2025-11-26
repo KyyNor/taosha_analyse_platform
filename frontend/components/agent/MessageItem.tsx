@@ -13,6 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatMessage, ToolCall } from "@/lib/state/agent";
 import { ChevronDown, ChevronUp, Bot, User, Wrench, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { GenerativeUIRenderer } from "./GenerativeUIRenderer";
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -75,46 +76,52 @@ export function MessageItem({ message }: MessageItemProps) {
         )}>
           <CardContent className="p-4">
             {/* Main Message Content */}
-            <div className="prose prose-sm max-w-none dark:prose-invert">
-              {isAssistant ? (
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    code({ className, children, ...props }: any) {
-                      const match = /language-(\w+)/.exec(className || '');
-                      const isInline = !className?.includes('language-') && !match;
-                      return !isInline && match ? (
-                        <SyntaxHighlighter
-                          style={vscDarkPlus as any}
-                          language={match[1]}
-                          PreTag="div"
-                          className="rounded-md"
-                          {...props}
-                        >
-                          {String(children).replace(/\n$/, '')}
-                        </SyntaxHighlighter>
-                      ) : (
-                        <code
-                          className={cn(
-                            "px-1 py-0.5 rounded text-sm font-mono",
-                            isUser
-                              ? "bg-primary-foreground/20 text-primary-foreground"
-                              : "bg-accent text-accent-foreground"
-                          )}
-                          {...props}
-                        >
-                          {children}
-                        </code>
-                      );
-                    }
-                  }}
-                >
-                  {message.content}
-                </ReactMarkdown>
-              ) : (
-                <div className="whitespace-pre-wrap">{message.content}</div>
-              )}
-            </div>
+            {message.parts ? (
+              // 生成式UI渲染模式
+              <GenerativeUIRenderer parts={message.parts} />
+            ) : (
+              // 传统渲染模式
+              <div className="prose prose-sm max-w-none dark:prose-invert">
+                {isAssistant ? (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code({ className, children, ...props }: any) {
+                        const match = /language-(\w+)/.exec(className || '');
+                        const isInline = !className?.includes('language-') && !match;
+                        return !isInline && match ? (
+                          <SyntaxHighlighter
+                            style={vscDarkPlus as any}
+                            language={match[1]}
+                            PreTag="div"
+                            className="rounded-md"
+                            {...props}
+                          >
+                            {String(children).replace(/\n$/, '')}
+                          </SyntaxHighlighter>
+                        ) : (
+                          <code
+                            className={cn(
+                              "px-1 py-0.5 rounded text-sm font-mono",
+                              isUser
+                                ? "bg-primary-foreground/20 text-primary-foreground"
+                                : "bg-accent text-accent-foreground"
+                            )}
+                            {...props}
+                          >
+                            {children}
+                          </code>
+                        );
+                      }
+                    }}
+                  >
+                    {message.content || ''}
+                  </ReactMarkdown>
+                ) : (
+                  <div className="whitespace-pre-wrap">{message.content}</div>
+                )}
+              </div>
+            )}
 
             {/* Thinking Chain Display */}
             {isAssistant && message.thinking && (
