@@ -1,13 +1,14 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文档为 Claude Code（claude.ai/code）在此仓库中工作时提供指导。
 
-## Project Overview
+## 项目概览
 
-**Taosha Analysis Platform** is an AI-powered BI platform that converts natural language queries to SQL and provides agent-based conversation capabilities with tool integration.
+**淘沙分析平台** 是一个 AI 驱动的商业智能平台，可将自然语言查询转换为 SQL，并提供基于智能体的对话能力和工具集成。
 
-- **Backend**: FastAPI service for NL→SQL conversion, agent chat, and metadata management
-- **Frontend**: Next.js React application with real-time streaming UI
+- **后端**：FastAPI 服务，支持自然语言转 SQL、智能体对话和元数据管理
+- **前端**：Next.js React 应用，具有实时流式 UI
+- **最新提交**：`009e414`（docs: 将 CLAUDE.md 重写为中文）
 
 ## 开发命令
 
