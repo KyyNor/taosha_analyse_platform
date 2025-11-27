@@ -164,20 +164,36 @@ class AgentService:
                                         }
 
                 elif event_type == "on_tool_end":
+                    logger.debug(f"工具执行完成事件，data: {data}")
                     # 工具执行完成
                     output = data.get("output")
-                    tool_name = data.get("name", "unknown")
 
                     if current_tool_call:
                         # 将输出转换为可序列化的格式
-                        serializable_output = to_serializable(output)
+                        
+                        content = output.content
+                        content_obj = None
+                        
+                        if isinstance(content, dict):
+                            content_obj = content
+                        try:
+                            content_obj = json.loads(content)
+                        except Exception:
+                            content_obj = str(content)
+                            
+                        tool_name = output.name
 
                         yield {
                             "event": "tool_result",
                             "data": {
                                 "id": current_tool_call.get("id", ""),
                                 "name": tool_name,
-                                "result": serializable_output,
+                                "result": {
+                                    "type": "tool_message",
+                                    "content": content_obj,
+                                    "tool_call_id": output.tool_call_id,
+                                    "name": output.name
+                                },
                                 "status": "completed"
                             }
                         }

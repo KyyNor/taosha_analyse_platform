@@ -43,18 +43,26 @@ export function GenerativeUIRenderer({ parts }: GenerativeUIRendererProps) {
       if (part.toolName === 'get_weather') {
         const result = part.result as any;
 
-        if (part.isError || result?.error) {
+        // 处理工具结果的嵌套结构
+        let weatherData = result;
+
+        // 如果结果包含content字段，则提取实际的天气数据
+        if (result && result.content && typeof result.content === 'object') {
+          weatherData = result.content;
+        }
+
+        if (part.isError || weatherData?.error) {
           return (
             <WeatherCardError
               key={index}
-              error={result?.error || '获取天气失败'}
-              city={result?.city}
+              error={weatherData?.error || '获取天气失败'}
+              city={weatherData?.city}
             />
           );
         }
 
-        if (result) {
-          return <WeatherCard key={index} {...result} />;
+        if (weatherData) {
+          return <WeatherCard key={index} {...weatherData} />;
         }
       }
 

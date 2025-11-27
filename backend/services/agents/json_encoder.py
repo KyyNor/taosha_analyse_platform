@@ -20,10 +20,20 @@ class LangChainJSONEncoder(json.JSONEncoder):
             可序列化的对象
         """
         # 处理LangChain消息对象
+        
+        content_obj = None
+        
+        if isinstance(obj.content, dict):
+            content_obj = obj.content
+        try:
+            content_obj = json.loads(obj.content)
+        except Exception:
+            content_obj = str(obj.content)
+        
         if isinstance(obj, ToolMessage):
             return {
                 "type": "tool_message",
-                "content": str(obj.content),
+                "content": content_obj,
                 "tool_call_id": getattr(obj, "tool_call_id", None),
                 "name": getattr(obj, "name", None)
             }
@@ -75,9 +85,19 @@ def to_serializable(obj: Any) -> Any:
         可序列化的对象
     """
     if isinstance(obj, ToolMessage):
+        
+        content_obj = None
+        
+        if isinstance(obj.content, dict):
+            content_obj = obj.content
+        try:
+            content_obj = json.loads(obj.content)
+        except Exception:
+            content_obj = str(obj.content)
+        
         return {
             "type": "tool_message",
-            "content": str(obj.content),
+            "content": content_obj,
             "tool_call_id": getattr(obj, "tool_call_id", None),
             "name": getattr(obj, "name", None)
         }

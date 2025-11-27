@@ -113,19 +113,17 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   // 保持工具调用状态
   const pendingToolCallsRef = useRef<Map<string, ToolCall>>(new Map());
 
-  // Process stream data - Vercel AI SDK格式事件处理
+  // Process stream data - 原生LangChain事件格式处理
   const processStreamData = useCallback((eventData: StreamEventData) => {
-    const eventType = eventData.type;
+    const eventType = eventData.event;
+    const eventPayload = eventData.data || {};
     const currentMessageId = currentMessageIdRef.current;
 
     switch (eventType) {
-      case 'assistant_message_start':
-        setProcessingText('正在生成回答...');
-        break;
-
-      case 'text_delta':
-        // 文本增量
-        if (eventData.content) {
+      case 'text':
+        // 文本token流
+        if (eventPayload.content) {
+          setProcessingText('正在生成回答...');
           setMessages(prev => {
             const newMessages = [...prev];
             const lastMessage = newMessages[newMessages.length - 1];
@@ -139,13 +137,13 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
                 // 更新现有文本部分
                 updatedParts[existingTextIndex] = {
                   type: 'text',
-                  text: (updatedParts[existingTextIndex] as any).text + eventData.content
+                  text: (updatedParts[existingTextIndex] as any).text + eventPayload.content
                 };
               } else {
                 // 添加新的文本部分
                 updatedParts.unshift({
                   type: 'text',
-                  text: eventData.content
+                  text: eventPayload.content
                 });
               }
 
@@ -160,9 +158,9 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         }
         break;
 
-      case 'tool_call_start':
-        // 工具调用开始
-        if (eventData.toolCallId && eventData.toolName) {
+      case 'tool_call':
+        // 工具调用（开始/参数更新）
+        if (eventPayload.name && (eventPayload.status === 'pending' || eventPayload.type === 'start' || eventPayload.type === 'args_update')) {
           setMessages(prev => {
             const newMessages = [...prev];
             const lastMessage = newMessages[newMessages.length - 1];
@@ -170,37 +168,24 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
             if (lastMessage && lastMessage.role === 'assistant' && lastMessage.id === currentMessageId) {
               const toolCallPart: MessagePart = {
                 type: 'tool-call',
-                toolCallId: eventData.toolCallId!,
-                toolName: eventData.toolName!
+                toolCallId: eventPayload.id,
+                toolName: eventPayload.name,
+                args: eventPayload.args
               };
 
-              newMessages[newMessages.length - 1] = {
-                ...lastMessage,
-                parts: [...(lastMessage.parts || []), toolCallPart]
-              };
-            }
-            return newMessages;
-          });
-        }
-        break;
+              // 查找是否已存在该工具调用
+              const existingIndex = (lastMessage.parts || []).findIndex(part =>
+                part.type === 'tool-call' && part.toolCallId === eventPayload.id
+              );
 
-      case 'tool_call_input':
-        // 工具输入参数
-        if (eventData.toolCallId) {
-          setMessages(prev => {
-            const newMessages = [...prev];
-            const lastMessage = newMessages[newMessages.length - 1];
-
-            if (lastMessage && lastMessage.role === 'assistant' && lastMessage.id === currentMessageId) {
-              const updatedParts = lastMessage.parts?.map(part => {
-                if (part.type === 'tool-call' && part.toolCallId === eventData.toolCallId) {
-                  return {
-                    ...part,
-                    args: eventData.input
-                  };
-                }
-                return part;
-              }) || [];
+              let updatedParts = [...(lastMessage.parts || [])];
+              if (existingIndex >= 0) {
+                // 更新现有工具调用的参数
+                updatedParts[existingIndex] = toolCallPart;
+              } else {
+                // 添加新的工具调用
+                updatedParts.push(toolCallPart);
+              }
 
               newMessages[newMessages.length - 1] = {
                 ...lastMessage,
@@ -212,9 +197,9 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         }
         break;
 
-      case 'tool_call_result':
+      case 'tool_result':
         // 工具执行结果
-        if (eventData.toolCallId && eventData.toolName) {
+        if (eventPayload.name && (eventPayload.status === 'completed' || eventPayload.status === 'failed')) {
           setMessages(prev => {
             const newMessages = [...prev];
             const lastMessage = newMessages[newMessages.length - 1];
@@ -222,21 +207,22 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
             if (lastMessage && lastMessage.role === 'assistant' && lastMessage.id === currentMessageId) {
               const toolResultPart: MessagePart = {
                 type: 'tool-result',
-                toolCallId: eventData.toolCallId!,
-                toolName: eventData.toolName!,
-                result: eventData.result
+                toolCallId: eventPayload.id,
+                toolName: eventPayload.name,
+                result: eventPayload.result,
+                isError: eventPayload.status === 'failed'
               };
 
-              // 替换对应的tool-call部分或添加新的
+              // 替换对应的tool-call部分
               const updatedParts = (lastMessage.parts || []).map(part => {
-                if (part.type === 'tool-call' && part.toolCallId === eventData.toolCallId) {
+                if (part.type === 'tool-call' && part.toolCallId === eventPayload.id) {
                   return toolResultPart;
                 }
                 return part;
               });
 
               // 如果没有找到对应的tool-call，则添加新的
-              if (!updatedParts.some(part => part.type === 'tool-result' && part.toolCallId === eventData.toolCallId)) {
+              if (!updatedParts.some(part => part.type === 'tool-result' && part.toolCallId === eventPayload.id)) {
                 updatedParts.push(toolResultPart);
               }
 
@@ -250,56 +236,16 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         }
         break;
 
-      case 'tool_call_error':
-        // 工具调用错误
-        if (eventData.toolCallId && eventData.toolName) {
-          setMessages(prev => {
-            const newMessages = [...prev];
-            const lastMessage = newMessages[newMessages.length - 1];
-
-            if (lastMessage && lastMessage.role === 'assistant' && lastMessage.id === currentMessageId) {
-              const toolErrorPart: MessagePart = {
-                type: 'tool-result',
-                toolCallId: eventData.toolCallId!,
-                toolName: eventData.toolName!,
-                result: { error: eventData.error },
-                isError: true
-              };
-
-              const updatedParts = (lastMessage.parts || []).map(part => {
-                if (part.type === 'tool-call' && part.toolCallId === eventData.toolCallId) {
-                  return toolErrorPart;
-                }
-                return part;
-              });
-
-              if (!updatedParts.some(part => part.type === 'tool-result' && part.toolCallId === eventData.toolCallId)) {
-                updatedParts.push(toolErrorPart);
-              }
-
-              newMessages[newMessages.length - 1] = {
-                ...lastMessage,
-                parts: updatedParts
-              };
-            }
-            return newMessages;
-          });
-        }
-        break;
-
-      case 'assistant_message_complete':
-      case 'done':
-        console.log('✅ Stream ended, message completed');
-        setProcessingText('回答完成');
-        setTimeout(() => {
-          currentMessageIdRef.current = null;
-        }, 100);
-        break;
-
       case 'error':
-        const errorMessage = eventData.error || 'Unknown error occurred';
+        // 错误信息
+        const errorMessage = eventPayload.error || 'Unknown error occurred';
         console.error('❌ Stream error:', errorMessage);
         throw new Error(errorMessage);
+
+      default:
+        // 处理其他未知事件类型
+        console.log('🔄 Unknown event type:', eventType, eventPayload);
+        break;
     }
   }, []);
 
