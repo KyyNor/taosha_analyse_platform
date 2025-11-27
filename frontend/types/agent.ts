@@ -14,7 +14,7 @@ export interface MessagePart {
 
 export interface SSEEvent {
   // 原生LangChain事件格式
-  event: 'text' | 'tool_call' | 'tool_result' | 'error';
+  event: 'start' | 'text' | 'tool_call' | 'tool_result' | 'error';
   data: {
     // text事件
     content?: string;

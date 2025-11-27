@@ -24,7 +24,6 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     user_id: Optional[str] = None
-    conversation_history: list = []
 
 
 class ChatResponse(BaseModel):
@@ -78,7 +77,6 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                         message=request.message,
                         session_id=session_id,
                         user_id=user_id,
-                        conversation_history=request.conversation_history
                     ):
                         event_count += 1
                         logger.debug(f"发送SSE事件 #{event_count}: {event.get('event', 'unknown')}")

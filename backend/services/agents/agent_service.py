@@ -4,11 +4,13 @@ Agent服务
 """
 from typing import AsyncGenerator, AsyncIterable, Dict, Any
 from langchain.agents import create_agent
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.memory import InMemorySaver
 import json
 import uuid
 import hashlib
+from datetime import datetime, timedelta
 
 from langchain_core.tools import StructuredTool
 from langchain.agents.middleware import SummarizationMiddleware, PIIMiddleware, TodoListMiddleware
@@ -31,16 +33,20 @@ class AgentService:
         self.llm_service = BaseLLMService()
         self.tracing_handler = get_tracing_handler()
         self.agent = None
+
         self._initialize_agent()
 
     def _initialize_agent(self):
         """初始化Agent"""
         try:
+            checkpointer = InMemorySaver()
+
             tools = [get_report_sample, batch_filter_report_and_get_data, get_hotboard, get_programmer_story, get_date_range, get_weather]
             self.agent = create_agent(
                 model=self.llm_service.client,
                 tools=tools,
                 system_prompt="""你是一个智能助手，使用提供的工具来帮助用户回答问题。""",
+                checkpointer=checkpointer,
                 middleware=[
                     SummarizationMiddleware(
                         model=self.llm_service.client,
@@ -68,7 +74,7 @@ class AgentService:
             raise
 
     @observe(name="agent_chat_stream")
-    async def chat_stream(self, message: str, session_id: str, user_id: str, conversation_history: list = None) -> AsyncGenerator[dict, None]:
+    async def chat_stream(self, message: str, session_id: str, user_id: str) -> AsyncGenerator[dict, None]:
         """
         流式对话接口，使用astream_events获取Agent执行事件
 
@@ -76,37 +82,33 @@ class AgentService:
             message: 用户消息
             session_id: 会话ID
             user_id: 用户ID
-            conversation_history: 对话历史列表
 
         Yields:
             dict: 结构化的事件数据
         """
         try:
-            # 构建消息历史
-            messages = []
-
-            # 添加历史消息
-            if conversation_history:
-                for msg in conversation_history:
-                    if msg.get("role") == "user":
-                        messages.append(HumanMessage(content=msg.get("content", "")))
-                    elif msg.get("role") == "assistant":
-                        messages.append(AIMessage(content=msg.get("content", "")))
-
-            # 添加当前用户消息
-            messages.append(HumanMessage(content=message))
-
-            logger.info(f"正在处理Agent请求，共{len(messages)}条消息，session_id: {session_id}")
+            # 获取或创建会话内存
+            logger.info(f"正在处理Agent请求，session_id: {session_id}")
 
             # 使用astream_events获取离散的Agent执行事件
             callbacks = [self.tracing_handler] if self.tracing_handler else []
             current_tool_call = None
 
+            yield {
+                "event": "start",
+                "data": {
+                    "session_id": session_id  # 返回实际的session_id
+                }
+            }
+
+
+            # 使用self.agent，但传入包含memory的配置
             async for event in self.agent.astream_events(
-                {"messages": messages},
+                {"messages": [HumanMessage(content=message)]},
                 config=RunnableConfig(
-                    recursion_limit=10,
-                    callbacks=callbacks
+                    recursion_limit=20,
+                    callbacks=callbacks,
+                    configurable={"thread_id": session_id}
                 )
             ):
                 event_type = event.get("event", "")

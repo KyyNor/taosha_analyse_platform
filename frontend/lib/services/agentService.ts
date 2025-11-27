@@ -4,10 +4,6 @@ export interface ChatRequest {
   message: string;
   session_id?: string;
   user_id?: string;
-  conversation_history?: Array<{
-    role: 'user' | 'assistant';
-    content: string;
-  }>;
 }
 
 export async function startAgent(payload: Record<string, unknown>) {

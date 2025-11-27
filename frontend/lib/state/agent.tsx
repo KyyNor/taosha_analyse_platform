@@ -120,6 +120,12 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     const currentMessageId = currentMessageIdRef.current;
 
     switch (eventType) {
+      case 'start':
+        // 保存后端返回的session_id
+        if (eventPayload.session_id) {
+          setCurrentSessionId(eventPayload.session_id);
+        }
+
       case 'text':
         // 文本token流
         if (eventPayload.content) {
@@ -276,8 +282,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       const response = await chatStream({
         message: userMessage,
         session_id: currentSessionId || undefined,
-        user_id: currentUserId,
-        conversation_history: conversationHistory.slice(0, -1) // Exclude current user message
+        user_id: currentUserId
       }, abortControllerRef.current.signal);
 
       const reader = response.body?.getReader();
@@ -334,7 +339,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       // Note: Don't reset currentResponse here as it should be preserved in the message content
       abortControllerRef.current = null;
     }
-  }, [isProcessing, addMessage, currentSessionId, currentUserId, conversationHistory, processStreamData]);
+  }, [isProcessing, addMessage, currentSessionId, currentUserId, processStreamData]);
 
   // Clear messages
   const clearMessages = useCallback(() => {
