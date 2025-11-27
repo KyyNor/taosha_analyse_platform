@@ -21,6 +21,8 @@ from services.tracking_service.observability_service import get_langfuse_client,
 from services.agents.common_tools import get_hotboard, get_programmer_story, get_date_range
 from services.agents.fine_report_tools import get_report_sample, batch_filter_report_and_get_data
 from services.agents.weather_tool import get_weather
+from services.agents.chart_tool import create_chart, get_chart_suggestions
+from services.agents.metrics_tool import get_metrics_data, get_batch_metrics
 from services.agents.json_encoder import to_serializable
 from utils.logger import logger
 
@@ -41,7 +43,7 @@ class AgentService:
         try:
             checkpointer = InMemorySaver()
 
-            tools = [get_report_sample, batch_filter_report_and_get_data, get_hotboard, get_programmer_story, get_date_range, get_weather]
+            tools = [get_report_sample, batch_filter_report_and_get_data, get_hotboard, get_programmer_story, get_date_range, get_weather, create_chart, get_chart_suggestions, get_metrics_data, get_batch_metrics]
             self.agent = create_agent(
                 model=self.llm_service.client,
                 tools=tools,
