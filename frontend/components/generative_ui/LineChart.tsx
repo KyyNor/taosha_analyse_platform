@@ -176,7 +176,6 @@ export const LineChart: React.FC<LineChartProps> = ({
                   borderRadius: '8px',
                   fontSize: '12px'
                 }}
-                className="dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200"
               />
             )}
 

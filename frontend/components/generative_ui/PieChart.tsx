@@ -239,7 +239,6 @@ export const PieChart: React.FC<PieChartProps> = ({
                       borderRadius: '8px',
                       fontSize: '12px'
                     }}
-                    className="dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200"
                     formatter={(value: number, name: string) => [
                       `${value.toLocaleString()} (${total > 0 ? ((value / total) * 100).toFixed(1) : 0}%)`,
                       name

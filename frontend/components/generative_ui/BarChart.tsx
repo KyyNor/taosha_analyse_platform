@@ -219,7 +219,7 @@ export const BarChart: React.FC<BarChartProps> = ({
               </>
             )}
 
-            {show_tooltip && <Tooltip content={<CustomTooltip} />}
+            <Tooltip />
 
             {show_legend && (
               <Legend

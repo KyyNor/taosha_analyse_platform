@@ -22,12 +22,6 @@ export interface ToolCall {
   status: 'pending' | 'completed' | 'failed';
 }
 
-export interface ConversationHistory {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-// Vercel AI SDK 格式事件类型（来自SSEEvent）
 type StreamEventData = SSEEvent;
 
 interface AgentState {
@@ -45,7 +39,6 @@ interface AgentState {
   sidebarOpen: boolean;
 
   // Computed
-  conversationHistory: ConversationHistory[];
   hasMessages: boolean;
 }
 
@@ -75,16 +68,6 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   // Refs for streaming
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentMessageIdRef = useRef<string | null>(null);
-
-  // Computed values
-  const conversationHistory = useMemo(() => {
-    return messages
-      .filter(msg => msg.role === 'user' || msg.role === 'assistant')
-      .map(msg => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content
-      }));
-  }, [messages]);
 
   const hasMessages = useMemo(() => messages.length > 0, [messages]);
 
@@ -379,7 +362,6 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     sidebarOpen,
 
     // Computed
-    conversationHistory,
     hasMessages,
 
     // Actions
@@ -395,7 +377,6 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     currentSessionId,
     currentUserId,
     sidebarOpen,
-    conversationHistory,
     hasMessages,
     sendMessage,
     clearMessages,

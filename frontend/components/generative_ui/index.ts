@@ -28,3 +28,13 @@ export {
   type PieChartData,
   type PieChartState,
 } from './PieChart';
+
+// 柱状图组件
+export {
+  BarChart,
+  BarChartSkeleton,
+  BarChartError,
+  type BarChartProps,
+  type BarChartData,
+  type BarChartState,
+} from './BarChart';
