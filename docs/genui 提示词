@@ -1,5 +1,0 @@
-我想实现生成式ui，这个是我的规划 @docs/genui_plan.md ，Agent的模式从现在的手动解析改为使用vercel ai sdk对接langchain
-  agent，可以新实现一个符合要求的api接口，其使用示例写在这里了 @docs/langchain_vercel_ai.md 。
-  其他信息可以用context7、docs-langchain、tavily搜索。请先实现一个天气卡片的功能。天气api是 get https://uapis.cn/api/v1/misc/weather?city=福州，返回结果是
-  {"province":"福建省","city":"福州市","adcode":"350100","weather":"晴","temperature":16,"wind_direction":"北风","wind_power":"3","humidity":54,"report_time":"2025-11-25
-  21:24:00"}。 调用方式参考 @backend/services/agents/common_tools.py 。所有生成式ui组件单独放在 @frontend/components/generative_ui/ 目录下。
