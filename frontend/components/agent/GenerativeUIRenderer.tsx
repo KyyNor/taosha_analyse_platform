@@ -2,7 +2,23 @@
 
 import React from "react";
 import type { MessagePart } from "@/types/agent";
-import { WeatherCard, WeatherCardSkeleton, WeatherCardError } from "@/components/generative_ui";
+import {
+  WeatherCard,
+  WeatherCardSkeleton,
+  WeatherCardError,
+  LineChart,
+  LineChartSkeleton,
+  LineChartError,
+  PieChart,
+  PieChartSkeleton,
+  PieChartError,
+  BarChart,
+  BarChartSkeleton,
+  BarChartError,
+  type LineChartProps,
+  type PieChartProps,
+  type BarChartProps
+} from "@/components/generative_ui";
 import { Sparkles } from "lucide-react";
 
 interface GenerativeUIRendererProps {
@@ -63,6 +79,160 @@ export function GenerativeUIRenderer({ parts }: GenerativeUIRendererProps) {
 
         if (weatherData) {
           return <WeatherCard key={index} {...weatherData} />;
+        }
+      }
+
+      // 特殊处理图表工具 - 渲染图表组件
+      if (part.toolName === 'create_chart') {
+        const result = part.result as any;
+
+        // 处理工具结果的嵌套结构
+        let chartData = result;
+
+        // 如果结果包含content字段，则提取实际的图表数据
+        if (result && result.content && typeof result.content === 'object') {
+          chartData = result.content;
+        }
+
+        // 检查是否有错误
+        if (part.isError || chartData?.error) {
+          const chartType = chartData?.chart_type || '图表';
+          switch (chartType) {
+            case 'line':
+              return (
+                <LineChartError
+                  key={index}
+                  error={chartData?.error || '折线图生成失败'}
+                  title={chartData?.title}
+                />
+              );
+            case 'pie':
+              return (
+                <PieChartError
+                  key={index}
+                  error={chartData?.error || '饼图生成失败'}
+                  title={chartData?.title}
+                />
+              );
+            case 'bar':
+              return (
+                <BarChartError
+                  key={index}
+                  error={chartData?.error || '柱状图生成失败'}
+                  title={chartData?.title}
+                />
+              );
+            default:
+              return (
+                <div
+                  key={index}
+                  className="my-4 p-6 max-w-4xl bg-red-50 dark:bg-red-900/20 rounded-xl shadow-lg border border-red-200 dark:border-red-800"
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <Sparkles className="w-6 h-6 text-red-600 dark:text-red-400" />
+                    <div>
+                      <h3 className="text-lg font-semibold text-red-800 dark:text-red-200">
+                        {chartData?.title || '图表生成失败'}
+                      </h3>
+                    </div>
+                  </div>
+                  <p className="text-sm text-red-700 dark:text-red-300">
+                    {chartData?.error || '未知错误'}
+                  </p>
+                </div>
+              );
+          }
+        }
+
+        // 渲染图表
+        if (chartData && chartData.chart_type) {
+          const chartType = chartData.chart_type;
+          const commonProps = {
+            key: index,
+            title: chartData.title,
+            description: chartData.description,
+            ...chartData // 传递所有图表特定参数
+          };
+
+          try {
+            switch (chartType) {
+              case 'line':
+                return <LineChart {...commonProps as LineChartProps} />;
+              case 'pie':
+                // 饼图需要特殊处理数据格式
+                const pieProps = {
+                  ...commonProps,
+                  data: chartData.data || [],
+                  colors: chartData.colors,
+                  height: chartData.height,
+                  show_legend: chartData.show_legend,
+                  show_percentage: chartData.show_percentage,
+                  inner_radius: chartData.inner_radius,
+                  outer_radius: chartData.outer_radius,
+                  start_angle: chartData.start_angle,
+                  end_angle: chartData.end_angle,
+                  label_position: chartData.label_position
+                };
+                return <PieChart {...pieProps as PieChartProps} />;
+              case 'bar':
+                // 柱状图需要特殊处理数据格式
+                const barProps = {
+                  ...commonProps,
+                  data: chartData.data || [],
+                  x_key: chartData.x_key || 'name',
+                  y_keys: chartData.y_keys || ['value'],
+                  orientation: chartData.orientation || 'vertical',
+                  stacked: chartData.stacked || false,
+                  colors: chartData.colors,
+                  height: chartData.height,
+                  show_grid: chartData.show_grid,
+                  show_legend: chartData.show_legend,
+                  bar_radius: chartData.bar_radius
+                };
+                return <BarChart {...barProps as BarChartProps} />;
+              default:
+                // 不支持的图表类型，显示通用错误
+                return (
+                  <div
+                    key={index}
+                    className="my-4 p-6 max-w-4xl bg-amber-50 dark:bg-amber-900/20 rounded-xl shadow-lg border border-amber-200 dark:border-amber-800"
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <Sparkles className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                      <div>
+                        <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200">
+                          不支持的图表类型
+                        </h3>
+                      </div>
+                    </div>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      图表类型: {chartType}，支持的类型: line, pie, bar
+                    </p>
+                  </div>
+                );
+            }
+          } catch (error) {
+            // 渲染错误处理
+            console.error('图表渲染错误:', error);
+            return (
+              <div
+                key={index}
+                className="my-4 p-6 max-w-4xl bg-red-50 dark:bg-red-900/20 rounded-xl shadow-lg border border-red-200 dark:border-red-800"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <Sparkles className="w-6 h-6 text-red-600 dark:text-red-400" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-red-800 dark:text-red-200">
+                      图表渲染失败
+                    </h3>
+                  </div>
+                </div>
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  {error instanceof Error ? error.message : '未知渲染错误'}
+                </p>
+              </div>
+            );
+          }
         }
       }
 
