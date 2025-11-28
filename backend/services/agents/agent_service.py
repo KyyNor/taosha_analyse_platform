@@ -21,8 +21,8 @@ from services.tracking_service.observability_service import get_langfuse_client,
 from services.agents.common_tools import get_hotboard, get_programmer_story, get_date_range
 from services.agents.fine_report_tools import get_report_sample, batch_filter_report_and_get_data
 from services.agents.weather_tool import get_weather
-from services.agents.chart_tool import create_chart, get_chart_suggestions
-from services.agents.metrics_tool import get_metrics_data, get_batch_metrics
+from services.agents.chart_tool import create_chart
+from services.agents.metrics_tool import get_metrics
 from services.agents.json_encoder import to_serializable
 from utils.logger import logger
 
@@ -43,7 +43,16 @@ class AgentService:
         try:
             checkpointer = InMemorySaver()
 
-            tools = [get_report_sample, batch_filter_report_and_get_data, get_hotboard, get_programmer_story, get_date_range, get_weather, create_chart, get_chart_suggestions, get_metrics_data, get_batch_metrics]
+            tools = [
+                # get_report_sample, 
+                # batch_filter_report_and_get_data, 
+                # get_hotboard, 
+                # get_programmer_story, 
+                get_date_range, 
+                get_weather, 
+                create_chart, 
+                get_metrics, 
+            ]
             self.agent = create_agent(
                 model=self.llm_service.client,
                 tools=tools,
@@ -108,7 +117,7 @@ class AgentService:
             async for event in self.agent.astream_events(
                 {"messages": [HumanMessage(content=message)]},
                 config=RunnableConfig(
-                    recursion_limit=20,
+                    recursion_limit=100,
                     callbacks=callbacks,
                     configurable={"thread_id": session_id}
                 )
@@ -173,30 +182,46 @@ class AgentService:
                     output = data.get("output")
 
                     if current_tool_call:
-                        # 将输出转换为可序列化的格式
-                        
-                        content = output.content
+                        # 处理不同格式的输出
                         content_obj = None
-                        
-                        if isinstance(content, dict):
-                            content_obj = content
-                        try:
-                            content_obj = json.loads(content)
-                        except Exception:
-                            content_obj = str(content)
-                            
-                        tool_name = output.name
+                        tool_name = None
+                        tool_call_id = current_tool_call.get("id", "")
+
+                        # 检查是否为 Command 格式
+                        if hasattr(output, 'update'):
+                            # Command(update={...})
+                            command_info = output.update
+                            todos_dict = command_info.get("todos", "")
+                            if todos_dict:
+                                content_obj = todos_dict
+                                tool_name = "todo_list_tool"
+                                
+                        elif hasattr(output, 'content'):
+                            # ToolMessage 具有 .content 属性的对象
+                            content = output.content
+                            if isinstance(content, dict):
+                                content_obj = content
+                            else:
+                                try:
+                                    content_obj = json.loads(content)
+                                except Exception:
+                                    content_obj = str(content)
+                            tool_name = getattr(output, 'name', current_tool_call.get("name", "unknown"))
+                        else:
+                            # 兜底处理
+                            content_obj = str(output)
+                            tool_name = current_tool_call.get("name", "unknown")
 
                         yield {
                             "event": "tool_result",
                             "data": {
-                                "id": current_tool_call.get("id", ""),
+                                "id": tool_call_id,
                                 "name": tool_name,
                                 "result": {
                                     "type": "tool_message",
                                     "content": content_obj,
-                                    "tool_call_id": output.tool_call_id,
-                                    "name": output.name
+                                    "tool_call_id": tool_call_id,
+                                    "name": tool_name
                                 },
                                 "status": "completed"
                             }
