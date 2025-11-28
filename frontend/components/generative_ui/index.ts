@@ -42,6 +42,7 @@ export {
 // TodoList组件
 export {
   TodoList,
+  MemoizedTodoList,
   type TodoListProps,
   type TodoItem,
 } from './TodoList';

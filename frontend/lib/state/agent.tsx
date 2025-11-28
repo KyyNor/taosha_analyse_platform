@@ -88,6 +88,10 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentMessageIdRef = useRef<string | null>(null);
 
+  // Refs for TodoList optimization
+  const todoUpdateDebouncer = useRef<NodeJS.Timeout | null>(null);
+  const lastTodoItemsRef = useRef<string>(''); // 用于比较TodoList内容
+
   const hasMessages = useMemo(() => messages.length > 0, [messages]);
 
   // Helper function to generate ID
@@ -208,7 +212,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       case 'tool_result':
         // 工具执行结果
         if (eventPayload.name && (eventPayload.status === 'completed' || eventPayload.status === 'failed')) {
-          // 特殊处理 todo_list_tool
+          // 特殊处理 todo_list_tool - 优化状态更新逻辑
           if (eventPayload.name === 'todo_list_tool' && eventPayload.result?.type === 'tool_message' && Array.isArray(eventPayload.result.result)) {
             const todoItems: TodoItem[] = eventPayload.result.result.map((item: any) => ({
               content: item.content,
@@ -216,12 +220,27 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
               activeForm: item.activeForm
             }));
 
-            setCurrentTodoList({
-              id: generateId(),
-              items: todoItems,
-              timestamp: new Date(),
-              isActive: true
-            });
+            // 检查内容是否真正发生了变化
+            const newTodoItemsString = JSON.stringify(todoItems);
+            const isContentDifferent = lastTodoItemsRef.current !== newTodoItemsString;
+
+            if (isContentDifferent) {
+              // 清除之前的防抖定时器
+              if (todoUpdateDebouncer.current) {
+                clearTimeout(todoUpdateDebouncer.current);
+              }
+
+              // 使用防抖机制更新TodoList
+              todoUpdateDebouncer.current = setTimeout(() => {
+                setCurrentTodoList({
+                  id: generateId(),
+                  items: todoItems,
+                  timestamp: new Date(),
+                  isActive: true
+                });
+                lastTodoItemsRef.current = newTodoItemsString;
+              }, 100); // 100ms防抖延迟
+            }
           }
 
           setMessages(prev => {
@@ -369,6 +388,13 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     setCurrentSessionId(null); // 清理session_id，下次请求将生成新的
     currentMessageIdRef.current = null;
     setCurrentTodoList(null); // 清理当前todo list
+
+    // 清理TodoList防抖定时器
+    if (todoUpdateDebouncer.current) {
+      clearTimeout(todoUpdateDebouncer.current);
+      todoUpdateDebouncer.current = null;
+    }
+    lastTodoItemsRef.current = ''; // 重置内容比较
 
     // Cancel any ongoing request
     if (abortControllerRef.current) {

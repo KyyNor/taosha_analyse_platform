@@ -15,12 +15,10 @@ import {
   BarChart,
   BarChartSkeleton,
   BarChartError,
-  TodoList,
   ToolResult,
   type LineChartProps,
   type PieChartProps,
-  type BarChartProps,
-  type TodoListProps
+  type BarChartProps
 } from "@/components/generative_ui";
 import { Sparkles } from "lucide-react";
 
@@ -85,35 +83,11 @@ export function GenerativeUIRenderer({ parts }: GenerativeUIRendererProps) {
         }
       }
 
-      // 特殊处理 TodoList 工具 - 渲染 TodoList 组件
+      // TodoList工具结果 - 不直接渲染，由全局状态管理
       if (part.toolName === 'todo_list_tool') {
-        const result = part.result as any;
-
-        // 处理工具结果的嵌套结构
-        let todoData = result;
-
-        // 如果结果包含content字段，则提取实际的todo数据
-        if (result && result.content && typeof result.content === 'object') {
-          todoData = result.content;
-        }
-
-        // 检查是否为TodoList格式的数据
-        if (Array.isArray(todoData) && todoData.length > 0 &&
-            todoData.every((item: any) => item.content && item.status)) {
-          const todoItems = todoData.map((item: any) => ({
-            content: item.content,
-            status: item.status,
-            activeForm: item.activeForm
-          }));
-
-          return (
-            <TodoList
-              key={index}
-              items={todoItems}
-              timestamp={new Date()}
-            />
-          );
-        }
+        // 返回null，不在这里渲染TodoList
+        // TodoList组件会在ChatMessagesArea中独立渲染
+        return null;
       }
 
       // 特殊处理图表工具 - 渲染图表组件

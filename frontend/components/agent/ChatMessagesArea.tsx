@@ -7,12 +7,14 @@ import { useAgentState } from "@/lib/state/agent";
 import { MessageItem } from "./MessageItem";
 import { WelcomeMessage } from "./WelcomeMessage";
 import { ProcessingIndicator } from "./ProcessingIndicator";
+import { MemoizedTodoList } from "@/components/generative_ui";
 
 export function ChatMessagesArea() {
   const {
     messages,
     isProcessing,
     processingText,
+    currentTodoList,
   } = useAgentState();
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -42,6 +44,15 @@ export function ChatMessagesArea() {
             {/* Processing Indicator */}
             {isProcessing && (
               <ProcessingIndicator processingText={processingText} />
+            )}
+
+            {/* Independent TodoList - Only render if there's an active todo list */}
+            {currentTodoList && (
+              <MemoizedTodoList
+                key={currentTodoList.id}
+                items={currentTodoList.items}
+                timestamp={currentTodoList.timestamp}
+              />
             )}
 
             {/* Bottom anchor for auto-scroll */}

@@ -143,3 +143,11 @@ export function TodoList({ items, timestamp }: TodoListProps) {
     </Card>
   );
 }
+
+// 使用React.memo进行性能优化
+export const MemoizedTodoList = React.memo(TodoList, (prevProps, nextProps) => {
+  return (
+    prevProps.timestamp.getTime() === nextProps.timestamp.getTime() &&
+    JSON.stringify(prevProps.items) === JSON.stringify(nextProps.items)
+  );
+});
