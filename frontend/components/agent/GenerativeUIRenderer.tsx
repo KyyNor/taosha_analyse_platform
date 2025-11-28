@@ -15,11 +15,13 @@ import {
   BarChart,
   BarChartSkeleton,
   BarChartError,
+  TodoList,
   type LineChartProps,
   type PieChartProps,
-  type BarChartProps
+  type BarChartProps,
+  type TodoListProps
 } from "@/components/generative_ui";
-import { Sparkles } from "lucide-react";
+import { Sparkles, CheckSquare } from "lucide-react";
 
 interface GenerativeUIRendererProps {
   parts: MessagePart[];
@@ -79,6 +81,37 @@ export function GenerativeUIRenderer({ parts }: GenerativeUIRendererProps) {
 
         if (weatherData) {
           return <WeatherCard key={index} {...weatherData} />;
+        }
+      }
+
+      // 特殊处理 TodoList 工具 - 渲染 TodoList 组件
+      if (part.toolName === 'todo_list_tool') {
+        const result = part.result as any;
+
+        // 处理工具结果的嵌套结构
+        let todoData = result;
+
+        // 如果结果包含content字段，则提取实际的todo数据
+        if (result && result.content && typeof result.content === 'object') {
+          todoData = result.content;
+        }
+
+        // 检查是否为TodoList格式的数据
+        if (Array.isArray(todoData) && todoData.length > 0 &&
+            todoData.every((item: any) => item.content && item.status)) {
+          const todoItems = todoData.map((item: any) => ({
+            content: item.content,
+            status: item.status,
+            activeForm: item.activeForm
+          }));
+
+          return (
+            <TodoList
+              key={index}
+              items={todoItems}
+              timestamp={new Date()}
+            />
+          );
         }
       }
 

@@ -22,6 +22,19 @@ export interface ToolCall {
   status: 'pending' | 'completed' | 'failed';
 }
 
+export interface TodoItem {
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  activeForm: string;
+}
+
+export interface TodoList {
+  id: string;
+  items: TodoItem[];
+  timestamp: Date;
+  isActive: boolean;
+}
+
 type StreamEventData = SSEEvent;
 
 interface AgentState {
@@ -38,6 +51,9 @@ interface AgentState {
   // UI状态
   sidebarOpen: boolean;
 
+  // TodoList状态 - 单轮对话中只有一个活跃的todo list
+  currentTodoList: TodoList | null;
+
   // Computed
   hasMessages: boolean;
 }
@@ -50,6 +66,8 @@ interface AgentActions {
     thinking?: string;
   }) => ChatMessage;
   setSidebarOpen: (open: boolean) => void;
+  updateTodoList: (todos: TodoItem[]) => void;
+  clearTodoList: () => void;
 }
 
 type FullAgentState = AgentState & AgentActions;
@@ -64,6 +82,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [currentUserId] = useState<string>('api_user');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [currentTodoList, setCurrentTodoList] = useState<TodoList | null>(null);
 
   // Refs for streaming
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -189,6 +208,22 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       case 'tool_result':
         // 工具执行结果
         if (eventPayload.name && (eventPayload.status === 'completed' || eventPayload.status === 'failed')) {
+          // 特殊处理 todo_list_tool
+          if (eventPayload.name === 'todo_list_tool' && eventPayload.result?.type === 'tool_message' && Array.isArray(eventPayload.result.result)) {
+            const todoItems: TodoItem[] = eventPayload.result.result.map((item: any) => ({
+              content: item.content,
+              status: item.status,
+              activeForm: item.activeForm
+            }));
+
+            setCurrentTodoList({
+              id: generateId(),
+              items: todoItems,
+              timestamp: new Date(),
+              isActive: true
+            });
+          }
+
           setMessages(prev => {
             const newMessages = [...prev];
             const lastMessage = newMessages[newMessages.length - 1];
@@ -244,6 +279,9 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
 
     // Add user message
     addMessage('user', userMessage);
+
+    // Clear current todo list when starting new conversation
+    setCurrentTodoList(null);
 
     // Set processing state
     setIsProcessing(true);
@@ -330,11 +368,27 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     setCurrentResponse('');
     setCurrentSessionId(null); // 清理session_id，下次请求将生成新的
     currentMessageIdRef.current = null;
+    setCurrentTodoList(null); // 清理当前todo list
 
     // Cancel any ongoing request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
+  }, []);
+
+  // Update todo list
+  const updateTodoList = useCallback((todos: TodoItem[]) => {
+    setCurrentTodoList({
+      id: generateId(),
+      items: todos,
+      timestamp: new Date(),
+      isActive: true
+    });
+  }, [generateId]);
+
+  // Clear todo list
+  const clearTodoList = useCallback(() => {
+    setCurrentTodoList(null);
   }, []);
 
   const setSidebarOpenCallback = useCallback((open: boolean) => {
@@ -360,6 +414,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     currentSessionId,
     currentUserId,
     sidebarOpen,
+    currentTodoList,
 
     // Computed
     hasMessages,
@@ -369,6 +424,8 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     clearMessages,
     addMessage,
     setSidebarOpen: setSidebarOpenCallback,
+    updateTodoList,
+    clearTodoList,
   }), [
     messages,
     isProcessing,
@@ -377,11 +434,14 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     currentSessionId,
     currentUserId,
     sidebarOpen,
+    currentTodoList,
     hasMessages,
     sendMessage,
     clearMessages,
     addMessage,
     setSidebarOpenCallback,
+    updateTodoList,
+    clearTodoList,
   ]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
