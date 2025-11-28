@@ -45,3 +45,8 @@ export {
   type TodoListProps,
   type TodoItem,
 } from './TodoList';
+
+// 可折叠工具结果组件
+export {
+  ToolResult,
+} from './ToolResult';

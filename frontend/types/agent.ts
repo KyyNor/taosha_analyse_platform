@@ -10,6 +10,7 @@ export interface MessagePart {
   args?: any;
   result?: any;
   isError?: boolean;
+  duration?: number;
 }
 
 export interface SSEEvent {

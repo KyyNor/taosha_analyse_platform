@@ -24,53 +24,6 @@ export interface TodoListState {
   error: string | null;
 }
 
-interface ExpandableToolResultProps {
-  toolName: string;
-  result: any;
-  duration?: number;
-}
-
-function ExpandableToolResult({ toolName, result, duration }: ExpandableToolResultProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  if (!result) return null;
-
-  return (
-    <div className="ml-4 mt-2 border border-gray-200 rounded-md">
-      <div
-        className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <div className="flex items-center gap-2">
-          {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-gray-500" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-gray-500" />
-          )}
-          <span className="text-sm font-medium text-gray-700">{toolName}</span>
-          {duration && (
-            <span className="text-xs text-gray-500">({duration}ms)</span>
-          )}
-        </div>
-        <div className="text-xs text-gray-500">
-          点击{isExpanded ? '折叠' : '展开'}
-        </div>
-      </div>
-
-      {isExpanded && (
-        <div className="p-3 border-t border-gray-200 bg-white">
-          <pre className="text-sm text-gray-800 whitespace-pre-wrap font-mono bg-gray-50 p-2 rounded">
-            {typeof result === 'string'
-              ? result
-              : JSON.stringify(result, null, 2)
-            }
-          </pre>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function TodoList({ items, timestamp }: TodoListProps) {
   const [showAllResults, setShowAllResults] = useState(false);
 
@@ -169,14 +122,6 @@ export function TodoList({ items, timestamp }: TodoListProps) {
                   <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
                   <span>正在执行: {item.activeForm}</span>
                 </div>
-              )}
-
-              {/* 如果有工具结果，显示可折叠的工具结果 */}
-              {item.status === 'completed' && (
-                <ExpandableToolResult
-                  toolName={item.content}
-                  result={null} // 这里可以从实际的工具结果中获取
-                />
               )}
             </div>
           </div>

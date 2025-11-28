@@ -16,12 +16,13 @@ import {
   BarChartSkeleton,
   BarChartError,
   TodoList,
+  ToolResult,
   type LineChartProps,
   type PieChartProps,
   type BarChartProps,
   type TodoListProps
 } from "@/components/generative_ui";
-import { Sparkles, CheckSquare } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 interface GenerativeUIRendererProps {
   parts: MessagePart[];
@@ -269,32 +270,15 @@ export function GenerativeUIRenderer({ parts }: GenerativeUIRendererProps) {
         }
       }
 
-      // 默认工具结果显示
+      // 默认工具结果 - 使用可折叠组件
       return (
-        <div
+        <ToolResult
           key={index}
-          className={`p-3 rounded-lg border ${
-            part.isError
-              ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-              : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-          }`}
-        >
-          <div
-            className={`flex items-center gap-2 ${
-              part.isError
-                ? 'text-red-700 dark:text-red-300'
-                : 'text-green-700 dark:text-green-300'
-            }`}
-          >
-            <Sparkles className="w-4 h-4" />
-            <span className="font-medium">
-              {part.isError ? '工具错误' : '工具结果'}: {part.toolName}
-            </span>
-          </div>
-          <pre className="text-xs mt-2 text-gray-600 dark:text-gray-400 overflow-x-auto max-h-40">
-            {JSON.stringify(part.result, null, 2)}
-          </pre>
-        </div>
+          toolName={part.toolName || '未知工具'}
+          result={part.result}
+          isError={part.isError}
+          duration={part.duration}
+        />
       );
     }
 
