@@ -1,125 +1,51 @@
 """
 LangGraph 状态持久化服务
 """
-from typing import Any, Dict, Optional, AsyncIterator
-from sqlalchemy import desc
+from contextlib import asynccontextmanager
+import os
+import urllib.parse
 
-from langgraph.checkpoint.base import BaseCheckpointSaver, Checkpoint, CheckpointMetadata, CheckpointTuple
-from langgraph.checkpoint.serde.base import SerializerProtocol
-from langgraph.checkpoint.serde.json import JsonPlusSerializer
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.checkpoint.mysql.aio import AIOMySQLSaver
 
-from backend.models.db_base import get_db_session
-from backend.models.agent_chat_models import AgentCheckpoint
+from utils.config import settings
 from utils.logger import logger
 
-class DatabaseCheckpointSaver(BaseCheckpointSaver):
-    """
-    基于 SQLAlchemy 的 CheckpointSaver implementation.
-    用于将 LangGraph 的状态保存到数据库中。
-    """
-    
-    def __init__(self, serializer: Optional[SerializerProtocol] = None):
-        super().__init__(serializer=serializer or JsonPlusSerializer())
+@asynccontextmanager
+async def get_checkpoint_saver_context():
+    """获取检查点保存器的上下文管理器"""
+    db_type = getattr(settings, 'taosha_db_type', 'sqlite')
 
-    def get_tuple(self, config: Dict[str, Any]) -> Optional[CheckpointTuple]:
-        """获取检查点"""
-        thread_id = config["configurable"]["thread_id"]
-        checkpoint_ns = config["configurable"].get("checkpoint_ns", "")
-        checkpoint_id = config["configurable"].get("checkpoint_id")
-
-        with get_db_session() as db:
-            query = db.query(AgentCheckpoint).filter(
-                AgentCheckpoint.thread_id == thread_id,
-                AgentCheckpoint.checkpoint_ns == checkpoint_ns
-            )
+    try:
+        if db_type == 'sqlite':
+            db_path = getattr(settings, 'taosha_db_sqlite_path', './database/metadata.db')
+            # 确保目录存在
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
             
-            if checkpoint_id:
-                query = query.filter(AgentCheckpoint.checkpoint_id == checkpoint_id)
-            else:
-                # 获取最新的
-                query = query.order_by(desc(AgentCheckpoint.checkpoint_id))
-
-            record = query.first()
-            
-            if record:
-                # 反序列化
-                checkpoint = self.serde.loads(record.checkpoint)
-                metadata = record.metadata_ or {}
-                parent_checkpoint_id = record.parent_checkpoint_id
+            # AsyncSqliteSaver.from_conn_string 是一个异步上下文管理器
+            async with AsyncSqliteSaver.from_conn_string(db_path) as saver:
+                logger.info(f"Initialized SQLite Checkpoint Saver: {db_path}")
+                yield saver
                 
-                return CheckpointTuple(
-                    config=config,
-                    checkpoint=checkpoint,
-                    metadata=metadata,
-                    parent_config={
-                        "configurable": {
-                            "thread_id": thread_id,
-                            "checkpoint_ns": checkpoint_ns,
-                            "checkpoint_id": parent_checkpoint_id,
-                        }
-                    } if parent_checkpoint_id else None,
-                )
+        elif db_type == 'mysql':
+            host = getattr(settings, 'taosha_db_mysql_host', 'localhost')
+            port = getattr(settings, 'taosha_db_mysql_port', 3306)
+            database = getattr(settings, 'taosha_db_mysql_database', 'taosha')
+            user = getattr(settings, 'taosha_db_mysql_user', 'root')
+            password = getattr(settings, 'taosha_db_mysql_password', '')
+            charset = getattr(settings, 'taosha_db_mysql_charset', 'utf8mb4')
             
-        return None
-
-    def list(
-        self,
-        config: Optional[Dict[str, Any]],
-        *,
-        filter: Optional[Dict[str, Any]] = None,
-        before: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None,
-    ) -> AsyncIterator[CheckpointTuple]:
-        """列出检查点"""
-        pass
-
-    def put(
-        self,
-        config: Dict[str, Any],
-        checkpoint: Checkpoint,
-        metadata: CheckpointMetadata,
-        new_versions: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """保存检查点"""
-        thread_id = config["configurable"]["thread_id"]
-        checkpoint_ns = config["configurable"].get("checkpoint_ns", "")
-        checkpoint_id = checkpoint["id"]
-        parent_checkpoint_id = config["configurable"].get("checkpoint_id")
-
-        # 序列化
-        serialized_checkpoint = self.serde.dumps(checkpoint)
-        
-        try:
-            with get_db_session() as db:
-                existing = db.query(AgentCheckpoint).filter(
-                    AgentCheckpoint.thread_id == thread_id,
-                    AgentCheckpoint.checkpoint_ns == checkpoint_ns,
-                    AgentCheckpoint.checkpoint_id == checkpoint_id
-                ).first()
-
-                if not existing:
-                    new_record = AgentCheckpoint(
-                        thread_id=thread_id,
-                        checkpoint_ns=checkpoint_ns,
-                        checkpoint_id=checkpoint_id,
-                        parent_checkpoint_id=parent_checkpoint_id,
-                        checkpoint=serialized_checkpoint,
-                        metadata_=metadata
-                    )
-                    db.add(new_record)
-                    logger.debug(f"Saved checkpoint: {thread_id} - {checkpoint_id}")
-                else:
-                    existing.checkpoint = serialized_checkpoint
-                    existing.metadata_ = metadata
-                    logger.debug(f"Updated checkpoint: {thread_id} - {checkpoint_id}")
-        except Exception as e:
-            logger.error(f"Failed to save checkpoint: {e}")
-            raise
-
-        return {
-            "configurable": {
-                "thread_id": thread_id,
-                "checkpoint_ns": checkpoint_ns,
-                "checkpoint_id": checkpoint_id,
-            }
-        }
+            # 构建连接字符串
+            encoded_password = urllib.parse.quote_plus(password)
+            conn_string = f"mysql://{user}:{encoded_password}@{host}:{port}/{database}?charset={charset}"
+            
+            async with AIOMySQLSaver.from_conn_string(conn_string) as saver:
+                logger.info(f"Initialized MySQL Checkpoint Saver: {host}:{port}/{database}")
+                yield saver
+                
+        else:
+            raise ValueError(f"不支持的数据库类型: {db_type}")
+            
+    except Exception as e:
+        logger.error(f"Failed to initialize checkpoint saver: {e}")
+        raise

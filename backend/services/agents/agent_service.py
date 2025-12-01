@@ -2,10 +2,11 @@
 Agent服务
 基于LangChain ReAct Agent的对话问答服务
 """
-from typing import AsyncGenerator, AsyncIterable, Dict, Any
+from typing import AsyncGenerator, AsyncIterable, Dict, Any, List
 import asyncio
+from contextlib import asynccontextmanager
 from langchain.agents import create_agent
-from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
+from langchain_core.messages import HumanMessage, AIMessage, BaseMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
 import json
@@ -27,8 +28,7 @@ from services.agents.metrics_tool import get_metrics
 from services.agents.json_encoder import to_serializable
 from utils.logger import logger
 
-from backend.repositories.chat_repository import ChatRepository
-from backend.services.agents.db_checkpoint_saver import DatabaseCheckpointSaver
+from repositories.chat_repository import ChatRepository
 
 
 class AgentService:
@@ -41,14 +41,21 @@ class AgentService:
         self.agent = None
         self.chat_repo = ChatRepository()
 
-        self._initialize_agent()
+        # agent初始化移至 lifespan
 
-    def _initialize_agent(self):
+    @asynccontextmanager
+    async def lifespan(self):
+        """Agent服务生命周期管理"""
+        from services.agents.db_checkpoint_saver import get_checkpoint_saver_context
+        
+        async with get_checkpoint_saver_context() as checkpointer:
+            self._initialize_agent(checkpointer)
+            yield
+            self.agent = None
+
+    def _initialize_agent(self, checkpointer):
         """初始化Agent"""
         try:
-            # 使用数据库持久化
-            checkpointer = DatabaseCheckpointSaver()
-
             tools = [
                 # get_report_sample, 
                 # batch_filter_report_and_get_data, 
@@ -89,6 +96,52 @@ class AgentService:
         except Exception as e:
             logger.error(f"Agent初始化失败: {e}")
             raise
+
+    async def get_session_history(self, session_id: str) -> List[Dict[str, Any]]:
+        """从Checkpoint获取会话历史"""
+        if not self.agent:
+            return []
+            
+        try:
+            config = {"configurable": {"thread_id": session_id}}
+            # 使用 aget_state 获取状态 (LangGraph Checkpointer interface)
+            # 注意: agent 是 CompiledGraph, 它有 aget_state 方法
+            state_snapshot = await self.agent.aget_state(config)
+            
+            if state_snapshot and state_snapshot.values:
+                messages = state_snapshot.values.get("messages", [])
+                return self._format_messages(messages)
+            return []
+        except Exception as e:
+            logger.error(f"获取会话历史失败: {e}")
+            return []
+
+    def _format_messages(self, messages: List[BaseMessage]) -> List[Dict[str, Any]]:
+        """格式化消息列表"""
+        formatted = []
+        for msg in messages:
+            role = "unknown"
+            if isinstance(msg, HumanMessage):
+                role = "user"
+            elif isinstance(msg, AIMessage):
+                role = "assistant"
+            elif isinstance(msg, ToolMessage):
+                role = "tool"
+            elif msg.type == "system":
+                role = "system"
+            
+            # 尝试提取元数据
+            meta_info = msg.additional_kwargs if hasattr(msg, "additional_kwargs") else {}
+            
+            formatted.append({
+                "id": str(getattr(msg, "id", uuid.uuid4())),
+                "role": role,
+                "content": str(msg.content),
+                "type": "text", 
+                "created_at": datetime.now(), 
+                "meta_info": meta_info
+            })
+        return formatted
 
     async def _run_agent_background(self, message: str, session_id: str, queue: asyncio.Queue, trace_id: str):
         """后台运行Agent任务，并将事件推送到队列，同时保存历史记录"""
@@ -163,19 +216,10 @@ class AgentService:
                                             }
                                         })
 
-                # 2. 处理 LLM 完整输出 (保存到 DB)
+                # 2. 处理 LLM 完整输出
                 elif event_type == "on_chat_model_end":
-                    output = data.get("output")
-                    if output and isinstance(output, AIMessage):
-                        content = output.content
-                        # 只有当内容不为空时才保存 (避免纯工具调用的中间状态)
-                        if content:
-                            self.chat_repo.add_message(
-                                session_id=session_id,
-                                role="assistant",
-                                content=str(content),
-                                msg_type="text"
-                            )
+                    # Checkpoint handles persistence automatically
+                    pass
                 
                 # 3. 处理工具执行完成
                 elif event_type == "on_tool_end":
@@ -221,14 +265,7 @@ class AgentService:
                         }
                     })
 
-                    # 保存工具结果到 DB
-                    self.chat_repo.add_message(
-                        session_id=session_id,
-                        role="tool",
-                        content=json.dumps(content_obj, ensure_ascii=False) if not isinstance(content_obj, str) else content_obj,
-                        msg_type="json" if isinstance(content_obj, (dict, list)) else "text",
-                        meta_info={"tool_name": tool_name, "tool_call_id": tool_call_id}
-                    )
+                    # Checkpoint handles persistence automatically
                     
                     current_tool_call = None
 
@@ -264,11 +301,14 @@ class AgentService:
         流式对话接口
         """
         try:
+            if not self.agent:
+                raise RuntimeError("Agent未初始化")
+
             # 1. 确保会话存在
             self.chat_repo.create_session(user_id=user_id, session_id=session_id)
             
-            # 2. 保存用户消息
-            self.chat_repo.add_message(session_id, "user", message)
+            # Checkpoint会自动保存用户消息
+            # self.chat_repo.add_message(session_id, "user", message) # Removed
 
             # 3. 创建队列
             queue = asyncio.Queue()

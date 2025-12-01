@@ -22,7 +22,7 @@ from .training_models import (
     TrainingRecord
 )
 from .agent_chat_models import (
-    ChatSession, ChatMessage, AgentCheckpoint
+    ChatSession
 )
 
 __all__ = [

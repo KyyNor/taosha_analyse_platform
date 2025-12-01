@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from langfuse import propagate_attributes
 
 from services.agents.agent_service import agent_service
-from backend.repositories.chat_repository import ChatRepository
+from repositories.chat_repository import ChatRepository
 from services.tracking_service.observability_service import get_langfuse_client
 from utils.logger import logger
 
@@ -155,15 +155,15 @@ async def get_history(user_id: str = Query(..., description="用户ID"), limit: 
 @router.get("/history/{session_id}")
 async def get_session_messages(session_id: str) -> List[MessageResponse]:
     """获取指定会话的消息历史"""
-    messages = chat_repo.get_session_history(session_id)
+    messages = await agent_service.get_session_history(session_id)
     return [
         MessageResponse(
-            id=m.id,
-            role=m.role,
-            content=m.content or "",
-            type=m.type,
-            created_at=m.created_at.isoformat() if m.created_at else "",
-            meta_info=m.meta_info
+            id=m["id"],
+            role=m["role"],
+            content=m["content"],
+            type=m["type"],
+            created_at=m["created_at"].isoformat() if hasattr(m["created_at"], 'isoformat') else str(m["created_at"]),
+            meta_info=m.get("meta_info")
         ) for m in messages
     ]
 

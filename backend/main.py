@@ -203,13 +203,14 @@ async def lifespan(app: FastAPI):
         # 这些服务在多worker环境下只需要运行一次
         await _initialize_system_services()
 
-        logger.info("=== 淘沙分析平台启动成功 ===")
+        from services.agents.agent_service import agent_service
+        async with agent_service.lifespan():
+            logger.info("=== 淘沙分析平台启动成功 ===")
+            yield
 
     except Exception as e:
         logger.error(f"应用启动失败: {e}", exc_info=True)
         raise
-
-    yield
 
     # 关闭时的清理
     logger.info("=== 淘沙分析平台关闭中 ===")
