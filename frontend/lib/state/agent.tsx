@@ -212,37 +212,6 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       case 'tool_result':
         // 工具执行结果
         if (eventPayload.name && (eventPayload.status === 'completed' || eventPayload.status === 'failed')) {
-          // 特殊处理 todo_list_tool - 优化状态更新逻辑
-          if (eventPayload.name === 'todo_list_tool' && eventPayload.result?.type === 'tool_message' && Array.isArray(eventPayload.result.result)) {
-            const todoItems: TodoItem[] = eventPayload.result.result.map((item: any) => ({
-              content: item.content,
-              status: item.status,
-              activeForm: item.activeForm
-            }));
-
-            // 检查内容是否真正发生了变化
-            const newTodoItemsString = JSON.stringify(todoItems);
-            const isContentDifferent = lastTodoItemsRef.current !== newTodoItemsString;
-
-            if (isContentDifferent) {
-              // 清除之前的防抖定时器
-              if (todoUpdateDebouncer.current) {
-                clearTimeout(todoUpdateDebouncer.current);
-              }
-
-              // 使用防抖机制更新TodoList
-              todoUpdateDebouncer.current = setTimeout(() => {
-                setCurrentTodoList({
-                  id: generateId(),
-                  items: todoItems,
-                  timestamp: new Date(),
-                  isActive: true
-                });
-                lastTodoItemsRef.current = newTodoItemsString;
-              }, 100); // 100ms防抖延迟
-            }
-          }
-
           setMessages(prev => {
             const newMessages = [...prev];
             const lastMessage = newMessages[newMessages.length - 1];
