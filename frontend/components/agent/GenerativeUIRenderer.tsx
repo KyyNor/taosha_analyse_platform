@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import type { MessagePart } from "@/types/agent";
 import { useAgentState } from "@/lib/state/agent";
+import { MarkdownBlock } from "./MarkdownBlock";
 import {
   WeatherCard,
   WeatherCardSkeleton,
@@ -45,9 +46,7 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
   const renderMessagePart = (part: MessagePart, index: number) => {
     if (part.type === 'text') {
       return (
-        <div key={index} className="prose prose-sm max-w-none dark:prose-invert">
-          <p className="whitespace-pre-wrap">{part.text}</p>
-        </div>
+        <MarkdownBlock key={index} content={part.text || ''} />
       );
     }
 
