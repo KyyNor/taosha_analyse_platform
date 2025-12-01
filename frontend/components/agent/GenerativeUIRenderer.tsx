@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React from "react";
 import type { MessagePart } from "@/types/agent";
 import { useAgentState } from "@/lib/state/agent";
 import {
@@ -277,26 +277,34 @@ export function GenerativeUIRenderer({ parts }: GenerativeUIRendererProps) {
     return null;
   };
 
-  // 4. 过滤只渲染最新的一个 TodoList（即使有多个 todo_list_tool part）
-  const filteredParts = useMemo(() => {
-    let hasRenderedTodoList = false;
-
-    return parts.filter((part) => {
-      // 如果是 TodoList 工具且还没有渲染过，则渲染最新的那一个
-      if (part.type === 'tool-result' && part.toolName === 'todo_list_tool') {
-        if (!hasRenderedTodoList) {
-          hasRenderedTodoList = true;
-          return true; // 只渲染第一个 TodoList
-        }
-        return false; // 跳过后续的 TodoList
-      }
-      return true; // 其他所有部分都渲染
-    });
-  }, [parts]);
-
+  // 4. 确保 TodoList 在最后渲染（在所有文本信息之后）
   return (
     <div className="space-y-3">
-      {filteredParts.map((part, index) => renderMessagePart(part, index))}
+      {/* 首先渲染所有非 TodoList 的工具结果，包括文本信息 */}
+      {parts.filter((part, index) => {
+        // 如果是 TodoList 工具，则跳过，稍后单独处理
+        if (part.toolName === 'todo_list_tool') {
+          return false;
+        }
+        return true;
+      }).map((part, index) => renderMessagePart(part, index))}
+
+      {/* 最后单独渲染 TodoList 组件，确保在消息末尾 */}
+      {(() => {
+        const todoListPart = parts.find(part => part.toolName === 'todo_list_tool');
+        if (todoListPart && currentTodos && currentTodos.length > 0) {
+          return (
+            <div key={currentTraceId} className="mb-4">
+              <TodoList
+                key={currentTraceId}
+                items={currentTodos}
+                timestamp={new Date()}
+              />
+            </div>
+          );
+        }
+        return null;
+      })()}
     </div>
   );
 }

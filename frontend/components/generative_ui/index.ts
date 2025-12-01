@@ -9,7 +9,7 @@ export {
   type WeatherCardState,
 } from './WeatherCard';
 
-// 折线图组件
+// 饼图组件
 export {
   LineChart,
   LineChartSkeleton,
@@ -42,9 +42,8 @@ export {
 // TodoList组件
 export {
   TodoList,
-  MemoizedTodoList,
   type TodoListProps,
-  type TodoItem,
+  type TodoListState,
 } from './TodoList';
 
 // 可折叠工具结果组件

@@ -26,6 +26,7 @@ export interface TodoListState {
 
 export function TodoList({ items, timestamp }: TodoListProps) {
   const [showAllResults, setShowAllResults] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false); // 默认折叠状态
 
   if (!items || items.length === 0) {
     return null;
@@ -69,7 +70,7 @@ export function TodoList({ items, timestamp }: TodoListProps) {
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-semibold flex items-center gap-2">
             <RotateCcw className="w-5 h-5 text-blue-500" />
-            任务进度
+            任务进度 ({completedCount}/{totalCount})
           </CardTitle>
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <span>{timestamp.toLocaleTimeString()}</span>
@@ -90,16 +91,28 @@ export function TodoList({ items, timestamp }: TodoListProps) {
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {items.map((item, index) => (
-          <div
-            key={index}
-            className={cn(
-              "flex items-start gap-3 p-3 rounded-lg border transition-all duration-200",
-              item.status === 'completed' && 'bg-green-50 border-green-200',
-              item.status === 'in_progress' && 'bg-blue-50 border-blue-200',
-              item.status === 'pending' && 'bg-gray-50 border-gray-200'
-            )}
-          >
+        {!isExpanded ? (
+          // 折叠状态：只显示进度信息
+          <div className="text-center py-4 text-sm text-gray-600">
+            <div className="text-lg font-medium text-blue-600 mb-2">
+              {completedCount}/{totalCount}
+            </div>
+            <div className="text-xs">
+              任务完成进度
+            </div>
+          </div>
+        ) : (
+          // 展开状态：显示所有任务项
+          items.map((item, index) => (
+            <div
+              key={index}
+              className={cn(
+                "flex items-start gap-3 p-3 rounded-lg border transition-all duration-200",
+                item.status === 'completed' && 'bg-green-50 border-green-200',
+                item.status === 'in_progress' && 'bg-blue-50 border-blue-200',
+                item.status === 'pending' && 'bg-gray-50 border-gray-200'
+              )}
+            >
             <div className="flex-shrink-0 mt-0.5">
               {getStatusIcon(item.status)}
             </div>
@@ -125,7 +138,7 @@ export function TodoList({ items, timestamp }: TodoListProps) {
               )}
             </div>
           </div>
-        ))}
+        )))}
 
         {items.length > 5 && (
           <div className="pt-2 border-t">
