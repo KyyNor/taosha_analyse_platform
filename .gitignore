@@ -161,3 +161,5 @@ backend/database/bge-m3-onnx/
 # Embeddings model - ignore everything except specific files
 embeddings_model/*
 !embeddings_model/start_embeddings_models.sh
+
+.gemini/

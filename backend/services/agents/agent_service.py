@@ -3,6 +3,7 @@ Agent服务
 基于LangChain ReAct Agent的对话问答服务
 """
 from typing import AsyncGenerator, AsyncIterable, Dict, Any
+import asyncio
 from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
@@ -26,6 +27,9 @@ from services.agents.metrics_tool import get_metrics
 from services.agents.json_encoder import to_serializable
 from utils.logger import logger
 
+from backend.repositories.chat_repository import ChatRepository
+from backend.services.agents.db_checkpoint_saver import DatabaseCheckpointSaver
+
 
 class AgentService:
     """Agent服务类"""
@@ -35,13 +39,15 @@ class AgentService:
         self.llm_service = BaseLLMService()
         self.tracing_handler = get_tracing_handler()
         self.agent = None
+        self.chat_repo = ChatRepository()
 
         self._initialize_agent()
 
     def _initialize_agent(self):
         """初始化Agent"""
         try:
-            checkpointer = InMemorySaver()
+            # 使用数据库持久化
+            checkpointer = DatabaseCheckpointSaver()
 
             tools = [
                 # get_report_sample, 
@@ -84,37 +90,23 @@ class AgentService:
             logger.error(f"Agent初始化失败: {e}")
             raise
 
-    @observe(name="agent_chat_stream")
-    async def chat_stream(self, message: str, session_id: str, user_id: str, trace_id: str = None) -> AsyncGenerator[dict, None]:
-        """
-        流式对话接口，使用astream_events获取Agent执行事件
-
-        Args:
-            message: 用户消息
-            session_id: 会话ID
-            user_id: 用户ID
-
-        Yields:
-            dict: 结构化的事件数据
-        """
+    async def _run_agent_background(self, message: str, session_id: str, queue: asyncio.Queue, trace_id: str):
+        """后台运行Agent任务，并将事件推送到队列，同时保存历史记录"""
         try:
-            # 获取或创建会话内存
-            logger.info(f"正在处理Agent请求，session_id: {session_id}, trace_id: {trace_id}")
-
-            # 使用astream_events获取离散的Agent执行事件
-            callbacks = [self.tracing_handler] if self.tracing_handler else []
-            current_tool_call = None
-
-            yield {
+            logger.info(f"Agent后台任务开始, session_id: {session_id}")
+            
+            # 推送开始事件
+            await queue.put({
                 "event": "start",
                 "data": {
-                    "session_id": session_id,  # 返回实际的session_id
+                    "session_id": session_id,
                     "trace_id": trace_id
                 }
-            }
+            })
 
-
-            # 使用self.agent，但传入包含memory的配置
+            callbacks = [self.tracing_handler] if self.tracing_handler else []
+            current_tool_call = None
+            
             async for event in self.agent.astream_events(
                 {"messages": [HumanMessage(content=message)]},
                 config=RunnableConfig(
@@ -126,35 +118,30 @@ class AgentService:
                 event_type = event.get("event", "")
                 data = event.get("data", {})
 
-                # 过滤并处理关键事件
-                if event_type == "on_chain_start":
-                    # 链开始，可选：发送thinking事件
-                    pass
-
-                elif event_type == "on_chat_model_stream":
-                    # LLM token流
+                # 1. 处理 LLM 流式输出 (Token)
+                if event_type == "on_chat_model_stream":
                     chunk = data.get("chunk")
+                    # 文本 Token
                     if chunk and hasattr(chunk, "content") and chunk.content:
-                        yield {
+                        await queue.put({
                             "event": "text",
                             "data": {
                                 "content": chunk.content,
                                 "type": "token"
                             }
-                        }
-
-                    # 处理工具调用chunks
+                        })
+                    
+                    # 工具调用 Chunk
                     if chunk and hasattr(chunk, "tool_call_chunks"):
                         for tool_chunk in chunk.tool_call_chunks:
                             if tool_chunk:
-                                # 工具调用开始或继续
                                 if tool_chunk.get("name"):
                                     current_tool_call = {
                                         "id": tool_chunk.get("id", ""),
                                         "name": tool_chunk.get("name", ""),
                                         "args": tool_chunk.get("args", "")
                                     }
-                                    yield {
+                                    await queue.put({
                                         "event": "tool_call",
                                         "data": {
                                             "id": current_tool_call["id"],
@@ -163,78 +150,92 @@ class AgentService:
                                             "status": "pending",
                                             "type": "start"
                                         }
-                                    }
+                                    })
                                 elif current_tool_call:
-                                    # 参数增量更新
                                     if tool_chunk.get("args"):
                                         current_tool_call["args"] += tool_chunk["args"]
-                                        yield {
+                                        await queue.put({
                                             "event": "tool_call",
                                             "data": {
                                                 "id": current_tool_call["id"],
                                                 "args": current_tool_call["args"],
                                                 "type": "args_update"
                                             }
-                                        }
+                                        })
 
-                elif event_type == "on_tool_end":
-                    logger.debug(f"工具执行完成事件，data: {data}")
-                    # 工具执行完成
+                # 2. 处理 LLM 完整输出 (保存到 DB)
+                elif event_type == "on_chat_model_end":
                     output = data.get("output")
+                    if output and isinstance(output, AIMessage):
+                        content = output.content
+                        # 只有当内容不为空时才保存 (避免纯工具调用的中间状态)
+                        if content:
+                            self.chat_repo.add_message(
+                                session_id=session_id,
+                                role="assistant",
+                                content=str(content),
+                                msg_type="text"
+                            )
+                
+                # 3. 处理工具执行完成
+                elif event_type == "on_tool_end":
+                    output = data.get("output")
+                    
+                    # 格式化输出
+                    content_obj = None
+                    tool_name = current_tool_call.get("name", "unknown") if current_tool_call else "unknown"
+                    tool_call_id = current_tool_call.get("id", "") if current_tool_call else ""
 
-                    if current_tool_call:
-                        # 处理不同格式的输出
-                        content_obj = None
-                        tool_name = None
-                        tool_call_id = current_tool_call.get("id", "")
-
-                        # 检查是否为 Command 格式
-                        if hasattr(output, 'update'):
-                            # Command(update={...})
-                            command_info = output.update
-                            todos_dict = command_info.get("todos", "")
-                            if todos_dict:
-                                content_obj = todos_dict
-                                tool_name = "todo_list_tool"
-                                
-                        elif hasattr(output, 'content'):
-                            # ToolMessage 具有 .content 属性的对象
-                            content = output.content
-                            if isinstance(content, dict):
-                                content_obj = content
-                            else:
-                                try:
-                                    content_obj = json.loads(content)
-                                except Exception:
-                                    content_obj = str(content)
-                            tool_name = getattr(output, 'name', current_tool_call.get("name", "unknown"))
+                    if hasattr(output, 'update'): # Command
+                        command_info = output.update
+                        todos_dict = command_info.get("todos", "")
+                        if todos_dict:
+                            content_obj = todos_dict
+                            tool_name = "todo_list_tool"
+                    elif hasattr(output, 'content'): # ToolMessage
+                        content = output.content
+                        if isinstance(content, dict):
+                            content_obj = content
                         else:
-                            # 兜底处理
-                            content_obj = str(output)
-                            tool_name = current_tool_call.get("name", "unknown")
+                            try:
+                                content_obj = json.loads(content)
+                            except Exception:
+                                content_obj = str(content)
+                        tool_name = getattr(output, 'name', tool_name)
+                    else:
+                        content_obj = str(output)
 
-                        yield {
-                            "event": "tool_result",
-                            "data": {
-                                "id": tool_call_id,
-                                "name": tool_name,
-                                "result": {
-                                    "type": "tool_message",
-                                    "content": content_obj,
-                                    "tool_call_id": tool_call_id,
-                                    "name": tool_name
-                                },
-                                "status": "completed"
-                            }
+                    # 发送事件到前端
+                    await queue.put({
+                        "event": "tool_result",
+                        "data": {
+                            "id": tool_call_id,
+                            "name": tool_name,
+                            "result": {
+                                "type": "tool_message",
+                                "content": content_obj,
+                                "tool_call_id": tool_call_id,
+                                "name": tool_name
+                            },
+                            "status": "completed"
                         }
-                        current_tool_call = None
+                    })
+
+                    # 保存工具结果到 DB
+                    self.chat_repo.add_message(
+                        session_id=session_id,
+                        role="tool",
+                        content=json.dumps(content_obj, ensure_ascii=False) if not isinstance(content_obj, str) else content_obj,
+                        msg_type="json" if isinstance(content_obj, (dict, list)) else "text",
+                        meta_info={"tool_name": tool_name, "tool_call_id": tool_call_id}
+                    )
+                    
+                    current_tool_call = None
 
                 elif event_type == "on_tool_error":
-                    # 工具执行出错
                     error = data.get("error", "Unknown error")
-
                     if current_tool_call:
-                        yield {
+                        await queue.put({
                             "event": "tool_result",
                             "data": {
                                 "id": current_tool_call.get("id", ""),
@@ -242,11 +243,47 @@ class AgentService:
                                 "result": str(error),
                                 "status": "failed"
                             }
-                        }
+                        })
                         current_tool_call = None
 
-            logger.info(f"Agent流式响应完成，session_id: {session_id}")
+            # 任务完成
+            await queue.put(None)
+            logger.info(f"Agent后台任务完成, session_id: {session_id}")
 
+        except Exception as e:
+            logger.error(f"Agent后台任务出错: {e}")
+            await queue.put({
+                "event": "error",
+                "data": {"error": str(e), "trace_id": trace_id}
+            })
+            await queue.put(None)
+
+    @observe(name="agent_chat_stream")
+    async def chat_stream(self, message: str, session_id: str, user_id: str, trace_id: str = None) -> AsyncGenerator[dict, None]:
+        """
+        流式对话接口
+        """
+        try:
+            # 1. 确保会话存在
+            self.chat_repo.create_session(user_id=user_id, session_id=session_id)
+            
+            # 2. 保存用户消息
+            self.chat_repo.add_message(session_id, "user", message)
+
+            # 3. 创建队列
+            queue = asyncio.Queue()
+
+            # 4. 启动后台任务 (Producer)
+            # 注意：不await task，让它在后台运行
+            asyncio.create_task(self._run_agent_background(message, session_id, queue, trace_id))
+
+            # 5. 消费队列 (Consumer)
+            while True:
+                event = await queue.get()
+                if event is None: # 结束信号
+                    break
+                yield event
+                
         except Exception as e:
             logger.error(f"Agent流式响应错误: {e}")
             yield {

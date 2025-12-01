@@ -7,25 +7,28 @@ import uuid
 import time
 import asyncio
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from langfuse import propagate_attributes
 
 from services.agents.agent_service import agent_service
+from backend.repositories.chat_repository import ChatRepository
 from services.tracking_service.observability_service import get_langfuse_client
 from utils.logger import logger
 
 
 router = APIRouter(prefix="/agents")
+chat_repo = ChatRepository()
 
+# --- 请求/响应模型 ---
 
 class ChatRequest(BaseModel):
     """聊天请求模型"""
     message: str
     session_id: Optional[str] = None
     user_id: Optional[str] = None
-    trace_id: Optional[str] = None  # 新增字段
+    trace_id: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
@@ -34,6 +37,22 @@ class ChatResponse(BaseModel):
     status: str = "success"
     session_id: Optional[str] = None
 
+class SessionResponse(BaseModel):
+    """会话列表项响应"""
+    id: str
+    title: Optional[str]
+    updated_at: str
+
+class MessageResponse(BaseModel):
+    """消息历史项响应"""
+    id: str
+    role: str
+    content: str
+    type: str
+    created_at: str
+    meta_info: Optional[Dict] = None
+
+# --- 聊天接口 ---
 
 @router.post("/chat/stream")
 async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
@@ -41,6 +60,7 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
     流式聊天接口
 
     支持生成式UI功能和动态组件渲染，直接输出LangChain原生事件格式
+    自动持久化会话和消息。
 
     事件类型：
     - text: 文本token流
@@ -118,48 +138,59 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
         }
     )
 
+# --- 历史记录接口 ---
 
-class Message(BaseModel):
-    role: str
-    content: str
+@router.get("/history")
+async def get_history(user_id: str = Query(..., description="用户ID"), limit: int = 20) -> List[SessionResponse]:
+    """获取用户的会话列表"""
+    sessions = chat_repo.get_user_sessions(user_id, limit)
+    return [
+        SessionResponse(
+            id=s.id,
+            title=s.title,
+            updated_at=s.updated_at.isoformat() if s.updated_at else ""
+        ) for s in sessions
+    ]
 
-class ChatCompletionRequest(BaseModel):
-    model: str
-    messages: List[Message]
-    stream: Optional[bool] = True
-    temperature: Optional[float] = 0.7
-    max_tokens: Optional[int] = None
+@router.get("/history/{session_id}")
+async def get_session_messages(session_id: str) -> List[MessageResponse]:
+    """获取指定会话的消息历史"""
+    messages = chat_repo.get_session_history(session_id)
+    return [
+        MessageResponse(
+            id=m.id,
+            role=m.role,
+            content=m.content or "",
+            type=m.type,
+            created_at=m.created_at.isoformat() if m.created_at else "",
+            meta_info=m.meta_info
+        ) for m in messages
+    ]
 
-class ChatCompletionChoice(BaseModel):
-    index: int
-    message: Message
-    finish_reason: str
+@router.delete("/history/{session_id}")
+async def delete_session(session_id: str, user_id: str = Query(..., description="用户ID")):
+    """删除会话"""
+    success = chat_repo.delete_session(session_id, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Session not found or permission denied")
+    return {"status": "success", "message": "Session deleted"}
 
-class Usage(BaseModel):
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
+@router.put("/history/{session_id}/title")
+async def update_session_title(session_id: str, title: str = Query(..., description="新标题")):
+    """更新会话标题"""
+    chat_repo.update_session_title(session_id, title)
+    return {"status": "success", "message": "Title updated"}
 
-class ChatCompletionResponse(BaseModel):
-    id: str
-    object: str = "chat.completion"
-    created: int
-    model: str
-    choices: List[ChatCompletionChoice]
-    usage: Usage
+
+# --- 健康检查 ---
 
 @router.get("/health")
 async def health_check() -> Dict[str, Any]:
     """
     健康检查接口
-
-    Returns:
-        Dict: 健康状态
     """
     try:
-        # 检查Agent服务状态
         agent_status = "healthy" if agent_service.agent is not None else "unhealthy"
-
         return {
             "status": "success",
             "service": "agent",

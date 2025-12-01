@@ -21,6 +21,9 @@ from .theme_models import (
 from .training_models import (
     TrainingRecord
 )
+from .agent_chat_models import (
+    ChatSession, ChatMessage, AgentCheckpoint
+)
 
 __all__ = [
     # 基础配置
@@ -50,4 +53,9 @@ __all__ = [
 
     # 训练模型
     "TrainingRecord",
+
+    # 聊天/Agent相关
+    "ChatSession",
+    "ChatMessage",
+    "AgentCheckpoint",
 ]
