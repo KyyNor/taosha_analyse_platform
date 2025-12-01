@@ -2,6 +2,7 @@
 
 import React from "react";
 import type { MessagePart } from "@/types/agent";
+import { useAgentState } from "@/lib/state/agent";
 import {
   WeatherCard,
   WeatherCardSkeleton,
@@ -29,6 +30,12 @@ interface GenerativeUIRendererProps {
 }
 
 export function GenerativeUIRenderer({ parts }: GenerativeUIRendererProps) {
+  // 1. 从 Agent Context 获取当前 trace_id 的 TodoList 数据
+  const { currentTraceId, getCurrentTraceIdTodos } = useAgentState();
+
+  // 2. 获取当前 TodoList 数据
+  const currentTodos = getCurrentTraceIdTodos();
+
   const renderMessagePart = (part: MessagePart, index: number) => {
     if (part.type === 'text') {
       return (
@@ -85,35 +92,20 @@ export function GenerativeUIRenderer({ parts }: GenerativeUIRendererProps) {
         }
       }
 
-      // TodoList工具结果 - 不直接渲染，由全局状态管理
+      // TodoList 工具结果 - 完全依赖全局状态，不依赖 part.trace_id
       if (part.toolName === 'todo_list_tool') {
-       const result = part.result as any;
-
-        // 处理工具结果的嵌套结构
-        let todoData = result;
-
-        // 如果结果包含content字段，则提取实际的todo数据
-        if (result && result.content && typeof result.content === 'object') {
-          todoData = result.content;
-        }
-
-        // 检查是否为TodoList格式的数据
-        if (Array.isArray(todoData) && todoData.length > 0 &&
-            todoData.every((item: any) => item.content && item.status)) {
-          const todoItems = todoData.map((item: any) => ({
-            content: item.content,
-            status: item.status,
-            activeForm: item.activeForm
-          }));
-
+        // 如果当前有 TodoList 数据，直接渲染
+        if (currentTodos && currentTodos.length > 0) {
           return (
             <TodoList
-              key={index}
-              items={todoItems}
+              key={currentTraceId || index} // 使用当前 trace_id 作为 key
+              items={currentTodos}
               timestamp={new Date()}
             />
           );
         }
+        // 如果没有数据，不渲染任何内容
+        return null;
       }
 
       // 特殊处理图表工具 - 渲染图表组件
@@ -285,6 +277,7 @@ export function GenerativeUIRenderer({ parts }: GenerativeUIRendererProps) {
     return null;
   };
 
+  // 4. 完全移除复杂的 trace_id 过滤逻辑
   return (
     <div className="space-y-3">
       {parts.map((part, index) => renderMessagePart(part, index))}

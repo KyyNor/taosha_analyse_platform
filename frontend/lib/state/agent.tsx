@@ -54,6 +54,10 @@ interface AgentState {
   // TodoList状态 - 单轮对话中只有一个活跃的todo list
   currentTodoList: TodoList | null;
 
+  // 当前请求的 trace_id（全局单一）
+  currentTraceId: string | null;
+  currentTraceIdTodos: TodoItem[]; // 当前 trace_id 对应的 TodoList 数据
+
   // Computed
   hasMessages: boolean;
 }
@@ -68,6 +72,11 @@ interface AgentActions {
   setSidebarOpen: (open: boolean) => void;
   updateTodoList: (todos: TodoItem[]) => void;
   clearTodoList: () => void;
+
+  // 新增方法
+  setCurrentTraceId: (traceId: string) => void;
+  updateCurrentTraceIdTodos: (todos: TodoItem[]) => void;
+  getCurrentTraceIdTodos: () => TodoItem[];
 }
 
 type FullAgentState = AgentState & AgentActions;
@@ -83,6 +92,8 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   const [currentUserId] = useState<string>('api_user');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentTodoList, setCurrentTodoList] = useState<TodoList | null>(null);
+  const [currentTraceId, setCurrentTraceId] = useState<string | null>(null);
+  const [currentTraceIdTodos, setCurrentTraceIdTodos] = useState<TodoItem[]>([]);
 
   // Refs for streaming
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -212,6 +223,29 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       case 'tool_result':
         // 工具执行结果
         if (eventPayload.name && (eventPayload.status === 'completed' || eventPayload.status === 'failed')) {
+          // 特殊处理 TodoList 工具 - 忽略 part.trace_id，直接处理数据
+          if (eventPayload.name === 'todo_list_tool') {
+            const result = eventPayload.result;
+
+            // 解析 TodoList 数据
+            let todoData = result;
+            if (result && result.content && typeof result.content === 'object') {
+              todoData = result.content;
+            }
+
+            if (Array.isArray(todoData) && todoData.length > 0) {
+              const todoItems = todoData.map((item: any) => ({
+                content: item.content,
+                status: item.status,
+                activeForm: item.activeForm,
+                timestamp: item.timestamp || new Date()
+              }));
+
+              // 直接更新当前 trace_id 的 TodoList，不依赖任何 trace_id 字段
+              updateCurrentTraceIdTodos(todoItems);
+            }
+          }
+
           setMessages(prev => {
             const newMessages = [...prev];
             const lastMessage = newMessages[newMessages.length - 1];
@@ -261,12 +295,23 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  /**
+   * 生成 trace_id 的辅助函数
+   */
+  const generateTraceId = (): string => {
+    return `trace_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  };
+
   // Send message
   const sendMessage = useCallback(async (userMessage: string) => {
     if (isProcessing || !userMessage.trim()) return;
 
     // Add user message
     addMessage('user', userMessage);
+
+    // Generate and set current trace_id (global variable)
+    const newTraceId = generateTraceId();
+    setCurrentTraceIdCallback(newTraceId);
 
     // Clear current todo list when starting new conversation
     setCurrentTodoList(null);
@@ -291,7 +336,8 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       const response = await chatStream({
         message: userMessage,
         session_id: currentSessionId || undefined,
-        user_id: currentUserId
+        user_id: currentUserId,
+        trace_id: newTraceId
       }, abortControllerRef.current.signal);
 
       const reader = response.body?.getReader();
@@ -358,6 +404,10 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     currentMessageIdRef.current = null;
     setCurrentTodoList(null); // 清理当前todo list
 
+    // 新增：清理当前 trace_id 相关数据
+    setCurrentTraceId(null);
+    setCurrentTraceIdTodos([]);
+
     // 清理TodoList防抖定时器
     if (todoUpdateDebouncer.current) {
       clearTimeout(todoUpdateDebouncer.current);
@@ -390,6 +440,30 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     setSidebarOpen(open);
   }, []);
 
+  // 设置当前 trace_id
+  const setCurrentTraceIdCallback = useCallback((traceId: string) => {
+    setCurrentTraceId(traceId);
+    // 同时清理对应的 todos，等待新数据
+    setCurrentTraceIdTodos([]);
+  }, []);
+
+  // 更新当前 trace_id 对应的 TodoList
+  const updateCurrentTraceIdTodos = useCallback((todos: TodoItem[]) => {
+    setCurrentTraceIdTodos(todos);
+    // 同时更新原有的 currentTodoList 以保持兼容
+    setCurrentTodoList({
+      id: generateId(),
+      items: todos,
+      timestamp: new Date(),
+      isActive: true
+    });
+  }, [generateId]);
+
+  // 获取当前 trace_id 对应的 TodoList
+  const getCurrentTraceIdTodos = useCallback((): TodoItem[] => {
+    return currentTraceIdTodos;
+  }, [currentTraceIdTodos]);
+
   // Cleanup on unmount
   useState(() => {
     return () => {
@@ -410,6 +484,8 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     currentUserId,
     sidebarOpen,
     currentTodoList,
+    currentTraceId,
+    currentTraceIdTodos,
 
     // Computed
     hasMessages,
@@ -421,6 +497,9 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     setSidebarOpen: setSidebarOpenCallback,
     updateTodoList,
     clearTodoList,
+    setCurrentTraceId: setCurrentTraceIdCallback,
+    updateCurrentTraceIdTodos,
+    getCurrentTraceIdTodos,
   }), [
     messages,
     isProcessing,
@@ -430,6 +509,8 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     currentUserId,
     sidebarOpen,
     currentTodoList,
+    currentTraceId,
+    currentTraceIdTodos,
     hasMessages,
     sendMessage,
     clearMessages,
@@ -437,6 +518,9 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     setSidebarOpenCallback,
     updateTodoList,
     clearTodoList,
+    setCurrentTraceIdCallback,
+    updateCurrentTraceIdTodos,
+    getCurrentTraceIdTodos,
   ]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
