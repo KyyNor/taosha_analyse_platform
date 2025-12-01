@@ -11,7 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatMessage, ToolCall } from "@/lib/state/agent";
-import { ChevronDown, ChevronUp, Bot, User, Wrench, Brain } from "lucide-react";
+import { ChevronDown, ChevronUp, Bot, User, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GenerativeUIRenderer } from "./GenerativeUIRenderer";
 
@@ -20,7 +20,6 @@ interface MessageItemProps {
 }
 
 export function MessageItem({ message }: MessageItemProps) {
-  const [thinkingOpen, setThinkingOpen] = useState(false);
   const [toolCallsOpen, setToolCallsOpen] = useState(false);
 
   const isUser = message.role === 'user';
@@ -78,7 +77,7 @@ export function MessageItem({ message }: MessageItemProps) {
             {/* Main Message Content */}
             {message.parts ? (
               // 生成式UI渲染模式
-              <GenerativeUIRenderer parts={message.parts} />
+              <GenerativeUIRenderer parts={message.parts} thinking={message.thinking} />
             ) : (
               // 传统渲染模式
               <div className="prose prose-sm max-w-none dark:prose-invert">
@@ -121,42 +120,6 @@ export function MessageItem({ message }: MessageItemProps) {
                   <div className="whitespace-pre-wrap">{message.content}</div>
                 )}
               </div>
-            )}
-
-            {/* Thinking Chain Display */}
-            {isAssistant && message.thinking && (
-              <Collapsible
-                open={thinkingOpen}
-                onOpenChange={setThinkingOpen}
-                className="mt-3"
-              >
-                <CollapsibleTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2 text-xs font-mono bg-background/20 hover:bg-background/30"
-                  >
-                    <Brain className="w-3 h-3 mr-1" />
-                    思维链
-                    {thinkingOpen ? (
-                      <ChevronUp className="w-3 h-3 ml-1" />
-                    ) : (
-                      <ChevronDown className="w-3 h-3 ml-1" />
-                    )}
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2">
-                  <Card className="bg-background/50 border border-border/50">
-                    <CardContent className="p-3">
-                      <ScrollArea className="h-32 w-full">
-                        <div className="text-xs font-mono whitespace-pre-wrap">
-                          {message.thinking}
-                        </div>
-                      </ScrollArea>
-                    </CardContent>
-                  </Card>
-                </CollapsibleContent>
-              </Collapsible>
             )}
 
             {/* Tool Calls Display */}

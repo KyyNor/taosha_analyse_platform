@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import type { MessagePart } from "@/types/agent";
 import { useAgentState } from "@/lib/state/agent";
 import {
@@ -23,15 +23,21 @@ import {
   type BarChartProps,
   type TodoListProps
 } from "@/components/generative_ui";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Brain, ChevronUp, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface GenerativeUIRendererProps {
   parts: MessagePart[];
+  thinking?: string;
 }
 
-export function GenerativeUIRenderer({ parts }: GenerativeUIRendererProps) {
+export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererProps) {
   // 1. 从 Agent Context 获取当前 trace_id 的 TodoList 数据
   const { currentTraceId, getCurrentTraceIdTodos } = useAgentState();
+  const [thinkingOpen, setThinkingOpen] = useState(false);
 
   // 2. 获取当前 TodoList 数据
   const currentTodos = getCurrentTraceIdTodos();
@@ -92,19 +98,8 @@ export function GenerativeUIRenderer({ parts }: GenerativeUIRendererProps) {
         }
       }
 
-      // TodoList 工具结果 - 完全依赖全局状态，不依赖 part.trace_id
+      // TodoList 工具结果 - 在此处不渲染，稍后统一渲染
       if (part.toolName === 'todo_list_tool') {
-        // 如果当前有 TodoList 数据，直接渲染
-        if (currentTodos && currentTodos.length > 0) {
-          return (
-            <TodoList
-              key={currentTraceId || index} // 使用当前 trace_id 作为 key
-              items={currentTodos}
-              timestamp={new Date()}
-            />
-          );
-        }
-        // 如果没有数据，不渲染任何内容
         return null;
       }
 
@@ -277,34 +272,70 @@ export function GenerativeUIRenderer({ parts }: GenerativeUIRendererProps) {
     return null;
   };
 
-  // 4. 确保 TodoList 在最后渲染（在所有文本信息之后）
+  // 分组 parts
+  const toolAndGenUIParts = parts.filter(part => 
+    (part.type === 'tool-call' || part.type === 'tool-result') && 
+    part.toolName !== 'todo_list_tool'
+  );
+  
+  const textParts = parts.filter(part => part.type === 'text');
+  
+  const hasTodoList = parts.some(part => part.toolName === 'todo_list_tool') || (currentTodos && currentTodos.length > 0);
+
   return (
     <div className="space-y-3">
-      {/* 首先渲染所有非 TodoList 的工具结果，包括文本信息 */}
-      {parts.filter((part, index) => {
-        // 如果是 TodoList 工具，则跳过，稍后单独处理
-        if (part.toolName === 'todo_list_tool') {
-          return false;
-        }
-        return true;
-      }).map((part, index) => renderMessagePart(part, index))}
+      {/* 1. 工具调用和生成式UI组件 */}
+      {toolAndGenUIParts.map((part, index) => renderMessagePart(part, index))}
 
-      {/* 最后单独渲染 TodoList 组件，确保在消息末尾 */}
-      {(() => {
-        const todoListPart = parts.find(part => part.toolName === 'todo_list_tool');
-        if (todoListPart && currentTodos && currentTodos.length > 0) {
-          return (
-            <div key={currentTraceId} className="mb-4">
-              <TodoList
-                key={currentTraceId}
-                items={currentTodos}
-                timestamp={new Date()}
-              />
-            </div>
-          );
-        }
-        return null;
-      })()}
+      {/* 2. TodoList */}
+      {hasTodoList && currentTodos && currentTodos.length > 0 && (
+        <div key={currentTraceId} className="mb-4">
+          <TodoList
+            key={currentTraceId}
+            items={currentTodos}
+            timestamp={new Date()}
+          />
+        </div>
+      )}
+
+      {/* 3. 思维链 */}
+      {thinking && (
+        <Collapsible
+          open={thinkingOpen}
+          onOpenChange={setThinkingOpen}
+          className="my-3"
+        >
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs font-mono bg-background/20 hover:bg-background/30"
+            >
+              <Brain className="w-3 h-3 mr-1" />
+              思维链
+              {thinkingOpen ? (
+                <ChevronUp className="w-3 h-3 ml-1" />
+              ) : (
+                <ChevronDown className="w-3 h-3 ml-1" />
+              )}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2">
+            <Card className="bg-background/50 border border-border/50">
+              <CardContent className="p-3">
+                <ScrollArea className="h-32 w-full">
+                  <div className="text-xs font-mono whitespace-pre-wrap">
+                    {thinking}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {/* 4. 输出文本 */}
+      {textParts.map((part, index) => renderMessagePart(part, index))}
     </div>
   );
 }
