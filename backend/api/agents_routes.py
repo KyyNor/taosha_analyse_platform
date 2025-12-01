@@ -7,19 +7,21 @@ import uuid
 import time
 import asyncio
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from langfuse import propagate_attributes
+from sqlalchemy.orm import Session
 
 from services.agents.agent_service import agent_service
 from repositories.chat_repository import ChatRepository
 from services.tracking_service.observability_service import get_langfuse_client
+from models.db_base import get_db
 from utils.logger import logger
 
 
 router = APIRouter(prefix="/agents")
-chat_repo = ChatRepository()
+# chat_repo = ChatRepository()
 
 # --- 请求/响应模型 ---
 
@@ -55,7 +57,7 @@ class MessageResponse(BaseModel):
 # --- 聊天接口 ---
 
 @router.post("/chat/stream")
-async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
+async def chat_stream_endpoint(request: ChatRequest, db: Session = Depends(get_db)) -> StreamingResponse:
     """
     流式聊天接口
 
@@ -70,6 +72,7 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
 
     Args:
         request: 聊天请求
+        db: 数据库会话
 
     Returns:
         StreamingResponse: 原生LangChain格式的流式响应
@@ -100,7 +103,8 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                         message=request.message,
                         session_id=session_id,
                         user_id=user_id,
-                        trace_id=trace_id
+                        trace_id=trace_id,
+                        db=db
                     ):
                         event_count += 1
                         logger.debug(f"发送SSE事件 #{event_count}: {event.get('event', 'unknown')}, trace_id: {trace_id}")
@@ -141,8 +145,9 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
 # --- 历史记录接口 ---
 
 @router.get("/history")
-async def get_history(user_id: str = Query(..., description="用户ID"), limit: int = 20) -> List[SessionResponse]:
+async def get_history(user_id: str = Query(..., description="用户ID"), limit: int = 20, db: Session = Depends(get_db)) -> List[SessionResponse]:
     """获取用户的会话列表"""
+    chat_repo = ChatRepository(db)
     sessions = chat_repo.get_user_sessions(user_id, limit)
     return [
         SessionResponse(
@@ -168,16 +173,18 @@ async def get_session_messages(session_id: str) -> List[MessageResponse]:
     ]
 
 @router.delete("/history/{session_id}")
-async def delete_session(session_id: str, user_id: str = Query(..., description="用户ID")):
+async def delete_session(session_id: str, user_id: str = Query(..., description="用户ID"), db: Session = Depends(get_db)):
     """删除会话"""
+    chat_repo = ChatRepository(db)
     success = chat_repo.delete_session(session_id, user_id)
     if not success:
         raise HTTPException(status_code=404, detail="Session not found or permission denied")
     return {"status": "success", "message": "Session deleted"}
 
 @router.put("/history/{session_id}/title")
-async def update_session_title(session_id: str, title: str = Query(..., description="新标题")):
+async def update_session_title(session_id: str, title: str = Query(..., description="新标题"), db: Session = Depends(get_db)):
     """更新会话标题"""
+    chat_repo = ChatRepository(db)
     chat_repo.update_session_title(session_id, title)
     return {"status": "success", "message": "Title updated"}
 

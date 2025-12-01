@@ -2,9 +2,10 @@
 Agent服务
 基于LangChain ReAct Agent的对话问答服务
 """
-from typing import AsyncGenerator, AsyncIterable, Dict, Any, List
+from typing import AsyncGenerator, AsyncIterable, Dict, Any, List, Optional
 import asyncio
 from contextlib import asynccontextmanager
+from sqlalchemy.orm import Session
 from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
@@ -296,7 +297,7 @@ class AgentService:
             await queue.put(None)
 
     @observe(name="agent_chat_stream")
-    async def chat_stream(self, message: str, session_id: str, user_id: str, trace_id: str = None) -> AsyncGenerator[dict, None]:
+    async def chat_stream(self, message: str, session_id: str, user_id: str, trace_id: str = None, db: Session = None) -> AsyncGenerator[dict, None]:
         """
         流式对话接口
         """
@@ -305,7 +306,8 @@ class AgentService:
                 raise RuntimeError("Agent未初始化")
 
             # 1. 确保会话存在
-            self.chat_repo.create_session(user_id=user_id, session_id=session_id)
+            repo = ChatRepository(db) if db else self.chat_repo
+            repo.create_session(user_id=user_id, session_id=session_id)
             
             # Checkpoint会自动保存用户消息
             # self.chat_repo.add_message(session_id, "user", message) # Removed
