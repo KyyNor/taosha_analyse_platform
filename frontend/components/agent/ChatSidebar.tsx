@@ -17,14 +17,21 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { MessageSquare, Plus, Trash2 } from "lucide-react";
 import { useAgentState } from "@/lib/state/agent";
+import { cn } from "@/lib/utils";
 
 export function ChatSidebar() {
   const {
     sidebarOpen,
     setSidebarOpen,
     hasMessages,
+    sessions,
+    currentSessionId,
+    switchSession,
+    deleteSession,
+    createNewSession,
   } = useAgentState();
 
   const { open, setOpen } = useSidebar();
@@ -41,40 +48,73 @@ export function ChatSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center gap-2">
-          <MessageSquare className="w-5 h-5" />
-          <span className="font-semibold">对话历史</span>
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5" />
+            <span className="font-semibold">对话历史</span>
+          </div>
+          <Button variant="ghost" size="icon" onClick={createNewSession} title="新对话">
+            <Plus className="w-4 h-4" />
+          </Button>
         </div>
       </SidebarHeader>
 
       <SidebarContent>
+        {/* 当前活动会话卡片 - 仅在没有历史记录或当前是新会话时显示一种状态 */}
         <SidebarGroup>
-          <SidebarGroupLabel>当前对话</SidebarGroupLabel>
+          <SidebarGroupLabel>操作</SidebarGroupLabel>
           <SidebarGroupContent>
-            {hasMessages && (
-              <Card className="bg-primary/5 border-primary/20">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4" />
-                    对话会话
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-xs text-muted-foreground">
-                  当前正在进行的智能对话
-                </CardContent>
-              </Card>
-            )}
+             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={createNewSession} isActive={!currentSessionId}>
+                  <Plus className="w-4 h-4" />
+                  <span>开始新对话</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
         <SidebarGroup>
           <SidebarGroupLabel>历史对话</SidebarGroupLabel>
           <SidebarGroupContent>
-            <div className="text-center py-8 text-muted-foreground text-sm">
-              <MessageSquare className="w-8 h-8 mx-auto mb-3 opacity-50" />
-              <p>暂无历史对话</p>
-              <p className="text-xs mt-1 opacity-70">功能开发中...</p>
-            </div>
+            {sessions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                <MessageSquare className="w-8 h-8 mx-auto mb-3 opacity-50" />
+                <p>暂无历史对话</p>
+              </div>
+            ) : (
+              <SidebarMenu>
+                {sessions.map((session) => (
+                  <SidebarMenuItem key={session.id}>
+                    <SidebarMenuButton
+                      onClick={() => switchSession(session.id)}
+                      isActive={currentSessionId === session.id}
+                      className="group flex justify-between items-center"
+                    >
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <MessageSquare className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{session.title || "未命名会话"}</span>
+                      </div>
+                      <div 
+                        className={cn(
+                          "opacity-0 group-hover:opacity-100 transition-opacity",
+                          currentSessionId === session.id ? "opacity-100" : ""
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if(confirm('确认删除此会话吗？')) {
+                            deleteSession(session.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="w-3 h-3 hover:text-destructive" />
+                      </div>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

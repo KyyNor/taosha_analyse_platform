@@ -1,5 +1,6 @@
 "use client";
-import { createContext, useContext, useMemo, useState, useCallback, useRef } from "react";
+import { createContext, useContext, useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { chatApi, type Session } from "@/lib/api";
 
 import type { MessagePart, SSEEvent } from "@/types/agent";
 
@@ -47,6 +48,7 @@ interface AgentState {
   // 会话状态
   currentSessionId: string | null;
   currentUserId: string;
+  sessions: Session[]; // 历史会话列表
 
   // UI状态
   sidebarOpen: boolean;
@@ -77,6 +79,12 @@ interface AgentActions {
   setCurrentTraceId: (traceId: string) => void;
   updateCurrentTraceIdTodos: (todos: TodoItem[]) => void;
   getCurrentTraceIdTodos: () => TodoItem[];
+
+  // 会话管理
+  loadHistory: () => Promise<void>;
+  switchSession: (sessionId: string) => Promise<void>;
+  deleteSession: (sessionId: string) => Promise<void>;
+  createNewSession: () => void;
 }
 
 type FullAgentState = AgentState & AgentActions;
@@ -90,6 +98,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   const [currentResponse, setCurrentResponse] = useState('');
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [currentUserId] = useState<string>('api_user');
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentTodoList, setCurrentTodoList] = useState<TodoList | null>(null);
   const [currentTraceId, setCurrentTraceId] = useState<string | null>(null);
@@ -109,6 +118,119 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   const generateId = useCallback(() => {
     return Date.now().toString(36) + Math.random().toString(36).substring(2);
   }, []);
+
+  // 加载历史会话列表
+  const loadHistory = useCallback(async () => {
+    try {
+      const history = await chatApi.getHistory(currentUserId);
+      setSessions(history);
+    } catch (error) {
+      console.error("Failed to load history:", error);
+    }
+  }, [currentUserId]);
+
+  // 初始化加载
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
+
+  // 切换会话
+  const switchSession = useCallback(async (sessionId: string) => {
+    try {
+      if (isProcessing) return; // 防止在生成时切换
+
+      setIsProcessing(true);
+      setMessages([]); // 先清空当前显示
+      setCurrentTodoList(null);
+      setCurrentTraceId(null);
+      setCurrentTraceIdTodos([]);
+
+      const historyMessages = await chatApi.getSessionMessages(sessionId);
+      
+      // 转换后端消息格式到前端格式
+      const formattedMessages: ChatMessage[] = historyMessages.map(msg => {
+        const isTool = msg.role === 'tool';
+        const isAssistant = msg.role === 'assistant';
+        
+        let parts: MessagePart[] = [];
+        // let toolCalls: ToolCall[] = [];
+
+        // 简化的转换逻辑，实际可能更复杂，需要处理 tool_calls 和 tool_results 的配对
+        if (msg.role === 'user') {
+          parts = [{ type: 'text', text: msg.content }];
+        } else if (isAssistant) {
+           // 这里简单处理为文本，如果历史记录包含结构化 parts 更好，目前只能当做纯文本
+           parts = [{ type: 'text', text: msg.content }];
+        } else if (isTool) {
+           // 工具结果
+           try {
+             const contentObj = JSON.parse(msg.content);
+             parts = [{
+               type: 'tool-result',
+               toolCallId: msg.meta_info?.tool_call_id || 'unknown',
+               toolName: msg.meta_info?.tool_name || 'unknown',
+               result: contentObj,
+               isError: false
+             }];
+           } catch {
+             parts = [{
+                type: 'tool-result',
+                toolCallId: msg.meta_info?.tool_call_id || 'unknown',
+                toolName: msg.meta_info?.tool_name || 'unknown',
+                result: msg.content,
+                isError: false
+             }];
+           }
+        }
+
+        return {
+          id: msg.id,
+          role: isTool ? 'assistant' : (msg.role as any), // tool result 在前端通常归属为 assistant 的一部分或者单独渲染，这里视 UI 实现而定，通常作为 MessagePart 附加在 assistant 消息里，或者独立的 ToolMessage。这里简化处理。
+          content: msg.content,
+          timestamp: new Date(msg.created_at),
+          parts: parts
+        };
+      });
+
+      // 重新组合消息：将 tool-result 合并到对应的 assistant 消息，或者保持独立
+      // 这里的简单实现：直接设置消息列表
+      // 注意：上面的转换逻辑对于复杂的 Agent 输出可能不够完美，因为后端存储是平铺的 ChatMessage
+      // 而前端是基于 MessagePart 的聚合。为了完美还原，后端应该存 MessagePart 结构。
+      // 临时方案：直接显示
+      setMessages(formattedMessages);
+      setCurrentSessionId(sessionId);
+    } catch (error) {
+      console.error("Failed to load session:", error);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [isProcessing]);
+
+  // 删除会话
+  const deleteSession = useCallback(async (sessionId: string) => {
+    try {
+      await chatApi.deleteSession(sessionId, currentUserId);
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      if (currentSessionId === sessionId) {
+        setMessages([]);
+        setCurrentSessionId(null);
+        setCurrentTodoList(null);
+      }
+    } catch (error) {
+      console.error("Failed to delete session:", error);
+    }
+  }, [currentUserId, currentSessionId]);
+
+  // 创建新会话
+  const createNewSession = useCallback(() => {
+    if (isProcessing) return;
+    setMessages([]);
+    setCurrentSessionId(null);
+    setCurrentTodoList(null);
+    setCurrentTraceId(null);
+    setCurrentTraceIdTodos([]);
+    // URL 或状态更新逻辑
+  }, [isProcessing]);
 
   // Add message helper
   const addMessage = useCallback((role: 'user' | 'assistant' | 'system', content: string, options?: {
@@ -482,6 +604,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     currentResponse,
     currentSessionId,
     currentUserId,
+    sessions,
     sidebarOpen,
     currentTodoList,
     currentTraceId,
@@ -500,6 +623,10 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     setCurrentTraceId: setCurrentTraceIdCallback,
     updateCurrentTraceIdTodos,
     getCurrentTraceIdTodos,
+    loadHistory,
+    switchSession,
+    deleteSession,
+    createNewSession,
   }), [
     messages,
     isProcessing,
@@ -507,6 +634,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     currentResponse,
     currentSessionId,
     currentUserId,
+    sessions,
     sidebarOpen,
     currentTodoList,
     currentTraceId,
@@ -521,6 +649,10 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     setCurrentTraceIdCallback,
     updateCurrentTraceIdTodos,
     getCurrentTraceIdTodos,
+    loadHistory,
+    switchSession,
+    deleteSession,
+    createNewSession,
   ]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
