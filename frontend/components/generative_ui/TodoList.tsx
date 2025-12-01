@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, CheckCircle, Clock, PlayCircle, RotateCcw } from "lucide-react";
+import { CheckCircle, Clock, PlayCircle, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface TodoItem {
@@ -67,18 +67,37 @@ export function TodoList({ items, timestamp }: TodoListProps) {
   return (
     <Card className="w-full border-l-4 border-l-blue-500 shadow-sm">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-semibold flex items-center gap-2">
-            <RotateCcw className="w-5 h-5 text-blue-500" />
-            任务进度 ({completedCount}/{totalCount})
-          </CardTitle>
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span>{timestamp.toLocaleTimeString()}</span>
-            <Badge variant="outline" className="text-xs">
-              {completedCount}/{totalCount}
-            </Badge>
+        <Button
+          variant="ghost"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="w-full p-3 h-auto justify-start hover:bg-transparent/10 -mx-3 -mt-3"
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2">
+              <div className={cn(
+                "w-4 h-4 transition-transform duration-200",
+                isExpanded && "rotate-90"
+              )}>
+                <div className="w-0 h-0 border-t-[4px] border-t-transparent border-l-[6px] border-l-current border-b-[4px] border-b-transparent" />
+              </div>
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <RotateCcw className="w-5 h-5 text-blue-500" />
+                任务进度 ({completedCount}/{totalCount})
+              </CardTitle>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span>{timestamp.toLocaleTimeString()}</span>
+              <Badge variant="outline" className="text-xs">
+                {completedCount}/{totalCount}
+              </Badge>
+              {!isExpanded && (
+                <span className="text-xs text-gray-500">
+                  点击展开
+                </span>
+              )}
+            </div>
           </div>
-        </div>
+        </Button>
 
         <div className="space-y-2">
           <Progress value={progressPercentage} className="h-2" />
@@ -90,20 +109,9 @@ export function TodoList({ items, timestamp }: TodoListProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-3">
-        {!isExpanded ? (
-          // 折叠状态：只显示进度信息
-          <div className="text-center py-4 text-sm text-gray-600">
-            <div className="text-lg font-medium text-blue-600 mb-2">
-              {completedCount}/{totalCount}
-            </div>
-            <div className="text-xs">
-              任务完成进度
-            </div>
-          </div>
-        ) : (
-          // 展开状态：显示所有任务项
-          items.map((item, index) => (
+      {isExpanded && (
+        <CardContent className="space-y-3">
+          {(showAllResults ? items : items.slice(0, 5)).map((item, index) => (
             <div
               key={index}
               className={cn(
@@ -138,21 +146,22 @@ export function TodoList({ items, timestamp }: TodoListProps) {
               )}
             </div>
           </div>
-        )))}
+        ))}
 
-        {items.length > 5 && (
-          <div className="pt-2 border-t">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAllResults(!showAllResults)}
-              className="w-full text-xs"
-            >
-              {showAllResults ? '收起' : '显示全部'} {items.length} 项任务
-            </Button>
-          </div>
-        )}
-      </CardContent>
+          {items.length > 5 && (
+            <div className="pt-2 border-t">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAllResults(!showAllResults)}
+                className="w-full text-xs"
+              >
+                {showAllResults ? '收起' : '显示全部'} {items.length} 项任务
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      )}
     </Card>
   );
 }
