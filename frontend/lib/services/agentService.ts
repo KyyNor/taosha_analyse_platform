@@ -4,6 +4,7 @@ export interface ChatRequest {
   message: string;
   session_id?: string;
   user_id?: string;
+  trace_id?: string;  // 新增字段
 }
 
 export async function startAgent(payload: Record<string, unknown>) {

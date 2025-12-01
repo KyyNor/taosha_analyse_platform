@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import type { MessagePart } from "@/types/agent";
 import { useAgentState } from "@/lib/state/agent";
 import {
@@ -277,10 +277,26 @@ export function GenerativeUIRenderer({ parts }: GenerativeUIRendererProps) {
     return null;
   };
 
-  // 4. 完全移除复杂的 trace_id 过滤逻辑
+  // 4. 过滤只渲染最新的一个 TodoList（即使有多个 todo_list_tool part）
+  const filteredParts = useMemo(() => {
+    let hasRenderedTodoList = false;
+
+    return parts.filter((part) => {
+      // 如果是 TodoList 工具且还没有渲染过，则渲染最新的那一个
+      if (part.type === 'tool-result' && part.toolName === 'todo_list_tool') {
+        if (!hasRenderedTodoList) {
+          hasRenderedTodoList = true;
+          return true; // 只渲染第一个 TodoList
+        }
+        return false; // 跳过后续的 TodoList
+      }
+      return true; // 其他所有部分都渲染
+    });
+  }, [parts]);
+
   return (
     <div className="space-y-3">
-      {parts.map((part, index) => renderMessagePart(part, index))}
+      {filteredParts.map((part, index) => renderMessagePart(part, index))}
     </div>
   );
 }

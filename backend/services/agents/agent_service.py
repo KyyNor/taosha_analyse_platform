@@ -85,7 +85,7 @@ class AgentService:
             raise
 
     @observe(name="agent_chat_stream")
-    async def chat_stream(self, message: str, session_id: str, user_id: str) -> AsyncGenerator[dict, None]:
+    async def chat_stream(self, message: str, session_id: str, user_id: str, trace_id: str = None) -> AsyncGenerator[dict, None]:
         """
         流式对话接口，使用astream_events获取Agent执行事件
 
@@ -99,7 +99,7 @@ class AgentService:
         """
         try:
             # 获取或创建会话内存
-            logger.info(f"正在处理Agent请求，session_id: {session_id}")
+            logger.info(f"正在处理Agent请求，session_id: {session_id}, trace_id: {trace_id}")
 
             # 使用astream_events获取离散的Agent执行事件
             callbacks = [self.tracing_handler] if self.tracing_handler else []
@@ -108,7 +108,8 @@ class AgentService:
             yield {
                 "event": "start",
                 "data": {
-                    "session_id": session_id  # 返回实际的session_id
+                    "session_id": session_id,  # 返回实际的session_id
+                    "trace_id": trace_id
                 }
             }
 
@@ -251,9 +252,16 @@ class AgentService:
             yield {
                 "event": "error",
                 "data": {
-                    "error": str(e)
+                    "error": str(e),
+                    "trace_id": trace_id
                 }
             }
+
+    def _process_chunk(self, chunk: Dict[str, Any], trace_id: str = None) -> Dict[str, Any]:
+        """处理事件块，添加 trace_id"""
+        if isinstance(chunk.get('data'), dict) and trace_id:
+            chunk['data']['trace_id'] = trace_id
+        return chunk
 
 # 全局Agent服务实例
 agent_service = AgentService()

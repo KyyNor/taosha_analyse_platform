@@ -4,6 +4,7 @@ Agent API路由
 """
 import json
 import uuid
+import time
 import asyncio
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException
@@ -24,6 +25,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     user_id: Optional[str] = None
+    trace_id: Optional[str] = None  # 新增字段
 
 
 class ChatResponse(BaseModel):
@@ -58,8 +60,9 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
             # 处理默认值
             user_id = request.user_id or "api_user"
             session_id = request.session_id or str(uuid.uuid4())
+            trace_id = request.trace_id or f"trace_{int(time.time())}_{uuid.uuid4().hex[:8]}"
 
-            logger.info(f"收到流式聊天请求: {request.message[:100]}..., user_id: {user_id}, session_id: {session_id}")
+            logger.info(f"收到流式聊天请求: {request.message[:100]}..., user_id: {user_id}, session_id: {session_id}, trace_id: {trace_id}")
 
             langfuse_client = get_langfuse_client()
 
@@ -77,9 +80,10 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
                         message=request.message,
                         session_id=session_id,
                         user_id=user_id,
+                        trace_id=trace_id
                     ):
                         event_count += 1
-                        logger.debug(f"发送SSE事件 #{event_count}: {event.get('event', 'unknown')}")
+                        logger.debug(f"发送SSE事件 #{event_count}: {event.get('event', 'unknown')}, trace_id: {trace_id}")
 
                         # 直接输出原生事件格式
                         sse_message = f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
@@ -88,7 +92,7 @@ async def chat_stream_endpoint(request: ChatRequest) -> StreamingResponse:
 
                     span.update(output={"events_sent": event_count})
 
-            logger.info(f"流式聊天完成, session_id: {session_id}, 共发送{event_count}个事件")
+            logger.info(f"流式聊天完成, session_id: {session_id}, trace_id: {trace_id}, 共发送{event_count}个事件")
 
         except Exception as e:
             logger.error(f"流式聊天错误: {e}")

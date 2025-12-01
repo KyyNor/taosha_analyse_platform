@@ -4,6 +4,7 @@
 
 export interface MessagePart {
   type: 'text' | 'tool-call' | 'tool-result';
+  trace_id?: string;  // 新增字段
   text?: string;
   toolCallId?: string;
   toolName?: string;
@@ -17,6 +18,9 @@ export interface SSEEvent {
   // 原生LangChain事件格式
   event: 'start' | 'text' | 'tool_call' | 'tool_result' | 'error';
   data: {
+    // 新增 trace_id 字段
+    trace_id?: string;
+
     // text事件
     content?: string;
     type?: string;
