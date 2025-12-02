@@ -216,12 +216,7 @@ class AgentService:
                                                 "type": "args_update"
                                             }
                                         })
-
-                # 2. 处理 LLM 完整输出
-                elif event_type == "on_chat_model_end":
-                    # Checkpoint handles persistence automatically
-                    pass
-                
+               
                 # 3. 处理工具执行完成
                 elif event_type == "on_tool_end":
                     output = data.get("output")
@@ -322,6 +317,7 @@ class AgentService:
             # 5. 消费队列 (Consumer)
             while True:
                 event = await queue.get()
+                logger.info(event)
                 if event is None: # 结束信号
                     break
                 yield event
