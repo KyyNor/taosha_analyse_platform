@@ -15,6 +15,7 @@ from repositories.training_repository import TrainingRecordRepository
 from repositories.metadata_repository import MetadataTableRepository, MetadataColumnRepository
 from repositories.glossary_repository import GlossaryTermRepository
 from repositories.relation_repository import RelationFieldConfigRepository
+from repositories.fine_report_repository import FineReportRepository
 
 
 class VectorTrainingService:
@@ -37,6 +38,7 @@ class VectorTrainingService:
         self.column_repo = MetadataColumnRepository(db)
         self.glossary_repo = GlossaryTermRepository(db)
         self.relation_repo = RelationFieldConfigRepository(db)
+        self.fine_report_repo = FineReportRepository(db)
 
         # 使用全局向量存储实例
         try:
@@ -90,6 +92,11 @@ class VectorTrainingService:
             trained_count += relation_result["trained"]
             failed_count += relation_result["failed"]
 
+            # 4. 训练FineReport报表资源
+            fine_report_result = self._train_fine_report_resources(resources_to_train.get("fine_report", []))
+            trained_count += fine_report_result["trained"]
+            failed_count += fine_report_result["failed"]
+
             # 5. 清理无效资源的向量数据
             self._cleanup_orphaned_vectors()
 
@@ -124,7 +131,8 @@ class VectorTrainingService:
         resources = {
             "table": [],
             "glossary": [],
-              "relation": []
+            "relation": [],
+            "fine_report": []
         }
 
         try:
@@ -161,7 +169,17 @@ class VectorTrainingService:
                         "last_modified": relation.updated_at
                     })
 
-            logger.info(f"发现需要训练的资源: 表({len(resources['table'])}), 术语({len(resources['glossary'])}), 关联({len(resources['relation'])})")
+            # 4. 检查FineReport报表资源
+            fine_reports = self.fine_report_repo.get_all()
+            for report in fine_reports:
+                if self.training_repo.needs_training("fine_report", report.id, report.updated_at):
+                    resources["fine_report"].append({
+                        "id": report.id,
+                        "name": report.report_name,
+                        "last_modified": report.updated_at
+                    })
+
+            logger.info(f"发现需要训练的资源: 表({len(resources['table'])}), 术语({len(resources['glossary'])}), 关联({len(resources['relation'])}), FineReport({len(resources['fine_report'])})")
 
         except Exception as e:
             logger.error(f"获取需要训练的资源失败: {e}")
@@ -344,6 +362,57 @@ class VectorTrainingService:
 
         return {"trained": trained, "failed": failed}
 
+    def _train_fine_report_resources(self, fine_reports: List[Dict]) -> Dict[str, int]:
+        """训练FineReport报表资源
+
+        Args:
+            fine_reports: 需要训练的报表列表
+
+        Returns:
+            训练结果统计
+        """
+        trained = 0
+        failed = 0
+
+        for report_info in fine_reports:
+            try:
+                report_id = report_info["id"]
+                report_name = report_info["name"]
+
+                # 确保训练记录存在（新资源会创建记录）
+                self.training_repo.create_or_update_record("fine_report", report_id, report_info["last_modified"])
+
+                # 标记为正在训练
+                self.training_repo.mark_as_training("fine_report", report_id)
+
+                # 删除旧的向量数据
+                self._delete_vector_by_resource("fine_report", report_id)
+
+                # 生成新的文档
+                document, metadata = self._generate_fine_report_document(report_id)
+
+                if document:
+                    # 添加到向量数据库
+                    vector_ids = self.vector_store.add(documents=[document], metadatas=[metadata])
+                    vector_id = vector_ids[0] if vector_ids else ""
+
+                    # 更新训练记录
+                    self.training_repo.update_training_time("fine_report", report_id, vector_id)
+                    trained += 1
+                    logger.debug(f"成功训练报表: {report_name}")
+                else:
+                    self.training_repo.mark_as_failed("fine_report", report_id)
+                    failed += 1
+                    logger.warning(f"生成报表文档失败: {report_name}")
+
+            except Exception as e:
+                failed += 1
+                logger.error(f"训练报表资源失败: {e}")
+                if "report_id" in locals():
+                    self.training_repo.mark_as_failed("fine_report", report_id)
+
+        return {"trained": trained, "failed": failed}
+
     def _generate_table_document(self, table_id: int) -> Tuple[str, Dict]:
         """生成表文档
 
@@ -483,6 +552,67 @@ class VectorTrainingService:
             logger.error(f"生成关联文档失败 {relation_id}: {e}")
             return "", {}
 
+    def _generate_fine_report_document(self, report_id: int) -> Tuple[str, Dict]:
+        """生成FineReport报表文档
+
+        Args:
+            report_id: 报表ID
+
+        Returns:
+            (文档内容, 元数据)
+        """
+        try:
+            report = self.fine_report_repo.get_by_id(report_id)
+            if not report:
+                return "", {}
+
+            # 构建报表描述
+            doc_lines = [f"报表名称: {report.report_name}"]
+
+            # 报表类型
+            report_type_name = "汇总表" if report.report_type == "summary" else "明细表"
+            doc_lines.append(f"报表类型: {report_type_name}")
+
+            # CPT文件路径
+            doc_lines.append(f"CPT文件路径: {report.report_cpt_path}")
+
+            # 设计器地址
+            doc_lines.append(f"设计器地址: {report.report_design_address}")
+
+            # 部门信息
+            if report.department_id:
+                doc_lines.append(f"所属部门ID: {report.department_id}")
+
+            # 报表说明
+            if report.description:
+                doc_lines.append(f"报表说明: {report.description}")
+
+            # 适用场景
+            if report.usage_scenario:
+                doc_lines.append(f"适用场景: {report.usage_scenario}")
+
+            # 可用状态
+            availability = "可用" if report.is_available == 0 else "不可用"
+            doc_lines.append(f"状态: {availability}")
+
+            document = "\n".join(doc_lines)
+
+            # 构建元数据
+            metadata = {
+                "resource_type": "fine_report",
+                "resource_id": report_id,
+                "report_name": report.report_name,
+                "report_type": report.report_type,
+                "department_id": report.department_id if report.department_id else None,
+                "is_available": report.is_available
+            }
+
+            return document, metadata
+
+        except Exception as e:
+            logger.error(f"生成报表文档失败 {report_id}: {e}")
+            return "", {}
+
     def _delete_vector_by_resource(self, resource_type: str, resource_id: int):
         """删除指定资源的向量数据
 
@@ -515,7 +645,8 @@ class VectorTrainingService:
             valid_resources = {
                 "table": [t.id for t in self.table_repo.get_all()],
                 "glossary": [g.id for g in self.glossary_repo.get_all()],
-                "relation": [r.id for r in self.relation_repo.get_all()]
+                "relation": [r.id for r in self.relation_repo.get_all()],
+                "fine_report": [r.id for r in self.fine_report_repo.get_all()]
             }
 
             # 清理无效的训练记录
