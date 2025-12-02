@@ -10,10 +10,11 @@ from sqlalchemy.orm import Session
 from api.endpoint_models import TableMetadataRequest, TableMetadataUpdate, ColumnMetadataRequest, ColumnMetadataUpdate, \
     GlossaryTermRequest, GlossaryTermUpdate, RelationFieldConfigRequest, RelationFieldConfigUpdate, \
     PromptTemplateRequest, PromptTemplateUpdate, DataThemeRequest, DataThemeUpdate, ThemeTableRelationRequest, \
-    BatchUpdateRequest, BatchUpdateResult
+    BatchUpdateRequest, BatchUpdateResult, FineReportRequest, FineReportUpdate
 from models.db_base import get_db
 from services import get_metadata_service, get_glossary_service, get_relation_field_config_service, \
     get_prompt_template_service, get_data_theme_service
+from services.metadata_service.fine_report_service import get_fine_report_service
 from utils.logger import logger
 
 # 创建路由器
@@ -657,4 +658,102 @@ async def remove_table_from_theme(theme_id: int, table_id: int, db: Session = De
             raise HTTPException(status_code=400, detail="从主题中移除表失败")
     except Exception as e:
         logger.error(f"从主题中移除表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# FineReport报表元数据管理
+@router.get("/fine-reports")
+async def get_all_fine_reports(
+    is_available: Optional[int] = None,
+    report_type: Optional[str] = None,
+    department_id: Optional[int] = None,
+    keyword: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """获取所有FineReport报表（支持多条件过滤）"""
+    try:
+        report_service = get_fine_report_service(db)
+        reports = report_service.get_all_reports(
+            is_available=is_available,
+            report_type=report_type,
+            department_id=department_id,
+            keyword=keyword
+        )
+        return {"success": True, "data": reports}
+    except Exception as e:
+        logger.error(f"获取FineReport报表列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/fine-reports/{report_id}")
+async def get_fine_report(report_id: int, db: Session = Depends(get_db)):
+    """根据ID获取FineReport报表详情"""
+    try:
+        report_service = get_fine_report_service(db)
+        report = report_service.get_report_by_id(report_id)
+        if not report:
+            raise HTTPException(status_code=404, detail=f"报表不存在: ID {report_id}")
+        return {"success": True, "data": report}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取FineReport报表详情失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/fine-reports")
+async def create_fine_report(request: FineReportRequest, db: Session = Depends(get_db)):
+    """创建FineReport报表"""
+    try:
+        report_service = get_fine_report_service(db)
+        report = report_service.create_report(request.dict())
+        if report:
+            return {
+                "success": True,
+                "message": f"FineReport报表已创建: {request.report_name}",
+                "data": report
+            }
+        else:
+            raise HTTPException(status_code=400, detail="创建FineReport报表失败，报表名称可能已存在")
+    except Exception as e:
+        logger.error(f"创建FineReport报表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/fine-reports/{report_id}")
+async def update_fine_report(report_id: int, request: FineReportUpdate, db: Session = Depends(get_db)):
+    """更新FineReport报表"""
+    try:
+        report_service = get_fine_report_service(db)
+        # 只包含非None的字段
+        update_data = {k: v for k, v in request.dict().items() if v is not None}
+        if not update_data:
+            raise HTTPException(status_code=400, detail="没有提供更新数据")
+
+        success = report_service.update_report(report_id, update_data)
+        if success:
+            return {"success": True, "message": f"FineReport报表已更新: ID {report_id}"}
+        else:
+            raise HTTPException(status_code=400, detail="更新FineReport报表失败，报表不存在或名称已被使用")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"更新FineReport报表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/fine-reports/{report_id}")
+async def delete_fine_report(report_id: int, db: Session = Depends(get_db)):
+    """删除FineReport报表"""
+    try:
+        report_service = get_fine_report_service(db)
+        success = report_service.delete_report(report_id)
+        if success:
+            return {"success": True, "message": f"FineReport报表已删除: ID {report_id}"}
+        else:
+            raise HTTPException(status_code=404, detail="报表不存在")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"删除FineReport报表失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

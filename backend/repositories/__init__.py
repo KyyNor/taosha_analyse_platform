@@ -21,6 +21,9 @@ from .theme_repository import (
 from .training_repository import (
     TrainingRecordRepository
 )
+from .fine_report_repository import (
+    FineReportRepository
+)
 
 __all__ = [
     # 基础Repository
@@ -48,4 +51,7 @@ __all__ = [
 
     # 训练Repository
     "TrainingRecordRepository",
+
+    # FineReport Repository
+    "FineReportRepository",
 ]
