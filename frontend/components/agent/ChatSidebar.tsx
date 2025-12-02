@@ -77,9 +77,6 @@ function groupSessions(sessions: Session[]): SessionGroup[] {
 
 export function ChatSidebar() {
   const {
-    sidebarOpen,
-    setSidebarOpen,
-    hasMessages,
     sessions,
     currentSessionId,
     switchSession,
@@ -87,19 +84,10 @@ export function ChatSidebar() {
     createNewSession,
   } = useAgentState();
 
-  const { open, setOpen } = useSidebar();
+  const { setOpenMobile } = useSidebar();
 
   // 分组会话
   const sessionGroups = useMemo(() => groupSessions(sessions), [sessions]);
-
-  // 同步sidebar状态
-  React.useEffect(() => {
-    setOpen(sidebarOpen);
-  }, [sidebarOpen, setOpen]);
-
-  React.useEffect(() => {
-    setSidebarOpen(open);
-  }, [open, setSidebarOpen]);
 
   return (
     <Sidebar>
@@ -109,7 +97,10 @@ export function ChatSidebar() {
             <MessageSquare className="w-5 h-5" />
             <span className="font-semibold">对话历史</span>
           </div>
-          <Button variant="ghost" size="icon" onClick={createNewSession} title="新对话">
+          <Button variant="ghost" size="icon" onClick={() => {
+            createNewSession();
+            setOpenMobile(false);
+          }} title="新对话">
             <Plus className="w-4 h-4" />
           </Button>
         </div>
@@ -122,7 +113,10 @@ export function ChatSidebar() {
           <SidebarGroupContent>
              <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton onClick={createNewSession} isActive={!currentSessionId}>
+                <SidebarMenuButton onClick={() => {
+                  createNewSession();
+                  setOpenMobile(false);
+                }} isActive={!currentSessionId}>
                   <Plus className="w-4 h-4" />
                   <span>开始新对话</span>
                 </SidebarMenuButton>
@@ -151,7 +145,10 @@ export function ChatSidebar() {
                   {group.sessions.map((session) => (
                     <SidebarMenuItem key={session.id}>
                       <SidebarMenuButton
-                        onClick={() => switchSession(session.id)}
+                        onClick={() => {
+                          switchSession(session.id);
+                          setOpenMobile(false);
+                        }}
                         isActive={currentSessionId === session.id}
                         className={cn(
                           "group flex flex-col items-start py-3 h-auto transition-all duration-200 hover:translate-x-1",
@@ -206,17 +203,16 @@ export function ChatSidebar() {
 // 主聊天布局容器
 export function ChatSidebarLayout({ children }: { children: React.ReactNode }) {
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={false}>
       <ChatSidebar />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <div className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5" />
-            <h1 className="text-lg font-semibold">智能助手</h1>
-          </div>
-        </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <SidebarInset className="h-full overflow-hidden bg-slate-50 dark:bg-slate-950">
+        {/* Floating Sidebar Trigger */}
+        <div className="absolute top-4 left-4 z-20">
+          <SidebarTrigger className="h-10 w-10 rounded-full shadow-md bg-white dark:bg-zinc-800 border hover:bg-gray-100 dark:hover:bg-zinc-700 transition-all text-primary" />
+        </div>
+        
+        {/* Main Content Area */}
+        <div className="flex flex-1 flex-col h-full w-full relative">
           {children}
         </div>
       </SidebarInset>
