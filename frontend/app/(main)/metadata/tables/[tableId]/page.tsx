@@ -289,7 +289,7 @@ export default function TableDetailPage() {
   ];
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="container mx-auto py-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* 页面头部 */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">

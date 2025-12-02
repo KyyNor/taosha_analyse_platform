@@ -48,7 +48,7 @@ export default function Page() {
   };
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="container mx-auto py-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <FileText className="h-6 w-6" />

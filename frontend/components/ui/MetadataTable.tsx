@@ -179,7 +179,7 @@ export function MetadataTable({
       </div>
 
       {/* 表格 */}
-      <div className="rounded-md border">
+      <div className="rounded-lg border bg-white dark:bg-card text-card-foreground shadow-sm overflow-hidden transition-all hover:shadow-md">
         {loading ? (
           <div className="p-8 text-center text-sm text-muted-foreground">
             加载中...
