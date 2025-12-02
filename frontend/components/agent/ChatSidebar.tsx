@@ -153,16 +153,27 @@ export function ChatSidebar() {
                       <SidebarMenuButton
                         onClick={() => switchSession(session.id)}
                         isActive={currentSessionId === session.id}
-                        className="group flex flex-col items-start py-3 h-auto"
+                        className={cn(
+                          "group flex flex-col items-start py-3 h-auto transition-all duration-200 hover:translate-x-1",
+                          currentSessionId === session.id 
+                            ? "bg-sidebar-accent shadow-sm border border-sidebar-border/50" 
+                            : "hover:bg-sidebar-accent/50"
+                        )}
                       >
                         <div className="flex items-center justify-between w-full">
                           <div className="flex items-center gap-2 overflow-hidden flex-1">
-                            <MessageSquare className="w-4 h-4 shrink-0" />
-                            <span className="truncate">{session.title || "未命名会话"}</span>
+                            <MessageSquare className={cn(
+                              "w-4 h-4 shrink-0 transition-colors",
+                              currentSessionId === session.id ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                            )} />
+                            <span className={cn(
+                              "truncate font-medium transition-colors",
+                              currentSessionId === session.id ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                            )}>{session.title || "未命名会话"}</span>
                           </div>
                           <div
                             className={cn(
-                              "opacity-0 group-hover:opacity-100 transition-opacity shrink-0",
+                              "opacity-0 group-hover:opacity-100 transition-opacity shrink-0 p-1 rounded-md hover:bg-background",
                               currentSessionId === session.id ? "opacity-100" : ""
                             )}
                             onClick={(e) => {
@@ -172,10 +183,10 @@ export function ChatSidebar() {
                               }
                             }}
                           >
-                            <Trash2 className="w-3 h-3 hover:text-destructive" />
+                            <Trash2 className="w-3 h-3 text-muted-foreground hover:text-destructive transition-colors" />
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1 ml-6">
+                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground/70 mt-1.5 ml-6">
                           <Clock className="w-3 h-3" />
                           <span>{formatTime(session.updated_at)}</span>
                         </div>

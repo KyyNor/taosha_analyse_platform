@@ -62,40 +62,45 @@ export function ChatInput({ onSendMessage, disabled }: ChatInputProps) {
   }, [clearMessages]);
 
   return (
-    <div className="border-t bg-background p-4">
-      <InputGroup className="min-h-0">
-        <Textarea
-          ref={textareaRef}
-          value={inputMessage}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          disabled={disabled}
-          placeholder="输入您的问题..."
-          className="resize-none border-0 shadow-none focus-visible:ring-0 min-h-0 max-h-32"
-          rows={1}
-        />
-        <div className="flex gap-2 p-2">
-          <InputGroupButton
-            onClick={handleSend}
-            disabled={!inputMessage.trim() || disabled}
-            title="发送消息 (Enter)"
-          >
-            <Send className="w-4 h-4" />
-          </InputGroupButton>
-
-          <InputGroupButton
-            variant="outline"
-            onClick={handleClear}
+    <div className="p-4 bg-background/50 backdrop-blur-sm">
+      <div className="max-w-4xl mx-auto">
+        <InputGroup className="min-h-0 bg-white dark:bg-secondary/20 shadow-lg border rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+          <Textarea
+            ref={textareaRef}
+            value={inputMessage}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
             disabled={disabled}
-            title="清空对话"
-          >
-            <Trash2 className="w-4 h-4" />
-          </InputGroupButton>
-        </div>
-      </InputGroup>
+            placeholder="输入您的问题..."
+            className="resize-none border-0 shadow-none focus-visible:ring-0 min-h-[50px] max-h-32 py-3 bg-transparent"
+            rows={1}
+          />
+          <div className="flex gap-2 p-2 self-end">
+            <InputGroupButton
+              variant="ghost"
+              onClick={handleClear}
+              disabled={disabled}
+              title="清空对话"
+              className="text-muted-foreground hover:text-destructive transition-colors hover:bg-destructive/10"
+            >
+              <Trash2 className="w-4 h-4" />
+            </InputGroupButton>
+            
+            <Button
+              size="icon"
+              onClick={handleSend}
+              disabled={!inputMessage.trim() || disabled}
+              title="发送消息 (Enter)"
+              className="h-8 w-8 rounded-lg shadow-sm transition-all"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
+        </InputGroup>
 
-      <div className="text-xs text-muted-foreground mt-2 ml-1">
-        按 Enter 发送，Shift + Enter 换行
+        <div className="text-xs text-muted-foreground mt-2 ml-1 text-center opacity-70">
+          按 Enter 发送，Shift + Enter 换行
+        </div>
       </div>
     </div>
   );

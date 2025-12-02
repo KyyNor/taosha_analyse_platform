@@ -122,7 +122,7 @@ export const LineChart: React.FC<LineChartProps> = ({
   const DataComponent = area ? Area : Line;
 
   return (
-    <div className="my-4 p-6 max-w-4xl bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 transition-all hover:shadow-xl">
+    <div className="my-4 p-6 max-w-4xl bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-all hover:shadow-md">
       {/* 标题栏 */}
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
@@ -235,7 +235,7 @@ export const LineChart: React.FC<LineChartProps> = ({
  */
 export const LineChartSkeleton: React.FC = () => {
   return (
-    <div className="my-4 p-6 max-w-4xl bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 animate-pulse">
+    <div className="my-4 p-6 max-w-4xl bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 animate-pulse">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
         <div>
@@ -267,7 +267,7 @@ export const LineChartError: React.FC<{ error: string; title?: string }> = ({
   title,
 }) => {
   return (
-    <div className="my-4 p-6 max-w-4xl bg-red-50 dark:bg-red-900/20 rounded-xl shadow-lg border border-red-200 dark:border-red-800">
+    <div className="my-4 p-6 max-w-4xl bg-red-50 dark:bg-red-900/20 rounded-lg shadow-sm border border-red-200 dark:border-red-800">
       <div className="flex items-center gap-3 mb-4">
         <div className="w-10 h-10 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
           <TrendingUp className="w-6 h-6 text-red-600 dark:text-red-400" />

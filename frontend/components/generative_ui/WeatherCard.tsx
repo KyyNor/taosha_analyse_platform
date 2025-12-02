@@ -54,7 +54,7 @@ export const WeatherCard: React.FC<WeatherCardProps> = ({
   };
 
   return (
-    <div className="my-4 p-6 max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 transition-all hover:shadow-xl">
+    <div className="my-4 p-6 max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-all hover:shadow-md">
       {/* 标题栏 */}
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
@@ -127,7 +127,7 @@ export const WeatherCard: React.FC<WeatherCardProps> = ({
  */
 export const WeatherCardSkeleton: React.FC = () => {
   return (
-    <div className="my-4 p-6 max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 animate-pulse">
+    <div className="my-4 p-6 max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 animate-pulse">
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 bg-gray-300 dark:bg-gray-600 rounded"></div>
@@ -156,7 +156,7 @@ export const WeatherCardError: React.FC<{ error: string; city?: string }> = ({
   city,
 }) => {
   return (
-    <div className="my-4 p-6 max-w-md bg-red-50 dark:bg-red-900/20 rounded-xl shadow-lg border border-red-200 dark:border-red-800">
+    <div className="my-4 p-6 max-w-md bg-red-50 dark:bg-red-900/20 rounded-lg shadow-sm border border-red-200 dark:border-red-800">
       <div className="flex items-center gap-3 mb-3">
         <div className="w-10 h-10 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
           <Cloud className="w-6 h-6 text-red-600 dark:text-red-400" />

@@ -25,28 +25,28 @@ export function MessageItem({ message }: MessageItemProps) {
 
   return (
     <div className={cn(
-      "flex gap-3",
+      "flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300",
       isUser ? "justify-end" : "justify-start"
     )}>
       {/* Assistant Avatar */}
       {isAssistant && (
         <div className="flex-shrink-0">
-          <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md">
-            <Bot className="w-4 h-4" />
+          <div className="w-8 h-8 rounded-full bg-white border border-gray-200 text-primary flex items-center justify-center shadow-sm">
+            <Bot className="w-5 h-5" />
           </div>
         </div>
       )}
 
       {/* Message Content */}
       <div className={cn(
-        "max-w-2xl shadow-md break-words",
+        "max-w-3xl break-words",
         isUser ? "order-first" : "order-last"
       )}>
         <Card className={cn(
-          "border-0",
+          "border shadow-sm transition-all hover:shadow-md",
           isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-muted-foreground"
+            ? "bg-primary text-primary-foreground border-primary"
+            : "bg-white dark:bg-card border-border"
         )}>
           <CardContent className="p-4">
             {/* Main Message Content */}
@@ -77,8 +77,8 @@ export function MessageItem({ message }: MessageItemProps) {
       {/* User Avatar */}
       {isUser && (
         <div className="flex-shrink-0">
-          <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-md">
-            <User className="w-4 h-4" />
+          <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-sm">
+            <User className="w-5 h-5" />
           </div>
         </div>
       )}

@@ -144,7 +144,7 @@ export const BarChart: React.FC<BarChartProps> = ({
   }
 
   return (
-    <div className="my-4 p-6 max-w-4xl bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 transition-all hover:shadow-xl">
+    <div className="my-4 p-6 max-w-4xl bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-all hover:shadow-md">
       {/* 标题栏 */}
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900 rounded-full flex items-center justify-center">
@@ -305,7 +305,7 @@ export const BarChart: React.FC<BarChartProps> = ({
  */
 export const BarChartSkeleton: React.FC = () => {
   return (
-    <div className="my-4 p-6 max-w-4xl bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 animate-pulse">
+    <div className="my-4 p-6 max-w-4xl bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 animate-pulse">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
         <div className="flex-1">
@@ -341,7 +341,7 @@ export const BarChartError: React.FC<{ error: string; title?: string }> = ({
   title,
 }) => {
   return (
-    <div className="my-4 p-6 max-w-4xl bg-red-50 dark:bg-red-900/20 rounded-xl shadow-lg border border-red-200 dark:border-red-800">
+    <div className="my-4 p-6 max-w-4xl bg-red-50 dark:bg-red-900/20 rounded-lg shadow-sm border border-red-200 dark:border-red-800">
       <div className="flex items-center gap-3 mb-4">
         <div className="w-10 h-10 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
           <BarChart3 className="w-6 h-6 text-red-600 dark:text-red-400" />
