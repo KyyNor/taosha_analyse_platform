@@ -1,0 +1,19 @@
+这部分模块叫fraudhunter
+由于与主功能关系不大，为做区分代码都建立一个fraudhunter文件夹，例如
+backend/
+├── api/                              # API路由层
+|   ├──fraudhunter
+    │   ├── indicator_routes.py          # 指标管理API
+    │   ├── model_routes.py               # 模型管理API
+    │   ├── task_routes.py                # 任务管理API
+    │   └── backtest_routes.py            # 回测API
+
+
+业务表的开头也从af_ 改为 fraudhunter_
+前端页面路径也加一个fraudhunter/
+
+
+indicator_group 这个我是这样想的
+af_indicator_definition这个表只存一个id，在新表中存处理逻辑（SQL），如果是一个sql加工多个指标，那么这多个指标存的id就是同一个
+
+key_column、value_column、schedule_type、schedule_cron、output_table、output_partition_field 都不用
