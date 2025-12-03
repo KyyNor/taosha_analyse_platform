@@ -62,6 +62,8 @@ export default function FineReportDetailPage() {
         report_cpt_path: data.report_cpt_path,
         report_type: data.report_type,
         report_design_address: data.report_design_address,
+        report_mount_path: data.report_mount_path,
+        report_mount_type: data.report_mount_type,
         department_id: data.department_id,
         description: data.description,
         usage_scenario: data.usage_scenario,
@@ -130,6 +132,8 @@ export default function FineReportDetailPage() {
           report_cpt_path: report.report_cpt_path,
           report_type: report.report_type,
           report_design_address: report.report_design_address,
+          report_mount_path: report.report_mount_path,
+          report_mount_type: report.report_mount_type,
           department_id: report.department_id,
           description: report.description,
           usage_scenario: report.usage_scenario,
@@ -224,28 +228,18 @@ export default function FineReportDetailPage() {
           </div>
 
           <div>
-            <Label htmlFor="report-name">报表名称 *</Label>
-            {editMode ? (
-              <Input
-                id="report-name"
-                value={editData.report_name}
-                onChange={(e) => handleEditDataChange('report_name', e.target.value)}
-              />
-            ) : (
-              <div className="text-sm text-muted-foreground mt-1">{report.report_name}</div>
+            <Label htmlFor="report-name">报表名称 * <span className="text-xs text-blue-600">(同步字段)</span></Label>
+            <div className="text-sm text-muted-foreground mt-1">{report.report_name}</div>
+            {editMode && (
+              <p className="text-xs text-muted-foreground mt-1">此字段由同步服务管理，不可手动编辑</p>
             )}
           </div>
 
           <div>
-            <Label htmlFor="report-cpt-path">cpt文件路径 *</Label>
-            {editMode ? (
-              <Input
-                id="report-cpt-path"
-                value={editData.report_cpt_path}
-                onChange={(e) => handleEditDataChange('report_cpt_path', e.target.value)}
-              />
-            ) : (
-              <div className="text-sm text-muted-foreground mt-1 font-mono">{report.report_cpt_path}</div>
+            <Label htmlFor="report-cpt-path">cpt文件路径 * <span className="text-xs text-blue-600">(同步字段)</span></Label>
+            <div className="text-sm text-muted-foreground mt-1 font-mono">{report.report_cpt_path}</div>
+            {editMode && (
+              <p className="text-xs text-muted-foreground mt-1">此字段由同步服务管理，不可手动编辑</p>
             )}
           </div>
 
@@ -269,26 +263,30 @@ export default function FineReportDetailPage() {
           </div>
 
           <div>
-            <Label htmlFor="report-design-address">设计器地址 *</Label>
-            {editMode ? (
-              <select
-                id="report-design-address"
-                value={editData.report_design_address}
-                onChange={(e) => handleEditDataChange('report_design_address', e.target.value)}
-                className="w-full px-3 py-2 border rounded-md bg-background"
-                disabled={loadingDesigners}
-              >
-                <option value="">
-                  {loadingDesigners ? '加载中...' : '请选择设计器地址'}
-                </option>
-                {designerUrls.map((designer) => (
-                  <option key={designer.url} value={designer.url}>
-                    {designer.name} ({designer.url})
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="text-sm text-muted-foreground mt-1 font-mono">{report.report_design_address}</div>
+            <Label htmlFor="report-design-address">设计器地址 * <span className="text-xs text-blue-600">(同步字段)</span></Label>
+            <div className="text-sm text-muted-foreground mt-1 font-mono">{report.report_design_address}</div>
+            {editMode && (
+              <p className="text-xs text-muted-foreground mt-1">此字段由同步服务管理，不可手动编辑</p>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="report-mount-path">报表挂载路径 <span className="text-xs text-blue-600">(同步字段)</span></Label>
+            <div className="text-sm text-muted-foreground mt-1 font-mono">{report.report_mount_path || '未设置'}</div>
+            {editMode && (
+              <p className="text-xs text-muted-foreground mt-1">此字段由同步服务管理，不可手动编辑</p>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="report-mount-type">报表挂载方式 * <span className="text-xs text-blue-600">(同步字段)</span></Label>
+            <div className="text-sm text-muted-foreground mt-1">
+              <span className={`px-2 py-1 rounded text-xs ${report.report_mount_type === 'normal' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                {report.report_mount_type === 'normal' ? '正常' : '已移除'}
+              </span>
+            </div>
+            {editMode && (
+              <p className="text-xs text-muted-foreground mt-1">此字段由同步服务管理，不可手动编辑</p>
             )}
           </div>
 

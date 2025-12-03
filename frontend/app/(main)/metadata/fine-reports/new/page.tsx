@@ -19,6 +19,8 @@ export default function NewFineReportPage() {
     report_cpt_path: '',
     report_type: 'summary',
     report_design_address: '',
+    report_mount_path: '',
+    report_mount_type: 'normal',
     department_id: undefined,
     description: '',
     usage_scenario: '',
@@ -199,6 +201,35 @@ export default function NewFineReportPage() {
             </select>
             <p className="text-xs text-muted-foreground mt-1">
               选择报表所在的设计器地址
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="report-mount-path">报表挂载路径</Label>
+            <Input
+              id="report-mount-path"
+              value={reportData.report_mount_path}
+              onChange={(e) => handleReportDataChange('report_mount_path', e.target.value)}
+              placeholder="请输入报表挂载路径"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              报表在系统中的访问路径
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="report-mount-type">报表挂载方式 *</Label>
+            <select
+              id="report-mount-type"
+              value={reportData.report_mount_type}
+              onChange={(e) => handleReportDataChange('report_mount_type', e.target.value as 'normal' | 'removed')}
+              className="w-full px-3 py-2 border rounded-md bg-background"
+            >
+              <option value="normal">正常</option>
+              <option value="removed">已移除</option>
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">
+              报表的挂载状态，已移除表示报表已从系统中删除
             </p>
           </div>
 

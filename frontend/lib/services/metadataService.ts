@@ -162,6 +162,8 @@ export interface FineReport {
   report_cpt_path: string;
   report_type: 'summary' | 'detail';
   report_design_address: string;
+  report_mount_path?: string;
+  report_mount_type: 'normal' | 'removed';
   department_id?: number;
   description: string;
   usage_scenario: string;
@@ -182,6 +184,8 @@ export interface FineReportCreateData {
   report_cpt_path: string;
   report_type: 'summary' | 'detail';
   report_design_address: string;
+  report_mount_path?: string;
+  report_mount_type?: 'normal' | 'removed';
   department_id?: number;
   description?: string;
   usage_scenario?: string;
@@ -193,6 +197,8 @@ export interface FineReportUpdateData {
   report_cpt_path?: string;
   report_type?: 'summary' | 'detail';
   report_design_address?: string;
+  report_mount_path?: string;
+  report_mount_type?: 'normal' | 'removed';
   department_id?: number;
   description?: string;
   usage_scenario?: string;
