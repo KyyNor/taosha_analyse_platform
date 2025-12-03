@@ -20,6 +20,11 @@ from api.nlquey_routes import router as nlquey_router
 from api.metadata_routes import router as metadata_router
 from api.user_routes import router as user_router
 from api.agents_routes import router as agents_router
+from api.fraudhunter import (
+    indicator_group_router,
+    indicator_router,
+    task_router as fraudhunter_task_router
+)
 from services.query_engine import get_query_engine
 from services.nlquery_service.async_query_service import get_async_query_service
 from models.db_base import get_db_session
@@ -255,6 +260,12 @@ app.include_router(nlquey_router, prefix=api_prefix)
 app.include_router(metadata_router, prefix=api_prefix)
 app.include_router(user_router, prefix=api_prefix)
 app.include_router(agents_router, prefix=api_prefix)
+
+# 注册 FraudHunter 路由
+fraudhunter_prefix = f"{api_prefix}/fraudhunter"
+app.include_router(indicator_group_router, prefix=fraudhunter_prefix)
+app.include_router(indicator_router, prefix=fraudhunter_prefix)
+app.include_router(fraudhunter_task_router, prefix=fraudhunter_prefix)
 
 # API 根路径信息
 @app.get(f"{api_prefix}/", tags=["API信息"])

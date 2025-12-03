@@ -24,6 +24,16 @@ from .training_models import (
 from .agent_chat_models import (
     ChatSession
 )
+from .fraudhunter import (
+    FraudHunterIndicatorGroup,
+    FraudHunterIndicatorGroupHistory,
+    FraudHunterIndicatorDefinition,
+    FraudHunterIndicatorHistory,
+    FraudHunterModelDefinition,
+    FraudHunterModelHistory,
+    FraudHunterTaskExecution,
+    FraudHunterTaskExecutionRecord,
+)
 
 __all__ = [
     # 基础配置
@@ -58,4 +68,14 @@ __all__ = [
     "ChatSession",
     "ChatMessage",
     "AgentCheckpoint",
+
+    # FraudHunter模块
+    "FraudHunterIndicatorGroup",
+    "FraudHunterIndicatorGroupHistory",
+    "FraudHunterIndicatorDefinition",
+    "FraudHunterIndicatorHistory",
+    "FraudHunterModelDefinition",
+    "FraudHunterModelHistory",
+    "FraudHunterTaskExecution",
+    "FraudHunterTaskExecutionRecord",
 ]
