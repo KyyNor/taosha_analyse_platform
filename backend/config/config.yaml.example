@@ -138,6 +138,20 @@ fine_report:
   login_url: "http://172.20.96.1:8075/webroot/decision/login"
   user_name: ""  # 从环境变量 FINE_REPORT_USER_NAME 读取
   password: ""  # 从环境变量 FINE_REPORT_PASSWORD 读取
+  # 设计器地址列表配置
+  designer_urls:
+    - name: "生产环境设计器"
+      url: "http://172.20.96.1:8075"
+      description: "生产环境FineReport设计器"
+    - name: "测试环境设计器"
+      url: "http://172.20.96.2:8075"
+      description: "测试环境FineReport设计器"
+    - name: "开发环境设计器"
+      url: "http://172.20.96.3:8075"
+      description: "开发环境FineReport设计器"
+    - name: "老环境设计器"
+      url: "http://123.4.5.6:7788"
+      description: "老环境FineReport设计器"
   browser:
     headless: true
     timeout: 30000  # 页面加载超时（毫秒）

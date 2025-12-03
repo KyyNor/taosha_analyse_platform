@@ -149,6 +149,7 @@ class ConfigManager:
             fine_report_login_url: str = self._config_data.get('fine_report', {}).get('login_url', 'http://localhost:8075/webroot/decision/login')
             fine_report_user_name: Optional[str] = os.getenv("FINE_REPORT_USER_NAME") or self._config_data.get('fine_report', {}).get('user_name')
             fine_report_password: Optional[str] = os.getenv("FINE_REPORT_PASSWORD") or self._config_data.get('fine_report', {}).get('password')
+            fine_report_designer_urls: list = self._config_data.get('fine_report', {}).get('designer_urls', [])
             fine_report_browser_headless: bool = self._config_data.get('fine_report', {}).get('browser', {}).get('headless', True)
             fine_report_browser_timeout: int = self._config_data.get('fine_report', {}).get('browser', {}).get('timeout', 30000)
             fine_report_browser_wait_timeout: int = self._config_data.get('fine_report', {}).get('browser', {}).get('wait_timeout', 5000)

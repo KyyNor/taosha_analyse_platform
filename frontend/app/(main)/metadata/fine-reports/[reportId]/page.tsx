@@ -11,8 +11,10 @@ import {
   getFineReportById,
   updateFineReport,
   deleteFineReport,
+  getDesignerUrls,
   type FineReport,
-  type FineReportUpdateData
+  type FineReportUpdateData,
+  type DesignerUrl
 } from "@/lib/services/metadataService";
 import { ArrowLeft, Save, Edit, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
@@ -29,10 +31,25 @@ export default function FineReportDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editMode, setEditMode] = useState(isEditMode);
+  const [designerUrls, setDesignerUrls] = useState<DesignerUrl[]>([]);
+  const [loadingDesigners, setLoadingDesigners] = useState(true);
 
   useEffect(() => {
     loadReport();
+    loadDesignerUrls();
   }, [reportId]);
+
+  const loadDesignerUrls = async () => {
+    try {
+      const res = await getDesignerUrls();
+      setDesignerUrls(res.data || []);
+    } catch (error) {
+      console.error("加载设计器地址失败:", error);
+      toast.error("加载设计器地址失败");
+    } finally {
+      setLoadingDesigners(false);
+    }
+  };
 
   const loadReport = async () => {
     setLoading(true);
@@ -259,11 +276,16 @@ export default function FineReportDetailPage() {
                 value={editData.report_design_address}
                 onChange={(e) => handleEditDataChange('report_design_address', e.target.value)}
                 className="w-full px-3 py-2 border rounded-md bg-background"
+                disabled={loadingDesigners}
               >
-                <option value="">请选择设计器地址</option>
-                <option value="http://designer1.example.com">设计器1 (http://designer1.example.com)</option>
-                <option value="http://designer2.example.com">设计器2 (http://designer2.example.com)</option>
-                <option value="http://designer3.example.com">设计器3 (http://designer3.example.com)</option>
+                <option value="">
+                  {loadingDesigners ? '加载中...' : '请选择设计器地址'}
+                </option>
+                {designerUrls.map((designer) => (
+                  <option key={designer.url} value={designer.url}>
+                    {designer.name} ({designer.url})
+                  </option>
+                ))}
               </select>
             ) : (
               <div className="text-sm text-muted-foreground mt-1 font-mono">{report.report_design_address}</div>

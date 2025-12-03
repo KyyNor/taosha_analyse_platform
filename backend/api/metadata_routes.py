@@ -15,6 +15,7 @@ from models.db_base import get_db
 from services import get_metadata_service, get_glossary_service, get_relation_field_config_service, \
     get_prompt_template_service, get_data_theme_service
 from services.metadata_service.fine_report_service import get_fine_report_service
+from utils.config import settings
 from utils.logger import logger
 
 # 创建路由器
@@ -662,6 +663,17 @@ async def remove_table_from_theme(theme_id: int, table_id: int, db: Session = De
 
 
 # FineReport报表元数据管理
+@router.get("/fine-reports/designer-urls")
+async def get_designer_urls():
+    """获取FineReport设计器地址列表"""
+    try:
+        designer_urls = settings.fine_report_designer_urls
+        return {"success": True, "data": designer_urls}
+    except Exception as e:
+        logger.error(f"获取FineReport设计器地址列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/fine-reports")
 async def get_all_fine_reports(
     is_available: Optional[int] = None,

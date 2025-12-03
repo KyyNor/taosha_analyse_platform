@@ -223,3 +223,14 @@ export async function deleteFineReport(reportId: number) {
   const res = await api.delete(`/metadata/fine-reports/${reportId}`);
   return res.data;
 }
+
+export interface DesignerUrl {
+  name: string;
+  url: string;
+  description: string;
+}
+
+export async function getDesignerUrls(): Promise<{ success: boolean; data: DesignerUrl[] }> {
+  const res = await api.get("/metadata/fine-reports/designer-urls");
+  return res.data;
+}

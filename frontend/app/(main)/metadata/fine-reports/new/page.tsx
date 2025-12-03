@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { createFineReport, type FineReportCreateData } from "@/lib/services/metadataService";
+import { createFineReport, getDesignerUrls, type FineReportCreateData, type DesignerUrl } from "@/lib/services/metadataService";
 import { ArrowLeft, Save, X, Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,6 +26,24 @@ export default function NewFineReportPage() {
   });
 
   const [saving, setSaving] = useState(false);
+  const [designerUrls, setDesignerUrls] = useState<DesignerUrl[]>([]);
+  const [loadingDesigners, setLoadingDesigners] = useState(true);
+
+  // 加载设计器地址列表
+  useEffect(() => {
+    const loadDesignerUrls = async () => {
+      try {
+        const res = await getDesignerUrls();
+        setDesignerUrls(res.data || []);
+      } catch (error) {
+        console.error("加载设计器地址失败:", error);
+        toast.error("加载设计器地址失败");
+      } finally {
+        setLoadingDesigners(false);
+      }
+    };
+    loadDesignerUrls();
+  }, []);
 
   // 报表数据更新处理
   const handleReportDataChange = (field: keyof FineReportCreateData, value: any) => {
@@ -168,11 +186,16 @@ export default function NewFineReportPage() {
               value={reportData.report_design_address}
               onChange={(e) => handleReportDataChange('report_design_address', e.target.value)}
               className="w-full px-3 py-2 border rounded-md bg-background"
+              disabled={loadingDesigners}
             >
-              <option value="">请选择设计器地址</option>
-              <option value="http://designer1.example.com">设计器1 (http://designer1.example.com)</option>
-              <option value="http://designer2.example.com">设计器2 (http://designer2.example.com)</option>
-              <option value="http://designer3.example.com">设计器3 (http://designer3.example.com)</option>
+              <option value="">
+                {loadingDesigners ? '加载中...' : '请选择设计器地址'}
+              </option>
+              {designerUrls.map((designer) => (
+                <option key={designer.url} value={designer.url}>
+                  {designer.name} ({designer.url})
+                </option>
+              ))}
             </select>
             <p className="text-xs text-muted-foreground mt-1">
               选择报表所在的设计器地址
