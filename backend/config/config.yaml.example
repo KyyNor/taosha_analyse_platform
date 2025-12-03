@@ -160,5 +160,40 @@ fine_report:
     screenshot_path: "./downloads/screenshot"  # 下载目录
   download_timeout: 60000  # 下载超时（毫秒）
 
+# FineReport报表同步配置
+fine_report_sync:
+  enabled: false  # 是否启用报表同步
+
+  # 源数据库连接配置
+  source_db:
+    host: "127.0.0.1"
+    port: 3306
+    database: "fine_report_db"
+    user: "fine_report_user"
+    password: "fine_report_password"
+    charset: "utf8mb4"
+    connection_timeout: 30  # 连接超时时间（秒）
+
+  # 同步SQL查询语句，必须返回以下列：report_name, report_cpt_path, report_type, report_design_address, report_mount_path
+  # 可选字段：department_id, description, usage_scenario
+  sync_sql: |
+      SELECT
+        report_name,
+        report_cpt_path,
+        report_type,
+        report_design_address,
+        report_mount_path,
+        department_id,
+        description,
+        usage_scenario
+      FROM fine_report_metadata
+      WHERE is_deleted = 0
+
+  # 同步选项
+  options:
+    case_sensitive: false  # 报表名称是否区分大小写
+    max_retries: 3         # 最大重试次数
+    retry_delay: 1.0       # 重试延迟（秒）
+
 # 环境变量前缀
 env_prefix: "TAOSHA_"
