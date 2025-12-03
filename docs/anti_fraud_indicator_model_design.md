@@ -1,8 +1,9 @@
-# 反诈指标与模型管理系统设计文档
+# FraudHunter 反诈指标与模型管理系统设计文档
 
 ## 文档版本
-- **版本**: v1.0.0
+- **版本**: v2.0.0
 - **创建日期**: 2025-12-02
+- **更新日期**: 2025-12-03
 - **作者**: Claude Code
 - **状态**: 设计阶段
 
@@ -10,19 +11,16 @@
 
 ## 目录
 1. [项目概述](#1-项目概述)
-2. [核心问题与解决方案](#2-核心问题与解决方案)
-3. [系统架构设计](#3-系统架构设计)
-4. [数据库模型设计](#4-数据库模型设计)
-5. [后端API设计](#5-后端api设计)
-6. [服务层架构](#6-服务层架构)
-7. [前端界面设计](#7-前端界面设计)
-8. [可视化规则引擎](#8-可视化规则引擎)
-9. [指标组与动态SQL](#9-指标组与动态sql)
-10. [PySpark Streaming任务生成](#10-pyspark-streaming任务生成)
-11. [回测功能设计](#11-回测功能设计)
-12. [任务调度集成](#12-任务调度集成)
-13. [部署架构](#13-部署架构)
-14. [开发路线图](#14-开发路线图)
+2. [系统架构设计](#2-系统架构设计)
+3. [数据库模型设计](#3-数据库模型设计)
+4. [后端API设计](#4-后端api设计)
+5. [服务层架构](#5-服务层架构)
+6. [前端界面设计](#6-前端界面设计)
+7. [可视化规则引擎](#7-可视化规则引擎)
+8. [指标组与动态SQL](#8-指标组与动态sql)
+9. [异步任务执行机制](#9-异步任务执行机制)
+10. [部署架构](#10-部署架构)
+11. [开发路线图](#11-开发路线图)
 
 ---
 
@@ -38,10 +36,11 @@
 
 **系统目标**：
 - 提供开发人员友好的指标定义界面（支持SQL逻辑）
-- 实现指标组概念，减少重复计算
+- 实现指标组概念，一个SQL可加工多个指标，减少重复计算
 - 提供可视化模型定义能力，让业务人员也能定义简单模型
-- 支持模型回测和历史数据验证
-- 自动生成调度任务和PySpark Streaming代码
+- 支持指标和模型的版本管理和历史追溯
+- 支持模型试运行和历史数据验证
+- 异步任务执行，支持任务进度追踪
 
 ### 1.2 技术约束
 
@@ -56,11 +55,14 @@
 
 **第一阶段（MVP）**：
 - ✅ 指标定义（仅支持SQL，不支持PySpark代码）
-- ✅ 指标组概念（批量计算多个指标）
+- ✅ 指标组概念（一个SQL批量计算多个指标）
+- ✅ 指标版本管理和历史追溯
 - ✅ 指标试运行和结果预览
 - ✅ 简化版可视化模型定义（规则引擎方式）
-- ✅ 模型回测功能（批量历史数据验证）
+- ✅ 模型版本管理和历史追溯
+- ✅ 模型试运行功能（指定时间范围验证）
 - ✅ DolphinScheduler任务集成
+- ✅ 异步任务执行和进度追踪
 
 **第二阶段（扩展）**：
 - ⏳ PySpark代码支持（复杂指标计算）
@@ -70,89 +72,21 @@
 
 ---
 
-## 2. 核心问题与解决方案
+## 2. 系统架构设计
 
-### 2.1 问题1：指标定义方式
-
-**问题**：是否需要同时支持SQL和PySpark两种定义方式？
-
-**解决方案**：MVP阶段仅支持SQL
-
-**理由**：
-```
-┌─────────────────────────────────────────────────────────────┐
-│  90%+ 的指标场景    →  SQL完全可以覆盖                        │
-│  复杂指标(如ML特征) →  初期可以先手动开发，后续再系统化         │
-│  开发成本           →  只支持SQL可节省约40%开发工作量           │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**技术实现**：
-- 预留 `logic_type` 字段（sql/pyspark），但第一版只实现SQL解析和执行
-- 使用Spark SQL的ThriftServer JDBC接口执行SQL
-- 通过正则表达式和SQL解析库验证SQL语法
-
-### 2.2 问题2：冗余计算优化
-
-**问题**：多个指标从同一张表计算会导致重复扫描和计算
-
-**解决方案**：采用"指标组"概念
-
-**方案对比**：
-```
-┌────────────────┬─────────────┬─────────────┬──────────────┐
-│     方案       │  开发复杂度  │  运行效率   │    推荐度    │
-├────────────────┼─────────────┼─────────────┼──────────────┤
-│ 1.智能SQL合并  │    高        │    高       │    ❌        │
-│ 2.指标组批量   │    中        │    中高     │    ✅        │
-│ 3.物化中间表   │    低        │    中       │    ✅        │
-│ 4.不处理冗余   │    最低      │    低       │    初期可接受 │
-└────────────────┴─────────────┴─────────────┴──────────────┘
-```
-
-**技术实现**：
-- 定义指标时可选择归属指标组
-- 同一指标组的多个指标共享一个SQL查询
-- SQL格式要求：`SELECT account_id, indicator_code, indicator_value, dt FROM ...`
-- 系统自动识别指标组并批量执行
-
-### 2.3 问题3：模型可视化定义
-
-**问题**：能否让业务人员自己定义模型？
-
-**解决方案**：实现简化版规则引擎（非复杂拖拽式）
-
-**设计理念**：
-```
-简化版可视化 = 规则引擎（非复杂拖拽式）
-业务人员能做的：选指标 → 定阈值 → 选关系 → 生成模型
-开发人员只需：维护指标库 + 处理复杂模型
-```
-
-**技术实现**：
-- JSON配置格式存储规则定义
-- 支持AND/OR逻辑组合
-- 支持常见比较操作符（>、>=、<、<=、=、!=）
-- 前端提供表单式配置界面（而非拖拽式）
-- 后端根据JSON配置生成PySpark Streaming代码
-
----
-
-## 3. 系统架构设计
-
-### 3.1 整体架构图
+### 2.1 整体架构图
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    反诈指标模型管理系统                           │
+│                  FraudHunter 反诈指标模型管理系统                 │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
 │  │  指标管理    │  │  模型管理   │  │      任务管理           │  │
 │  │             │  │             │  │                         │  │
-│  │ ·离线指标   │  │ ·规则定义   │  │ ·DS任务生成             │  │
-│  │ ·实时指标   │  │ ·可视化配置 │  │ ·任务状态监控           │  │
-│  │ ·指标组     │  │ ·回测功能   │  │ ·Streaming任务管理      │  │
-│  │ ·试运行     │  │             │  │                         │  │
+│  │ ·离线指标   │  │ ·规则定义   │  │ ·异步任务执行           │  │
+│  │ ·指标组     │  │ ·可视化配置 │  │ ·任务状态追踪           │  │
+│  │ ·版本管理   │  │ ·版本管理   │  │ ·DS任务集成             │  │
+│  │ ·试运行     │  │ ·试运行     │  │                         │  │
 │  └──────┬──────┘  └──────┬──────┘  └───────────┬─────────────┘  │
 │         │                │                     │                │
 ├─────────┴────────────────┴─────────────────────┴────────────────┤
@@ -162,7 +96,7 @@
 │  │             │  │             │  │                         │  │
 │  │ ·语法校验   │  │ ·指标SQL    │  │ ·DS REST API            │  │
 │  │ ·字段提取   │  │ ·PySpark    │  │ ·任务DAG生成            │  │
-│  │ ·依赖分析   │  │   Streaming │  │                         │  │
+│  │ ·依赖分析   │  │   Streaming │  │ ·任务状态同步           │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
 ├─────────────────────────────────────────────────────────────────┤
 │                         数据层                                   │
@@ -189,7 +123,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.2 技术栈选型
+### 2.2 技术栈选型
 
 **后端技术栈**：
 - **Web框架**：FastAPI 0.116+（异步支持、自动文档）
@@ -214,126 +148,196 @@
 - **查询引擎**：Spark SQL (ThriftServer)
 - **任务调度**：DolphinScheduler
 
-### 3.3 模块划分
+### 2.3 模块划分
 
 **后端模块**：
 ```
 backend/
-├── api/                              # API路由层
-│   ├── indicator_routes.py          # 指标管理API
-│   ├── model_routes.py               # 模型管理API
-│   ├── task_routes.py                # 任务管理API
-│   └── backtest_routes.py            # 回测API
-├── services/                         # 服务层
-│   ├── indicator_service/            # 指标服务
-│   │   ├── indicator_manager.py     # 指标CRUD
-│   │   ├── indicator_executor.py    # 指标执行
-│   │   ├── indicator_group_manager.py # 指标组管理
-│   │   └── sql_validator.py         # SQL验证
-│   ├── model_service/                # 模型服务
-│   │   ├── model_manager.py         # 模型CRUD
-│   │   ├── rule_engine.py           # 规则引擎
-│   │   ├── code_generator.py        # 代码生成
-│   │   └── backtest_service.py      # 回测服务
-│   ├── scheduler_service/            # 调度服务
-│   │   ├── dolphin_client.py        # DS客户端
-│   │   └── task_manager.py          # 任务管理
-│   └── spark_service/                # Spark服务
-│       ├── spark_jdbc_client.py     # JDBC客户端
-│       └── streaming_deployer.py    # Streaming部署
-├── models/                           # 数据模型
-│   ├── indicator.py                  # 指标模型
-│   ├── model.py                      # 模型模型
-│   ├── task.py                       # 任务模型
-│   └── execution.py                  # 执行记录
-└── utils/                            # 工具类
-    ├── sql_parser.py                 # SQL解析
-    ├── template_engine.py            # 模板引擎
-    └── validator.py                  # 验证器
+├── api/
+│   └── fraudhunter/                    # FraudHunter API路由层
+│       ├── indicator_routes.py         # 指标管理API
+│       ├── model_routes.py             # 模型管理API
+│       └── task_routes.py              # 任务管理API
+├── services/
+│   └── fraudhunter/                    # FraudHunter服务层
+│       ├── indicator_service/          # 指标服务
+│       │   ├── indicator_manager.py    # 指标CRUD
+│       │   ├── indicator_executor.py   # 指标执行
+│       │   ├── indicator_group_manager.py # 指标组管理
+│       │   └── sql_validator.py        # SQL验证
+│       ├── model_service/              # 模型服务
+│       │   ├── model_manager.py        # 模型CRUD
+│       │   ├── rule_engine.py          # 规则引擎
+│       │   ├── code_generator.py       # 代码生成
+│       │   └── model_executor.py       # 模型执行
+│       ├── scheduler_service/          # 调度服务
+│       │   ├── dolphin_client.py       # DS客户端
+│       │   └── task_manager.py         # 任务管理
+│       └── spark_service/              # Spark服务
+│           ├── spark_jdbc_client.py    # JDBC客户端
+│           └── streaming_deployer.py   # Streaming部署
+├── models/
+│   └── fraudhunter/                    # FraudHunter数据模型
+│       ├── indicator.py                # 指标模型
+│       ├── model.py                    # 模型模型
+│       ├── task.py                     # 任务模型
+│       └── execution.py                # 执行记录
+└── utils/                              # 工具类
+    ├── sql_parser.py                   # SQL解析
+    ├── template_engine.py              # 模板引擎
+    └── validator.py                    # 验证器
 ```
 
 **前端模块**：
 ```
 frontend/
 ├── app/(main)/
-│   ├── indicators/                   # 指标管理页面
-│   │   ├── page.tsx                 # 指标列表
-│   │   ├── [id]/page.tsx            # 指标详情/编辑
-│   │   └── create/page.tsx          # 创建指标
-│   ├── models/                       # 模型管理页面
-│   │   ├── page.tsx                 # 模型列表
-│   │   ├── [id]/page.tsx            # 模型详情/编辑
-│   │   └── create/page.tsx          # 创建模型
-│   ├── tasks/                        # 任务管理页面
-│   │   ├── page.tsx                 # 任务列表
-│   │   └── [id]/page.tsx            # 任务详情
-│   └── backtest/                     # 回测页面
-│       └── [modelId]/page.tsx       # 模型回测
+│   └── fraudhunter/                    # FraudHunter前端页面
+│       ├── indicators/                 # 指标管理页面
+│       │   ├── page.tsx               # 指标列表
+│       │   ├── [id]/page.tsx          # 指标详情/编辑
+│       │   └── create/page.tsx        # 创建指标
+│       ├── models/                     # 模型管理页面
+│       │   ├── page.tsx               # 模型列表
+│       │   ├── [id]/page.tsx          # 模型详情/编辑
+│       │   └── create/page.tsx        # 创建模型
+│       └── tasks/                      # 任务管理页面
+│           ├── page.tsx               # 任务列表
+│           └── [id]/page.tsx          # 任务详情
 ├── components/
-│   ├── indicator/                    # 指标相关组件
-│   │   ├── IndicatorForm.tsx        # 指标表单
-│   │   ├── SQLEditor.tsx            # SQL编辑器
-│   │   ├── IndicatorPreview.tsx     # 指标预览
-│   │   └── IndicatorGroupSelector.tsx # 指标组选择
-│   ├── model/                        # 模型相关组件
-│   │   ├── RuleBuilder.tsx          # 规则构建器
-│   │   ├── RulePreview.tsx          # 规则预览
-│   │   └── ModelDashboard.tsx       # 模型仪表板
-│   └── task/                         # 任务相关组件
-│       ├── TaskList.tsx             # 任务列表
-│       └── TaskMonitor.tsx          # 任务监控
+│   └── fraudhunter/                    # FraudHunter组件
+│       ├── indicator/                  # 指标相关组件
+│       │   ├── IndicatorForm.tsx      # 指标表单
+│       │   ├── SQLEditor.tsx          # SQL编辑器
+│       │   ├── IndicatorPreview.tsx   # 指标预览
+│       │   └── IndicatorGroupSelector.tsx # 指标组选择
+│       ├── model/                      # 模型相关组件
+│       │   ├── RuleBuilder.tsx        # 规则构建器
+│       │   ├── RulePreview.tsx        # 规则预览
+│       │   └── ModelDashboard.tsx     # 模型仪表板
+│       └── task/                       # 任务相关组件
+│           ├── TaskList.tsx           # 任务列表
+│           └── TaskMonitor.tsx        # 任务监控
 └── lib/
-    ├── services/
-    │   ├── indicatorService.ts      # 指标服务
-    │   ├── modelService.ts          # 模型服务
-    │   └── taskService.ts           # 任务服务
-    └── types/
-        ├── indicator.ts             # 指标类型
-        ├── model.ts                 # 模型类型
-        └── task.ts                  # 任务类型
+    └── services/
+        └── fraudhunter/                # FraudHunter服务
+            ├── indicatorService.ts     # 指标服务
+            ├── modelService.ts         # 模型服务
+            └── taskService.ts          # 任务服务
 ```
 
 ---
 
-## 4. 数据库模型设计
+## 3. 数据库模型设计
 
-### 4.1 元数据存储（MySQL）
+### 3.1 核心设计理念
 
-#### 4.1.1 指标定义表
+**指标组概念**：
+- 指标定义表(`fraudhunter_indicator_definition`)只存储指标元信息和指标组ID
+- 指标组表(`fraudhunter_indicator_group`)存储SQL加工逻辑
+- 同一个指标组的多个指标共享同一个SQL，SQL一次执行产出多个指标
+
+**版本管理**：
+- 指标和模型都有版本历史表
+- 主表存储当前发布版本和最新版本号
+- 历史表记录所有版本变更
+
+### 3.2 元数据存储（MySQL）
+
+#### 3.2.1 指标组表
+
+```sql
+-- 指标组表（存储SQL加工逻辑）
+CREATE TABLE fraudhunter_indicator_group (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    group_code VARCHAR(64) NOT NULL UNIQUE COMMENT '指标组编码',
+    group_name VARCHAR(128) NOT NULL COMMENT '指标组名称',
+    description TEXT COMMENT '描述',
+
+    -- 加工逻辑
+    logic_type VARCHAR(16) DEFAULT 'sql' COMMENT '逻辑类型：sql/pyspark（预留）',
+    logic_content TEXT NOT NULL COMMENT 'SQL内容或代码',
+
+    -- 数据源配置
+    source_tables VARCHAR(512) COMMENT '依赖的源表列表，逗号分隔',
+
+    -- 输出配置
+    output_table VARCHAR(128) COMMENT '输出表名',
+    output_mode VARCHAR(16) DEFAULT 'row' COMMENT '输出模式：row（行存）',
+
+    -- 版本管理
+    current_version INT DEFAULT 1 COMMENT '当前发布版本',
+    latest_version INT DEFAULT 1 COMMENT '最新版本号',
+
+    -- 状态管理
+    status VARCHAR(16) DEFAULT 'draft' COMMENT '状态：draft/testing/online/offline/archived',
+
+    -- 审计字段
+    created_by VARCHAR(64) COMMENT '创建人',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_by VARCHAR(64) COMMENT '更新人',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+
+    INDEX idx_group_code (group_code),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='指标组表';
+```
+
+#### 3.2.2 指标组版本历史表
+
+```sql
+-- 指标组版本历史表
+CREATE TABLE fraudhunter_indicator_group_history (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    group_id BIGINT NOT NULL COMMENT '指标组ID',
+    version INT NOT NULL COMMENT '版本号',
+
+    -- 历史快照（JSON格式存储完整配置）
+    group_code VARCHAR(64) NOT NULL COMMENT '指标组编码',
+    group_name VARCHAR(128) NOT NULL COMMENT '指标组名称',
+    description TEXT COMMENT '描述',
+    logic_type VARCHAR(16) COMMENT '逻辑类型',
+    logic_content TEXT COMMENT 'SQL内容',
+    source_tables VARCHAR(512) COMMENT '源表列表',
+
+    -- 变更信息
+    change_type VARCHAR(16) NOT NULL COMMENT '变更类型：create/update/publish/archive',
+    change_description TEXT COMMENT '变更说明',
+
+    -- 审计字段
+    created_by VARCHAR(64) COMMENT '创建人',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+
+    UNIQUE KEY uk_group_version (group_id, version),
+    INDEX idx_group_id (group_id),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='指标组版本历史表';
+```
+
+#### 3.2.3 指标定义表
 
 ```sql
 -- 指标定义表
-CREATE TABLE af_indicator_definition (
+CREATE TABLE fraudhunter_indicator_definition (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     indicator_code VARCHAR(64) NOT NULL UNIQUE COMMENT '指标编码，如 i_login_cnt_7d',
     indicator_name VARCHAR(128) NOT NULL COMMENT '指标名称',
     indicator_type VARCHAR(16) NOT NULL COMMENT '指标类型：offline/realtime',
     description TEXT COMMENT '指标描述',
 
-    -- 加工逻辑
-    logic_type VARCHAR(16) DEFAULT 'sql' COMMENT '逻辑类型：sql/pyspark（预留）',
-    logic_content TEXT NOT NULL COMMENT 'SQL内容或代码',
+    -- 数据类型
+    data_type VARCHAR(16) NOT NULL COMMENT '数据类型：numeric/enum/text/boolean',
+    enum_values TEXT COMMENT '枚举值（当data_type=enum时，JSON数组格式）',
 
-    -- 指标组（解决冗余计算）
-    indicator_group VARCHAR(64) COMMENT '指标组编码，同组指标可合并计算',
-    source_tables VARCHAR(512) COMMENT '依赖的源表列表，逗号分隔',
+    -- 指标组关联
+    indicator_group_id BIGINT NOT NULL COMMENT '指标组ID',
 
-    -- 输出约束
-    key_column VARCHAR(64) DEFAULT 'account_id' COMMENT '主键列名',
-    value_column VARCHAR(64) DEFAULT 'indicator_value' COMMENT '指标值列名',
-
-    -- 调度配置
-    schedule_type VARCHAR(16) DEFAULT 'daily' COMMENT '调度类型：daily/hourly/realtime',
-    schedule_cron VARCHAR(64) COMMENT '调度周期cron表达式',
-    ds_task_id BIGINT COMMENT 'DolphinScheduler任务ID',
-
-    -- 输出配置
-    output_table VARCHAR(128) COMMENT '输出表名',
-    output_partition_field VARCHAR(64) DEFAULT 'dt' COMMENT '分区字段',
+    -- 版本管理
+    current_version INT DEFAULT 1 COMMENT '当前发布版本',
+    latest_version INT DEFAULT 1 COMMENT '最新版本号',
 
     -- 状态管理
     status VARCHAR(16) DEFAULT 'draft' COMMENT '状态：draft/testing/online/offline/archived',
-    version INT DEFAULT 1 COMMENT '版本号',
 
     -- 审计字段
     created_by VARCHAR(64) COMMENT '创建人',
@@ -342,21 +346,53 @@ CREATE TABLE af_indicator_definition (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
     INDEX idx_indicator_code (indicator_code),
-    INDEX idx_indicator_group (indicator_group),
+    INDEX idx_indicator_group_id (indicator_group_id),
     INDEX idx_status (status),
-    INDEX idx_indicator_type (indicator_type)
+    INDEX idx_indicator_type (indicator_type),
+    FOREIGN KEY (indicator_group_id) REFERENCES fraudhunter_indicator_group(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='指标定义表';
 ```
 
-#### 4.1.2 模型定义表
+#### 3.2.4 指标定义版本历史表
+
+```sql
+-- 指标定义版本历史表
+CREATE TABLE fraudhunter_indicator_history (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    indicator_id BIGINT NOT NULL COMMENT '指标ID',
+    version INT NOT NULL COMMENT '版本号',
+
+    -- 历史快照
+    indicator_code VARCHAR(64) NOT NULL COMMENT '指标编码',
+    indicator_name VARCHAR(128) NOT NULL COMMENT '指标名称',
+    indicator_type VARCHAR(16) NOT NULL COMMENT '指标类型',
+    description TEXT COMMENT '描述',
+    data_type VARCHAR(16) COMMENT '数据类型',
+    enum_values TEXT COMMENT '枚举值',
+    indicator_group_id BIGINT COMMENT '指标组ID',
+
+    -- 变更信息
+    change_type VARCHAR(16) NOT NULL COMMENT '变更类型：create/update/publish/archive',
+    change_description TEXT COMMENT '变更说明',
+
+    -- 审计字段
+    created_by VARCHAR(64) COMMENT '创建人',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+
+    UNIQUE KEY uk_indicator_version (indicator_id, version),
+    INDEX idx_indicator_id (indicator_id),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='指标定义版本历史表';
+```
+
+#### 3.2.5 模型定义表
 
 ```sql
 -- 模型定义表
-CREATE TABLE af_model_definition (
+CREATE TABLE fraudhunter_model_definition (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     model_code VARCHAR(64) NOT NULL UNIQUE COMMENT '模型编码',
     model_name VARCHAR(128) NOT NULL COMMENT '模型名称',
-    model_type VARCHAR(16) DEFAULT 'rule_based' COMMENT '模型类型：rule_based/ml_based（预留）',
     description TEXT COMMENT '模型描述',
 
     -- 模型规则（JSON格式存储可视化定义）
@@ -408,12 +444,6 @@ CREATE TABLE af_model_definition (
     -- 关联指标
     indicator_codes TEXT COMMENT '使用的指标编码列表，JSON数组',
 
-    -- 实时流配置
-    stream_source VARCHAR(256) COMMENT 'Kafka topic',
-    stream_consumer_group VARCHAR(128) COMMENT 'Kafka消费者组',
-    window_type VARCHAR(16) COMMENT '窗口类型：tumbling/sliding/session',
-    window_seconds INT DEFAULT 0 COMMENT '窗口大小（秒），0表示无窗口',
-
     -- 输出配置
     output_table VARCHAR(128) COMMENT '输出表名',
     output_partition_field VARCHAR(64) DEFAULT 'dt' COMMENT '分区字段',
@@ -422,17 +452,12 @@ CREATE TABLE af_model_definition (
     generated_code TEXT COMMENT '生成的PySpark代码',
     code_version INT DEFAULT 1 COMMENT '代码版本',
 
-    -- 调度配置
-    ds_task_id BIGINT COMMENT 'DolphinScheduler任务ID（实时模型用于监控任务）',
+    -- 版本管理
+    current_version INT DEFAULT 1 COMMENT '当前发布版本',
+    latest_version INT DEFAULT 1 COMMENT '最新版本号',
 
     -- 状态管理
     status VARCHAR(16) DEFAULT 'draft' COMMENT '状态：draft/testing/online/offline/archived',
-
-    -- 性能指标（回测后填充）
-    backtest_precision DECIMAL(5,4) COMMENT '回测精确率',
-    backtest_recall DECIMAL(5,4) COMMENT '回测召回率',
-    backtest_f1_score DECIMAL(5,4) COMMENT '回测F1分数',
-    last_backtest_time TIMESTAMP COMMENT '最后回测时间',
 
     -- 审计字段
     created_by VARCHAR(64) COMMENT '创建人',
@@ -441,76 +466,62 @@ CREATE TABLE af_model_definition (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
     INDEX idx_model_code (model_code),
-    INDEX idx_status (status),
-    INDEX idx_model_type (model_type)
+    INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型定义表';
 ```
 
-#### 4.1.3 指标组定义表
+#### 3.2.6 模型定义版本历史表
 
 ```sql
--- 指标组定义表
-CREATE TABLE af_indicator_group (
+-- 模型定义版本历史表
+CREATE TABLE fraudhunter_model_history (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    group_code VARCHAR(64) NOT NULL UNIQUE COMMENT '指标组编码',
-    group_name VARCHAR(128) NOT NULL COMMENT '指标组名称',
+    model_id BIGINT NOT NULL COMMENT '模型ID',
+    version INT NOT NULL COMMENT '版本号',
+
+    -- 历史快照
+    model_code VARCHAR(64) NOT NULL COMMENT '模型编码',
+    model_name VARCHAR(128) NOT NULL COMMENT '模型名称',
     description TEXT COMMENT '描述',
-
-    -- 数据源配置
-    source_tables VARCHAR(512) COMMENT '共享的源表列表',
-    base_sql TEXT COMMENT '基础查询SQL（可选，用于预处理）',
-
-    -- 输出配置
+    rule_config JSON COMMENT '规则配置',
+    indicator_codes TEXT COMMENT '指标编码列表',
     output_table VARCHAR(128) COMMENT '输出表名',
-    output_mode VARCHAR(16) DEFAULT 'row' COMMENT '输出模式：row/wide',
+    output_partition_field VARCHAR(64) COMMENT '分区字段',
+    generated_code TEXT COMMENT '生成的代码',
 
-    -- 调度配置
-    schedule_type VARCHAR(16) DEFAULT 'daily' COMMENT '调度类型',
-    schedule_cron VARCHAR(64) COMMENT '调度周期',
-    ds_task_id BIGINT COMMENT 'DolphinScheduler任务ID',
-
-    -- 状态
-    status VARCHAR(16) DEFAULT 'draft' COMMENT '状态',
+    -- 变更信息
+    change_type VARCHAR(16) NOT NULL COMMENT '变更类型：create/update/publish/archive',
+    change_description TEXT COMMENT '变更说明',
 
     -- 审计字段
     created_by VARCHAR(64) COMMENT '创建人',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    updated_by VARCHAR(64) COMMENT '更新人',
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
-    INDEX idx_group_code (group_code),
-    INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='指标组定义表';
+    UNIQUE KEY uk_model_version (model_id, version),
+    INDEX idx_model_id (model_id),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型定义版本历史表';
 ```
 
-#### 4.1.4 任务执行记录表
+#### 3.2.7 任务执行表
 
 ```sql
--- 任务执行记录表
-CREATE TABLE af_task_execution (
+-- 任务执行表
+CREATE TABLE fraudhunter_task_execution (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    task_type VARCHAR(32) NOT NULL COMMENT '任务类型：indicator/model/backtest',
-    task_id VARCHAR(128) NOT NULL COMMENT '任务标识（指标/模型的ID或代码）',
+    task_type VARCHAR(32) NOT NULL COMMENT '任务类型：indicator/model',
+    task_id BIGINT NOT NULL COMMENT '任务关联ID（指标组ID或模型ID）',
     execution_id VARCHAR(64) NOT NULL UNIQUE COMMENT '执行ID（UUID）',
 
     -- 执行信息
-    execution_type VARCHAR(16) COMMENT '执行类型：scheduled/manual/backtest',
     start_time TIMESTAMP COMMENT '开始时间',
     end_time TIMESTAMP COMMENT '结束时间',
-    duration_seconds INT COMMENT '执行时长（秒）',
 
     -- 状态
-    status VARCHAR(16) DEFAULT 'running' COMMENT '状态：running/success/failed/cancelled',
-    error_message TEXT COMMENT '错误信息',
-
-    -- 执行参数
-    parameters JSON COMMENT '执行参数（分区、配置等）',
+    status VARCHAR(16) DEFAULT 'pending' COMMENT '状态：pending/running/success/failed/cancelled',
 
     -- 执行结果
     result_summary JSON COMMENT '结果摘要（处理记录数、命中数等）',
-
-    -- 资源使用
-    spark_app_id VARCHAR(128) COMMENT 'Spark Application ID',
 
     -- 审计字段
     created_by VARCHAR(64) COMMENT '触发人',
@@ -520,65 +531,46 @@ CREATE TABLE af_task_execution (
     INDEX idx_execution_id (execution_id),
     INDEX idx_status (status),
     INDEX idx_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务执行记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务执行表';
 ```
 
-#### 4.1.5 回测记录表
+#### 3.2.8 任务执行详细记录表
 
 ```sql
--- 回测记录表
-CREATE TABLE af_backtest_record (
+-- 任务执行详细记录表
+CREATE TABLE fraudhunter_task_execution_record (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    backtest_id VARCHAR(64) NOT NULL UNIQUE COMMENT '回测ID（UUID）',
-    model_id BIGINT NOT NULL COMMENT '模型ID',
-    model_code VARCHAR(64) NOT NULL COMMENT '模型编码',
+    execution_id VARCHAR(64) NOT NULL COMMENT '执行ID',
 
-    -- 回测配置
-    start_date DATE NOT NULL COMMENT '回测开始日期',
-    end_date DATE NOT NULL COMMENT '回测结束日期',
-    sample_size INT COMMENT '样本数量',
+    -- 执行详情
+    etl_date DATE COMMENT 'ETL日期',
+    version INT COMMENT '执行版本号',
 
-    -- 回测结果
-    total_records INT COMMENT '总记录数',
-    hit_records INT COMMENT '命中记录数',
-    true_positive INT COMMENT '真阳性',
-    false_positive INT COMMENT '假阳性',
-    true_negative INT COMMENT '真阴性',
-    false_negative INT COMMENT '假阴性',
+    -- 执行参数
+    parameters JSON COMMENT '执行参数（配置、环境变量等）',
 
-    -- 性能指标
-    precision_score DECIMAL(5,4) COMMENT '精确率',
-    recall_score DECIMAL(5,4) COMMENT '召回率',
-    f1_score DECIMAL(5,4) COMMENT 'F1分数',
-    accuracy_score DECIMAL(5,4) COMMENT '准确率',
-
-    -- 执行信息
-    execution_id VARCHAR(64) COMMENT '关联的执行ID',
-    start_time TIMESTAMP COMMENT '开始时间',
-    end_time TIMESTAMP COMMENT '结束时间',
-    duration_seconds INT COMMENT '执行时长',
-
-    -- 状态
-    status VARCHAR(16) DEFAULT 'running' COMMENT '状态',
+    -- 执行日志
+    log_content TEXT COMMENT '执行日志',
     error_message TEXT COMMENT '错误信息',
 
-    -- 结果详情
-    result_detail JSON COMMENT '详细结果（样本数据、混淆矩阵等）',
+    -- 执行统计
+    rows_processed BIGINT COMMENT '处理行数',
+    rows_output BIGINT COMMENT '输出行数',
+    duration_seconds INT COMMENT '执行时长（秒）',
 
     -- 审计字段
-    created_by VARCHAR(64) COMMENT '创建人',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
 
-    INDEX idx_model_id (model_id),
-    INDEX idx_backtest_id (backtest_id),
-    INDEX idx_status (status),
-    INDEX idx_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='回测记录表';
+    INDEX idx_execution_id (execution_id),
+    INDEX idx_etl_date (etl_date),
+    INDEX idx_created_at (created_at),
+    FOREIGN KEY (execution_id) REFERENCES fraudhunter_task_execution(execution_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务执行详细记录表';
 ```
 
-### 4.2 数据层存储（Hive）
+### 3.3 数据层存储（Hive）
 
-#### 4.2.1 指标结果表（行存格式）
+#### 3.3.1 指标结果表（行存格式）
 
 ```sql
 -- Hive表：指标结果表（行存储）
@@ -586,7 +578,7 @@ CREATE TABLE IF NOT EXISTS anti_fraud.indicator_result_row (
     account_id STRING COMMENT '账户ID',
     indicator_code STRING COMMENT '指标编码',
     indicator_value STRING COMMENT '指标值',
-    indicator_type STRING COMMENT '指标类型（数值/字符串/布尔）',
+    indicator_type STRING COMMENT '指标类型（数值/枚举/文本/布尔）',
     data_date DATE COMMENT '数据日期',
     calculate_time TIMESTAMP COMMENT '计算时间'
 )
@@ -599,7 +591,7 @@ TBLPROPERTIES (
 );
 ```
 
-#### 4.2.2 指标宽表（动态生成）
+#### 3.3.2 指标宽表（动态生成）
 
 ```sql
 -- Hive表：指标宽表（通过动态SQL从行表生成）
@@ -621,100 +613,40 @@ TBLPROPERTIES (
 );
 ```
 
-#### 4.2.3 模型命中结果表
-
-```sql
--- Hive表：模型命中结果表
-CREATE TABLE IF NOT EXISTS anti_fraud.model_hit_result (
-    hit_id STRING COMMENT '命中ID（UUID）',
-    account_id STRING COMMENT '账户ID',
-    model_code STRING COMMENT '模型编码',
-    hit_time TIMESTAMP COMMENT '命中时间',
-
-    -- 风险评估
-    risk_level STRING COMMENT '风险等级：low/medium/high/critical',
-    risk_score INT COMMENT '风险分数 0-100',
-
-    -- 命中详情
-    hit_reason STRING COMMENT '命中原因（JSON格式）',
-    /*
-    示例：
-    {
-      "matched_rules": [
-        {
-          "indicator": "i_login_cnt_7d",
-          "expected": "> 10",
-          "actual": 15
-        },
-        {
-          "indicator": "i_trans_amt_1d",
-          "expected": "> 50000",
-          "actual": 65000.00
-        }
-      ]
-    }
-    */
-
-    -- 指标快照
-    indicator_snapshot STRING COMMENT '命中时的指标快照（JSON格式）',
-
-    -- 处理建议
-    suggested_action STRING COMMENT '建议操作：alert/review/block',
-
-    -- 数据日期
-    data_date DATE COMMENT '数据日期',
-
-    -- 元数据
-    model_version INT COMMENT '模型版本',
-    stream_timestamp TIMESTAMP COMMENT '流处理时间戳'
-)
-PARTITIONED BY (dt STRING COMMENT '分区日期 YYYYMMDD')
-STORED AS PARQUET
-LOCATION '/user/hive/warehouse/anti_fraud.db/model_hit_result'
-TBLPROPERTIES (
-    'parquet.compression'='snappy',
-    'description'='反诈模型命中结果表'
-);
-```
-
 ---
 
-## 5. 后端API设计
+## 4. 后端API设计
 
-### 5.1 API路由规范
+### 4.1 API路由规范
 
-**基础路径**: `/api/taosha/v1/anti-fraud`
+**基础路径**: `/api/taosha/v1/fraudhunter`
 
 **路由组织**:
 ```
-/api/taosha/v1/anti-fraud
-├── /indicators              # 指标管理
+/api/taosha/v1/fraudhunter
 ├── /indicator-groups        # 指标组管理
+├── /indicators              # 指标管理
 ├── /models                  # 模型管理
-├── /tasks                   # 任务管理
-└── /backtest                # 回测功能
+└── /tasks                   # 任务管理
 ```
 
-### 5.2 指标管理API
+### 4.2 指标组管理API
 
-#### 5.2.1 创建指标
+#### 4.2.1 创建指标组
 
 ```http
-POST /api/taosha/v1/anti-fraud/indicators
+POST /api/taosha/v1/fraudhunter/indicator-groups
 Content-Type: application/json
 
 {
-  "indicator_code": "i_login_cnt_7d",
-  "indicator_name": "7天登录次数",
-  "indicator_type": "offline",
-  "description": "统计账户最近7天的登录次数",
+  "group_code": "login_behavior",
+  "group_name": "登录行为指标组",
+  "description": "统计用户登录相关的多个指标",
   "logic_type": "sql",
-  "logic_content": "SELECT account_id, 'i_login_cnt_7d' as indicator_code, COUNT(DISTINCT login_date) as indicator_value, CURRENT_DATE as dt FROM user_login WHERE login_date >= DATE_SUB(CURRENT_DATE, 7) GROUP BY account_id",
-  "indicator_group": "login_behavior",
-  "source_tables": "user_login",
-  "schedule_type": "daily",
-  "schedule_cron": "0 2 * * *",
-  "output_table": "anti_fraud.indicator_result_row"
+  "logic_content": "SELECT account_id, indicator_code, indicator_value, CURRENT_DATE as dt FROM user_login WHERE login_date >= DATE_SUB(CURRENT_DATE, 7) GROUP BY account_id",
+  "source_tables": "user_login,user_session",
+  "output_table": "anti_fraud.indicator_result_row",
+  "output_mode": "row"
 }
 ```
 
@@ -725,23 +657,25 @@ Content-Type: application/json
   "message": "success",
   "data": {
     "id": 1,
-    "indicator_code": "i_login_cnt_7d",
+    "group_code": "login_behavior",
+    "current_version": 1,
+    "latest_version": 1,
     "status": "draft",
-    "version": 1,
     "created_at": "2025-12-02T10:00:00Z"
   }
 }
 ```
 
-#### 5.2.2 试运行指标
+#### 4.2.2 指标组试运行
 
 ```http
-POST /api/taosha/v1/anti-fraud/indicators/{id}/dry-run
+POST /api/taosha/v1/fraudhunter/indicator-groups/{id}/dry-run
 Content-Type: application/json
 
 {
-  "sample_size": 100,
-  "partition": "20251201"
+  "etl_date": "2025-10-20",
+  "group_version": 1,
+  "sample_size": 100
 }
 ```
 
@@ -751,65 +685,47 @@ Content-Type: application/json
   "code": 0,
   "message": "success",
   "data": {
-    "execution_id": "550e8400-e29b-41d4-a716-446655440000",
-    "status": "success",
-    "duration_seconds": 5.2,
-    "sample_result": [
-      {
-        "account_id": "ACC001",
-        "indicator_code": "i_login_cnt_7d",
-        "indicator_value": "5",
-        "dt": "20251201"
-      },
-      {
-        "account_id": "ACC002",
-        "indicator_code": "i_login_cnt_7d",
-        "indicator_value": "12",
-        "dt": "20251201"
-      }
-    ],
-    "total_records": 10000,
-    "validation": {
-      "has_required_fields": true,
-      "field_types_correct": true,
-      "warnings": []
-    }
+    "task_id": "task_550e8400-e29b-41d4-a716-446655440000",
+    "status": "pending",
+    "message": "任务已提交，请通过task_id查询进度"
   }
 }
 ```
 
-#### 5.2.3 发布指标到DolphinScheduler
+#### 4.2.3 发布指标组
 
 ```http
-POST /api/taosha/v1/anti-fraud/indicators/{id}/publish
+POST /api/taosha/v1/fraudhunter/indicator-groups/{id}/publish
 Content-Type: application/json
 
 {
-  "project_name": "anti_fraud",
-  "workflow_name": "indicator_calculation"
+  "version": 1,
+  "change_description": "首次发布"
 }
 ```
 
-**响应**:
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "indicator_id": 1,
-    "ds_task_id": 12345,
-    "ds_task_code": "indicator_i_login_cnt_7d",
-    "workflow_instance_id": 67890,
-    "status": "online",
-    "schedule_url": "http://dolphinscheduler:12345/dolphinscheduler/projects/1/workflow/definition/67890"
-  }
-}
-```
+### 4.3 指标管理API
 
-#### 5.2.4 查询指标列表
+#### 4.3.1 创建指标
 
 ```http
-GET /api/taosha/v1/anti-fraud/indicators?page=1&page_size=20&status=online&indicator_type=offline&indicator_group=login_behavior
+POST /api/taosha/v1/fraudhunter/indicators
+Content-Type: application/json
+
+{
+  "indicator_code": "i_login_cnt_7d",
+  "indicator_name": "7天登录次数",
+  "indicator_type": "offline",
+  "description": "统计账户最近7天的登录次数",
+  "data_type": "numeric",
+  "indicator_group_id": 1
+}
+```
+
+#### 4.3.2 查询指标列表
+
+```http
+GET /api/taosha/v1/fraudhunter/indicators?page=1&page_size=20&status=online&indicator_type=offline&indicator_group_id=1
 ```
 
 **响应**:
@@ -827,11 +743,11 @@ GET /api/taosha/v1/anti-fraud/indicators?page=1&page_size=20&status=online&indic
         "indicator_code": "i_login_cnt_7d",
         "indicator_name": "7天登录次数",
         "indicator_type": "offline",
-        "indicator_group": "login_behavior",
+        "data_type": "numeric",
+        "indicator_group_id": 1,
+        "current_version": 2,
+        "latest_version": 3,
         "status": "online",
-        "ds_task_id": 12345,
-        "last_execution_time": "2025-12-02T02:00:00Z",
-        "last_execution_status": "success",
         "created_at": "2025-11-01T10:00:00Z"
       }
     ]
@@ -839,85 +755,17 @@ GET /api/taosha/v1/anti-fraud/indicators?page=1&page_size=20&status=online&indic
 }
 ```
 
-#### 5.2.5 获取指标详情
+### 4.4 模型管理API
+
+#### 4.4.1 创建模型
 
 ```http
-GET /api/taosha/v1/anti-fraud/indicators/{id}
-```
-
-#### 5.2.6 更新指标
-
-```http
-PUT /api/taosha/v1/anti-fraud/indicators/{id}
-Content-Type: application/json
-
-{
-  "description": "更新后的描述",
-  "logic_content": "更新后的SQL"
-}
-```
-
-#### 5.2.7 删除指标
-
-```http
-DELETE /api/taosha/v1/anti-fraud/indicators/{id}
-```
-
-### 5.3 指标组管理API
-
-#### 5.3.1 创建指标组
-
-```http
-POST /api/taosha/v1/anti-fraud/indicator-groups
-Content-Type: application/json
-
-{
-  "group_code": "login_behavior",
-  "group_name": "登录行为指标组",
-  "description": "统计用户登录相关的多个指标",
-  "source_tables": "user_login,user_session",
-  "output_table": "anti_fraud.indicator_result_row",
-  "output_mode": "row",
-  "schedule_type": "daily",
-  "schedule_cron": "0 2 * * *"
-}
-```
-
-#### 5.3.2 为指标组添加指标
-
-```http
-POST /api/taosha/v1/anti-fraud/indicator-groups/{group_id}/indicators
-Content-Type: application/json
-
-{
-  "indicator_ids": [1, 2, 3]
-}
-```
-
-#### 5.3.3 批量执行指标组
-
-```http
-POST /api/taosha/v1/anti-fraud/indicator-groups/{group_id}/execute
-Content-Type: application/json
-
-{
-  "partition": "20251201",
-  "dry_run": false
-}
-```
-
-### 5.4 模型管理API
-
-#### 5.4.1 创建模型
-
-```http
-POST /api/taosha/v1/anti-fraud/models
+POST /api/taosha/v1/fraudhunter/models
 Content-Type: application/json
 
 {
   "model_code": "m_high_risk_login",
   "model_name": "高风险登录模型",
-  "model_type": "rule_based",
   "description": "检测异常登录行为",
   "rule_config": {
     "logic": "AND",
@@ -954,9 +802,21 @@ Content-Type: application/json
     }
   },
   "indicator_codes": ["i_login_cnt_7d", "i_device_change_cnt", "i_ip_city_cnt"],
-  "stream_source": "kafka_topic_user_events",
-  "stream_consumer_group": "anti_fraud_model_consumer",
-  "output_table": "anti_fraud.model_hit_result"
+  "output_table": "anti_fraud.model_result"
+}
+```
+
+#### 4.4.2 模型试运行
+
+```http
+POST /api/taosha/v1/fraudhunter/models/{id}/dry-run
+Content-Type: application/json
+
+{
+  "start_date": "2025-11-01",
+  "end_date": "2025-11-30",
+  "model_version": 1,
+  "sample_size": 10000
 }
 ```
 
@@ -966,20 +826,17 @@ Content-Type: application/json
   "code": 0,
   "message": "success",
   "data": {
-    "id": 1,
-    "model_code": "m_high_risk_login",
-    "status": "draft",
-    "generated_code": "# PySpark Streaming代码（自动生成）\nfrom pyspark.sql import SparkSession\n...",
-    "code_version": 1,
-    "created_at": "2025-12-02T10:00:00Z"
+    "task_id": "task_660f9511-f3ac-52e5-b827-557766551111",
+    "status": "pending",
+    "message": "任务已提交，请通过task_id查询进度"
   }
 }
 ```
 
-#### 5.4.2 生成模型代码
+#### 4.4.3 生成模型代码
 
 ```http
-POST /api/taosha/v1/anti-fraud/models/{id}/generate-code
+POST /api/taosha/v1/fraudhunter/models/{id}/generate-code
 ```
 
 **响应**:
@@ -991,23 +848,17 @@ POST /api/taosha/v1/anti-fraud/models/{id}/generate-code
     "model_id": 1,
     "code_version": 2,
     "generated_code": "# PySpark Streaming代码\n...",
-    "code_path": "/opt/spark/jobs/anti_fraud_m_high_risk_login_v2.py"
+    "code_path": "/opt/spark/jobs/fraudhunter_m_high_risk_login_v2.py"
   }
 }
 ```
 
-#### 5.4.3 发布模型（部署Streaming任务）
+### 4.5 任务管理API
+
+#### 4.5.1 查询任务进度
 
 ```http
-POST /api/taosha/v1/anti-fraud/models/{id}/publish
-Content-Type: application/json
-
-{
-  "deployment_mode": "cluster",
-  "executor_memory": "4g",
-  "executor_cores": 2,
-  "num_executors": 3
-}
+GET /api/taosha/v1/fraudhunter/tasks/{task_id}/progress
 ```
 
 **响应**:
@@ -1016,74 +867,21 @@ Content-Type: application/json
   "code": 0,
   "message": "success",
   "data": {
-    "model_id": 1,
-    "spark_app_id": "app-20251202100000-0001",
-    "ds_task_id": 23456,
-    "status": "online",
-    "monitoring_url": "http://spark-master:8080/app/app-20251202100000-0001"
-  }
-}
-```
-
-### 5.5 回测功能API
-
-#### 5.5.1 创建回测任务
-
-```http
-POST /api/taosha/v1/anti-fraud/backtest
-Content-Type: application/json
-
-{
-  "model_id": 1,
-  "start_date": "2025-11-01",
-  "end_date": "2025-11-30",
-  "sample_size": 10000,
-  "ground_truth_table": "anti_fraud.labeled_fraud_cases",
-  "ground_truth_key": "account_id",
-  "ground_truth_label": "is_fraud"
-}
-```
-
-**响应**:
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "backtest_id": "bt_550e8400-e29b-41d4-a716-446655440000",
-    "status": "running",
-    "execution_id": "exec_660f9511-f3ac-52e5-b827-557766551111"
-  }
-}
-```
-
-#### 5.5.2 查询回测进度
-
-```http
-GET /api/taosha/v1/anti-fraud/backtest/{backtest_id}/progress
-```
-
-**响应**:
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "backtest_id": "bt_550e8400-e29b-41d4-a716-446655440000",
+    "task_id": "task_550e8400-e29b-41d4-a716-446655440000",
+    "task_type": "indicator",
     "status": "running",
     "progress": 65.5,
-    "current_date": "2025-11-20",
-    "total_days": 30,
-    "processed_days": 19,
+    "current_step": "执行SQL查询",
+    "start_time": "2025-12-03T10:00:00Z",
     "estimated_remaining_seconds": 120
   }
 }
 ```
 
-#### 5.5.3 获取回测结果
+#### 4.5.2 获取任务结果
 
 ```http
-GET /api/taosha/v1/anti-fraud/backtest/{backtest_id}/result
+GET /api/taosha/v1/fraudhunter/tasks/{task_id}/result
 ```
 
 **响应**:
@@ -1092,245 +890,199 @@ GET /api/taosha/v1/anti-fraud/backtest/{backtest_id}/result
   "code": 0,
   "message": "success",
   "data": {
-    "backtest_id": "bt_550e8400-e29b-41d4-a716-446655440000",
-    "model_id": 1,
-    "model_code": "m_high_risk_login",
+    "task_id": "task_550e8400-e29b-41d4-a716-446655440000",
     "status": "success",
-    "start_date": "2025-11-01",
-    "end_date": "2025-11-30",
-    "duration_seconds": 450,
-    "metrics": {
+    "duration_seconds": 180,
+    "result": {
       "total_records": 10000,
-      "hit_records": 856,
-      "true_positive": 732,
-      "false_positive": 124,
-      "true_negative": 8956,
-      "false_negative": 188,
-      "precision": 0.8552,
-      "recall": 0.7957,
-      "f1_score": 0.8244,
-      "accuracy": 0.9688
-    },
-    "confusion_matrix": {
-      "tp": 732,
-      "fp": 124,
-      "tn": 8956,
-      "fn": 188
-    },
-    "daily_metrics": [
-      {
-        "date": "2025-11-01",
-        "hit_count": 28,
-        "precision": 0.8571,
-        "recall": 0.8000
-      }
-    ]
+      "sample_result": [
+        {
+          "account_id": "ACC001",
+          "indicator_code": "i_login_cnt_7d",
+          "indicator_value": "5",
+          "dt": "20251020"
+        }
+      ]
+    }
   }
 }
 ```
 
-### 5.6 任务管理API
-
-#### 5.6.1 查询任务执行历史
+#### 4.5.3 查询任务执行历史
 
 ```http
-GET /api/taosha/v1/anti-fraud/tasks/executions?task_type=indicator&task_id=1&page=1&page_size=20
+GET /api/taosha/v1/fraudhunter/tasks/executions?task_type=indicator&task_id=1&page=1&page_size=20
 ```
 
-#### 5.6.2 查询任务执行详情
+#### 4.5.4 取消任务
 
 ```http
-GET /api/taosha/v1/anti-fraud/tasks/executions/{execution_id}
-```
-
-#### 5.6.3 手动触发任务执行
-
-```http
-POST /api/taosha/v1/anti-fraud/tasks/trigger
-Content-Type: application/json
-
-{
-  "task_type": "indicator",
-  "task_id": "1",
-  "parameters": {
-    "partition": "20251201"
-  }
-}
+POST /api/taosha/v1/fraudhunter/tasks/{task_id}/cancel
 ```
 
 ---
 
-## 6. 服务层架构
+## 5. 服务层架构
 
-### 6.1 指标服务
+### 5.1 指标服务
 
-#### 6.1.1 指标管理服务
+#### 5.1.1 指标组管理服务
 
-**文件**: `backend/services/indicator_service/indicator_manager.py`
+**文件**: `backend/services/fraudhunter/indicator_service/indicator_group_manager.py`
 
 ```python
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from backend.models.indicator import AFIndicatorDefinition
-from backend.schemas.indicator import IndicatorCreate, IndicatorUpdate
+from backend.models.fraudhunter.indicator import FraudHunterIndicatorGroup
+from backend.schemas.fraudhunter.indicator import IndicatorGroupCreate, IndicatorGroupUpdate
 from backend.utils.logger import logger
 
-class IndicatorManager:
-    """指标管理服务"""
+class IndicatorGroupManager:
+    """指标组管理服务"""
 
     def __init__(self, db: Session):
         self.db = db
 
-    def create_indicator(
+    def create_indicator_group(
         self,
-        indicator_data: IndicatorCreate,
+        group_data: IndicatorGroupCreate,
         created_by: str
-    ) -> AFIndicatorDefinition:
-        """创建指标"""
-        # 验证指标编码唯一性
-        existing = self.db.query(AFIndicatorDefinition).filter(
-            AFIndicatorDefinition.indicator_code == indicator_data.indicator_code
+    ) -> FraudHunterIndicatorGroup:
+        """创建指标组"""
+        # 验证编码唯一性
+        existing = self.db.query(FraudHunterIndicatorGroup).filter(
+            FraudHunterIndicatorGroup.group_code == group_data.group_code
         ).first()
 
         if existing:
-            raise ValueError(f"指标编码已存在: {indicator_data.indicator_code}")
+            raise ValueError(f"指标组编码已存在: {group_data.group_code}")
 
-        # 创建指标记录
-        db_indicator = AFIndicatorDefinition(
-            **indicator_data.model_dump(),
+        # 创建指标组记录
+        db_group = FraudHunterIndicatorGroup(
+            **group_data.model_dump(),
             created_by=created_by,
-            status='draft'
+            status='draft',
+            current_version=1,
+            latest_version=1
         )
 
-        self.db.add(db_indicator)
+        self.db.add(db_group)
         self.db.commit()
-        self.db.refresh(db_indicator)
+        self.db.refresh(db_group)
 
-        logger.info(f"创建指标成功: {db_indicator.indicator_code}")
-        return db_indicator
+        # 创建版本历史
+        self._create_version_history(db_group, 'create', '初始创建', created_by)
 
-    def get_indicator(self, indicator_id: int) -> Optional[AFIndicatorDefinition]:
-        """获取指标详情"""
-        return self.db.query(AFIndicatorDefinition).filter(
-            AFIndicatorDefinition.id == indicator_id
-        ).first()
+        logger.info(f"创建指标组成功: {db_group.group_code}")
+        return db_group
 
-    def list_indicators(
+    def update_indicator_group(
         self,
-        skip: int = 0,
-        limit: int = 20,
-        status: Optional[str] = None,
-        indicator_type: Optional[str] = None,
-        indicator_group: Optional[str] = None
-    ) -> tuple[List[AFIndicatorDefinition], int]:
-        """查询指标列表"""
-        query = self.db.query(AFIndicatorDefinition)
-
-        if status:
-            query = query.filter(AFIndicatorDefinition.status == status)
-        if indicator_type:
-            query = query.filter(AFIndicatorDefinition.indicator_type == indicator_type)
-        if indicator_group:
-            query = query.filter(AFIndicatorDefinition.indicator_group == indicator_group)
-
-        total = query.count()
-        items = query.offset(skip).limit(limit).all()
-
-        return items, total
-
-    def update_indicator(
-        self,
-        indicator_id: int,
-        indicator_data: IndicatorUpdate,
+        group_id: int,
+        group_data: IndicatorGroupUpdate,
         updated_by: str
-    ) -> AFIndicatorDefinition:
-        """更新指标"""
-        db_indicator = self.get_indicator(indicator_id)
-        if not db_indicator:
-            raise ValueError(f"指标不存在: {indicator_id}")
+    ) -> FraudHunterIndicatorGroup:
+        """更新指标组"""
+        db_group = self.get_indicator_group(group_id)
+        if not db_group:
+            raise ValueError(f"指标组不存在: {group_id}")
 
         # 只有draft状态才允许更新逻辑内容
-        if db_indicator.status != 'draft' and indicator_data.logic_content:
-            raise ValueError("只有草稿状态的指标才允许修改逻辑内容")
+        if db_group.status != 'draft' and group_data.logic_content:
+            raise ValueError("只有草稿状态的指标组才允许修改逻辑内容")
 
         # 更新字段
-        update_data = indicator_data.model_dump(exclude_unset=True)
+        update_data = group_data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
-            setattr(db_indicator, key, value)
+            setattr(db_group, key, value)
 
-        db_indicator.updated_by = updated_by
-        db_indicator.version += 1
+        db_group.updated_by = updated_by
+        db_group.latest_version += 1
 
         self.db.commit()
-        self.db.refresh(db_indicator)
+        self.db.refresh(db_group)
 
-        logger.info(f"更新指标成功: {db_indicator.indicator_code}")
-        return db_indicator
+        # 创建版本历史
+        self._create_version_history(db_group, 'update', '更新配置', updated_by)
 
-    def delete_indicator(self, indicator_id: int) -> bool:
-        """删除指标"""
-        db_indicator = self.get_indicator(indicator_id)
-        if not db_indicator:
-            return False
+        logger.info(f"更新指标组成功: {db_group.group_code}")
+        return db_group
 
-        # 只有draft和offline状态才允许删除
-        if db_indicator.status not in ['draft', 'offline']:
-            raise ValueError("只有草稿或下线状态的指标才允许删除")
-
-        self.db.delete(db_indicator)
-        self.db.commit()
-
-        logger.info(f"删除指标成功: {db_indicator.indicator_code}")
-        return True
-
-    def change_status(
+    def publish_indicator_group(
         self,
-        indicator_id: int,
-        new_status: str,
-        updated_by: str
-    ) -> AFIndicatorDefinition:
-        """更改指标状态"""
-        db_indicator = self.get_indicator(indicator_id)
-        if not db_indicator:
-            raise ValueError(f"指标不存在: {indicator_id}")
+        group_id: int,
+        version: int,
+        updated_by: str,
+        change_description: Optional[str] = None
+    ) -> FraudHunterIndicatorGroup:
+        """发布指标组"""
+        db_group = self.get_indicator_group(group_id)
+        if not db_group:
+            raise ValueError(f"指标组不存在: {group_id}")
 
-        # 状态转换验证
-        valid_transitions = {
-            'draft': ['testing', 'archived'],
-            'testing': ['draft', 'online', 'archived'],
-            'online': ['offline'],
-            'offline': ['online', 'archived'],
-            'archived': []
-        }
+        # 验证版本号
+        if version > db_group.latest_version:
+            raise ValueError(f"版本号不存在: {version}")
 
-        if new_status not in valid_transitions.get(db_indicator.status, []):
-            raise ValueError(
-                f"不允许的状态转换: {db_indicator.status} -> {new_status}"
-            )
-
-        db_indicator.status = new_status
-        db_indicator.updated_by = updated_by
+        # 更新发布版本
+        db_group.current_version = version
+        db_group.status = 'online'
+        db_group.updated_by = updated_by
 
         self.db.commit()
-        self.db.refresh(db_indicator)
+        self.db.refresh(db_group)
 
-        logger.info(
-            f"指标状态变更: {db_indicator.indicator_code} "
-            f"{db_indicator.status} -> {new_status}"
+        # 创建版本历史
+        self._create_version_history(
+            db_group,
+            'publish',
+            change_description or f'发布版本{version}',
+            updated_by
         )
-        return db_indicator
+
+        logger.info(f"发布指标组成功: {db_group.group_code}, 版本: {version}")
+        return db_group
+
+    def _create_version_history(
+        self,
+        group: FraudHunterIndicatorGroup,
+        change_type: str,
+        change_description: str,
+        created_by: str
+    ):
+        """创建版本历史记录"""
+        from backend.models.fraudhunter.indicator import FraudHunterIndicatorGroupHistory
+
+        history = FraudHunterIndicatorGroupHistory(
+            group_id=group.id,
+            version=group.latest_version,
+            group_code=group.group_code,
+            group_name=group.group_name,
+            description=group.description,
+            logic_type=group.logic_type,
+            logic_content=group.logic_content,
+            source_tables=group.source_tables,
+            output_table=group.output_table,
+            output_mode=group.output_mode,
+            change_type=change_type,
+            change_description=change_description,
+            created_by=created_by
+        )
+
+        self.db.add(history)
+        self.db.commit()
 ```
 
-#### 6.1.2 SQL验证服务
+#### 5.1.2 SQL验证服务
 
-**文件**: `backend/services/indicator_service/sql_validator.py`
+**文件**: `backend/services/fraudhunter/indicator_service/sql_validator.py`
 
 ```python
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List
 import sqlparse
-from sqlparse.sql import IdentifierList, Identifier, Where
-from sqlparse.tokens import Keyword, DML
+from sqlparse.sql import IdentifierList, Identifier
+from sqlparse.tokens import Keyword
 
 class SQLValidator:
     """SQL验证服务"""
@@ -1406,9 +1158,6 @@ class SQLValidator:
             if 'SELECT *' in sql_upper:
                 result['warnings'].append("建议明确指定字段而不是使用 SELECT *")
 
-            if not re.search(r'\bGROUP BY\b', sql_upper):
-                result['warnings'].append("指标SQL通常需要GROUP BY子句")
-
         except Exception as e:
             result['valid'] = False
             result['errors'].append(f"SQL验证异常: {str(e)}")
@@ -1421,7 +1170,7 @@ class SQLValidator:
         for token in statement.tokens:
             if isinstance(token, IdentifierList):
                 for identifier in token.get_identifiers():
-                    field_name = str(identifier).split()[-1]  # 获取别名或字段名
+                    field_name = str(identifier).split()[-1]
                     fields.append(field_name.lower())
             elif isinstance(token, Identifier):
                 field_name = str(token).split()[-1]
@@ -1446,135 +1195,14 @@ class SQLValidator:
         return tables
 ```
 
-#### 6.1.3 指标执行服务
+### 5.2 模型服务
 
-**文件**: `backend/services/indicator_service/indicator_executor.py`
+#### 5.2.1 规则引擎服务
 
-```python
-from typing import Dict, List, Optional
-import uuid
-from datetime import datetime
-from sqlalchemy.orm import Session
-from backend.services.spark_service.spark_jdbc_client import SparkJDBCClient
-from backend.models.execution import AFTaskExecution
-from backend.utils.logger import logger
-
-class IndicatorExecutor:
-    """指标执行服务"""
-
-    def __init__(self, db: Session, spark_client: SparkJDBCClient):
-        self.db = db
-        self.spark_client = spark_client
-
-    async def dry_run(
-        self,
-        indicator_id: int,
-        indicator_code: str,
-        logic_content: str,
-        sample_size: int = 100,
-        partition: Optional[str] = None
-    ) -> Dict:
-        """试运行指标"""
-        execution_id = str(uuid.uuid4())
-
-        # 记录执行开始
-        execution = AFTaskExecution(
-            task_type='indicator',
-            task_id=str(indicator_id),
-            execution_id=execution_id,
-            execution_type='manual',
-            status='running',
-            parameters={'sample_size': sample_size, 'partition': partition}
-        )
-        self.db.add(execution)
-        self.db.commit()
-
-        try:
-            start_time = datetime.now()
-
-            # 构建LIMIT SQL
-            limited_sql = f"{logic_content} LIMIT {sample_size}"
-
-            # 执行SQL
-            result_df = await self.spark_client.execute_sql(limited_sql)
-
-            # 验证结果格式
-            validation = self._validate_result_format(result_df)
-
-            # 提取样本数据
-            sample_result = result_df.head(sample_size).to_dict('records')
-
-            end_time = datetime.now()
-            duration = (end_time - start_time).total_seconds()
-
-            # 更新执行记录
-            execution.status = 'success'
-            execution.end_time = end_time
-            execution.duration_seconds = int(duration)
-            execution.result_summary = {
-                'total_records': len(result_df),
-                'sample_size': len(sample_result)
-            }
-            self.db.commit()
-
-            logger.info(
-                f"指标试运行成功: {indicator_code}, "
-                f"执行ID: {execution_id}, 耗时: {duration}s"
-            )
-
-            return {
-                'execution_id': execution_id,
-                'status': 'success',
-                'duration_seconds': duration,
-                'sample_result': sample_result,
-                'total_records': len(result_df),
-                'validation': validation
-            }
-
-        except Exception as e:
-            # 记录失败
-            execution.status = 'failed'
-            execution.error_message = str(e)
-            execution.end_time = datetime.now()
-            self.db.commit()
-
-            logger.error(
-                f"指标试运行失败: {indicator_code}, "
-                f"执行ID: {execution_id}, 错误: {str(e)}"
-            )
-
-            raise
-
-    def _validate_result_format(self, df) -> Dict:
-        """验证结果格式"""
-        validation = {
-            'has_required_fields': True,
-            'field_types_correct': True,
-            'warnings': []
-        }
-
-        required_fields = ['account_id', 'indicator_code', 'indicator_value', 'dt']
-
-        # 检查必需字段
-        missing_fields = [f for f in required_fields if f not in df.columns]
-        if missing_fields:
-            validation['has_required_fields'] = False
-            validation['warnings'].append(f"缺少字段: {', '.join(missing_fields)}")
-
-        # 检查字段类型
-        # 这里可以添加更详细的类型检查逻辑
-
-        return validation
-```
-
-### 6.2 模型服务
-
-#### 6.2.1 规则引擎服务
-
-**文件**: `backend/services/model_service/rule_engine.py`
+**文件**: `backend/services/fraudhunter/model_service/rule_engine.py`
 
 ```python
-from typing import Dict, List, Any
+from typing import Dict, List
 from enum import Enum
 
 class LogicOperator(str, Enum):
@@ -1702,724 +1330,281 @@ class RuleEngine:
                 )
 ```
 
-#### 6.2.2 代码生成服务
+### 5.3 异步任务服务
 
-**文件**: `backend/services/model_service/code_generator.py`
+#### 5.3.1 任务管理器
 
-```python
-from typing import Dict, List
-from jinja2 import Template
-
-class PySp arkCodeGenerator:
-    """PySpark Streaming代码生成器"""
-
-    def generate_streaming_code(
-        self,
-        model_code: str,
-        rule_config: Dict,
-        indicator_codes: List[str],
-        stream_config: Dict
-    ) -> str:
-        """生成PySpark Streaming代码"""
-
-        template_str = """
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-\"\"\"
-反诈模型实时任务: {{ model_code }}
-自动生成时间: {{ generation_time }}
-警告: 此文件由系统自动生成,请勿手动修改
-\"\"\"
-
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, from_json, to_json, struct, lit, current_timestamp
-from pyspark.sql.types import *
-import json
-from datetime import datetime
-
-# 模型配置
-MODEL_CODE = "{{ model_code }}"
-KAFKA_BOOTSTRAP_SERVERS = "{{ kafka_servers }}"
-KAFKA_TOPIC = "{{ kafka_topic }}"
-KAFKA_CONSUMER_GROUP = "{{ consumer_group }}"
-OUTPUT_TABLE = "{{ output_table }}"
-CHECKPOINT_LOCATION = "{{ checkpoint_location }}"
-
-# 指标宽表配置
-INDICATOR_TABLE = "{{ indicator_table }}"
-REQUIRED_INDICATORS = {{ required_indicators }}
-
-# 规则配置
-RULE_CONFIG = {{ rule_config }}
-
-def create_spark_session():
-    \"\"\"创建Spark会话\"\"\"
-    return SparkSession.builder \\
-        .appName(f"AntiF raud_Model_{MODEL_CODE}") \\
-        .config("spark.sql.streaming.checkpointLocation", CHECKPOINT_LOCATION) \\
-        .config("spark.sql.adaptive.enabled", "true") \\
-        .enableHiveSupport() \\
-        .getOrCreate()
-
-def evaluate_condition(indicator_value, operator, threshold):
-    \"\"\"评估单个条件\"\"\"
-    if operator == ">":
-        return indicator_value > threshold
-    elif operator == ">=":
-        return indicator_value >= threshold
-    elif operator == "<":
-        return indicator_value < threshold
-    elif operator == "<=":
-        return indicator_value <= threshold
-    elif operator == "=":
-        return indicator_value == threshold
-    elif operator == "!=":
-        return indicator_value != threshold
-    else:
-        return False
-
-def evaluate_rules(indicators, rule_config):
-    \"\"\"递归评估规则\"\"\"
-    logic = rule_config.get("logic", "AND")
-    rules = rule_config.get("rules", [])
-
-    results = []
-    matched_conditions = []
-
-    for rule in rules:
-        if rule.get("type") == "condition":
-            indicator_code = rule["indicator"]
-            operator = rule["operator"]
-            threshold = rule["value"]
-
-            indicator_value = indicators.get(indicator_code)
-            if indicator_value is None:
-                continue
-
-            # 评估条件
-            result = evaluate_condition(indicator_value, operator, threshold)
-            results.append(result)
-
-            if result:
-                matched_conditions.append({
-                    "indicator": indicator_code,
-                    "expected": f"{operator} {threshold}",
-                    "actual": indicator_value
-                })
-
-        elif rule.get("type") == "group":
-            # 递归评估子规则组
-            sub_result, sub_conditions = evaluate_rules(indicators, rule)
-            results.append(sub_result)
-            matched_conditions.extend(sub_conditions)
-
-    # 根据逻辑操作符组合结果
-    if logic == "AND":
-        final_result = all(results) if results else False
-    elif logic == "OR":
-        final_result = any(results) if results else False
-    else:
-        final_result = False
-
-    return final_result, matched_conditions
-
-def process_batch(batch_df, batch_id):
-    \"\"\"处理每个批次的数据\"\"\"
-    try:
-        # 1. 从Kafka读取事件
-        events_df = batch_df.select(
-            col("key").cast("string").alias("event_key"),
-            from_json(col("value").cast("string"), event_schema).alias("event")
-        ).select(
-            "event_key",
-            col("event.account_id").alias("account_id"),
-            col("event.event_type").alias("event_type"),
-            col("event.event_time").alias("event_time"),
-            col("event.event_data").alias("event_data")
-        )
-
-        # 2. 关联指标宽表
-        indicator_df = spark.sql(f\"\"\"
-            SELECT account_id,
-                   {", ".join(REQUIRED_INDICATORS)}
-            FROM {INDICATOR_TABLE}
-            WHERE dt = date_format(current_date(), 'yyyyMMdd')
-        \"\"\")
-
-        # 3. 关联事件和指标
-        joined_df = events_df.join(indicator_df, on="account_id", how="left")
-
-        # 4. 应用规则评估（使用Pandas UDF提高性能）
-        from pyspark.sql.functions import pandas_udf, PandasUDFType
-        from pandas import DataFrame as PandasDataFrame
-
-        @pandas_udf("struct<hit:boolean, risk_level:string, risk_score:int, hit_reason:string, indicator_snapshot:string>", PandasUDFType.SCALAR)
-        def apply_model_rules(*indicator_cols):
-            \"\"\"应用模型规则的Pandas UDF\"\"\"
-            import pandas as pd
-
-            results = []
-            for idx in range(len(indicator_cols[0])):
-                # 构建指标字典
-                indicators = {}
-                for i, indicator_code in enumerate(REQUIRED_INDICATORS):
-                    indicators[indicator_code] = indicator_cols[i][idx]
-
-                # 评估规则
-                is_hit, matched_conditions = evaluate_rules(indicators, RULE_CONFIG)
-
-                if is_hit:
-                    output_config = RULE_CONFIG.get("output", {})
-                    result = {
-                        "hit": True,
-                        "risk_level": output_config.get("risk_level", "medium"),
-                        "risk_score": output_config.get("risk_score", 50),
-                        "hit_reason": json.dumps({"matched_rules": matched_conditions}, ensure_ascii=False),
-                        "indicator_snapshot": json.dumps(indicators, ensure_ascii=False)
-                    }
-                else:
-                    result = {
-                        "hit": False,
-                        "risk_level": None,
-                        "risk_score": 0,
-                        "hit_reason": None,
-                        "indicator_snapshot": None
-                    }
-
-                results.append(result)
-
-            return pd.Series(results)
-
-        # 应用UDF
-        indicator_cols = [col(ind) for ind in REQUIRED_INDICATORS]
-        result_df = joined_df.withColumn("model_result", apply_model_rules(*indicator_cols))
-
-        # 5. 过滤命中记录
-        hit_df = result_df.filter(col("model_result.hit") == True).select(
-            lit(MODEL_CODE).alias("model_code"),
-            col("account_id"),
-            current_timestamp().alias("hit_time"),
-            col("model_result.risk_level").alias("risk_level"),
-            col("model_result.risk_score").alias("risk_score"),
-            col("model_result.hit_reason").alias("hit_reason"),
-            col("model_result.indicator_snapshot").alias("indicator_snapshot"),
-            date_format(current_timestamp(), "yyyyMMdd").alias("dt")
-        )
-
-        # 6. 写入结果表
-        if hit_df.count() > 0:
-            hit_df.write.mode("append") \\
-                .partitionBy("dt") \\
-                .format("parquet") \\
-                .saveAsTable(OUTPUT_TABLE)
-
-            print(f"Batch {batch_id}: 命中 {hit_df.count()} 条记录")
-        else:
-            print(f"Batch {batch_id}: 无命中记录")
-
-    except Exception as e:
-        print(f"Batch {batch_id} 处理失败: {str(e)}")
-        raise
-
-def main():
-    \"\"\"主函数\"\"\"
-    # 创建Spark会话
-    global spark
-    spark = create_spark_session()
-
-    # 定义Kafka事件Schema
-    global event_schema
-    event_schema = StructType([
-        StructField("account_id", StringType(), False),
-        StructField("event_type", StringType(), False),
-        StructField("event_time", TimestampType(), False),
-        StructField("event_data", StringType(), True)
-    ])
-
-    # 从Kafka读取流
-    kafka_stream = spark.readStream \\
-        .format("kafka") \\
-        .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS) \\
-        .option("subscribe", KAFKA_TOPIC) \\
-        .option("group.id", KAFKA_CONSUMER_GROUP) \\
-        .option("startingOffsets", "latest") \\
-        .option("failOnDataLoss", "false") \\
-        .load()
-
-    # 处理流数据
-    query = kafka_stream.writeStream \\
-        .foreachBatch(process_batch) \\
-        .outputMode("append") \\
-        .option("checkpointLocation", CHECKPOINT_LOCATION) \\
-        .start()
-
-    print(f"模型 {MODEL_CODE} 已启动,监听主题: {KAFKA_TOPIC}")
-
-    # 等待终止
-    query.awaitTermination()
-
-if __name__ == "__main__":
-    main()
-"""
-
-        # 渲染模板
-        template = Template(template_str)
-        code = template.render(
-            model_code=model_code,
-            generation_time=datetime.now().isoformat(),
-            kafka_servers=stream_config.get('kafka_servers', 'localhost:9092'),
-            kafka_topic=stream_config['stream_source'],
-            consumer_group=stream_config.get('stream_consumer_group', f'{model_code}_consumer'),
-            output_table=stream_config.get('output_table', 'anti_fraud.model_hit_result'),
-            checkpoint_location=stream_config.get('checkpoint_location', f'/tmp/spark-checkpoint/{model_code}'),
-            indicator_table=stream_config.get('indicator_table', 'anti_fraud.indicator_result_wide'),
-            required_indicators=indicator_codes,
-            rule_config=rule_config
-        )
-
-        return code
-```
-
-### 6.3 调度服务
-
-#### 6.3.1 DolphinScheduler客户端
-
-**文件**: `backend/services/scheduler_service/dolphin_client.py`
+**文件**: `backend/services/fraudhunter/task_service/task_manager.py`
 
 ```python
+import uuid
+import asyncio
 from typing import Dict, Optional
-import requests
-from requests.auth import HTTPBasicAuth
+from datetime import datetime
+from sqlalchemy.orm import Session
+from backend.models.fraudhunter.task import FraudHunterTaskExecution
 from backend.utils.logger import logger
 
-class DolphinSchedulerClient:
-    """DolphinScheduler REST API客户端"""
+class TaskManager:
+    """异步任务管理器"""
 
-    def __init__(self, base_url: str, username: str, password: str):
-        self.base_url = base_url.rstrip('/')
-        self.username = username
-        self.password = password
-        self.token = None
-        self.session = requests.Session()
+    def __init__(self):
+        self.running_tasks: Dict[str, asyncio.Task] = {}
 
-    def login(self) -> bool:
-        """登录获取token"""
-        try:
-            response = self.session.post(
-                f"{self.base_url}/dolphinscheduler/login",
-                data={
-                    "userName": self.username,
-                    "userPassword": self.password
-                }
-            )
-            response.raise_for_status()
-
-            result = response.json()
-            if result.get('code') == 0:
-                self.token = result['data']
-                self.session.headers.update({'token': self.token})
-                logger.info("DolphinScheduler登录成功")
-                return True
-            else:
-                logger.error(f"DolphinScheduler登录失败: {result.get('msg')}")
-                return False
-
-        except Exception as e:
-            logger.error(f"DolphinScheduler登录异常: {str(e)}")
-            return False
-
-    def create_task_definition(
+    async def submit_task(
         self,
-        project_code: int,
-        workflow_definition_code: int,
-        task_name: str,
+        db: Session,
         task_type: str,
-        task_params: Dict
-    ) -> Optional[int]:
-        """创建任务定义"""
-        try:
-            if not self.token:
-                self.login()
+        task_id: int,
+        task_func,
+        created_by: str,
+        **kwargs
+    ) -> str:
+        """提交异步任务"""
+        # 生成任务ID
+        execution_id = f"task_{uuid.uuid4()}"
 
-            response = self.session.post(
-                f"{self.base_url}/dolphinscheduler/projects/{project_code}/"
-                f"task-definition",
-                json={
-                    "workflowDefinitionCode": workflow_definition_code,
-                    "taskName": task_name,
-                    "taskType": task_type,
-                    "taskParams": task_params,
-                    "flag": "YES",
-                    "taskPriority": "MEDIUM",
-                    "workerGroup": "default",
-                    "failRetryTimes": 0,
-                    "failRetryInterval": 1,
-                    "timeoutFlag": "CLOSE",
-                    "timeoutNotifyStrategy": "WARN",
-                    "timeout": 0
-                }
-            )
-            response.raise_for_status()
+        # 创建任务记录
+        task_execution = FraudHunterTaskExecution(
+            task_type=task_type,
+            task_id=task_id,
+            execution_id=execution_id,
+            status='pending',
+            created_by=created_by
+        )
 
-            result = response.json()
-            if result.get('code') == 0:
-                task_code = result['data']
-                logger.info(f"创建任务定义成功: {task_name}, code: {task_code}")
-                return task_code
-            else:
-                logger.error(f"创建任务定义失败: {result.get('msg')}")
-                return None
+        db.add(task_execution)
+        db.commit()
 
-        except Exception as e:
-            logger.error(f"创建任务定义异常: {str(e)}")
-            return None
+        # 创建异步任务
+        task = asyncio.create_task(
+            self._run_task(execution_id, task_func, **kwargs)
+        )
+        self.running_tasks[execution_id] = task
 
-    def update_schedule(
-        self,
-        project_code: int,
-        schedule_id: int,
-        cron_expression: str,
-        start_time: str,
-        end_time: str
-    ) -> bool:
-        """更新调度配置"""
-        try:
-            if not self.token:
-                self.login()
+        logger.info(f"任务已提交: {execution_id}")
+        return execution_id
 
-            response = self.session.put(
-                f"{self.base_url}/dolphinscheduler/projects/{project_code}/"
-                f"schedules/{schedule_id}",
-                json={
-                    "crontab": cron_expression,
-                    "startTime": start_time,
-                    "endTime": end_time,
-                    "timezoneId": "Asia/Shanghai"
-                }
-            )
-            response.raise_for_status()
+    async def _run_task(self, execution_id: str, task_func, **kwargs):
+        """执行任务"""
+        from backend.database.db_base import get_db_session
 
-            result = response.json()
-            if result.get('code') == 0:
-                logger.info(f"更新调度配置成功: schedule_id={schedule_id}")
-                return True
-            else:
-                logger.error(f"更新调度配置失败: {result.get('msg')}")
-                return False
+        with get_db_session() as db:
+            try:
+                # 更新任务状态为运行中
+                task_execution = db.query(FraudHunterTaskExecution).filter(
+                    FraudHunterTaskExecution.execution_id == execution_id
+                ).first()
 
-        except Exception as e:
-            logger.error(f"更新调度配置异常: {str(e)}")
-            return False
+                task_execution.status = 'running'
+                task_execution.start_time = datetime.now()
+                db.commit()
 
-    def trigger_task(
-        self,
-        project_code: int,
-        workflow_definition_code: int,
-        schedule_time: Optional[str] = None
-    ) -> Optional[int]:
-        """手动触发任务执行"""
-        try:
-            if not self.token:
-                self.login()
+                # 执行任务
+                result = await task_func(db, execution_id, **kwargs)
 
-            params = {
-                "workflowDefinitionCode": workflow_definition_code,
-                "failureStrategy": "CONTINUE",
-                "warningType": "NONE",
-                "execType": "START_PROCESS"
-            }
+                # 更新任务状态为成功
+                task_execution.status = 'success'
+                task_execution.end_time = datetime.now()
+                task_execution.result_summary = result
+                db.commit()
 
-            if schedule_time:
-                params["scheduleTime"] = schedule_time
+                logger.info(f"任务执行成功: {execution_id}")
 
-            response = self.session.post(
-                f"{self.base_url}/dolphinscheduler/projects/{project_code}/"
-                f"executors/start-process-instance",
-                json=params
-            )
-            response.raise_for_status()
+            except Exception as e:
+                # 更新任务状态为失败
+                task_execution = db.query(FraudHunterTaskExecution).filter(
+                    FraudHunterTaskExecution.execution_id == execution_id
+                ).first()
 
-            result = response.json()
-            if result.get('code') == 0:
-                instance_id = result['data']
-                logger.info(f"触发任务执行成功: instance_id={instance_id}")
-                return instance_id
-            else:
-                logger.error(f"触发任务执行失败: {result.get('msg')}")
-                return None
+                task_execution.status = 'failed'
+                task_execution.end_time = datetime.now()
+                task_execution.result_summary = {'error': str(e)}
+                db.commit()
 
-        except Exception as e:
-            logger.error(f"触发任务执行异常: {str(e)}")
-            return None
+                logger.error(f"任务执行失败: {execution_id}, 错误: {str(e)}")
+
+            finally:
+                # 清理任务记录
+                if execution_id in self.running_tasks:
+                    del self.running_tasks[execution_id]
+
+    def get_task_progress(self, db: Session, execution_id: str) -> Dict:
+        """获取任务进度"""
+        task_execution = db.query(FraudHunterTaskExecution).filter(
+            FraudHunterTaskExecution.execution_id == execution_id
+        ).first()
+
+        if not task_execution:
+            raise ValueError(f"任务不存在: {execution_id}")
+
+        return {
+            'task_id': execution_id,
+            'task_type': task_execution.task_type,
+            'status': task_execution.status,
+            'start_time': task_execution.start_time,
+            'end_time': task_execution.end_time
+        }
+
+    def get_task_result(self, db: Session, execution_id: str) -> Dict:
+        """获取任务结果"""
+        task_execution = db.query(FraudHunterTaskExecution).filter(
+            FraudHunterTaskExecution.execution_id == execution_id
+        ).first()
+
+        if not task_execution:
+            raise ValueError(f"任务不存在: {execution_id}")
+
+        if task_execution.status not in ['success', 'failed']:
+            raise ValueError(f"任务尚未完成: {execution_id}")
+
+        return {
+            'task_id': execution_id,
+            'status': task_execution.status,
+            'result': task_execution.result_summary
+        }
+
+    async def cancel_task(self, db: Session, execution_id: str) -> bool:
+        """取消任务"""
+        if execution_id in self.running_tasks:
+            task = self.running_tasks[execution_id]
+            task.cancel()
+
+            # 更新任务状态
+            task_execution = db.query(FraudHunterTaskExecution).filter(
+                FraudHunterTaskExecution.execution_id == execution_id
+            ).first()
+
+            task_execution.status = 'cancelled'
+            task_execution.end_time = datetime.now()
+            db.commit()
+
+            logger.info(f"任务已取消: {execution_id}")
+            return True
+
+        return False
 ```
 
 ---
 
-由于文档内容非常长,我将继续完成剩余部分。让我更新任务状态并继续编写。
+## 6. 前端界面设计
 
-<function_calls>
-<invoke name="TodoWrite">
-<parameter name="todos">[{"content": "\u5206\u6790\u9700\u6c42\u6587\u6863,\u7406\u89e3\u4e1a\u52a1\u573a\u666f\u548c\u6280\u672f\u7ea6\u675f", "status": "completed", "activeForm": "\u5206\u6790\u9700\u6c42\u6587\u6863"}, {"content": "\u8bbe\u8ba1\u6570\u636e\u5e93\u6a21\u578b(\u6307\u6807\u5b9a\u4e49\u3001\u6a21\u578b\u5b9a\u4e49\u3001\u6267\u884c\u8bb0\u5f55\u7b49)", "status": "completed", "activeForm": "\u8bbe\u8ba1\u6570\u636e\u5e93\u6a21\u578b"}, {"content": "\u8bbe\u8ba1\u540e\u7aefAPI\u63a5\u53e3(\u6307\u6807\u7ba1\u7406\u3001\u6a21\u578b\u7ba1\u7406\u3001\u4efb\u52a1\u8c03\u5ea6)", "status": "completed", "activeForm": "\u8bbe\u8ba1\u540e\u7aefAPI\u63a5\u53e3"}, {"content": "\u8bbe\u8ba1\u524d\u7aef\u9875\u9762\u548c\u7ec4\u4ef6\u67b6\u6784", "status": "in_progress", "activeForm": "\u8bbe\u8ba1\u524d\u7aef\u9875\u9762\u548c\u7ec4\u4ef6\u67b6\u6784"}, {"content": "\u8bbe\u8ba1\u53ef\u89c6\u5316\u89c4\u5219\u5f15\u64ce(\u6a21\u578b\u5b9a\u4e49)", "status": "pending", "activeForm": "\u8bbe\u8ba1\u53ef\u89c6\u5316\u89c4\u5219\u5f15\u64ce"}, {"content": "\u8bbe\u8ba1\u6307\u6807\u7ec4\u548c\u52a8\u6001SQL\u751f\u6210\u65b9\u6848", "status": "pending", "activeForm": "\u8bbe\u8ba1\u6307\u6807\u7ec4\u548c\u52a8\u6001SQL\u751f\u6210\u65b9\u6848"}, {"content": "\u8bbe\u8ba1PySpark Streaming\u4efb\u52a1\u751f\u6210\u548c\u7ba1\u7406", "status": "pending", "activeForm": "\u8bbe\u8ba1PySpark Streaming\u4efb\u52a1\u751f\u6210\u548c\u7ba1\u7406"}, {"content": "\u8bbe\u8ba1\u56de\u6d4b\u529f\u80fd\u67b6\u6784", "status": "pending", "activeForm": "\u8bbe\u8ba1\u56de\u6d4b\u529f\u80fd\u67b6\u6784"}, {"content": "\u7f16\u5199\u5b8c\u6574\u7684\u8bbe\u8ba1\u6587\u6863", "status": "pending", "activeForm": "\u7f16\u5199\u5b8c\u6574\u7684\u8bbe\u8ba1\u6587\u6863"}]
----
+### 6.1 页面路由规划
 
-## 7. 前端界面设计
-
-### 7.1 设计原则
-
-遵循项目现有的设计体系:
-- **设计语言**: 现代扁平化设计，明暗双主题
-- **组件库**: Radix UI + Tailwind CSS
-- **响应式**: 移动端优先，断点768px
-- **状态管理**: React Context + hooks
-
-### 7.2 页面结构
-
-#### 7.2.1 指标管理页面 (`/indicators`)
-
-**指标列表页**:
-```tsx
-// app/(main)/indicators/page.tsx
-import { IndicatorList } from '@/components/indicator/IndicatorList'
-import { IndicatorFilters } from '@/components/indicator/IndicatorFilters'
-
-export default function IndicatorsPage() {
-  return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">指标管理</h1>
-        <Link href="/indicators/create">
-          <Button>创建指标</Button>
-        </Link>
-      </div>
-
-      <IndicatorFilters />
-      <IndicatorList />
-    </div>
-  )
-}
+```
+/fraudhunter
+├── /indicator-groups              # 指标组管理
+│   ├── /                         # 指标组列表
+│   ├── /create                   # 创建指标组
+│   └── /[id]                     # 指标组详情/编辑
+├── /indicators                    # 指标管理
+│   ├── /                         # 指标列表
+│   ├── /create                   # 创建指标
+│   └── /[id]                     # 指标详情/编辑
+├── /models                        # 模型管理
+│   ├── /                         # 模型列表
+│   ├── /create                   # 创建模型
+│   └── /[id]                     # 模型详情/编辑
+└── /tasks                         # 任务管理
+    ├── /                         # 任务列表
+    └── /[id]                     # 任务详情
 ```
 
-**指标创建/编辑页**:
-```tsx
-// app/(main)/indicators/[id]/page.tsx
-import { IndicatorForm } from '@/components/indicator/IndicatorForm'
-import { SQLEditor } from '@/components/indicator/SQLEditor'
-import { IndicatorPreview } from '@/components/indicator/IndicatorPreview'
+### 6.2 核心组件设计
 
-export default function IndicatorDetailPage({ params }: { params: { id: string } }) {
-  return (
-    <div className="container mx-auto p-6">
-      <Tabs defaultValue="basic">
-        <TabsList>
-          <TabsTrigger value="basic">基本信息</TabsTrigger>
-          <TabsTrigger value="logic">加工逻辑</TabsTrigger>
-          <TabsTrigger value="preview">预览测试</TabsTrigger>
-        </TabsList>
+#### 6.2.1 指标组表单组件
 
-        <TabsContent value="basic">
-          <IndicatorForm indicatorId={params.id} />
-        </TabsContent>
-
-        <TabsContent value="logic">
-          <SQLEditor indicatorId={params.id} />
-        </TabsContent>
-
-        <TabsContent value="preview">
-          <IndicatorPreview indicatorId={params.id} />
-        </TabsContent>
-      </Tabs>
-    </div>
-  )
-}
-```
-
-#### 7.2.2 模型管理页面 (`/models`)
-
-**模型列表页**:
-```tsx
-// app/(main)/models/page.tsx
-import { ModelList } from '@/components/model/ModelList'
-import { ModelCard } from '@/components/model/ModelCard'
-
-export default function ModelsPage() {
-  return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">模型管理</h1>
-        <Link href="/models/create">
-          <Button>创建模型</Button>
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <ModelList />
-      </div>
-    </div>
-  )
-}
-```
-
-**模型创建/编辑页**:
-```tsx
-// app/(main)/models/[id]/page.tsx
-import { ModelForm } from '@/components/model/ModelForm'
-import { RuleBuilder } from '@/components/model/RuleBuilder'
-import { CodePreview } from '@/components/model/CodePreview'
-import { BacktestPanel } from '@/components/model/BacktestPanel'
-
-export default function ModelDetailPage({ params }: { params: { id: string } }) {
-  return (
-    <div className="container mx-auto p-6">
-      <Tabs defaultValue="basic">
-        <TabsList>
-          <TabsTrigger value="basic">基本信息</TabsTrigger>
-          <TabsTrigger value="rules">规则定义</TabsTrigger>
-          <TabsTrigger value="code">生成代码</TabsTrigger>
-          <TabsTrigger value="backtest">回测</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="basic">
-          <ModelForm modelId={params.id} />
-        </TabsContent>
-
-        <TabsContent value="rules">
-          <RuleBuilder modelId={params.id} />
-        </TabsContent>
-
-        <TabsContent value="code">
-          <CodePreview modelId={params.id} />
-        </TabsContent>
-
-        <TabsContent value="backtest">
-          <BacktestPanel modelId={params.id} />
-        </TabsContent>
-      </Tabs>
-    </div>
-  )
-}
-```
-
-### 7.3 核心组件设计
-
-#### 7.3.1 SQL编辑器组件
+**文件**: `frontend/components/fraudhunter/indicator/IndicatorGroupForm.tsx`
 
 ```typescript
-// components/indicator/SQLEditor.tsx
-'use client'
-
-import { useState, useEffect } from 'react'
-import Editor from '@monaco-editor/react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { indicatorService } from '@/lib/services/indicatorService'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { SQLEditor } from './SQLEditor'
 
-interface SQLEditorProps {
-  indicatorId: string
-  initialValue?: string
-  onChange?: (value: string) => void
+interface IndicatorGroupFormProps {
+  initialData?: IndicatorGroup
+  onSubmit: (data: IndicatorGroupCreate) => Promise<void>
 }
 
-export function SQLEditor({ indicatorId, initialValue, onChange }: SQLEditorProps) {
-  const [sql, setSQL] = useState(initialValue || '')
-  const [validation, setValidation] = useState<any>(null)
-  const [isValidating, setIsValidating] = useState(false)
+export function IndicatorGroupForm({ initialData, onSubmit }: IndicatorGroupFormProps) {
+  const [formData, setFormData] = useState({
+    group_code: initialData?.group_code || '',
+    group_name: initialData?.group_name || '',
+    description: initialData?.description || '',
+    logic_content: initialData?.logic_content || '',
+    source_tables: initialData?.source_tables || '',
+    output_table: initialData?.output_table || 'anti_fraud.indicator_result_row'
+  })
 
-  const handleValidate = async () => {
-    setIsValidating(true)
-    try {
-      const result = await indicatorService.validateSQL(sql)
-      setValidation(result)
-    } catch (error) {
-      console.error('SQL validation failed:', error)
-    } finally {
-      setIsValidating(false)
-    }
-  }
-
-  const handleFormat = () => {
-    // SQL格式化逻辑
-    const formatted = formatSQL(sql)
-    setSQL(formatted)
-    onChange?.(formatted)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await onSubmit(formData)
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">SQL编辑器</h3>
-        <div className="space-x-2">
-          <Button variant="outline" onClick={handleFormat}>
-            格式化
-          </Button>
-          <Button onClick={handleValidate} disabled={isValidating}>
-            {isValidating ? '验证中...' : '验证SQL'}
-          </Button>
-        </div>
-      </div>
-
-      <div className="border rounded-lg overflow-hidden">
-        <Editor
-          height="400px"
-          language="sql"
-          theme="vs-dark"
-          value={sql}
-          onChange={(value) => {
-            setSQL(value || '')
-            onChange?.(value || '')
-          }}
-          options={{
-            minimap: { enabled: false },
-            fontSize: 14,
-            lineNumbers: 'on',
-            automaticLayout: true,
-          }}
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div>
+        <label className="block text-sm font-medium mb-2">指标组编码</label>
+        <Input
+          value={formData.group_code}
+          onChange={(e) => setFormData({ ...formData, group_code: e.target.value })}
+          placeholder="如: login_behavior"
+          required
         />
       </div>
 
-      {validation && (
-        <div className="space-y-2">
-          {validation.errors.length > 0 && (
-            <Alert variant="destructive">
-              <AlertDescription>
-                <ul className="list-disc list-inside">
-                  {validation.errors.map((error: string, index: number) => (
-                    <li key={index}>{error}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
+      <div>
+        <label className="block text-sm font-medium mb-2">指标组名称</label>
+        <Input
+          value={formData.group_name}
+          onChange={(e) => setFormData({ ...formData, group_name: e.target.value })}
+          placeholder="如: 登录行为指标组"
+          required
+        />
+      </div>
 
-          {validation.warnings.length > 0 && (
-            <Alert>
-              <AlertDescription>
-                <ul className="list-disc list-inside">
-                  {validation.warnings.map((warning: string, index: number) => (
-                    <li key={index}>{warning}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
+      <div>
+        <label className="block text-sm font-medium mb-2">描述</label>
+        <Textarea
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          rows={3}
+        />
+      </div>
 
-          {validation.valid && (
-            <Alert variant="success">
-              <AlertDescription>SQL验证通过</AlertDescription>
-            </Alert>
-          )}
-        </div>
-      )}
-    </div>
+      <div>
+        <label className="block text-sm font-medium mb-2">SQL加工逻辑</label>
+        <SQLEditor
+          value={formData.logic_content}
+          onChange={(value) => setFormData({ ...formData, logic_content: value })}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">源表列表（逗号分隔）</label>
+        <Input
+          value={formData.source_tables}
+          onChange={(e) => setFormData({ ...formData, source_tables: e.target.value })}
+          placeholder="如: user_login,user_session"
+        />
+      </div>
+
+      <div className="flex justify-end space-x-4">
+        <Button type="button" variant="outline">取消</Button>
+        <Button type="submit">保存</Button>
+      </div>
+    </form>
   )
 }
 ```
 
-#### 7.3.2 规则构建器组件
+#### 6.2.2 规则构建器组件
+
+**文件**: `frontend/components/fraudhunter/model/RuleBuilder.tsx`
 
 ```typescript
-// components/model/RuleBuilder.tsx
-'use client'
-
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
@@ -2428,204 +1613,243 @@ import { Card } from '@/components/ui/card'
 
 interface Rule {
   type: 'condition' | 'group'
-  logic?: 'AND' | 'OR'
   indicator?: string
   operator?: string
-  value?: any
+  value?: number
+  logic?: 'AND' | 'OR'
   rules?: Rule[]
 }
 
 interface RuleBuilderProps {
-  modelId: string
-  initialRules?: Rule
-  onChange?: (rules: Rule) => void
+  value: Rule
+  indicators: Indicator[]
+  onChange: (rule: Rule) => void
 }
 
-export function RuleBuilder({ modelId, initialRules, onChange }: RuleBuilderProps) {
-  const [rules, setRules] = useState<Rule>(
-    initialRules || { type: 'group', logic: 'AND', rules: [] }
-  )
-
-  const addCondition = (parentRules: Rule[]) => {
-    const newCondition: Rule = {
+export function RuleBuilder({ value, indicators, onChange }: RuleBuilderProps) {
+  const addCondition = () => {
+    const newRule: Rule = {
       type: 'condition',
-      indicator: '',
+      indicator: indicators[0]?.indicator_code || '',
       operator: '>',
-      value: 0,
+      value: 0
     }
-    parentRules.push(newCondition)
-    setRules({ ...rules })
-    onChange?.(rules)
+
+    onChange({
+      ...value,
+      rules: [...(value.rules || []), newRule]
+    })
   }
 
-  const addGroup = (parentRules: Rule[]) => {
+  const addGroup = () => {
     const newGroup: Rule = {
       type: 'group',
       logic: 'AND',
-      rules: [],
+      rules: []
     }
-    parentRules.push(newGroup)
-    setRules({ ...rules })
-    onChange?.(rules)
+
+    onChange({
+      ...value,
+      rules: [...(value.rules || []), newGroup]
+    })
   }
 
-  const removeRule = (parentRules: Rule[], index: number) => {
-    parentRules.splice(index, 1)
-    setRules({ ...rules })
-    onChange?.(rules)
+  const removeRule = (index: number) => {
+    const newRules = [...(value.rules || [])]
+    newRules.splice(index, 1)
+    onChange({ ...value, rules: newRules })
   }
 
-  const renderRule = (rule: Rule, parentRules: Rule[], index: number, depth: number = 0) => {
-    if (rule.type === 'condition') {
-      return (
-        <Card key={index} className="p-4" style={{ marginLeft: `${depth * 20}px` }}>
-          <div className="flex items-center gap-4">
-            <Select
-              value={rule.indicator}
-              onValueChange={(value) => {
-                rule.indicator = value
-                setRules({ ...rules })
-                onChange?.(rules)
-              }}
-            >
-              {/* 指标选项 */}
-            </Select>
-
-            <Select
-              value={rule.operator}
-              onValueChange={(value) => {
-                rule.operator = value
-                setRules({ ...rules })
-                onChange?.(rules)
-              }}
-            >
-              <option value=">">大于</option>
-              <option value=">=">大于等于</option>
-              <option value="<">小于</option>
-              <option value="<=">小于等于</option>
-              <option value="=">等于</option>
-              <option value="!=">不等于</option>
-            </Select>
-
-            <Input
-              type="number"
-              value={rule.value}
-              onChange={(e) => {
-                rule.value = parseFloat(e.target.value)
-                setRules({ ...rules })
-                onChange?.(rules)
-              }}
-            />
-
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => removeRule(parentRules, index)}
-            >
-              删除
-            </Button>
-          </div>
-        </Card>
-      )
-    } else if (rule.type === 'group') {
-      return (
-        <Card key={index} className="p-4 space-y-4" style={{ marginLeft: `${depth * 20}px` }}>
-          <div className="flex items-center justify-between">
-            <Select
-              value={rule.logic}
-              onValueChange={(value: 'AND' | 'OR') => {
-                rule.logic = value
-                setRules({ ...rules })
-                onChange?.(rules)
-              }}
-            >
-              <option value="AND">并且 (AND)</option>
-              <option value="OR">或者 (OR)</option>
-            </Select>
-
-            <div className="space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => addCondition(rule.rules!)}
-              >
-                添加条件
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => addGroup(rule.rules!)}
-              >
-                添加组
-              </Button>
-              {depth > 0 && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => removeRule(parentRules, index)}
-                >
-                  删除组
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            {rule.rules?.map((subRule, subIndex) =>
-              renderRule(subRule, rule.rules!, subIndex, depth + 1)
-            )}
-          </div>
-        </Card>
-      )
-    }
+  const updateRule = (index: number, updatedRule: Rule) => {
+    const newRules = [...(value.rules || [])]
+    newRules[index] = updatedRule
+    onChange({ ...value, rules: newRules })
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">规则定义</h3>
-        <Button onClick={() => addCondition(rules.rules!)}>添加第一个条件</Button>
-      </div>
+    <Card className="p-6">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium">规则配置</h3>
+          <Select
+            value={value.logic}
+            onChange={(e) => onChange({ ...value, logic: e.target.value as 'AND' | 'OR' })}
+          >
+            <option value="AND">AND（所有条件满足）</option>
+            <option value="OR">OR（任一条件满足）</option>
+          </Select>
+        </div>
 
-      {renderRule(rules, [], 0)}
+        <div className="space-y-2">
+          {value.rules?.map((rule, index) => (
+            <div key={index} className="flex items-start space-x-2">
+              {rule.type === 'condition' ? (
+                <ConditionRule
+                  rule={rule}
+                  indicators={indicators}
+                  onChange={(updated) => updateRule(index, updated)}
+                />
+              ) : (
+                <RuleBuilder
+                  value={rule}
+                  indicators={indicators}
+                  onChange={(updated) => updateRule(index, updated)}
+                />
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => removeRule(index)}
+              >
+                删除
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex space-x-2">
+          <Button onClick={addCondition} variant="outline">添加条件</Button>
+          <Button onClick={addGroup} variant="outline">添加规则组</Button>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+function ConditionRule({ rule, indicators, onChange }: any) {
+  return (
+    <div className="flex items-center space-x-2 flex-1">
+      <Select
+        value={rule.indicator}
+        onChange={(e) => onChange({ ...rule, indicator: e.target.value })}
+      >
+        {indicators.map((ind: Indicator) => (
+          <option key={ind.indicator_code} value={ind.indicator_code}>
+            {ind.indicator_name}
+          </option>
+        ))}
+      </Select>
+
+      <Select
+        value={rule.operator}
+        onChange={(e) => onChange({ ...rule, operator: e.target.value })}
+      >
+        <option value=">">大于</option>
+        <option value=">=">大于等于</option>
+        <option value="<">小于</option>
+        <option value="<=">小于等于</option>
+        <option value="=">等于</option>
+        <option value="!=">不等于</option>
+      </Select>
+
+      <Input
+        type="number"
+        value={rule.value}
+        onChange={(e) => onChange({ ...rule, value: Number(e.target.value) })}
+        className="w-32"
+      />
     </div>
+  )
+}
+```
+
+#### 6.2.3 任务监控组件
+
+**文件**: `frontend/components/fraudhunter/task/TaskMonitor.tsx`
+
+```typescript
+import { useState, useEffect } from 'react'
+import { Card } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
+import { taskService } from '@/lib/services/fraudhunter/taskService'
+
+interface TaskMonitorProps {
+  taskId: string
+  onComplete?: (result: any) => void
+}
+
+export function TaskMonitor({ taskId, onComplete }: TaskMonitorProps) {
+  const [progress, setProgress] = useState<any>(null)
+  const [polling, setPolling] = useState(true)
+
+  useEffect(() => {
+    if (!polling) return
+
+    const interval = setInterval(async () => {
+      try {
+        const data = await taskService.getTaskProgress(taskId)
+        setProgress(data)
+
+        if (data.status === 'success' || data.status === 'failed') {
+          setPolling(false)
+          if (data.status === 'success' && onComplete) {
+            const result = await taskService.getTaskResult(taskId)
+            onComplete(result)
+          }
+        }
+      } catch (error) {
+        console.error('获取任务进度失败:', error)
+      }
+    }, 2000) // 每2秒轮询一次
+
+    return () => clearInterval(interval)
+  }, [taskId, polling, onComplete])
+
+  if (!progress) {
+    return <div>加载中...</div>
+  }
+
+  return (
+    <Card className="p-6">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium">任务执行进度</h3>
+          <span className={`px-2 py-1 rounded text-sm ${
+            progress.status === 'success' ? 'bg-green-100 text-green-800' :
+            progress.status === 'failed' ? 'bg-red-100 text-red-800' :
+            progress.status === 'running' ? 'bg-blue-100 text-blue-800' :
+            'bg-gray-100 text-gray-800'
+          }`}>
+            {progress.status}
+          </span>
+        </div>
+
+        {progress.status === 'running' && (
+          <>
+            <Progress value={progress.progress || 0} />
+            <p className="text-sm text-gray-600">
+              当前步骤: {progress.current_step}
+            </p>
+            {progress.estimated_remaining_seconds && (
+              <p className="text-sm text-gray-600">
+                预计剩余时间: {progress.estimated_remaining_seconds}秒
+              </p>
+            )}
+          </>
+        )}
+
+        {progress.status === 'success' && (
+          <div className="text-green-600">
+            任务执行成功
+          </div>
+        )}
+
+        {progress.status === 'failed' && (
+          <div className="text-red-600">
+            任务执行失败
+          </div>
+        )}
+      </div>
+    </Card>
   )
 }
 ```
 
 ---
 
-## 8. 可视化规则引擎
+## 7. 可视化规则引擎
 
-### 8.1 规则配置格式
-
-```typescript
-// lib/types/model.ts
-export interface RuleCondition {
-  type: 'condition'
-  indicator: string           // 指标编码
-  operator: '>' | '>=' | '<' | '<=' | '=' | '!='
-  value: number | string
-}
-
-export interface RuleGroup {
-  type: 'group'
-  logic: 'AND' | 'OR'
-  rules: (RuleCondition | RuleGroup)[]
-}
-
-export interface ModelRuleConfig {
-  logic: 'AND' | 'OR'
-  rules: (RuleCondition | RuleGroup)[]
-  output: {
-    risk_level: 'low' | 'medium' | 'high' | 'critical'
-    risk_score: number
-    action?: 'alert' | 'review' | 'block'
-  }
-}
-```
-
-### 8.2 规则示例
+### 7.1 规则配置JSON格式
 
 ```json
 {
@@ -2636,12 +1860,6 @@ export interface ModelRuleConfig {
       "indicator": "i_login_cnt_7d",
       "operator": ">",
       "value": 10
-    },
-    {
-      "type": "condition",
-      "indicator": "i_trans_amt_1d",
-      "operator": ">",
-      "value": 50000
     },
     {
       "type": "group",
@@ -2670,1126 +1888,341 @@ export interface ModelRuleConfig {
 }
 ```
 
-### 8.3 规则解释
+### 7.2 支持的操作符
 
-上述规则的逻辑表达式:
-```
-(i_login_cnt_7d > 10) 
-AND (i_trans_amt_1d > 50000)
-AND ((i_device_change_cnt >= 3) OR (i_ip_city_cnt > 5))
-```
+**比较操作符**：
+- `>` - 大于
+- `>=` - 大于等于
+- `<` - 小于
+- `<=` - 小于等于
+- `=` - 等于
+- `!=` - 不等于
 
-满足条件的账户将被标记为:
-- 风险等级: high
-- 风险分数: 85
-- 建议操作: review (人工审核)
+**逻辑操作符**：
+- `AND` - 所有条件必须满足
+- `OR` - 任一条件满足即可
+
+### 7.3 指标数据类型约束
+
+根据指标的`data_type`字段，不同类型的指标支持不同的操作符：
+
+**numeric（数值型）**：
+- 支持所有比较操作符
+
+**enum（枚举型）**：
+- 仅支持 `=` 和 `!=`
+- 值必须在enum_values定义范围内
+
+**boolean（布尔型）**：
+- 仅支持 `=`
+- 值为 true 或 false
+
+**text（文本型）**：
+- 支持 `=` 和 `!=`
 
 ---
 
-## 9. 指标组与动态SQL
+## 8. 指标组与动态SQL
 
-### 9.1 指标组概念
+### 8.1 指标组设计理念
 
-**目标**: 解决多个指标从同一数据源计算导致的重复扫描问题
+**核心思想**：一个SQL加工多个指标，减少重复计算
 
-**实现方式**:
-1. 定义指标组,指定共享的数据源
-2. 同组指标使用统一的SQL模板
-3. 每个指标输出符合行存储格式
+**实现方式**：
+1. 多个指标关联到同一个指标组
+2. 指标组中定义SQL加工逻辑
+3. SQL执行一次，输出多个指标的结果
 
-### 9.2 指标组SQL模板
-
+**SQL格式要求**：
 ```sql
--- 指标组: login_behavior
--- 数据源: user_login, user_session
--- 输出指标: i_login_cnt_7d, i_login_cnt_30d, i_avg_session_duration
-
-SELECT 
-    account_id,
-    indicator_code,
-    indicator_value,
-    CURRENT_DATE as dt
-FROM (
-    SELECT 
-        ul.account_id,
-        -- 指标1: 7天登录次数
-        STACK(3,
-            'i_login_cnt_7d', 
-            CAST(COUNT(DISTINCT CASE WHEN ul.login_date >= DATE_SUB(CURRENT_DATE, 7) 
-                                      THEN ul.login_date END) AS STRING),
-            
-            -- 指标2: 30天登录次数
-            'i_login_cnt_30d',
-            CAST(COUNT(DISTINCT CASE WHEN ul.login_date >= DATE_SUB(CURRENT_DATE, 30) 
-                                      THEN ul.login_date END) AS STRING),
-            
-            -- 指标3: 平均会话时长
-            'i_avg_session_duration',
-            CAST(AVG(us.session_duration) AS STRING)
-        ) AS (indicator_code, indicator_value)
-    FROM user_login ul
-    LEFT JOIN user_session us ON ul.account_id = us.account_id 
-        AND us.session_date >= DATE_SUB(CURRENT_DATE, 30)
-    GROUP BY ul.account_id
-) t
-```
-
-### 9.3 动态SQL生成器
-
-```python
-# backend/services/indicator_service/dynamic_sql_generator.py
-
-class DynamicSQLGenerator:
-    """动态SQL生成器 - 用于指标组批量计算"""
-
-    def generate_group_sql(
-        self,
-        group_code: str,
-        indicators: List[AFIndicatorDefinition]
-    ) -> str:
-        """生成指标组的批量SQL"""
-
-        # 1. 提取所有指标的SQL逻辑
-        indicator_sqls = []
-        for indicator in indicators:
-            # 从单个指标SQL中提取计算逻辑
-            calc_logic = self._extract_calculation(indicator.logic_content)
-            indicator_sqls.append({
-                'code': indicator.indicator_code,
-                'logic': calc_logic
-            })
-
-        # 2. 识别共同的数据源
-        common_tables = self._find_common_tables(indicators)
-
-        # 3. 构建STACK表达式
-        stack_expressions = []
-        for ind_sql in indicator_sqls:
-            stack_expressions.append(
-                f"'{ind_sql['code']}', CAST({ind_sql['logic']} AS STRING)"
-            )
-
-        stack_count = len(stack_expressions)
-        stack_expr = f"STACK({stack_count}, {', '.join(stack_expressions)})"
-
-        # 4. 生成最终SQL
-        sql_template = f"""
-        SELECT 
+SELECT
+    account_id,              -- 必需字段：账户ID
+    indicator_code,          -- 必需字段：指标编码
+    indicator_value,         -- 必需字段：指标值
+    dt                       -- 必需字段：数据日期
+FROM
+    (
+        -- 子查询：实际的业务逻辑
+        SELECT
             account_id,
-            indicator_code,
-            indicator_value,
+            'i_login_cnt_7d' as indicator_code,
+            COUNT(*) as indicator_value,
             CURRENT_DATE as dt
-        FROM (
-            SELECT 
-                account_id,
-                {stack_expr} AS (indicator_code, indicator_value)
-            FROM {common_tables['main']}
-            {self._generate_joins(common_tables['joins'])}
-            GROUP BY account_id
-        ) t
-        """
+        FROM user_login
+        WHERE login_date >= DATE_SUB(CURRENT_DATE, 7)
+        GROUP BY account_id
 
-        return sql_template
+        UNION ALL
 
-    def _extract_calculation(self, sql: str) -> str:
-        """从完整SQL中提取计算逻辑"""
-        # 使用SQL解析器提取SELECT子句中的计算表达式
-        # 这里简化处理，实际需要更复杂的解析逻辑
-        pass
-
-    def _find_common_tables(self, indicators: List[AFIndicatorDefinition]) -> Dict:
-        """识别共同使用的表"""
-        pass
-
-    def _generate_joins(self, join_tables: List[str]) -> str:
-        """生成JOIN子句"""
-        pass
-```
-
-### 9.4 宽表生成策略
-
-#### 9.4.1 方案1: 使用PIVOT动态生成
-
-```sql
--- 从行存储表动态生成宽表
-CREATE TABLE anti_fraud.indicator_result_wide AS
-SELECT 
-    account_id,
-    data_date,
-    {% for indicator in indicators %}
-    MAX(CASE WHEN indicator_code = '{{ indicator.code }}' 
-        THEN CAST(indicator_value AS {{ indicator.data_type }}) END) 
-        AS {{ indicator.code }},
-    {% endfor %}
-    MAX(calculate_time) as calculate_time
-FROM anti_fraud.indicator_result_row
-WHERE dt = '${partition_date}'
-GROUP BY account_id, data_date;
-```
-
-#### 9.4.2 方案2: 使用Hudi增量更新
-
-```python
-# 使用Apache Hudi实现宽表的Schema Evolution
-
-from pyspark.sql import SparkSession
-
-spark = SparkSession.builder \
-    .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
-    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.hudi.catalog.HoodieCatalog") \
-    .config("spark.sql.extensions", "org.apache.spark.sql.hudi.HoodieSparkSessionExtension") \
-    .getOrCreate()
-
-# 读取行存储表
-row_df = spark.sql("""
-    SELECT account_id, indicator_code, indicator_value, dt
-    FROM anti_fraud.indicator_result_row
-    WHERE dt = '20251201'
-""")
-
-# Pivot转换为宽表格式
-wide_df = row_df.groupBy("account_id", "dt").pivot("indicator_code").agg(
-    max("indicator_value")
-)
-
-# 使用Hudi写入(支持Schema Evolution)
-hudi_options = {
-    'hoodie.table.name': 'indicator_result_wide',
-    'hoodie.datasource.write.recordkey.field': 'account_id',
-    'hoodie.datasource.write.partitionpath.field': 'dt',
-    'hoodie.datasource.write.table.name': 'indicator_result_wide',
-    'hoodie.datasource.write.operation': 'upsert',
-    'hoodie.datasource.write.precombine.field': 'calculate_time',
-    'hoodie.upsert.shuffle.parallelism': 100,
-    'hoodie.insert.shuffle.parallelism': 100
-}
-
-wide_df.write.format("hudi") \
-    .options(**hudi_options) \
-    .mode("append") \
-    .save("hdfs://namenode:8020/user/hive/warehouse/anti_fraud.db/indicator_result_wide")
-```
-
----
-
-## 10. PySpark Streaming任务生成
-
-### 10.1 任务生成流程
-
-```
-规则配置(JSON) 
-    ↓
-规则引擎验证
-    ↓
-提取依赖指标列表
-    ↓
-生成PySpark代码(Jinja2模板)
-    ↓
-代码验证和测试
-    ↓
-打包部署到Spark集群
-    ↓
-注册到DolphinScheduler监控
-```
-
-### 10.2 代码模板结构
-
-```python
-# 代码模板的核心部分已在第6.2.2节展示
-# 这里补充部署相关的配置
-
-class StreamingJobDeployer:
-    """PySpark Streaming任务部署器"""
-
-    def deploy_job(
-        self,
-        model_code: str,
-        generated_code: str,
-        deploy_config: Dict
-    ) -> Dict:
-        """部署Streaming任务"""
-
-        # 1. 保存代码到文件系统
-        job_file = self._save_code_file(model_code, generated_code)
-
-        # 2. 提交Spark任务
-        spark_submit_cmd = self._build_spark_submit_command(
-            job_file,
-            deploy_config
-        )
-
-        # 3. 执行提交命令
-        result = subprocess.run(
-            spark_submit_cmd,
-            shell=True,
-            capture_output=True,
-            text=True
-        )
-
-        if result.returncode == 0:
-            # 解析Application ID
-            app_id = self._extract_app_id(result.stdout)
-
-            return {
-                'success': True,
-                'app_id': app_id,
-                'tracking_url': self._get_tracking_url(app_id)
-            }
-        else:
-            return {
-                'success': False,
-                'error': result.stderr
-            }
-
-    def _build_spark_submit_command(
-        self,
-        job_file: str,
-        config: Dict
-    ) -> str:
-        """构建spark-submit命令"""
-
-        cmd = f"""
-        spark-submit \\
-            --master {config.get('master', 'yarn')} \\
-            --deploy-mode {config.get('deploy_mode', 'cluster')} \\
-            --name {config.get('job_name')} \\
-            --driver-memory {config.get('driver_memory', '2g')} \\
-            --executor-memory {config.get('executor_memory', '4g')} \\
-            --executor-cores {config.get('executor_cores', 2)} \\
-            --num-executors {config.get('num_executors', 3)} \\
-            --conf spark.sql.streaming.checkpointLocation={config.get('checkpoint')} \\
-            --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \\
-            {job_file}
-        """
-
-        return cmd
-```
-
----
-
-## 11. 回测功能设计
-
-### 11.1 回测流程
-
-```
-选择模型 → 配置回测参数 → 加载历史数据 → 应用规则 → 对比真实标签 → 计算性能指标
-```
-
-### 11.2 回测服务实现
-
-```python
-# backend/services/model_service/backtest_service.py
-
-from typing import Dict, List
-from datetime import date, datetime
-import uuid
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, when
-from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
-
-class BacktestService:
-    """模型回测服务"""
-
-    def __init__(self, spark: SparkSession, db: Session):
-        self.spark = spark
-        self.db = db
-
-    def run_backtest(
-        self,
-        model_id: int,
-        start_date: date,
-        end_date: date,
-        ground_truth_config: Dict
-    ) -> str:
-        """执行模型回测"""
-
-        # 1. 创建回测记录
-        backtest_id = str(uuid.uuid4())
-        model = self.db.query(AFModelDefinition).get(model_id)
-
-        backtest_record = AFBacktestRecord(
-            backtest_id=backtest_id,
-            model_id=model_id,
-            model_code=model.model_code,
-            start_date=start_date,
-            end_date=end_date,
-            status='running',
-            start_time=datetime.now()
-        )
-        self.db.add(backtest_record)
-        self.db.commit()
-
-        try:
-            # 2. 加载历史指标数据
-            indicator_df = self._load_historical_indicators(
-                model.indicator_codes,
-                start_date,
-                end_date
-            )
-
-            # 3. 应用模型规则
-            prediction_df = self._apply_model_rules(
-                indicator_df,
-                model.rule_config
-            )
-
-            # 4. 加载真实标签
-            ground_truth_df = self._load_ground_truth(
-                ground_truth_config,
-                start_date,
-                end_date
-            )
-
-            # 5. 关联预测和真实标签
-            result_df = prediction_df.join(
-                ground_truth_df,
-                on=["account_id", "data_date"],
-                how="inner"
-            )
-
-            # 6. 计算性能指标
-            metrics = self._calculate_metrics(result_df)
-
-            # 7. 更新回测记录
-            backtest_record.status = 'success'
-            backtest_record.end_time = datetime.now()
-            backtest_record.total_records = metrics['total']
-            backtest_record.hit_records = metrics['predicted_positive']
-            backtest_record.true_positive = metrics['tp']
-            backtest_record.false_positive = metrics['fp']
-            backtest_record.true_negative = metrics['tn']
-            backtest_record.false_negative = metrics['fn']
-            backtest_record.precision_score = metrics['precision']
-            backtest_record.recall_score = metrics['recall']
-            backtest_record.f1_score = metrics['f1']
-            backtest_record.accuracy_score = metrics['accuracy']
-            self.db.commit()
-
-            logger.info(f"回测完成: {backtest_id}, F1={metrics['f1']:.4f}")
-
-            return backtest_id
-
-        except Exception as e:
-            backtest_record.status = 'failed'
-            backtest_record.error_message = str(e)
-            backtest_record.end_time = datetime.now()
-            self.db.commit()
-
-            logger.error(f"回测失败: {backtest_id}, 错误: {str(e)}")
-            raise
-
-    def _load_historical_indicators(
-        self,
-        indicator_codes: List[str],
-        start_date: date,
-        end_date: date
-    ):
-        """加载历史指标数据"""
-
-        sql = f"""
-        SELECT 
+        SELECT
             account_id,
-            data_date,
-            {", ".join(indicator_codes)}
-        FROM anti_fraud.indicator_result_wide
-        WHERE dt >= '{start_date.strftime('%Y%m%d')}'
-          AND dt <= '{end_date.strftime('%Y%m%d')}'
-        """
-
-        return self.spark.sql(sql)
-
-    def _apply_model_rules(self, df, rule_config: Dict):
-        """应用模型规则"""
-
-        # 这里需要将规则配置转换为Spark SQL表达式
-        # 简化示例：
-        condition_expr = self._build_spark_condition(rule_config)
-
-        result_df = df.withColumn(
-            "prediction",
-            when(condition_expr, 1).otherwise(0)
-        )
-
-        return result_df
-
-    def _build_spark_condition(self, rule_config: Dict):
-        """构建Spark SQL条件表达式"""
-        # 递归构建条件表达式
-        # 例如: (col("i_login_cnt_7d") > 10) & (col("i_trans_amt_1d") > 50000)
-        pass
-
-    def _load_ground_truth(self, config: Dict, start_date: date, end_date: date):
-        """加载真实标签数据"""
-
-        sql = f"""
-        SELECT 
-            {config['key_field']} as account_id,
-            {config['date_field']} as data_date,
-            {config['label_field']} as actual_label
-        FROM {config['table_name']}
-        WHERE {config['date_field']} >= '{start_date}'
-          AND {config['date_field']} <= '{end_date}'
-        """
-
-        return self.spark.sql(sql)
-
-    def _calculate_metrics(self, result_df) -> Dict:
-        """计算性能指标"""
-
-        # 转换为Pandas进行计算
-        pandas_df = result_df.select("prediction", "actual_label").toPandas()
-
-        y_true = pandas_df["actual_label"].values
-        y_pred = pandas_df["prediction"].values
-
-        # 计算混淆矩阵
-        tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
-
-        # 计算指标
-        metrics = {
-            'total': len(y_true),
-            'predicted_positive': int(y_pred.sum()),
-            'actual_positive': int(y_true.sum()),
-            'tp': int(tp),
-            'fp': int(fp),
-            'tn': int(tn),
-            'fn': int(fn),
-            'precision': float(precision_score(y_true, y_pred, zero_division=0)),
-            'recall': float(recall_score(y_true, y_pred, zero_division=0)),
-            'f1': float(f1_score(y_true, y_pred, zero_division=0)),
-            'accuracy': float((tp + tn) / len(y_true)) if len(y_true) > 0 else 0.0
-        }
-
-        return metrics
+            'i_login_device_cnt' as indicator_code,
+            COUNT(DISTINCT device_id) as indicator_value,
+            CURRENT_DATE as dt
+        FROM user_login
+        WHERE login_date >= DATE_SUB(CURRENT_DATE, 7)
+        GROUP BY account_id
+    ) t
 ```
 
-### 11.3 回测结果可视化
+### 8.2 宽表动态生成
 
+**生成逻辑**：
+1. 从行存表中读取最新分区的数据
+2. 使用PIVOT操作将行转列
+3. 写入宽表
+
+**示例SQL**：
+```sql
+INSERT OVERWRITE TABLE anti_fraud.indicator_result_wide PARTITION(dt='${etl_date}')
+SELECT
+    account_id,
+    MAX(CASE WHEN indicator_code = 'i_login_cnt_7d' THEN indicator_value END) as i_login_cnt_7d,
+    MAX(CASE WHEN indicator_code = 'i_login_device_cnt' THEN indicator_value END) as i_login_device_cnt,
+    MAX(CASE WHEN indicator_code = 'i_trans_amt_1d' THEN indicator_value END) as i_trans_amt_1d,
+    CURRENT_TIMESTAMP as calculate_time
+FROM anti_fraud.indicator_result_row
+WHERE dt = '${etl_date}'
+GROUP BY account_id
+```
+
+---
+
+## 9. 异步任务执行机制
+
+### 9.1 任务执行流程
+
+```
+1. 前端提交任务请求
+   ↓
+2. 后端创建任务记录（状态: pending）
+   ↓
+3. 后端返回task_id给前端
+   ↓
+4. 后端异步执行任务
+   ├── 更新状态为 running
+   ├── 执行业务逻辑
+   └── 更新状态为 success/failed
+   ↓
+5. 前端轮询任务进度
+   ↓
+6. 任务完成后获取结果
+```
+
+### 9.2 前端轮询策略
+
+**轮询间隔**：
+- 初始间隔：2秒
+- 如果任务运行超过1分钟，间隔调整为5秒
+- 如果任务运行超过5分钟，间隔调整为10秒
+
+**超时策略**：
+- 默认超时时间：30分钟
+- 超时后提示用户，但不自动取消任务
+
+**示例代码**：
 ```typescript
-// components/model/BacktestResults.tsx
+async function pollTaskProgress(taskId: string) {
+  let interval = 2000
+  const startTime = Date.now()
 
-import { Bar, Line } from 'recharts'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+  while (true) {
+    const progress = await taskService.getTaskProgress(taskId)
 
-interface BacktestResultsProps {
-  backtestId: string
-}
+    if (progress.status === 'success' || progress.status === 'failed') {
+      return progress
+    }
 
-export function BacktestResults({ backtestId }: BacktestResultsProps) {
-  const { data: backtest } = useBacktestResult(backtestId)
+    // 动态调整轮询间隔
+    const elapsed = Date.now() - startTime
+    if (elapsed > 5 * 60 * 1000) {
+      interval = 10000
+    } else if (elapsed > 60 * 1000) {
+      interval = 5000
+    }
 
-  if (!backtest) return <div>加载中...</div>
-
-  const { metrics, daily_metrics } = backtest
-
-  return (
-    <div className="space-y-6">
-      {/* 总体指标 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>精确率</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {(metrics.precision * 100).toFixed(2)}%
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>召回率</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {(metrics.recall * 100).toFixed(2)}%
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>F1分数</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {(metrics.f1 * 100).toFixed(2)}%
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>准确率</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {(metrics.accuracy * 100).toFixed(2)}%
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 混淆矩阵 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>混淆矩阵</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4 max-w-md">
-            <div className="p-4 border rounded bg-green-50">
-              <div className="text-sm text-gray-600">真阳性 (TP)</div>
-              <div className="text-2xl font-bold">{metrics.tp}</div>
-            </div>
-            <div className="p-4 border rounded bg-red-50">
-              <div className="text-sm text-gray-600">假阳性 (FP)</div>
-              <div className="text-2xl font-bold">{metrics.fp}</div>
-            </div>
-            <div className="p-4 border rounded bg-red-50">
-              <div className="text-sm text-gray-600">假阴性 (FN)</div>
-              <div className="text-2xl font-bold">{metrics.fn}</div>
-            </div>
-            <div className="p-4 border rounded bg-green-50">
-              <div className="text-sm text-gray-600">真阴性 (TN)</div>
-              <div className="text-2xl font-bold">{metrics.tn}</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 每日趋势 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>每日性能趋势</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <LineChart width={800} height={300} data={daily_metrics}>
-            <XAxis dataKey="date" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Line type="monotone" dataKey="precision" stroke="#8884d8" name="精确率" />
-            <Line type="monotone" dataKey="recall" stroke="#82ca9d" name="召回率" />
-            <Line type="monotone" dataKey="f1" stroke="#ffc658" name="F1分数" />
-          </LineChart>
-        </CardContent>
-      </Card>
-    </div>
-  )
+    await new Promise(resolve => setTimeout(resolve, interval))
+  }
 }
 ```
 
 ---
 
-## 12. 任务调度集成
+## 10. 部署架构
 
-### 12.1 DolphinScheduler集成架构
-
-```
-反诈系统
-    ↓ (通过REST API)
-DolphinScheduler
-    ↓ (提交任务)
-Spark集群
-    ↓ (读写数据)
-Hadoop/Hive
-```
-
-### 12.2 任务类型
-
-#### 12.2.1 离线指标计算任务
-
-```python
-# 任务类型: SPARK
-# 任务配置示例
-
-{
-    "taskType": "SPARK",
-    "taskParams": {
-        "mainClass": "",
-        "mainJar": {
-            "id": 1
-        },
-        "deployMode": "cluster",
-        "driverCores": 1,
-        "driverMemory": "2G",
-        "numExecutors": 3,
-        "executorMemory": "4G",
-        "executorCores": 2,
-        "appName": "indicator_calculation_i_login_cnt_7d",
-        "mainArgs": "--indicator-code i_login_cnt_7d --partition ${partition_date}",
-        "others": "",
-        "programType": "PYTHON",
-        "sparkVersion": "SPARK3",
-        "runMode": "SPARK_SQL"
-    }
-}
-```
-
-#### 12.2.2 指标组批量任务
-
-```python
-# 批量计算指标组的DAG定义
-
-{
-    "tasks": [
-        {
-            "code": "load_raw_data",
-            "name": "加载原始数据",
-            "type": "SQL",
-            "sql": "-- 数据预处理SQL"
-        },
-        {
-            "code": "calculate_indicator_group_login",
-            "name": "计算登录行为指标组",
-            "type": "SPARK",
-            "dependsOn": ["load_raw_data"]
-        },
-        {
-            "code": "generate_wide_table",
-            "name": "生成指标宽表",
-            "type": "SPARK",
-            "dependsOn": ["calculate_indicator_group_login"]
-        }
-    ]
-}
-```
-
-#### 12.2.3 实时模型监控任务
-
-```python
-# 任务类型: SHELL (用于监控Streaming任务状态)
-
-{
-    "taskType": "SHELL",
-    "taskParams": {
-        "rawScript": """
-#!/bin/bash
-
-MODEL_CODE="m_high_risk_login"
-APP_ID=$(yarn application -list | grep $MODEL_CODE | awk '{print $1}')
-
-if [ -z "$APP_ID" ]; then
-    echo "ERROR: Streaming job not found for model: $MODEL_CODE"
-    exit 1
-fi
-
-# 检查任务状态
-STATE=$(yarn application -status $APP_ID | grep State | awk '{print $3}')
-
-if [ "$STATE" != "RUNNING" ]; then
-    echo "ERROR: Streaming job is not running. State: $STATE"
-    # 发送告警
-    curl -X POST http://alert-service/api/alert \\
-        -H "Content-Type: application/json" \\
-        -d "{\"model\": \"$MODEL_CODE\", \"status\": \"$STATE\"}"
-    exit 1
-fi
-
-echo "SUCCESS: Streaming job is running normally"
-exit 0
-        """
-    }
-}
-```
-
-### 12.3 调度策略
-
-#### 12.3.1 离线指标调度
-
-```python
-# 每日凌晨2点执行
-schedule_cron = "0 2 * * *"
-
-# 依赖配置
-dependencies = {
-    "upstream": ["etl_user_login", "etl_user_transaction"],  # 上游ETL任务
-    "downstream": ["generate_wide_table"]  # 下游宽表生成
-}
-
-# 失败重试策略
-retry_config = {
-    "retry_times": 2,
-    "retry_interval": 5  # 分钟
-}
-```
-
-#### 12.3.2 实时模型调度
-
-```python
-# 持续运行的Streaming任务不需要周期调度
-# 但需要配置监控任务
-
-monitor_schedule = {
-    "cron": "*/15 * * * *",  # 每15分钟检查一次
-    "alert_channels": ["email", "dingtalk", "sms"]
-}
-```
-
----
-
-## 13. 部署架构
-
-### 13.1 系统部署拓扑
+### 10.1 部署拓扑
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                          用户层                                  │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐                       │
-│  │ 开发人员 │  │ 业务人员 │  │ 运维人员 │                       │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘                       │
-│       │             │             │                              │
-└───────┼─────────────┼─────────────┼──────────────────────────────┘
-        │             │             │
-        └─────────────┴─────────────┘
-                      │
-        ┌─────────────▼─────────────────┐
-        │       Nginx (负载均衡)          │
-        └─────────────┬─────────────────┘
-                      │
-        ┌─────────────▼─────────────────┐
-        │  Next.js Frontend (3000)      │
-        │  (静态资源 + SSR)               │
-        └─────────────┬─────────────────┘
-                      │
-        ┌─────────────▼─────────────────┐
-        │  FastAPI Backend (50020)      │
-        │  (Uvicorn + 多worker)          │
-        └──┬────────┬────────┬──────────┘
-           │        │        │
-    ┌──────▼──┐ ┌──▼────┐ ┌─▼──────────┐
-    │  MySQL  │ │ Spark │ │ Dolphin    │
-    │ (元数据) │ │ JDBC  │ │ Scheduler  │
-    └─────────┘ └───┬───┘ └────────────┘
-                    │
-        ┌───────────▼───────────────┐
-        │   Spark 集群               │
-        │  ┌──────────────────────┐ │
-        │  │ Streaming Jobs (实时) │ │
-        │  ├──────────────────────┤ │
-        │  │ Batch Jobs (离线)     │ │
-        │  └──────────────────────┘ │
-        └───────────┬───────────────┘
-                    │
-        ┌───────────▼───────────────┐
-        │   Hadoop 生态              │
-        │  ┌─────┐  ┌──────┐        │
-        │  │ HDFS│  │ Hive │        │
-        │  └─────┘  └──────┘        │
-        └───────────────────────────┘
-                    │
-        ┌───────────▼───────────────┐
-        │   Kafka 集群 (实时流)      │
-        └───────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                         用户层                               │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐                   │
+│  │ 业务人员  │  │ 数据分析师│  │ 开发人员 │                   │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘                   │
+└───────┼────────────┼────────────┼─────────────────────────┘
+        │            │            │
+        └────────────┴────────────┘
+                     │
+        ┌────────────▼────────────┐
+        │     Nginx (反向代理)     │
+        └────────────┬────────────┘
+                     │
+        ┌────────────┴────────────┐
+        │                         │
+┌───────▼────────┐     ┌─────────▼────────┐
+│  Next.js前端   │     │  FastAPI后端     │
+│  (端口: 3000)  │     │  (端口: 50020)   │
+└────────────────┘     └─────────┬────────┘
+                                 │
+                ┌────────────────┼────────────────┐
+                │                │                │
+        ┌───────▼──────┐  ┌─────▼─────┐  ┌──────▼──────┐
+        │    MySQL     │  │  Qdrant   │  │   Spark     │
+        │  (元数据)    │  │  (向量)   │  │ ThriftServer│
+        └──────────────┘  └───────────┘  └──────┬──────┘
+                                                 │
+                                         ┌───────▼───────┐
+                                         │     Hive      │
+                                         │   (数据仓库)  │
+                                         └───────────────┘
 ```
 
-### 13.2 服务器资源规划
+### 10.2 Docker部署配置
 
-#### 13.2.1 Web服务器
-
+**docker-compose.yml**:
 ```yaml
-Frontend Server:
-  数量: 2台 (主备)
-  配置:
-    CPU: 4核
-    内存: 8GB
-    磁盘: 100GB SSD
-  软件:
-    - Node.js 20.x
-    - Next.js 14.x
-    - PM2 (进程管理)
-
-Backend Server:
-  数量: 2台 (负载均衡)
-  配置:
-    CPU: 8核
-    内存: 16GB
-    磁盘: 200GB SSD
-  软件:
-    - Python 3.11+
-    - FastAPI 0.116+
-    - Uvicorn (4 workers)
-```
-
-#### 13.2.2 数据库服务器
-
-```yaml
-MySQL Server:
-  数量: 1主2从
-  配置:
-    CPU: 16核
-    内存: 64GB
-    磁盘: 1TB SSD (RAID10)
-  版本: MySQL 8.0
-  配置优化:
-    - innodb_buffer_pool_size: 48GB
-    - max_connections: 1000
-```
-
-#### 13.2.3 Spark集群
-
-```yaml
-Spark Master:
-  数量: 2台 (HA)
-  配置:
-    CPU: 8核
-    内存: 16GB
-
-Spark Workers:
-  数量: 5-10台 (按需扩展)
-  配置:
-    CPU: 32核
-    内存: 128GB
-    磁盘: 2TB HDD
-
-Streaming Jobs:
-  资源分配 (每个模型):
-    executor-memory: 4G
-    executor-cores: 2
-    num-executors: 3
-```
-
-### 13.3 Docker部署配置
-
-#### 13.3.1 Docker Compose示例
-
-```yaml
-# docker-compose.yml
 version: '3.8'
 
 services:
-  # MySQL数据库
-  mysql:
-    image: mysql:8.0
-    container_name: anti_fraud_mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: anti_fraud
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+  # 前端服务
+  frontend:
+    build: ./frontend
     ports:
-      - "3306:3306"
-    networks:
-      - anti_fraud_network
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE=/api/taosha/v1
+    depends_on:
+      - backend
 
   # 后端服务
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: anti_fraud_backend
-    environment:
-      - DATABASE_URL=mysql+pymysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306/anti_fraud
-      - SPARK_JDBC_URL=${SPARK_JDBC_URL}
-      - DOLPHINSCHEDULER_URL=${DOLPHINSCHEDULER_URL}
-    volumes:
-      - ./backend:/app
-      - spark_jobs:/opt/spark/jobs
+    build: ./backend
     ports:
       - "50020:50020"
+    environment:
+      - DATABASE_URL=mysql+pymysql://user:password@mysql:3306/fraudhunter
+      - QDRANT_URL=http://qdrant:6333
+      - SPARK_JDBC_URL=jdbc:hive2://spark-thrift:10000
     depends_on:
       - mysql
-    networks:
-      - anti_fraud_network
-    command: uvicorn backend.main:app --host 0.0.0.0 --port 50020 --workers 4
-
-  # 前端服务
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: anti_fraud_frontend
-    environment:
-      - NEXT_PUBLIC_API_BASE=http://backend:50020
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-    networks:
-      - anti_fraud_network
-
-  # Nginx反向代理
-  nginx:
-    image: nginx:alpine
-    container_name: anti_fraud_nginx
+      - qdrant
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./backend:/app
+      - ./config:/app/config
+
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=fraudhunter
+      - MYSQL_USER=user
+      - MYSQL_PASSWORD=password
     ports:
-      - "80:80"
-      - "443:443"
-    depends_on:
-      - frontend
-      - backend
-    networks:
-      - anti_fraud_network
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  # Qdrant向量数据库
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
 
 volumes:
   mysql_data:
-  spark_jobs:
-
-networks:
-  anti_fraud_network:
-    driver: bridge
-```
-
-#### 13.3.2 后端Dockerfile
-
-```dockerfile
-# backend/Dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-
-# 安装系统依赖
-RUN apt-get update && apt-get install -y \\
-    gcc \\
-    g++ \\
-    libpq-dev \\
-    && rm -rf /var/lib/apt/lists/*
-
-# 安装Python依赖
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# 复制应用代码
-COPY . .
-
-# 暴露端口
-EXPOSE 50020
-
-# 启动命令
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "50020", "--workers", "4"]
-```
-
-#### 13.3.3 前端Dockerfile
-
-```dockerfile
-# frontend/Dockerfile
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-# 安装依赖
-COPY package*.json ./
-RUN npm ci
-
-# 构建应用
-COPY . .
-RUN npm run build
-
-# 生产镜像
-FROM node:20-alpine
-
-WORKDIR /app
-
-COPY --from=builder /app/next.config.mjs ./
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-
-EXPOSE 3000
-
-CMD ["npm", "start"]
+  qdrant_data:
 ```
 
 ---
 
-## 14. 开发路线图
+## 11. 开发路线图
 
-### 14.1 Phase 1: MVP核心功能 (4-6周)
+### MVP阶段开发计划
 
-#### Week 1-2: 基础架构
-- [ ] 数据库模型设计和建表
-- [ ] FastAPI项目脚手架搭建
-- [ ] Next.js前端项目初始化
-- [ ] Spark JDBC连接配置
-- [ ] DolphinScheduler API集成测试
+#### 第二周：指标组功能开发
+- **Day 1-2**: 指标组管理
+  - 实现指标组CRUD接口
+  - 实现SQL验证服务
+  - 开发指标组表单组件
 
-#### Week 3-4: 指标管理
-- [ ] 指标CRUD API开发
-- [ ] SQL验证器实现
-- [ ] 指标执行器(试运行)
-- [ ] 指标列表页面
-- [ ] 指标编辑页面(含SQL编辑器)
-- [ ] 指标预览功能
+- **Day 3-4**: 指标定义
+  - 实现指标CRUD接口
+  - 实现版本管理功能
+  - 开发指标管理界面
 
-#### Week 5-6: 模型管理
-- [ ] 模型CRUD API开发
-- [ ] 规则引擎实现
-- [ ] 规则配置JSON Schema定义
-- [ ] 模型列表页面
-- [ ] 可视化规则构建器
-- [ ] PySpark代码生成器(基础版)
+- **Day 5**: 指标试运行
+  - 实现异步任务框架
+  - 实现指标试运行功能
+  - 开发任务监控组件
 
-### 14.2 Phase 2: 增强功能 (4-6周)
+#### 第三周：模型功能开发
+- **Day 1-2**: 规则引擎
+  - 实现规则验证服务
+  - 开发规则构建器组件
+  - 实现规则解析逻辑
 
-#### Week 7-8: 指标组与动态SQL
-- [ ] 指标组管理API
-- [ ] 动态SQL生成器
-- [ ] 行存到宽表转换逻辑
-- [ ] 指标组批量执行
-- [ ] 指标组管理页面
+- **Day 3-4**: 模型管理
+  - 实现模型CRUD接口
+  - 实现代码生成服务
+  - 开发模型管理界面
 
-#### Week 9-10: 任务调度与监控
-- [ ] DolphinScheduler任务创建
-- [ ] 任务状态监控
-- [ ] 执行历史记录
-- [ ] 任务列表页面
-- [ ] 任务详情和日志查看
+- **Day 5**: 模型试运行
+  - 实现模型试运行功能
+  - 开发结果展示组件
+  - 实现结果数据可视化
 
-#### Week 11-12: 回测功能
-- [ ] 回测服务实现
-- [ ] 性能指标计算
-- [ ] 回测结果存储
-- [ ] 回测配置页面
-- [ ] 回测结果可视化
+#### 第四周：任务调度与集成
+- **Day 1-2**: DolphinScheduler集成
+  - 实现DS客户端
+  - 实现任务发布功能
+  - 实现任务状态同步
 
-### 14.3 Phase 3: 优化与扩展 (3-4周)
+- **Day 3-4**: 完善异步任务
+  - 优化任务执行流程
+  - 实现任务日志记录
+  - 开发任务历史查询
 
-#### Week 13-14: 系统优化
-- [ ] SQL解析性能优化
-- [ ] 指标缓存机制
-- [ ] 前端加载性能优化
-- [ ] 错误处理完善
-- [ ] 日志系统优化
+- **Day 5**: 测试与优化
+  - 功能测试
+  - 性能优化
+  - Bug修复
 
-#### Week 15-16: 扩展功能
-- [ ] PySpark代码支持(可选)
-- [ ] 实时指标监控
-- [ ] 告警规则配置
-- [ ] 模型版本管理
-- [ ] 指标血缘分析
+### 功能优先级
 
-### 14.4 Phase 4: 生产就绪 (2-3周)
+**P0（必须完成）**：
+- ✅ 指标组CRUD
+- ✅ 指标CRUD
+- ✅ 版本管理
+- ✅ SQL验证
+- ✅ 指标试运行
+- ✅ 模型CRUD
+- ✅ 规则引擎
+- ✅ 模型试运行
+- ✅ 异步任务执行
 
-#### Week 17-18: 测试与文档
-- [ ] 单元测试覆盖
-- [ ] 集成测试
-- [ ] 压力测试
-- [ ] 用户手册编写
-- [ ] API文档完善
+**P1（重要功能）**：
+- 🔲 DolphinScheduler集成
+- 🔲 任务执行历史查询
+- 🔲 代码生成优化
+- 🔲 结果数据可视化
 
-#### Week 19: 部署与上线
-- [ ] Docker镜像构建
-- [ ] 生产环境部署
-- [ ] 数据迁移
-- [ ] 用户培训
-- [ ] 上线验收
-
-### 14.5 里程碑检查点
-
-```
-Milestone 1 (Week 2):  ✓ 基础架构完成，能运行Hello World
-Milestone 2 (Week 4):  ✓ 指标管理功能完成，能创建和试运行指标
-Milestone 3 (Week 6):  ✓ 模型管理功能完成，能可视化定义规则
-Milestone 4 (Week 8):  ✓ 指标组功能完成，能批量计算指标
-Milestone 5 (Week 12): ✓ 回测功能完成，能评估模型性能
-Milestone 6 (Week 16): ✓ 所有核心功能完成，进入测试阶段
-Milestone 7 (Week 19): ✓ 生产环境上线
-```
+**P2（可延后）**：
+- 🔲 PySpark代码支持
+- 🔲 实时指标监控
+- 🔲 指标血缘分析
+- 🔲 模型A/B测试
 
 ---
 
@@ -3797,41 +2230,24 @@ Milestone 7 (Week 19): ✓ 生产环境上线
 
 ### A. 术语表
 
-| 术语 | 英文 | 说明 |
-|------|------|------|
-| 指标 | Indicator | 从原始数据计算得到的统计特征，如"7天登录次数" |
-| 指标组 | Indicator Group | 共享数据源的一组指标，可以批量计算 |
-| 模型 | Model | 基于多个指标的组合规则，用于识别风险账户 |
-| 规则引擎 | Rule Engine | 解析和执行规则配置的组件 |
-| 回测 | Backtest | 使用历史数据验证模型效果的过程 |
-| 宽表 | Wide Table | 每个账户一行，多个指标作为列的表结构 |
-| 行存 | Row Format | 每个指标值一行的存储格式 |
-| 命中 | Hit | 账户满足模型规则，被识别为风险 |
+| 术语 | 说明 |
+|------|------|
+| 指标组 | 一组共享相同SQL加工逻辑的指标集合 |
+| 指标 | 单个业务度量值，如"7天登录次数" |
+| 模型 | 基于多个指标的规则组合，用于风险判断 |
+| 规则引擎 | 解析和执行模型规则的系统组件 |
+| 试运行 | 在正式发布前，使用样本数据验证逻辑正确性 |
+| 版本管理 | 记录和追溯配置变更历史 |
+| 异步任务 | 后台执行的长时任务，不阻塞前端响应 |
 
-### B. 参考资料
+### B. 参考文档
 
-1. **技术文档**
-   - FastAPI官方文档: https://fastapi.tiangolo.com/
-   - PySpark官方文档: https://spark.apache.org/docs/latest/api/python/
-   - DolphinScheduler文档: https://dolphinscheduler.apache.org/
-
-2. **设计参考**
-   - 特征工程平台设计: Feast, Tecton
-   - 规则引擎: Drools, Easy Rules
-   - 实时风控: 阿里云实时风控方案
-
-3. **开源项目**
-   - Feast: Feature Store for ML
-   - Great Expectations: 数据质量框架
-   - Airflow: 工作流调度(DolphinScheduler类似)
-
-### C. 联系与支持
-
-- **项目负责人**: [待定]
-- **技术支持**: [待定]
-- **问题反馈**: [待定]
+- **FastAPI官方文档**: https://fastapi.tiangolo.com/
+- **SQLAlchemy 2.0文档**: https://docs.sqlalchemy.org/
+- **Next.js官方文档**: https://nextjs.org/docs
+- **DolphinScheduler API**: https://dolphinscheduler.apache.org/
+- **PySpark官方文档**: https://spark.apache.org/docs/latest/api/python/
 
 ---
 
 **文档结束**
-
