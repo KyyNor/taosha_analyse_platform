@@ -74,33 +74,34 @@ export function ChatSidebar() {
 
   return (
     <>
-      <CardHeader className="shrink-0 border-b p-4">
+      <CardHeader className="shrink-0 border-b p-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5" />
-            <span className="font-semibold">对话历史</span>
+            <MessageSquare className="w-4 h-4" />
+            <span className="font-semibold text-sm">对话历史</span>
           </div>
           <Button
             variant="ghost"
             size="icon"
             onClick={createNewSession}
             title="新对话"
+            className="h-7 w-7"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
           </Button>
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 overflow-y-auto p-4">
+      <CardContent className="flex-1 overflow-y-auto p-3">
         {/* 操作：开始新对话 */}
-        <div className="mb-4">
+        <div className="mb-3">
           <Button
             variant={!currentSessionId ? "secondary" : "outline"}
             size="sm"
             onClick={createNewSession}
-            className="w-full justify-start"
+            className="w-full justify-start h-8 text-xs"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
             <span>开始新对话</span>
           </Button>
         </div>
@@ -112,9 +113,9 @@ export function ChatSidebar() {
             <p>暂无历史对话</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {sessionGroups.map((group) => (
-              <div key={group.label} className="space-y-2">
+              <div key={group.label} className="space-y-1.5">
                 <h3 className="text-xs font-medium text-muted-foreground px-2">
                   {group.label}
                 </h3>
@@ -124,7 +125,7 @@ export function ChatSidebar() {
                       key={session.id}
                       onClick={() => switchSession(session.id)}
                       className={cn(
-                        "group flex flex-col p-3 rounded-md cursor-pointer",
+                        "group flex flex-col p-2 rounded-md cursor-pointer",
                         "transition-all duration-200 hover:translate-x-1",
                         currentSessionId === session.id
                           ? "bg-secondary shadow-sm border border-border"
@@ -189,7 +190,7 @@ export function ChatSidebarLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // 默认折叠
 
   return (
-    <div className="flex gap-4 min-h-[600px] max-h-[calc(100vh-12rem)]">
+    <div className="flex gap-3 min-h-[600px] max-h-[calc(100vh-8rem)]">
       {/* 左侧历史面板 - 条件渲染 */}
       {isSidebarOpen && (
         <aside className="w-64 shrink-0 flex flex-col">
@@ -200,18 +201,17 @@ export function ChatSidebarLayout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* 右侧聊天区域 */}
-      <main className="flex-1 min-w-0 flex flex-col gap-4">
-        {/* 折叠按钮 */}
-        <div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          >
-            <Menu className="w-4 h-4 mr-2" />
-            {isSidebarOpen ? "隐藏历史" : "显示历史"}
-          </Button>
-        </div>
+      <main className="flex-1 min-w-0 flex flex-col gap-2">
+        {/* 折叠按钮 - 紧凑样式 */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="self-start h-8 px-3 text-xs"
+        >
+          <Menu className="w-3.5 h-3.5 mr-1.5" />
+          {isSidebarOpen ? "隐藏历史" : "显示历史"}
+        </Button>
 
         {children}
       </main>

@@ -14,7 +14,7 @@ function AgentPageContent() {
     <>
       {/* 消息区域 - 独立滚动 */}
       <Card className="flex-1 flex flex-col overflow-hidden border shadow-sm">
-        <CardContent className="flex-1 overflow-y-auto p-6 space-y-4">
+        <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
           <ChatMessagesArea />
         </CardContent>
       </Card>

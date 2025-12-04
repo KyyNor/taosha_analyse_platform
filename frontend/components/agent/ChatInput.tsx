@@ -62,7 +62,7 @@ export function ChatInput({ onSendMessage, disabled }: ChatInputProps) {
   }, [clearMessages]);
 
   return (
-    <div className="p-4 bg-background/50 backdrop-blur-sm">
+    <div className="p-3 bg-background/50 backdrop-blur-sm">
       <div className="max-w-4xl mx-auto">
         <InputGroup className="min-h-0 bg-white dark:bg-secondary/20 shadow-lg border rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-primary/20 transition-all">
           <Textarea
@@ -98,7 +98,7 @@ export function ChatInput({ onSendMessage, disabled }: ChatInputProps) {
           </div>
         </InputGroup>
 
-        <div className="text-xs text-muted-foreground mt-2 ml-1 text-center opacity-70">
+        <div className="text-xs text-muted-foreground mt-1.5 ml-1 text-center opacity-70">
           按 Enter 发送，Shift + Enter 换行
         </div>
       </div>
