@@ -4,12 +4,12 @@
 
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from backend.models.fraudhunter.indicator import (
+from models.fraudhunter.indicator import (
     FraudHunterIndicatorDefinition,
     FraudHunterIndicatorHistory,
     FraudHunterIndicatorGroup
 )
-from backend.schemas.fraudhunter.indicator import (
+from schemas.fraudhunter.indicator import (
     IndicatorCreate,
     IndicatorUpdate
 )

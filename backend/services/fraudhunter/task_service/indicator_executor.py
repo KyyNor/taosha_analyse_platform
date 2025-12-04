@@ -6,8 +6,8 @@ import asyncio
 from typing import Dict, Any
 from datetime import datetime, date
 from sqlalchemy.orm import Session
-from backend.models.fraudhunter.indicator import FraudHunterIndicatorGroup
-from backend.models.fraudhunter.task import FraudHunterTaskExecutionRecord
+from models.fraudhunter.indicator import FraudHunterIndicatorGroup
+from models.fraudhunter.task import FraudHunterTaskExecutionRecord
 from utils.logger import logger
 
 

@@ -5,14 +5,14 @@ FraudHunter任务管理API路由
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
-from backend.database.db_base import get_db
-from backend.schemas.fraudhunter.task import (
+from models.db_base import get_db
+from schemas.fraudhunter.task import (
     TaskProgressResponse,
     TaskResultResponse,
     TaskExecutionListResponse,
     TaskExecutionItem,
 )
-from backend.services.fraudhunter.task_service import task_manager
+from services.fraudhunter.task_service import task_manager
 from utils.logger import logger
 
 

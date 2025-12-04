@@ -5,8 +5,8 @@ FraudHunter指标组管理API路由
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
-from backend.database.db_base import get_db
-from backend.schemas.fraudhunter.indicator import (
+from models.db_base import get_db
+from schemas.fraudhunter.indicator import (
     IndicatorGroupCreate,
     IndicatorGroupUpdate,
     IndicatorGroupResponse,
@@ -15,11 +15,11 @@ from backend.schemas.fraudhunter.indicator import (
     DryRunResponse,
     PublishRequest,
 )
-from backend.services.fraudhunter.indicator_service import (
+from services.fraudhunter.indicator_service import (
     IndicatorGroupManager,
     SQLValidator
 )
-from backend.services.fraudhunter.task_service import task_manager, indicator_executor
+from services.fraudhunter.task_service import task_manager, indicator_executor
 from utils.logger import logger
 
 

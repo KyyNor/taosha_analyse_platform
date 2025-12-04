@@ -5,11 +5,11 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from backend.models.fraudhunter.indicator import (
+from models.fraudhunter.indicator import (
     FraudHunterIndicatorGroup,
     FraudHunterIndicatorGroupHistory
 )
-from backend.schemas.fraudhunter.indicator import (
+from schemas.fraudhunter.indicator import (
     IndicatorGroupCreate,
     IndicatorGroupUpdate
 )

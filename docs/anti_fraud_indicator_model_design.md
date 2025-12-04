@@ -933,9 +933,9 @@ POST /api/taosha/v1/fraudhunter/tasks/{task_id}/cancel
 ```python
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from backend.models.fraudhunter.indicator import FraudHunterIndicatorGroup
-from backend.schemas.fraudhunter.indicator import IndicatorGroupCreate, IndicatorGroupUpdate
-from backend.utils.logger import logger
+from models.fraudhunter.indicator import FraudHunterIndicatorGroup
+from schemas.fraudhunter.indicator import IndicatorGroupCreate, IndicatorGroupUpdate
+from utils.logger import logger
 
 class IndicatorGroupManager:
     """指标组管理服务"""
@@ -1051,7 +1051,7 @@ class IndicatorGroupManager:
         created_by: str
     ):
         """创建版本历史记录"""
-        from backend.models.fraudhunter.indicator import FraudHunterIndicatorGroupHistory
+        from models.fraudhunter.indicator import FraudHunterIndicatorGroupHistory
 
         history = FraudHunterIndicatorGroupHistory(
             group_id=group.id,
@@ -1342,8 +1342,8 @@ import asyncio
 from typing import Dict, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
-from backend.models.fraudhunter.task import FraudHunterTaskExecution
-from backend.utils.logger import logger
+from models.fraudhunter.task import FraudHunterTaskExecution
+from utils.logger import logger
 
 class TaskManager:
     """异步任务管理器"""
@@ -1387,7 +1387,7 @@ class TaskManager:
 
     async def _run_task(self, execution_id: str, task_func, **kwargs):
         """执行任务"""
-        from backend.database.db_base import get_db_session
+        from models.db_base import get_db_session
 
         with get_db_session() as db:
             try:

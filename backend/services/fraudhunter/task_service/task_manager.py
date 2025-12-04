@@ -7,8 +7,8 @@ import asyncio
 from typing import Dict, Optional, Callable, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
-from backend.models.fraudhunter.task import FraudHunterTaskExecution
-from backend.database.db_base import get_db_session
+from models.fraudhunter.task import FraudHunterTaskExecution
+from models.db_base import get_db_session
 from utils.logger import logger
 
 
