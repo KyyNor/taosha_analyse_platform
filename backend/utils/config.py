@@ -149,12 +149,33 @@ class ConfigManager:
             fine_report_login_url: str = self._config_data.get('fine_report', {}).get('login_url', 'http://localhost:8075/webroot/decision/login')
             fine_report_user_name: Optional[str] = os.getenv("FINE_REPORT_USER_NAME") or self._config_data.get('fine_report', {}).get('user_name')
             fine_report_password: Optional[str] = os.getenv("FINE_REPORT_PASSWORD") or self._config_data.get('fine_report', {}).get('password')
+            fine_report_designer_urls: list = self._config_data.get('fine_report', {}).get('designer_urls', [])
             fine_report_browser_headless: bool = self._config_data.get('fine_report', {}).get('browser', {}).get('headless', True)
             fine_report_browser_timeout: int = self._config_data.get('fine_report', {}).get('browser', {}).get('timeout', 30000)
             fine_report_browser_wait_timeout: int = self._config_data.get('fine_report', {}).get('browser', {}).get('wait_timeout', 5000)
             fine_report_browser_download_path: str = self._config_data.get('fine_report', {}).get('browser', {}).get('download_path', './downloads/fine_report')
             fine_report_browser_screenshot_path: str = self._config_data.get('fine_report', {}).get('browser', {}).get('screenshot_path', './downloads/screenshot')
             fine_report_download_timeout: int = self._config_data.get('fine_report', {}).get('download_timeout', 60000)
+
+            # FineReport报表同步配置
+            fine_report_sync_enabled: bool = self._config_data.get('fine_report_sync', {}).get('enabled', False)
+
+            # FineReport源数据库配置
+            fine_report_sync_source_db_host: str = self._config_data.get('fine_report_sync', {}).get('source_db', {}).get('host', 'localhost')
+            fine_report_sync_source_db_port: int = self._config_data.get('fine_report_sync', {}).get('source_db', {}).get('port', 3306)
+            fine_report_sync_source_db_database: str = self._config_data.get('fine_report_sync', {}).get('source_db', {}).get('database', 'fine_report_db')
+            fine_report_sync_source_db_user: str = self._config_data.get('fine_report_sync', {}).get('source_db', {}).get('user', 'root')
+            fine_report_sync_source_db_password: str = self._config_data.get('fine_report_sync', {}).get('source_db', {}).get('password', '')
+            fine_report_sync_source_db_charset: str = self._config_data.get('fine_report_sync', {}).get('source_db', {}).get('charset', 'utf8mb4')
+            fine_report_sync_source_db_connection_timeout: int = self._config_data.get('fine_report_sync', {}).get('source_db', {}).get('connection_timeout', 30)
+
+            # FineReport同步SQL
+            fine_report_sync_sql: str = self._config_data.get('fine_report_sync', {}).get('sync_sql', '')
+
+            # FineReport同步选项
+            fine_report_sync_case_sensitive: bool = self._config_data.get('fine_report_sync', {}).get('options', {}).get('case_sensitive', False)
+            fine_report_sync_max_retries: int = self._config_data.get('fine_report_sync', {}).get('options', {}).get('max_retries', 3)
+            fine_report_sync_retry_delay: float = self._config_data.get('fine_report_sync', {}).get('options', {}).get('retry_delay', 1.0)
 
             class Config:
                 env_prefix = self._config_data.get('env_prefix', 'TAOSHA_')

@@ -154,3 +154,89 @@ export async function deletePromptTemplate(templateId: number) {
   const res = await api.delete(`/metadata/prompt-templates/${templateId}`);
   return res.data;
 }
+
+// FineReport报表管理
+export interface FineReport {
+  id: number;
+  report_name: string;
+  report_cpt_path: string;
+  report_type: 'summary' | 'detail';
+  report_design_address: string;
+  report_mount_path?: string;
+  report_mount_type: 'normal' | 'removed';
+  department_id?: number;
+  description: string;
+  usage_scenario: string;
+  is_available: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FineReportFilters {
+  is_available?: number;
+  report_type?: string;
+  department_id?: number;
+  keyword?: string;
+}
+
+export interface FineReportCreateData {
+  report_name: string;
+  report_cpt_path: string;
+  report_type: 'summary' | 'detail';
+  report_design_address: string;
+  report_mount_path?: string;
+  report_mount_type?: 'normal' | 'removed';
+  department_id?: number;
+  description?: string;
+  usage_scenario?: string;
+  is_available?: number;
+}
+
+export interface FineReportUpdateData {
+  report_name?: string;
+  report_cpt_path?: string;
+  report_type?: 'summary' | 'detail';
+  report_design_address?: string;
+  report_mount_path?: string;
+  report_mount_type?: 'normal' | 'removed';
+  department_id?: number;
+  description?: string;
+  usage_scenario?: string;
+  is_available?: number;
+}
+
+export async function getFineReports(filters?: FineReportFilters) {
+  const res = await api.get("/metadata/fine-reports", { params: filters });
+  return res.data;
+}
+
+export async function getFineReportById(reportId: number) {
+  const res = await api.get(`/metadata/fine-reports/${reportId}`);
+  return res.data.data;
+}
+
+export async function createFineReport(data: FineReportCreateData) {
+  const res = await api.post("/metadata/fine-reports", data);
+  return res.data;
+}
+
+export async function updateFineReport(reportId: number, data: FineReportUpdateData) {
+  const res = await api.put(`/metadata/fine-reports/${reportId}`, data);
+  return res.data;
+}
+
+export async function deleteFineReport(reportId: number) {
+  const res = await api.delete(`/metadata/fine-reports/${reportId}`);
+  return res.data;
+}
+
+export interface DesignerUrl {
+  name: string;
+  url: string;
+  description: string;
+}
+
+export async function getDesignerUrls(): Promise<{ success: boolean; data: DesignerUrl[] }> {
+  const res = await api.get("/metadata/fine-reports/designer-urls");
+  return res.data;
+}

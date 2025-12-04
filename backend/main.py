@@ -26,6 +26,7 @@ from models.db_base import get_db_session
 from services.vector_store.vector_training_service import VectorTrainingService
 from services.tracking_service.observability_service import initialize_observability
 from services.metadata_service.metadata_sync_service import MetadataSyncService
+from services.metadata_service.fine_report_sync_service import FineReportSyncService
 # from services.agents.fine_report_tools import get_browser, _cleanup_browser  # 已改为异步版本
 
 
@@ -146,6 +147,14 @@ async def _initialize_system_services():
                 logger.info("元数据同步完毕")
             else:
                 logger.error(f"元数据同步失败: {sync_result.get('error', 'Unknown error')}")
+
+            # 执行FineReport报表同步
+            fine_report_sync_service = FineReportSyncService(db)
+            fine_report_sync_result = fine_report_sync_service.sync_reports()
+            if fine_report_sync_result["success"]:
+                logger.info("FineReport报表同步完毕")
+            else:
+                logger.error(f"FineReport报表同步失败: {fine_report_sync_result.get('error', 'Unknown error')}")
 
         logger.info("=== 系统服务初始化完成 ===")
 

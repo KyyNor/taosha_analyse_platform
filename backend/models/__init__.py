@@ -24,6 +24,9 @@ from .training_models import (
 from .agent_chat_models import (
     ChatSession
 )
+from .fine_report_models import (
+    MetadataFineReport
+)
 
 __all__ = [
     # 基础配置
@@ -58,4 +61,7 @@ __all__ = [
     "ChatSession",
     "ChatMessage",
     "AgentCheckpoint",
+    
+    # FineReport报表元数据模型
+    "MetadataFineReport",
 ]

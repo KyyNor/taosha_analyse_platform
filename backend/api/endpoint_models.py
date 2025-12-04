@@ -121,3 +121,27 @@ class BatchUpdateResult(BaseModel):
     errors: List[Dict[str, Any]] = Field(default_factory=list, description="错误详情")
 
 
+class FineReportRequest(BaseModel):
+    """FineReport报表创建请求"""
+    report_name: str = Field(..., description="报表名称", min_length=1, max_length=255)
+    report_cpt_path: str = Field(..., description="cpt文件路径", min_length=1)
+    report_type: str = Field(..., description="报表类型: summary=汇总表, detail=明细表")
+    report_design_address: str = Field(..., description="设计器地址", min_length=1, max_length=255)
+    department_id: Optional[int] = Field(None, description="所属部门ID")
+    description: str = Field("", description="报表说明")
+    usage_scenario: str = Field("", description="适用场景")
+    is_available: int = Field(0, description="是否可用: 0=可用, 1=不可用")
+
+
+class FineReportUpdate(BaseModel):
+    """FineReport报表更新请求"""
+    report_name: Optional[str] = Field(None, description="报表名称", min_length=1, max_length=255)
+    report_cpt_path: Optional[str] = Field(None, description="cpt文件路径", min_length=1)
+    report_type: Optional[str] = Field(None, description="报表类型: summary=汇总表, detail=明细表")
+    report_design_address: Optional[str] = Field(None, description="设计器地址", min_length=1, max_length=255)
+    department_id: Optional[int] = Field(None, description="所属部门ID")
+    description: Optional[str] = Field(None, description="报表说明")
+    usage_scenario: Optional[str] = Field(None, description="适用场景")
+    is_available: Optional[int] = Field(None, description="是否可用: 0=可用, 1=不可用")
+
+

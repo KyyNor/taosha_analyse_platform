@@ -58,6 +58,9 @@ export default function Header() {
               <DropdownMenuItem asChild>
                 <Link href="/metadata/prompt-templates">提示模板</Link>
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/metadata/fine-reports">帆软报表配置</Link>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </nav>
