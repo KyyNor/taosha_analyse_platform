@@ -6,8 +6,8 @@ import uuid
 from typing import List, Dict
 
 from qdrant_client import QdrantClient
-from qdrant_client.http.models import MatchAny, FieldCondition, Filter
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.http.models import MatchAny, FieldCondition, Filter, MatchText
+from qdrant_client.models import Distance, VectorParams, PointStruct, TextIndexParams, TokenizerType
 
 from utils.config import settings
 from utils.logger import logger
@@ -68,11 +68,38 @@ class QdrantVectorStore():
                     )
                 )
 
+            # 创建全文索引
+            self._setup_fulltext_indexes()
+
             logger.info(f"Qdrant 初始化完成，集合名: {self.collection_name}")
 
         except Exception as e:
             logger.error(f"Qdrant 初始化失败: {e}")
             raise RuntimeError(f"Qdrant 初始化失败: {e}")
+
+    def _setup_fulltext_indexes(self):
+        """设置全文索引
+
+        为payload中的文本字段创建全文索引，支持中文分词
+        """
+        try:
+            # 为content字段创建全文索引（主要文档内容）
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="content",
+                field_schema=TextIndexParams(
+                    type="text",
+                    tokenizer=TokenizerType.WORD,  # 使用word分词器，支持中文
+                    min_token_len=1,               # 最小token长度（支持中文单字）
+                    max_token_len=20,              # 最大token长度
+                    lowercase=True                 # 转换为小写
+                )
+            )
+            logger.info("已为 'content' 字段创建全文索引")
+
+        except Exception as e:
+            # 索引可能已存在，不影响使用
+            logger.debug(f"设置全文索引时出现提示: {e}")
 
     def add(self,
             documents: List[str],
@@ -139,10 +166,20 @@ class QdrantVectorStore():
                rerank_top_k: int = None,
                filters: Filter = None,
                score_threshold: float = None,
-               allowed_ids: List[str] = None) -> List[Dict]:
+               allowed_ids: List[str] = None,
+               search_mode: str = "vector_only") -> List[Dict]:
         """搜索相似文档
 
         支持基于 vector_id 的精准过滤，只在 allowed_ids 范围内返回结果
+
+        Args:
+            query: 查询文本
+            top_k: 最终返回结果数量
+            rerank_top_k: 重排序前的候选数量（默认为top_k*2）
+            filters: 过滤条件
+            score_threshold: 分数阈值
+            allowed_ids: 允许的ID列表
+            search_mode: 搜索模式，支持 "vector_only"(纯向量)、"fulltext_only"(纯全文)、"hybrid"(混合)
         """
 
         if not query:
@@ -155,25 +192,24 @@ class QdrantVectorStore():
             rerank_top_k = top_k * 2
 
         try:
-            if filters is None:
-                filters = Filter()
-
-            if allowed_ids:
-                filters = Filter(
-                    must = [FieldCondition(key="id", match=MatchAny(any=allowed_ids))]
+            # 根据搜索模式选择不同的搜索策略
+            if search_mode == "vector_only":
+                # 纯向量搜索（原有逻辑）
+                results = self._vector_search(
+                    query, rerank_top_k, filters, score_threshold, allowed_ids
                 )
-
-            # 生成查询向量
-            query_embedding = self.embedding_service.embed_query(query)
-
-            # 执行向量搜索
-            results = self.client.query_points(
-                collection_name=self.collection_name,
-                query=query_embedding,
-                limit=rerank_top_k,
-                query_filter=filters,
-                score_threshold=score_threshold,
-            )
+            elif search_mode == "fulltext_only":
+                # 纯全文检索
+                results = self._fulltext_search(
+                    query, rerank_top_k, filters, allowed_ids
+                )
+            elif search_mode == "hybrid":
+                # 混合搜索
+                results = self._hybrid_search(
+                    query, rerank_top_k, filters, score_threshold, allowed_ids
+                )
+            else:
+                raise ValueError(f"不支持的搜索模式: {search_mode}，支持的模式: vector_only, fulltext_only, hybrid")
 
             # 提取文档内容和元数据
             documents_with_metadata = []
@@ -204,12 +240,156 @@ class QdrantVectorStore():
                     "metadata": doc.get("metadata", {})
                 })
 
-            logger.debug(f"搜索查询: {query[:50]}... 返回 {len(final_result)} 结果（重排序后）")
+            logger.debug(f"搜索查询 ({search_mode}): {query[:50]}... 返回 {len(final_result)} 结果（重排序后）")
             return final_result
 
         except Exception as e:
             logger.error(f"搜索文档失败: {e}")
             raise RuntimeError(f"搜索失败: {e}")
+
+    def _vector_search(self,
+                      query: str,
+                      limit: int,
+                      filters: Filter = None,
+                      score_threshold: float = None,
+                      allowed_ids: List[str] = None):
+        """纯向量搜索（原有逻辑）"""
+        if filters is None:
+            filters = Filter()
+
+        if allowed_ids:
+            filters = Filter(
+                must=[FieldCondition(key="id", match=MatchAny(any=allowed_ids))]
+            )
+
+        # 生成查询向量
+        query_embedding = self.embedding_service.embed_query(query)
+
+        # 执行向量搜索
+        results = self.client.query_points(
+            collection_name=self.collection_name,
+            query=query_embedding,
+            limit=limit,
+            query_filter=filters,
+            score_threshold=score_threshold,
+        )
+
+        return results
+
+    def _fulltext_search(self,
+                        query: str,
+                        limit: int,
+                        filters: Filter = None,
+                        allowed_ids: List[str] = None):
+        """纯全文检索
+
+        使用Qdrant的全文搜索功能进行精确关键词匹配
+        """
+        if filters is None:
+            filters = Filter(must=[])
+        else:
+            # 确保filters有must属性
+            if not hasattr(filters, 'must') or filters.must is None:
+                filters.must = []
+            else:
+                # 复制filters避免修改原对象
+                filters = Filter(must=list(filters.must) if filters.must else [])
+
+        # 添加全文搜索条件
+        fulltext_condition = FieldCondition(
+            key="content",
+            match=MatchText(text=query)
+        )
+        filters.must.append(fulltext_condition)
+
+        # 添加ID过滤
+        if allowed_ids:
+            filters.must.append(
+                FieldCondition(key="id", match=MatchAny(any=allowed_ids))
+            )
+
+        # 使用scroll API进行全文检索
+        scroll_result = self.client.scroll(
+            collection_name=self.collection_name,
+            scroll_filter=filters,
+            limit=limit,
+            with_payload=True,
+            with_vectors=False
+        )
+
+        # 包装为与query_points相同的格式
+        class SearchResult:
+            def __init__(self, points):
+                self.points = points
+
+        # 为每个结果添加默认分数（全文搜索没有分数）
+        points = scroll_result[0] if scroll_result else []
+        for point in points:
+            point.score = 1.0  # 全文匹配给予固定分数
+
+        return SearchResult(points)
+
+    def _hybrid_search(self,
+                      query: str,
+                      limit: int,
+                      filters: Filter = None,
+                      score_threshold: float = None,
+                      allowed_ids: List[str] = None):
+        """混合搜索（推荐）
+
+        结合向量搜索和全文检索：
+        1. 分别执行向量搜索和全文检索
+        2. 合并结果（ID去重）
+        3. 对同时命中的结果进行分数加权
+        4. 按分数排序返回
+        """
+        # 1. 执行向量搜索
+        vector_results = self._vector_search(
+            query, limit, filters, score_threshold, allowed_ids
+        )
+
+        # 2. 执行全文检索
+        fulltext_results = self._fulltext_search(
+            query, limit, filters, allowed_ids
+        )
+
+        # 3. 合并结果（使用ID去重）
+        combined_points = {}
+
+        # 添加向量搜索结果
+        for point in vector_results.points:
+            combined_points[point.id] = point
+
+        # 合并全文搜索结果
+        for point in fulltext_results.points:
+            if point.id in combined_points:
+                # ID已存在，说明同时命中向量和关键词，增强分数
+                combined_points[point.id].score = combined_points[point.id].score * 1.5
+                logger.debug(f"混合搜索：文档 {point.id} 同时命中向量和全文，分数提升")
+            else:
+                # 新结果，添加进去（使用较低的分数，表示只有关键词匹配）
+                point.score = 0.5  # 只有全文匹配的结果给予较低分数
+                combined_points[point.id] = point
+
+        # 4. 按分数排序
+        sorted_points = sorted(
+            combined_points.values(),
+            key=lambda p: p.score,
+            reverse=True
+        )[:limit]
+
+        logger.debug(
+            f"混合搜索：向量结果 {len(vector_results.points)} 个，"
+            f"全文结果 {len(fulltext_results.points)} 个，"
+            f"合并后 {len(sorted_points)} 个"
+        )
+
+        # 包装为SearchResult
+        class SearchResult:
+            def __init__(self, points):
+                self.points = points
+
+        return SearchResult(sorted_points)
 
     def delete(self, ids: List[str]):
         """删除文档"""
