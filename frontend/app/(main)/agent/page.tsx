@@ -5,31 +5,32 @@ import { ChatSidebarLayout } from "@/components/agent/ChatSidebar";
 import { ChatMessagesArea } from "@/components/agent/ChatMessagesArea";
 import { ChatInput } from "@/components/agent/ChatInput";
 import { useAgentState } from "@/lib/state/agent";
+import { Card, CardContent } from "@/components/ui/card";
 
 function AgentPageContent() {
   const { sendMessage, isProcessing } = useAgentState();
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Chat Messages Area */}
-      <div className="flex-1">
-        <ChatMessagesArea />
-      </div>
+    <>
+      {/* 消息区域 - 独立滚动 */}
+      <Card className="flex-1 flex flex-col overflow-hidden border shadow-sm">
+        <CardContent className="flex-1 overflow-y-auto p-6 space-y-4">
+          <ChatMessagesArea />
+        </CardContent>
+      </Card>
 
-      {/* Chat Input */}
+      {/* 输入框 - 固定在底部，不在滚动区域内 */}
       <ChatInput onSendMessage={sendMessage} disabled={isProcessing} />
-    </div>
+    </>
   );
 }
 
 export default function Page() {
   return (
     <AgentProvider>
-      <div className="h-screen flex flex-col">
-        <ChatSidebarLayout>
-          <AgentPageContent />
-        </ChatSidebarLayout>
-      </div>
+      <ChatSidebarLayout>
+        <AgentPageContent />
+      </ChatSidebarLayout>
     </AgentProvider>
   );
 }
