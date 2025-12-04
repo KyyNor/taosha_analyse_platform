@@ -1,0 +1,215 @@
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { indicatorGroupService } from "@/lib/services/fraudhunterService";
+import type { IndicatorGroupCreate } from "@/lib/services/fraudhunterService";
+
+export default function NewIndicatorGroupPage() {
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState<IndicatorGroupCreate>({
+    group_code: "",
+    group_name: "",
+    description: "",
+    logic_content: "",
+    source_tables: "",
+    output_table: "anti_fraud.indicator_result_row"
+  });
+
+  // 表单验证
+  const validateForm = () => {
+    const errors: string[] = [];
+
+    if (!formData.group_code?.trim()) {
+      errors.push("指标组编码不能为空");
+    } else if (formData.group_code.length > 64) {
+      errors.push("指标组编码不能超过64个字符");
+    }
+
+    if (!formData.group_name?.trim()) {
+      errors.push("指标组名称不能为空");
+    } else if (formData.group_name.length > 128) {
+      errors.push("指标组名称不能超过128个字符");
+    }
+
+    if (!formData.logic_content?.trim()) {
+      errors.push("SQL内容不能为空");
+    }
+
+    return errors;
+  };
+
+  // 保存处理
+  const handleSave = async () => {
+    const errors = validateForm();
+    if (errors.length > 0) {
+      alert("表单验证失败:\n" + errors.join("\n"));
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const result = await indicatorGroupService.create(formData);
+      alert("指标组创建成功");
+      router.push(`/fraudhunter/indicator-groups/${result.id}`);
+    } catch (error: any) {
+      console.error("Failed to create indicator group:", error);
+
+      // 处理SQL验证错误
+      if (error.response?.data?.detail) {
+        const detail = error.response.data.detail;
+        if (typeof detail === "object" && detail.message) {
+          const errorMsg = [
+            detail.message,
+            ...(detail.errors || []),
+            ...(detail.warnings || [])
+          ].join("\n");
+          alert(errorMsg);
+        } else {
+          alert(detail);
+        }
+      } else {
+        alert("创建失败，请重试");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 取消处理
+  const handleCancel = () => {
+    if (confirm("确定要取消吗？未保存的更改将丢失")) {
+      router.push("/fraudhunter/indicator-groups");
+    }
+  };
+
+  // 字段更新处理
+  const updateField = (field: keyof IndicatorGroupCreate, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  return (
+    <div className="container mx-auto py-6">
+      {/* 页面头部 */}
+      <div className="flex items-center justify-between mb-6">
+        <Button
+          variant="outline"
+          onClick={() => router.push("/fraudhunter/indicator-groups")}
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          返回
+        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleCancel}>
+            取消
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "创建中..." : "创建指标组"}
+          </Button>
+        </div>
+      </div>
+
+      {/* 基本信息 */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>基本信息</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="group-code">指标组编码 *</Label>
+            <Input
+              id="group-code"
+              value={formData.group_code}
+              onChange={(e) => updateField("group_code", e.target.value)}
+              placeholder="如: login_behavior"
+              maxLength={64}
+            />
+            <p className="text-sm text-muted-foreground mt-1">
+              唯一标识，1-64个字符
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="group-name">指标组名称 *</Label>
+            <Input
+              id="group-name"
+              value={formData.group_name}
+              onChange={(e) => updateField("group_name", e.target.value)}
+              placeholder="如: 登录行为指标组"
+              maxLength={128}
+            />
+            <p className="text-sm text-muted-foreground mt-1">
+              显示名称，1-128个字符
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="description">描述</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => updateField("description", e.target.value)}
+              placeholder="描述指标组的用途和业务含义"
+              rows={3}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="output-table">输出表名</Label>
+            <Input
+              id="output-table"
+              value={formData.output_table}
+              onChange={(e) => updateField("output_table", e.target.value)}
+              placeholder="默认: anti_fraud.indicator_result_row"
+            />
+            <p className="text-sm text-muted-foreground mt-1">
+              指标结果存储的Hive表名
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* SQL逻辑 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>SQL加工逻辑</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="logic-content">SQL内容 *</Label>
+            <Textarea
+              id="logic-content"
+              value={formData.logic_content}
+              onChange={(e) => updateField("logic_content", e.target.value)}
+              placeholder="SELECT account_id, indicator_code, indicator_value, dt FROM ..."
+              rows={15}
+              className="font-mono text-sm"
+            />
+            <p className="text-sm text-muted-foreground mt-1">
+              必须包含字段: account_id, indicator_code, indicator_value, dt
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="source-tables">依赖源表</Label>
+            <Input
+              id="source-tables"
+              value={formData.source_tables}
+              onChange={(e) => updateField("source_tables", e.target.value)}
+              placeholder="如: user_login,user_session"
+            />
+            <p className="text-sm text-muted-foreground mt-1">
+              多个表用逗号分隔
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
