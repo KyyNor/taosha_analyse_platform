@@ -21,12 +21,14 @@ async def get_checkpoint_saver_context():
             db_path = getattr(settings, 'taosha_db_sqlite_path', './database/metadata.db')
             # 确保目录存在
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
-            
+
             # AsyncSqliteSaver.from_conn_string 是一个异步上下文管理器
             async with AsyncSqliteSaver.from_conn_string(db_path) as saver:
+                # 调用 setup 初始化数据库表（幂等操作）
+                await saver.setup()
                 logger.info(f"Initialized SQLite Checkpoint Saver: {db_path}")
                 yield saver
-                
+
         elif db_type == 'mysql':
             host = getattr(settings, 'taosha_db_mysql_host', 'localhost')
             port = getattr(settings, 'taosha_db_mysql_port', 3306)
@@ -34,12 +36,14 @@ async def get_checkpoint_saver_context():
             user = getattr(settings, 'taosha_db_mysql_user', 'root')
             password = getattr(settings, 'taosha_db_mysql_password', '')
             charset = getattr(settings, 'taosha_db_mysql_charset', 'utf8mb4')
-            
+
             # 构建连接字符串
             encoded_password = urllib.parse.quote_plus(password)
             conn_string = f"mysql://{user}:{encoded_password}@{host}:{port}/{database}?charset={charset}"
-            
+
             async with AIOMySQLSaver.from_conn_string(conn_string) as saver:
+                # 调用 setup 初始化数据库表（幂等操作）
+                await saver.setup()
                 logger.info(f"Initialized MySQL Checkpoint Saver: {host}:{port}/{database}")
                 yield saver
                 
