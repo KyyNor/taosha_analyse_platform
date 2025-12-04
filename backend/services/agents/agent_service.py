@@ -25,6 +25,7 @@ from services.agents.common_tools import get_hotboard, get_programmer_story, get
 from services.agents.fine_report_tools import get_report_sample, batch_filter_report_and_get_data
 from services.agents.weather_tool import get_weather
 from services.agents.chart_tool import create_chart
+from services.agents.comparison_tool import create_comparison
 from services.agents.metrics_tool import get_metrics
 from services.agents.json_encoder import to_serializable
 from utils.logger import logger
@@ -58,14 +59,15 @@ class AgentService:
         """初始化Agent"""
         try:
             tools = [
-                # get_report_sample, 
-                # batch_filter_report_and_get_data, 
-                # get_hotboard, 
-                # get_programmer_story, 
-                get_date_range, 
-                get_weather, 
-                create_chart, 
-                get_metrics, 
+                # get_report_sample,
+                # batch_filter_report_and_get_data,
+                # get_hotboard,
+                # get_programmer_story,
+                get_date_range,
+                get_weather,
+                create_chart,
+                create_comparison,
+                get_metrics,
             ]
             self.agent = create_agent(
                 model=self.llm_service.client,

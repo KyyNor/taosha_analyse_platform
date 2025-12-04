@@ -39,6 +39,26 @@ export {
   type BarChartState,
 } from './BarChart';
 
+// 树图组件
+export {
+  TreemapChart,
+  TreemapChartSkeleton,
+  TreemapChartError,
+  type TreemapChartProps,
+  type TreemapNode,
+  type TreemapChartState,
+} from './TreemapChart';
+
+// 对比表组件
+export {
+  ComparisonTable,
+  ComparisonTableSkeleton,
+  ComparisonTableError,
+  type ComparisonTableProps,
+  type ComparisonMetric,
+  type ComparisonTableState,
+} from './ComparisonTable';
+
 // TodoList组件
 export {
   TodoList,

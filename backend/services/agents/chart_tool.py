@@ -1,11 +1,94 @@
 """
 图表生成工具
-提供生成图表数据的工具函数，支持折线图、饼图和柱状图
+提供生成图表数据的工具函数，支持折线图、饼图、柱状图和树图
 """
 import json
 from typing import Dict, Any, List, Union
 from langfuse import observe
 from utils.logger import logger
+
+
+def build_tree_structure(
+    data: List[Dict[str, Any]],
+    name_key: str = "name",
+    value_key: str = "value",
+    parent_key: str = "parent"
+) -> List[Dict[str, Any]]:
+    """
+    将扁平的父子关系数据转换为树形结构
+
+    Args:
+        data: 扁平数据列表，每个元素包含节点信息和父节点引用
+        name_key: 节点名称字段
+        value_key: 节点值字段
+        parent_key: 父节点名称字段
+
+    Returns:
+        树形结构数据列表
+
+    Examples:
+        输入:
+        [
+            {"name": "分行A", "value": 4000, "parent": ""},
+            {"name": "支行A1", "value": 2500, "parent": "分行A"},
+            {"name": "支行A2", "value": 1500, "parent": "分行A"}
+        ]
+
+        输出:
+        [
+            {
+                "name": "分行A",
+                "value": 4000,
+                "children": [
+                    {"name": "支行A1", "value": 2500},
+                    {"name": "支行A2", "value": 1500}
+                ]
+            }
+        ]
+    """
+    # 创建节点映射
+    node_map = {}
+    root_nodes = []
+
+    # 第一遍：创建所有节点
+    for item in data:
+        node_name = item.get(name_key, "")
+        node = {
+            "name": node_name,
+            "value": item.get(value_key, 0)
+        }
+        node_map[node_name] = node
+
+        # 复制其他字段（如果有的话）
+        for key, value in item.items():
+            if key not in [name_key, value_key, parent_key]:
+                node[key] = value
+
+    # 第二遍：建立父子关系
+    for item in data:
+        node_name = item.get(name_key, "")
+        parent_name = item.get(parent_key, "")
+
+        current_node = node_map.get(node_name)
+        if not current_node:
+            continue
+
+        if not parent_name or parent_name == "":
+            # 根节点
+            root_nodes.append(current_node)
+        else:
+            # 子节点，添加到父节点的children中
+            parent_node = node_map.get(parent_name)
+            if parent_node:
+                if "children" not in parent_node:
+                    parent_node["children"] = []
+                parent_node["children"].append(current_node)
+            else:
+                # 父节点不存在，当作根节点处理
+                logger.warning(f"节点 '{node_name}' 的父节点 '{parent_name}' 不存在，将其作为根节点")
+                root_nodes.append(current_node)
+
+    return root_nodes
 
 
 @observe(name="create_chart")
@@ -19,10 +102,10 @@ def create_chart(
     **kwargs
 ) -> str:
     """
-    创建图表数据，支持折线图、饼图和柱状图
+    创建图表数据，支持折线图、饼图、柱状图和树图
 
     Args:
-        chart_type: 图表类型，支持 'line'（折线图）、'pie'（饼图）、'bar'（柱状图）
+        chart_type: 图表类型，支持 'line'（折线图）、'pie'（饼图）、'bar'（柱状图）、'treemap'（树图）
         data: 图表数据，可以是字典列表或JSON字符串
         title: 图表标题
         description: 图表描述
@@ -38,6 +121,9 @@ def create_chart(
             - inner_radius: 内圆半径（用于饼图环形图）
             - outer_radius: 外圆半径（用于饼图）
             - show_percentage: 是否显示百分比（用于饼图）
+            - parent_key: 父节点字段名（用于树图）
+            - name_key: 节点名称字段名（用于树图）
+            - value_key: 节点值字段名（用于树图）
 
     Returns:
         包含图表配置和数据的JSON字符串
@@ -67,12 +153,26 @@ def create_chart(
             x_key="city",
             y_keys="population"
         )
+
+        # 树图
+        create_chart(
+            chart_type="treemap",
+            data=[
+                {"name": "分行A", "value": 4000, "parent": ""},
+                {"name": "支行A1", "value": 2500, "parent": "分行A"},
+                {"name": "支行A2", "value": 1500, "parent": "分行A"}
+            ],
+            title="各机构存款分布",
+            name_key="name",
+            value_key="value",
+            parent_key="parent"
+        )
     """
     logger.info(f"开始创建{chart_type}图表: {title}")
 
     try:
         # 验证图表类型
-        supported_types = ["line", "pie", "bar"]
+        supported_types = ["line", "pie", "bar", "treemap"]
         if chart_type not in supported_types:
             return json.dumps({
                 "error": f"不支持的图表类型: {chart_type}",
@@ -223,6 +323,21 @@ def create_chart(
                 pie_data.append(pie_item)
             chart_config["data"] = pie_data
             # 移除饼图不需要的参数
+            chart_config.pop("x_key", None)
+            chart_config.pop("y_keys", None)
+
+        # 树图特殊处理：构建层级结构
+        elif chart_type == "treemap":
+            name_key = kwargs.get("name_key", "name")
+            value_key = kwargs.get("value_key", "value")
+            parent_key = kwargs.get("parent_key", "parent")
+
+            # 构建树形结构
+            treemap_data = build_tree_structure(parsed_data, name_key, value_key, parent_key)
+            chart_config["data"] = treemap_data
+            chart_config["name_key"] = name_key
+            chart_config["value_key"] = value_key
+            # 移除树图不需要的参数
             chart_config.pop("x_key", None)
             chart_config.pop("y_keys", None)
 

@@ -17,11 +17,19 @@ import {
   BarChart,
   BarChartSkeleton,
   BarChartError,
+  TreemapChart,
+  TreemapChartSkeleton,
+  TreemapChartError,
+  ComparisonTable,
+  ComparisonTableSkeleton,
+  ComparisonTableError,
   TodoList,
   ToolResult,
   type LineChartProps,
   type PieChartProps,
   type BarChartProps,
+  type TreemapChartProps,
+  type ComparisonTableProps,
   type TodoListProps
 } from "@/components/generative_ui";
 import { Sparkles, Brain, ChevronUp, ChevronDown } from "lucide-react";
@@ -142,6 +150,14 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
                   title={chartData?.title}
                 />
               );
+            case 'treemap':
+              return (
+                <TreemapChartError
+                  key={index}
+                  error={chartData?.error || '树图生成失败'}
+                  title={chartData?.title}
+                />
+              );
             default:
               return (
                 <div
@@ -210,6 +226,18 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
                   bar_radius: chartData.bar_radius
                 };
                 return <BarChart {...barProps as BarChartProps} />;
+              case 'treemap':
+                // 树图需要特殊处理数据格式
+                const treemapProps = {
+                  ...commonProps,
+                  data: chartData.data || [],
+                  name_key: chartData.name_key || 'name',
+                  value_key: chartData.value_key || 'value',
+                  colors: chartData.colors,
+                  height: chartData.height,
+                  show_values: chartData.show_values
+                };
+                return <TreemapChart {...treemapProps as TreemapChartProps} />;
               default:
                 // 不支持的图表类型，显示通用错误
                 return (
@@ -226,7 +254,7 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
                       </div>
                     </div>
                     <p className="text-sm text-amber-700 dark:text-amber-300">
-                      图表类型: {chartType}，支持的类型: line, pie, bar
+                      图表类型: {chartType}，支持的类型: line, pie, bar, treemap
                     </p>
                   </div>
                 );
@@ -251,6 +279,57 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
                   {error instanceof Error ? error.message : '未知渲染错误'}
                 </p>
               </div>
+            );
+          }
+        }
+      }
+
+      // 特殊处理对比工具 - 渲染对比表组件
+      if (part.toolName === 'create_comparison') {
+        const result = part.result as any;
+
+        // 处理工具结果的嵌套结构
+        let comparisonData = result;
+
+        // 如果结果包含content字段，则提取实际的对比数据
+        if (result && result.content && typeof result.content === 'object') {
+          comparisonData = result.content;
+        }
+
+        // 检查是否有错误
+        if (part.isError || comparisonData?.error) {
+          return (
+            <ComparisonTableError
+              key={index}
+              error={comparisonData?.error || '对比表生成失败'}
+              title={comparisonData?.title}
+            />
+          );
+        }
+
+        // 渲染对比表
+        if (comparisonData && comparisonData.type === 'comparison_table') {
+          const comparisonProps = {
+            key: index,
+            title: comparisonData.title,
+            description: comparisonData.description,
+            subject_a: comparisonData.subject_a,
+            subject_b: comparisonData.subject_b,
+            metrics: comparisonData.metrics || [],
+            highlight_color: comparisonData.highlight_color,
+            decimal_places: comparisonData.decimal_places
+          };
+
+          try {
+            return <ComparisonTable {...comparisonProps as ComparisonTableProps} />;
+          } catch (error) {
+            console.error('对比表渲染错误:', error);
+            return (
+              <ComparisonTableError
+                key={index}
+                error={error instanceof Error ? error.message : '对比表渲染失败'}
+                title={comparisonData.title}
+              />
             );
           }
         }
