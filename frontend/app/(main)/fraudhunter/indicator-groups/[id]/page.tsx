@@ -105,18 +105,27 @@ export default function IndicatorGroupDetailPage() {
         output_table: data.output_table
       };
 
-      await indicatorGroupService.update(groupId, updateData);
+      const response = await indicatorGroupService.update(groupId, updateData);
+
+      // 检查响应中的 success 字段
+      if (response.success === false) {
+        // SQL验证失败或其他业务错误
+        const errorMsg = [
+          response.message || "保存失败",
+          ...(response.errors || [])
+        ].filter(Boolean).join("\n");
+        alert(errorMsg);
+        return;
+      }
+
+      // 成功
       alert("保存成功");
       await loadData();
       router.push(`/fraudhunter/indicator-groups/${groupId}`);
     } catch (error: any) {
       console.error("Failed to update indicator group:", error);
-      const detail = error.response?.data?.detail;
-      if (typeof detail === "object" && detail.message) {
-        alert([detail.message, ...(detail.errors || [])].join("\n"));
-      } else {
-        alert(detail || "保存失败");
-      }
+      // 仅处理网络错误或500错误
+      alert(error.response?.data?.detail || "保存失败，请重试");
     } finally {
       setSaving(false);
     }

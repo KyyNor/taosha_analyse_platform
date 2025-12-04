@@ -26,7 +26,7 @@ from utils.logger import logger
 router = APIRouter(prefix="/indicator-groups", tags=["指标组管理"])
 
 
-@router.post("", response_model=IndicatorGroupResponse, summary="创建指标组")
+@router.post("", summary="创建指标组")
 async def create_indicator_group(
     group_data: IndicatorGroupCreate,
     db: Session = Depends(get_db)
@@ -39,6 +39,10 @@ async def create_indicator_group(
     - logic_content: SQL加工逻辑
     - source_tables: 依赖的源表（逗号分隔）
     - output_table: 输出表名
+
+    返回:
+    - success=true: { success: true, data: IndicatorGroup }
+    - success=false: { success: false, message: str, errors: list, warnings: list }
     """
     try:
         # SQL验证
@@ -46,14 +50,13 @@ async def create_indicator_group(
         validation_result = validator.validate_sql(group_data.logic_content)
 
         if not validation_result['valid']:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    'message': 'SQL验证失败',
-                    'errors': validation_result['errors'],
-                    'warnings': validation_result['warnings']
-                }
-            )
+            # 返回200状态码，但包含错误信息
+            return {
+                'success': False,
+                'message': 'SQL验证失败',
+                'errors': validation_result['errors'],
+                'warnings': validation_result['warnings']
+            }
 
         # 创建指标组
         manager = IndicatorGroupManager(db)
@@ -62,12 +65,20 @@ async def create_indicator_group(
             created_by="system"  # 实际应该从JWT token中获取
         )
 
-        return group
+        return {
+            'success': True,
+            'data': group
+        }
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return {
+            'success': False,
+            'message': str(e),
+            'errors': [str(e)],
+            'warnings': []
+        }
     except Exception as e:
-        logger.error(f"创建指标组失败: {e}", exc_info=True)
+        logger.error(f"创建指标组失败: {e!r}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"创建指标组失败: {str(e)}")
 
 
@@ -126,7 +137,7 @@ async def get_indicator_group(
         raise HTTPException(status_code=500, detail=f"获取指标组详情失败: {str(e)}")
 
 
-@router.put("/{group_id}", response_model=IndicatorGroupResponse, summary="更新指标组")
+@router.put("/{group_id}", summary="更新指标组")
 async def update_indicator_group(
     group_id: int,
     group_data: IndicatorGroupUpdate,
@@ -135,6 +146,10 @@ async def update_indicator_group(
     """更新指标组信息
 
     只有draft状态的指标组才允许修改逻辑内容
+
+    返回:
+    - success=true: { success: true, data: IndicatorGroup }
+    - success=false: { success: false, message: str, errors: list, warnings: list }
     """
     try:
         # 如果更新了SQL，需要验证
@@ -143,14 +158,13 @@ async def update_indicator_group(
             validation_result = validator.validate_sql(group_data.logic_content)
 
             if not validation_result['valid']:
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        'message': 'SQL验证失败',
-                        'errors': validation_result['errors'],
-                        'warnings': validation_result['warnings']
-                    }
-                )
+                # 返回200状态码，但包含错误信息
+                return {
+                    'success': False,
+                    'message': 'SQL验证失败',
+                    'errors': validation_result['errors'],
+                    'warnings': validation_result['warnings']
+                }
 
         manager = IndicatorGroupManager(db)
         group = manager.update_indicator_group(
@@ -159,12 +173,20 @@ async def update_indicator_group(
             updated_by="system"
         )
 
-        return group
+        return {
+            'success': True,
+            'data': group
+        }
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return {
+            'success': False,
+            'message': str(e),
+            'errors': [str(e)],
+            'warnings': []
+        }
     except Exception as e:
-        logger.error(f"更新指标组失败: {e}", exc_info=True)
+        logger.error(f"更新指标组失败: {e!r}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"更新指标组失败: {str(e)}")
 
 

@@ -55,28 +55,26 @@ export default function NewIndicatorGroupPage() {
 
     setSaving(true);
     try {
-      const result = await indicatorGroupService.create(formData);
+      const response = await indicatorGroupService.create(formData);
+
+      // 检查响应中的 success 字段
+      if (response.success === false) {
+        // SQL验证失败或其他业务错误
+        const errorMsg = [
+          response.message || "创建失败",
+          ...(response.errors || [])
+        ].filter(Boolean).join("\n");
+        alert(errorMsg);
+        return;
+      }
+
+      // 成功
       alert("指标组创建成功");
-      router.push(`/fraudhunter/indicator-groups/${result.id}`);
+      router.push(`/fraudhunter/indicator-groups/${response.data.id}`);
     } catch (error: any) {
       console.error("Failed to create indicator group:", error);
-
-      // 处理SQL验证错误
-      if (error.response?.data?.detail) {
-        const detail = error.response.data.detail;
-        if (typeof detail === "object" && detail.message) {
-          const errorMsg = [
-            detail.message,
-            ...(detail.errors || []),
-            ...(detail.warnings || [])
-          ].join("\n");
-          alert(errorMsg);
-        } else {
-          alert(detail);
-        }
-      } else {
-        alert("创建失败，请重试");
-      }
+      // 仅处理网络错误或500错误
+      alert(error.response?.data?.detail || "创建失败，请重试");
     } finally {
       setSaving(false);
     }
