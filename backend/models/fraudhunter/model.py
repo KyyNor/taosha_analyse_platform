@@ -2,7 +2,7 @@
 FraudHunter模型相关数据库模型
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Index
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Index, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from models.db_base import Base
@@ -66,7 +66,7 @@ class FraudHunterModelHistory(Base):
 
     # 主键
     id = Column(Integer, primary_key=True, autoincrement=True, comment='主键ID')
-    model_id = Column(Integer, nullable=False, comment='模型ID')
+    model_id = Column(Integer, ForeignKey('fraudhunter_model_definition.id'), nullable=False, comment='模型ID')
     version = Column(Integer, nullable=False, comment='版本号')
 
     # 历史快照

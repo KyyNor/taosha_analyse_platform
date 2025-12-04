@@ -2,7 +2,7 @@
 FraudHunter任务执行相关数据库模型
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Date, Index
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Date, Index, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from models.db_base import Base
@@ -55,7 +55,7 @@ class FraudHunterTaskExecutionRecord(Base):
 
     # 主键
     id = Column(Integer, primary_key=True, autoincrement=True, comment='主键ID')
-    execution_id = Column(String(64), nullable=False, comment='执行ID')
+    execution_id = Column(String(64), ForeignKey('fraudhunter_task_execution.execution_id'), nullable=False, comment='执行ID')
 
     # 执行详情
     etl_date = Column(Date, comment='ETL日期')
