@@ -43,7 +43,8 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
         type: 'condition',
         indicator: indicators[0]?.indicator_code || '',
         operator: '>',
-        value: { type: 'constant', value: 0 }
+        value: { type: 'constant', value: 0 },
+        leftFunction: undefined
       }
     ],
     output: {
@@ -69,7 +70,8 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
       type: 'condition',
       indicator: indicators[0]?.indicator_code || '',
       operator: '>',
-      value: { type: 'constant', value: 0 }
+      value: { type: 'constant', value: 0 },
+      leftFunction: undefined
     }
 
     setRule(prevRule => {
@@ -96,7 +98,8 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
           type: 'condition',
           indicator: indicators[0]?.indicator_code || '',
           operator: '>',
-          value: { type: 'constant', value: 0 }
+          value: { type: 'constant', value: 0 },
+          leftFunction: undefined
         }
       ]
     }
@@ -123,10 +126,64 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
     }))
   }, [])
 
-  // 更新逻辑操作符
+  // 更新规则组的逻辑操作符
+  const updateGroupLogic = useCallback((index: number, newLogic: 'AND' | 'OR') => {
+    setRule(prevRule => ({
+      ...prevRule,
+      rules: prevRule.rules.map((r, i) =>
+        i === index && r.type === 'group' ? { ...r, logic: newLogic } : r
+      )
+    }))
+  }, [])
+
+  // 更新主逻辑操作符
   const updateLogic = useCallback((newLogic: 'AND' | 'OR') => {
     updateRule({ ...rule, logic: newLogic })
   }, [rule, updateRule])
+
+  // 向规则组添加条件
+  const addConditionToGroup = useCallback((groupIndex: number) => {
+    const newCondition: ConditionRule = {
+      type: 'condition',
+      indicator: indicators[0]?.indicator_code || '',
+      operator: '>',
+      value: { type: 'constant', value: 0 },
+      leftFunction: undefined
+    }
+
+    setRule(prevRule => ({
+      ...prevRule,
+      rules: prevRule.rules.map((r, i) =>
+        i === groupIndex && r.type === 'group'
+          ? { ...r, rules: [...r.rules, newCondition] }
+          : r
+      )
+    }))
+  }, [indicators])
+
+  // 从规则组删除条件
+  const removeConditionFromGroup = useCallback((groupIndex: number, conditionIndex: number) => {
+    setRule(prevRule => ({
+      ...prevRule,
+      rules: prevRule.rules.map((r, i) =>
+        i === groupIndex && r.type === 'group'
+          ? { ...r, rules: r.rules.filter((_, cIndex) => cIndex !== conditionIndex) }
+          : r
+      )
+    }))
+  }, [])
+
+  // 更新规则组内的条件
+  const updateConditionInGroup = useCallback((groupIndex: number, conditionIndex: number, updatedCondition: ConditionRule) => {
+    setRule(prevRule => ({
+      ...prevRule,
+      rules: prevRule.rules.map((r, i) =>
+        i === groupIndex && r.type === 'group'
+          ? { ...r, rules: r.rules.map((c, cIndex) => cIndex === conditionIndex ? updatedCondition : c) }
+          : r
+      )
+    }))
+  }, [])
 
   // 验证规则
   const validateRule = useCallback(async () => {
@@ -208,7 +265,7 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
           <div className="flex items-center justify-between">
             <span>规则条件</span>
             <div className="flex gap-2">
-              <Button onClick={addConditionRule} disabled={readOnly} variant="outline" size="sm">
+              <Button onClick={() => addConditionRule()} disabled={readOnly} variant="outline" size="sm">
                 <Plus className="h-4 w-4 mr-1" />
                 条件
               </Button>
@@ -220,59 +277,27 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {rule.rules.length === 0 ? (
-              <div className="text-center text-muted-foreground py-8">
-                暂无规则条件，点击上方按钮添加
-              </div>
-            ) : (
-              rule.rules.map((ruleItem, index) => (
+          {rule.rules.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              暂无规则条件，点击上方按钮添加
+            </div>
+          ) : (
+            <div className="border rounded-lg overflow-hidden">
+              {rule.rules.map((ruleItem, index) => (
                 <div key={index} className="relative">
-                  {/* 规则序号和删除按钮 */}
-                  <div className="absolute left-0 top-0 flex items-center gap-2 z-10">
-                    <Badge variant="secondary" className="text-xs">
-                      {index + 1}
-                    </Badge>
-                    {!readOnly && (
-                      <Button
-                        onClick={() => removeRule(index)}
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    )}
-                  </div>
+                  {ruleItem.type === 'condition' ? (
+                    <div className="flex items-center gap-2 border-b last:border-b-0 py-2">
+                      {/* 序号 */}
+                      <div className="flex-shrink-0 w-12 text-center">
+                        <Badge variant="secondary" className="text-xs">
+                          {index + 1}
+                        </Badge>
+                      </div>
 
-                  {/* 逻辑连接符 */}
-                  {index > 0 && (
-                    <div className="absolute left-0 top-4 transform -translate-x-2">
-                      <Badge variant="outline" className="text-xs">
-                        {rule.logic}
-                      </Badge>
-                    </div>
-                  )}
-
-                  {/* 规则内容 */}
-                  <div className="pl-12">
-                    {ruleItem.type === 'condition' ? (
-                      <ConditionRuleEditor
-                        rule={ruleItem}
-                        indicators={indicators}
-                        onChange={(updatedRule) => updateRuleAtIndex(index, updatedRule)}
-                      />
-                    ) : (
-                      <Card className="p-4 bg-muted/30">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Badge variant="outline">规则组</Badge>
-                          <Select
-                            value={ruleItem.logic}
-                            onValueChange={(v: 'AND' | 'OR') => {
-                              const updatedGroup = { ...ruleItem, logic: v }
-                              updateRuleAtIndex(index, updatedGroup)
-                            }}
-                          >
+                      {/* 逻辑连接符（第一个条件之后才显示） */}
+                      {index > 0 && (
+                        <div className="flex-shrink-0">
+                          <Select value={rule.logic} onValueChange={updateLogic}>
                             <SelectTrigger className="w-[80px] h-8">
                               <SelectValue />
                             </SelectTrigger>
@@ -282,17 +307,165 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
                             </SelectContent>
                           </Select>
                         </div>
-                        {/* 嵌套规则暂未完全实现 */}
-                        <div className="text-sm text-muted-foreground">
-                          嵌套规则将在后续版本中完全支持
+                      )}
+
+                      {/* 条件编辑器 */}
+                      <div className="flex-1">
+                        <ConditionRuleEditor
+                          rule={ruleItem}
+                          indicators={indicators}
+                          onChange={(updatedRule) => updateRuleAtIndex(index, updatedRule)}
+                        />
+                      </div>
+
+                      {/* 删除按钮 */}
+                      <div className="flex-shrink-0">
+                        {!readOnly && (
+                          <Button
+                            onClick={() => removeRule(index)}
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border-t pt-4 pb-4">
+                      <div className="flex items-center gap-2 mb-4">
+                        {/* 规则组序号和删除按钮 */}
+                        <div className="flex-shrink-0 w-12 text-center">
+                          <Badge variant="secondary" className="text-xs">
+                            {index + 1}
+                          </Badge>
                         </div>
-                      </Card>
-                    )}
-                  </div>
+
+                        {index > 0 && (
+                          <div className="flex-shrink-0">
+                            <Select value={rule.logic} onValueChange={updateLogic}>
+                              <SelectTrigger className="w-[80px] h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="AND">AND</SelectItem>
+                                <SelectItem value="OR">OR</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 bg-muted/30 px-3 py-2 rounded-lg flex-1">
+                          <Badge variant="outline">规则组</Badge>
+                          <Select
+                            value={ruleItem.logic}
+                            onValueChange={(v: 'AND' | 'OR') => updateGroupLogic(index, v)}
+                          >
+                            <SelectTrigger className="w-[80px] h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="AND">AND</SelectItem>
+                              <SelectItem value="OR">OR</SelectItem>
+                            </SelectContent>
+                          </Select>
+
+                          <Button
+                            onClick={() => addConditionToGroup(index)}
+                            disabled={readOnly}
+                            variant="outline"
+                            size="sm"
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            添加条件
+                          </Button>
+
+                          <div className="text-sm text-muted-foreground ml-auto">
+                            {ruleItem.rules.length} 个条件
+                          </div>
+
+                          {!readOnly && (
+                            <Button
+                              onClick={() => removeRule(index)}
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 规则组内的条件 */}
+                      <div className="ml-16 space-y-0 border-l-2 border-muted">
+                        {ruleItem.rules.map((condition, conditionIndex) => (
+                          <div key={conditionIndex} className="flex items-center gap-2 border-l-2 border-background pl-4 -ml-[2px]">
+                            {/* 条件序号 */}
+                            <div className="flex-shrink-0 w-12 text-center">
+                              <Badge variant="outline" className="text-xs">
+                                {conditionIndex + 1}
+                              </Badge>
+                            </div>
+
+                            {/* 逻辑连接符（组内第一个条件之后才显示） */}
+                            {conditionIndex > 0 && (
+                              <div className="flex-shrink-0">
+                                <Select
+                                  value={ruleItem.logic}
+                                  onValueChange={(v: 'AND' | 'OR') => updateGroupLogic(index, v)}
+                                >
+                                  <SelectTrigger className="w-[80px] h-8">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="AND">AND</SelectItem>
+                                    <SelectItem value="OR">OR</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+
+                            {/* 条件编辑器 */}
+                            <div className="flex-1">
+                              <ConditionRuleEditor
+                                rule={condition}
+                                indicators={indicators}
+                                onChange={(updatedCondition) =>
+                                  updateConditionInGroup(index, conditionIndex, updatedCondition)
+                                }
+                              />
+                            </div>
+
+                            {/* 删除按钮 */}
+                            <div className="flex-shrink-0">
+                              {!readOnly && (
+                                <Button
+                                  onClick={() => removeConditionFromGroup(index, conditionIndex)}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+
+                        {ruleItem.rules.length === 0 && (
+                          <div className="text-center text-muted-foreground py-4 ml-16">
+                            规则组为空，点击"添加条件"按钮添加
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* 逻辑操作符说明 */}
           {rule.rules.length > 1 && (

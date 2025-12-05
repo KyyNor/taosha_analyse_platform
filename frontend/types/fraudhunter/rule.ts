@@ -98,6 +98,7 @@ export interface ConditionRule {
   indicator: string           // 指标编码，如 'i_login_cnt_7d'
   operator: ComparisonOperator
   value: ValueExpression      // 值表达式：常量值、指标引用、时间函数或数学函数
+  leftFunction?: 'abs' | 'none'  // 左元素的函数处理，仅数值类型指标可用
 }
 
 /**
@@ -198,9 +199,14 @@ export const OPERATOR_GROUPS: Record<string, OperatorOption[]> = {
  * 操作符兼容性矩阵
  */
 export const ALLOWED_OPERATORS: Record<IndicatorDataType, ComparisonOperator[]> = {
+  int: ['>', '>=', '<', '<=', '=', '!=', 'in', 'not in'],
+  float: ['>', '>=', '<', '<=', '=', '!=', 'in', 'not in'],
+  string: ['=', '!=', 'in', 'not in', 'regexp', 'not regexp'],
+  bool: ['=', '!='],
+  date: ['>', '>=', '<', '<=', '=', '!='],
+  text: ['=', '!=', 'in', 'not in', 'regexp', 'not regexp'],
   numeric: ['>', '>=', '<', '<=', '=', '!=', 'in', 'not in'],
   enum: ['=', '!=', 'in', 'not in'],
-  text: ['=', '!=', 'in', 'not in', 'regexp', 'not regexp'],
   boolean: ['=', '!='],
 }
 
@@ -369,4 +375,59 @@ export function getAllowedValueTypes(operator: ComparisonOperator): ValueType[] 
 
   // 其他操作符支持所有值表达式类型
   return ['constant', 'indicator', 'time_function', 'math_function']
+}
+
+// ==================== 元素类型辅助函数 ====================
+
+/**
+ * 判断数据类型是否为数值类型
+ */
+export function isNumericType(dataType?: IndicatorDataType): boolean {
+  return dataType === 'int' || dataType === 'float' || dataType === 'numeric'
+}
+
+/**
+ * 判断数据类型是否为日期类型
+ */
+export function isDateType(dataType?: IndicatorDataType): boolean {
+  return dataType === 'date'
+}
+
+/**
+ * 判断两个数据类型是否兼容
+ */
+export function isCompatibleType(type1?: IndicatorDataType, type2?: IndicatorDataType): boolean {
+  if (!type1 || !type2) return false
+
+  // 相同类型总是兼容的
+  if (type1 === type2) return true
+
+  // 数值类型之间互相兼容
+  const numericTypes: IndicatorDataType[] = ['int', 'float', 'numeric']
+  if (numericTypes.includes(type1) && numericTypes.includes(type2)) return true
+
+  // 字符串类型兼容
+  const stringTypes: IndicatorDataType[] = ['string', 'text', 'enum']
+  if (stringTypes.includes(type1) && stringTypes.includes(type2)) return true
+
+  return false
+}
+
+/**
+ * 获取输入框类型
+ */
+export function getInputType(dataType?: IndicatorDataType): string {
+  switch (dataType) {
+    case 'int':
+    case 'float':
+    case 'numeric':
+      return 'number'
+    case 'bool':
+    case 'boolean':
+      return 'checkbox'
+    case 'date':
+      return 'date'
+    default:
+      return 'text'
+  }
 }

@@ -73,7 +73,7 @@ export default function RuleConfigPage() {
         <div>
           <h1 className="text-3xl font-bold">规则配置</h1>
           <p className="text-muted-foreground mt-2">
-            可视化规则配置平台 v2.1.0 (支持值表达式)
+            可视化规则配置平台
           </p>
         </div>
         <Badge variant="outline" className="text-sm">
