@@ -113,7 +113,7 @@ class FraudHunterIndicatorDefinition(Base):
     enum_values = Column(Text, comment='枚举值（当data_type=enum时，JSON数组格式）')
 
     # 指标任务关联
-    indicator_task_id = Column(Integer, ForeignKey('fraudhunter_indicator_task.id'), nullable=False, comment='指标任务ID')
+    indicator_task_id = Column(Integer, ForeignKey('fraudhunter_indicator_task.id'), nullable=True, comment='指标任务ID')
 
     # 版本管理
     current_version = Column(Integer, default=1, comment='当前发布版本')
@@ -184,3 +184,28 @@ class FraudHunterIndicatorHistory(Base):
 
     def __repr__(self):
         return f"<FraudHunterIndicatorHistory(id={self.id}, indicator_id={self.indicator_id}, version={self.version})>"
+
+
+class FraudHunterSequenceCounter(Base):
+    """序列计数器表"""
+    __tablename__ = "fraudhunter_sequence_counter"
+
+    # 主键
+    id = Column(Integer, primary_key=True, autoincrement=True, comment='主键ID')
+
+    # 计数器信息
+    counter_type = Column(String(64), unique=True, nullable=False, comment='计数器类型')
+    counter_value = Column(Integer, nullable=False, default=0, comment='当前计数值')
+
+    # 审计字段
+    created_at = Column(DateTime, default=datetime.utcnow, comment='创建时间')
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
+
+    # 索引
+    __table_args__ = (
+        Index('idx_fh_counter_type', 'counter_type'),
+        {'comment': '序列计数器表'}
+    )
+
+    def __repr__(self):
+        return f"<FraudHunterSequenceCounter(id={self.id}, counter_type='{self.counter_type}', counter_value={self.counter_value})>"

@@ -12,8 +12,12 @@ from schemas.fraudhunter.indicator import (
     IndicatorResponse,
     IndicatorListResponse,
     PublishRequest,
+)
+from schemas.fraudhunter.batch_create import (
     IndicatorTaskBatchCreate,
     IndicatorBatchCreateResponse,
+    CreateTaskWithIndicatorsRequest,
+    CreateTaskWithIndicatorsResponse,
 )
 from services.fraudhunter.indicator_service import IndicatorManager
 from utils.logger import logger
@@ -59,13 +63,14 @@ async def batch_create_indicators(
 ):
     """批量创建指标
 
-    支持两种模式：
-    1. 为现有指标任务批量创建指标（提供 indicator_task_id）
-    2. 新建指标任务并批量创建指标（提供 new_task）
+    新建指标任务并批量创建指标，分两步：
+    1. 先创建所有指标，获得ID列表
+    2. 再创建指标任务，包含这些指标的ID
 
     参数:
-    - indicator_task_id: 现有指标任务ID（与new_task二选一）
-    - new_task: 新建指标任务数据（与indicator_task_id二选一）
+    - indicator_type: 指标类型（所有指标共享）
+    - object_type: 对象类型（所有指标共享）
+    - task_data: 指标任务数据
     - indicators: 指标列表（1-50个）
 
     返回:
@@ -85,6 +90,60 @@ async def batch_create_indicators(
     except Exception as e:
         logger.error(f"批量创建指标失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"批量创建指标失败: {str(e)}")
+
+
+@router.post("/batch/create-task", response_model=CreateTaskWithIndicatorsResponse, summary="创建任务并关联指标")
+async def create_task_with_indicators(
+    request_data: CreateTaskWithIndicatorsRequest,
+    db: Session = Depends(get_db)
+):
+    """创建指标任务并关联已存在的指标
+
+    Args:
+        - task_data: 指标任务数据
+        - indicator_ids: 要关联的指标ID列表
+
+    Returns:
+        - 创建的任务信息和关联结果
+    """
+    try:
+        from services.fraudhunter.indicator_service import IndicatorTaskManager
+
+        task_manager = IndicatorTaskManager(db)
+
+        # 创建任务
+        task = task_manager.create_indicator_task(
+            request_data.task_data,
+            created_by="system"
+        )
+
+        # 关联指标到任务
+        if request_data.indicator_ids:
+            from models.fraudhunter.indicator import FraudHunterIndicatorDefinition
+
+            # 批量更新指标的indicator_task_id
+            db.query(FraudHunterIndicatorDefinition).filter(
+                FraudHunterIndicatorDefinition.id.in_(request_data.indicator_ids)
+            ).update(
+                {"indicator_task_id": task.id},
+                synchronize_session=False
+            )
+
+            logger.info(f"已将 {len(request_data.indicator_ids)} 个指标关联到任务 {task.task_code}")
+
+        return CreateTaskWithIndicatorsResponse(
+            task_id=task.id,
+            task_code=task.task_code,
+            task_name=task.task_name,
+            indicator_count=len(request_data.indicator_ids),
+            indicator_ids=request_data.indicator_ids
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"创建任务并关联指标失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建任务并关联指标失败: {str(e)}")
 
 
 @router.get("", response_model=IndicatorListResponse, summary="获取指标列表")

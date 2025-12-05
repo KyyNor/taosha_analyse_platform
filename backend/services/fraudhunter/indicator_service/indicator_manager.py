@@ -12,6 +12,8 @@ from models.fraudhunter.indicator import (
 from schemas.fraudhunter.indicator import (
     IndicatorCreate,
     IndicatorUpdate,
+)
+from schemas.fraudhunter.batch_create import (
     IndicatorTaskBatchCreate,
     IndicatorBatchCreateResult,
     IndicatorBatchCreateResponse,
@@ -62,13 +64,14 @@ class IndicatorManager:
             if existing:
                 raise ValueError(f"指标编码已存在: {indicator_data.indicator_code}")
 
-        # 验证指标任务是否存在
-        task = self.db.query(FraudHunterIndicatorTask).filter(
-            FraudHunterIndicatorTask.id == indicator_data.indicator_task_id
-        ).first()
+        # 验证指标任务是否存在（如果提供了indicator_task_id）
+        if indicator_data.indicator_task_id:
+            task = self.db.query(FraudHunterIndicatorTask).filter(
+                FraudHunterIndicatorTask.id == indicator_data.indicator_task_id
+            ).first()
 
-        if not task:
-            raise ValueError(f"指标任务不存在: {indicator_data.indicator_task_id}")
+            if not task:
+                raise ValueError(f"指标任务不存在: {indicator_data.indicator_task_id}")
 
         # 创建指标记录
         db_indicator = FraudHunterIndicatorDefinition(
@@ -381,11 +384,11 @@ class IndicatorManager:
         batch_data: IndicatorTaskBatchCreate,
         created_by: str
     ) -> IndicatorBatchCreateResponse:
-        """批量创建指标
+        """批量创建指标（两步模式）
 
-        支持两种模式：
-        1. 为现有指标任务批量创建指标
-        2. 新建指标任务并批量创建指标
+        分两步创建：
+        1. 先创建所有指标，获得ID列表
+        2. 再创建指标任务，包含这些指标的ID
 
         Args:
             batch_data: 批量创建请求数据
@@ -397,73 +400,38 @@ class IndicatorManager:
         results: List[IndicatorBatchCreateResult] = []
         success_count = 0
         failed_count = 0
+        created_indicator_ids = []
 
-        # 第一步：确定或创建指标任务
-        try:
-            if batch_data.indicator_task_id:
-                # 使用现有任务
-                task = self.db.query(FraudHunterIndicatorTask).filter(
-                    FraudHunterIndicatorTask.id == batch_data.indicator_task_id
-                ).first()
-
-                if not task:
-                    raise ValueError(f"指标任务不存在: {batch_data.indicator_task_id}")
-
-                logger.info(f"使用现有指标任务: {task.task_code}")
-
-            else:
-                # 创建新任务
-                task_manager = IndicatorTaskManager(self.db)
-                task = task_manager.create_indicator_task(
-                    batch_data.new_task,
-                    created_by
-                )
-                logger.info(f"创建新指标任务: {task.task_code}")
-
-        except Exception as e:
-            logger.error(f"指标任务处理失败: {str(e)}")
-            # 任务创建失败，所有指标都失败
-            for idx, _ in enumerate(batch_data.indicators):
-                results.append(IndicatorBatchCreateResult(
-                    index=idx,
-                    success=False,
-                    indicator=None,
-                    error=f"指标任务处理失败: {str(e)}"
-                ))
-                failed_count += 1
-
-            return IndicatorBatchCreateResponse(
-                task_id=0,
-                task_code="",
-                task_name="",
-                total=len(batch_data.indicators),
-                success_count=0,
-                failed_count=len(batch_data.indicators),
-                results=results
-            )
-
-        # 第二步：批量创建指标
+        # 第一步：批量创建指标（使用临时任务ID=0）
         for idx, indicator_item in enumerate(batch_data.indicators):
             try:
-                # 转换为IndicatorCreate
+                # 转换为IndicatorCreate，使用公共的indicator_type和object_type
                 indicator_data = IndicatorCreate(
                     indicator_code=None,  # 自动生成
                     indicator_name=indicator_item.indicator_name,
-                    indicator_type=indicator_item.indicator_type,
-                    object_type=indicator_item.object_type,
+                    indicator_type=batch_data.indicator_type,  # 使用公共类型
+                    object_type=batch_data.object_type,      # 使用公共对象类型
                     description=indicator_item.description,
                     data_type=indicator_item.data_type,
                     enum_values=indicator_item.enum_values,
-                    indicator_task_id=task.id
+                    indicator_task_id=0  # 临时使用0，稍后更新
                 )
 
                 # 创建指标（会自动生成编码）
                 indicator = self.create_indicator(indicator_data, created_by)
+                created_indicator_ids.append(indicator.id)
+
+                # 返回简化的指标信息
+                indicator_info = {
+                    "id": indicator.id,
+                    "indicator_code": indicator.indicator_code,
+                    "indicator_name": indicator.indicator_name
+                }
 
                 results.append(IndicatorBatchCreateResult(
                     index=idx,
                     success=True,
-                    indicator=indicator,
+                    indicator=indicator_info,
                     error=None
                 ))
                 success_count += 1
@@ -483,17 +451,47 @@ class IndicatorManager:
                 # 继续创建下一个，不中断
                 continue
 
+        # 第二步：创建指标任务
+        try:
+            task_manager = IndicatorTaskManager(self.db)
+            task = task_manager.create_indicator_task(
+                batch_data.task_data,
+                created_by
+            )
+            logger.info(f"创建指标任务成功: {task.task_code}")
+
+            # 第三步：更新所有成功指标的indicator_task_id
+            if created_indicator_ids:
+                self.db.query(FraudHunterIndicatorDefinition).filter(
+                    FraudHunterIndicatorDefinition.id.in_(created_indicator_ids)
+                ).update(
+                    {"indicator_task_id": task.id},
+                    synchronize_session=False
+                )
+                logger.info(f"更新 {len(created_indicator_ids)} 个指标的任务ID为 {task.id}")
+
+        except Exception as e:
+            logger.error(f"指标任务创建失败: {str(e)}")
+            # 任务创建失败不影响指标创建结果
+            task_id = 0
+            task_code = ""
+            task_name = "任务创建失败"
+        else:
+            task_id = task.id
+            task_code = task.task_code
+            task_name = task.task_name
+
         logger.info(
-            f"批量创建完成 - 任务: {task.task_code}, "
+            f"批量创建完成 - 任务: {task_code}, "
             f"总数: {len(batch_data.indicators)}, "
             f"成功: {success_count}, "
             f"失败: {failed_count}"
         )
 
         return IndicatorBatchCreateResponse(
-            task_id=task.id,
-            task_code=task.task_code,
-            task_name=task.task_name,
+            task_id=task_id,
+            task_code=task_code,
+            task_name=task_name,
             total=len(batch_data.indicators),
             success_count=success_count,
             failed_count=failed_count,

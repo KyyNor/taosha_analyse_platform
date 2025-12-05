@@ -6,6 +6,7 @@ FraudHunter序列编码生成服务
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from models.fraudhunter.indicator import FraudHunterSequenceCounter
 from utils.logger import logger
 
 
@@ -37,45 +38,28 @@ class SequenceManager:
             Exception: 数据库操作失败时抛出异常
         """
         try:
-            # 使用悲观锁获取并更新计数器
-            # FOR UPDATE 会锁定这一行，直到事务结束
-            sql = text("""
-                SELECT counter_value
-                FROM fraudhunter_sequence_counter
-                WHERE counter_type = :counter_type
-                FOR UPDATE
-            """)
+            # 使用ORM with_for_update实现悲观锁
+            counter = self.db.query(FraudHunterSequenceCounter).filter(
+                FraudHunterSequenceCounter.counter_type == counter_type
+            ).with_for_update().first()
 
-            result = self.db.execute(sql, {"counter_type": counter_type}).fetchone()
-
-            if result is None:
+            if counter is None:
                 # 首次使用此计数器类型，创建新记录
-                insert_sql = text("""
-                    INSERT INTO fraudhunter_sequence_counter (counter_type, counter_value)
-                    VALUES (:counter_type, 1)
-                """)
-                self.db.execute(insert_sql, {"counter_type": counter_type})
+                counter = FraudHunterSequenceCounter(
+                    counter_type=counter_type,
+                    counter_value=1
+                )
+                self.db.add(counter)
                 self.db.flush()
                 logger.info(f"创建新计数器: {counter_type} = 1")
                 return 1
 
             # 更新计数器到下一个值
-            current_value = result[0]
-            next_value = current_value + 1
-
-            update_sql = text("""
-                UPDATE fraudhunter_sequence_counter
-                SET counter_value = :new_value
-                WHERE counter_type = :counter_type
-            """)
-            self.db.execute(update_sql, {
-                "counter_type": counter_type,
-                "new_value": next_value
-            })
+            counter.counter_value += 1
             self.db.flush()
 
-            logger.debug(f"生成序列号: {counter_type} = {next_value}")
-            return next_value
+            logger.debug(f"生成序列号: {counter_type} = {counter.counter_value}")
+            return counter.counter_value
 
         except Exception as e:
             logger.error(f"序列号生成失败: {counter_type}, 错误: {str(e)}")

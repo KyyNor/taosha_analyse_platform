@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Check, X } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Check, X, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,62 +14,52 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  indicatorService,
-  indicatorTaskService
-} from "@/lib/services/fraudhunterService";
+import { indicatorService } from "@/lib/services/fraudhunterService";
 import type {
-  IndicatorTask,
-  IndicatorBatchCreateItem,
-  IndicatorTaskBatchCreate,
-  IndicatorTaskCreate
+  IndicatorCreate,
+  IndicatorTaskCreate,
+  IndicatorBatchCreateItem
 } from "@/lib/services/fraudhunterService";
+
+interface CreatedIndicator {
+  id: number;
+  indicator_code: string;
+  indicator_name: string;
+  indicator_type: string;
+  object_type: string;
+}
 
 export default function BatchNewIndicatorPage() {
   const router = useRouter();
-  const [saving, setSaving] = useState(false);
-  const [taskMode, setTaskMode] = useState<"existing" | "new">("existing");
-  const [existingTasks, setExistingTasks] = useState<IndicatorTask[]>([]);
-  const [selectedTaskId, setSelectedTaskId] = useState<number>(0);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [isCreating, setIsCreating] = useState(false);
 
-  // 新建任务数据
-  const [newTaskData, setNewTaskData] = useState<IndicatorTaskCreate>({
-    task_name: "",
-    description: "",
-    logic_content: "",
-    source_tables: ""
-  });
-
-  // 批量指标数据
+  // 步骤1：指标配置
+  const [indicatorType, setIndicatorType] = useState("offline");
+  const [objectType, setObjectType] = useState("dep_acct_no");
   const [indicators, setIndicators] = useState<IndicatorBatchCreateItem[]>([
     {
       indicator_name: "",
-      indicator_type: "offline",
-      object_type: "dep_acct_no",
       description: "",
       data_type: "numeric",
       enum_values: ""
     }
   ]);
 
-  // 结果状态
-  const [showResult, setShowResult] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  // 步骤2：已创建的指标
+  const [createdIndicators, setCreatedIndicators] = useState<CreatedIndicator[]>([]);
+  const [createResults, setCreateResults] = useState<any[]>([]);
 
-  // 加载现有任务列表
-  useEffect(() => {
-    const loadTasks = async () => {
-      try {
-        const response = await indicatorTaskService.list({ page_size: 100 });
-        setExistingTasks(response.items || []);
-      } catch (error) {
-        console.error("Failed to load tasks:", error);
-      }
-    };
-    loadTasks();
-  }, []);
+  // 步骤3：任务配置
+  const [taskData, setTaskData] = useState<IndicatorTaskCreate>({
+    task_name: "",
+    description: "",
+    logic_content: "",
+    source_tables: ""
+  });
+
+  // 最终结果
+  const [finalResult, setFinalResult] = useState<any>(null);
 
   // 添加指标
   const handleAddIndicator = () => {
@@ -81,8 +71,6 @@ export default function BatchNewIndicatorPage() {
       ...indicators,
       {
         indicator_name: "",
-        indicator_type: "offline",
-        object_type: "dep_acct_no",
         description: "",
         data_type: "numeric",
         enum_values: ""
@@ -106,23 +94,9 @@ export default function BatchNewIndicatorPage() {
     setIndicators(updated);
   };
 
-  // 表单验证
-  const validateForm = () => {
+  // 步骤1表单验证
+  const validateStep1 = () => {
     const errors: string[] = [];
-
-    // 验证任务
-    if (taskMode === "existing") {
-      if (!selectedTaskId || selectedTaskId === 0) {
-        errors.push("请选择指标任务");
-      }
-    } else {
-      if (!newTaskData.task_name?.trim()) {
-        errors.push("新任务名称不能为空");
-      }
-      if (!newTaskData.logic_content?.trim()) {
-        errors.push("新任务SQL内容不能为空");
-      }
-    }
 
     // 验证指标
     if (indicators.length === 0) {
@@ -141,118 +115,125 @@ export default function BatchNewIndicatorPage() {
     return errors;
   };
 
-  // 提交处理
-  const handleSubmit = async () => {
-    const errors = validateForm();
+  // 步骤3表单验证
+  const validateStep3 = () => {
+    const errors: string[] = [];
+
+    if (!taskData.task_name?.trim()) {
+      errors.push("任务名称不能为空");
+    }
+    if (!taskData.logic_content?.trim()) {
+      errors.push("SQL内容不能为空");
+    }
+
+    return errors;
+  };
+
+  // 第一步：创建指标
+  const handleCreateIndicators = async () => {
+    const errors = validateStep1();
     if (errors.length > 0) {
       alert("表单验证失败:\n" + errors.join("\n"));
       return;
     }
 
-    setSaving(true);
+    setIsCreating(true);
+    const newCreatedIndicators: CreatedIndicator[] = [];
+    const newResults: any[] = [];
+
     try {
-      const batchData: IndicatorTaskBatchCreate = {
-        indicator_task_id: taskMode === "existing" ? selectedTaskId : undefined,
-        new_task: taskMode === "new" ? newTaskData : undefined,
-        indicators: indicators
-      };
+      // 逐个创建指标（临时关联到任务ID=0）
+      for (let idx = 0; idx < indicators.length; idx++) {
+        const indicatorItem = indicators[idx];
 
-      const response = await indicatorService.batchCreate(batchData);
+        try {
+          const indicatorData: IndicatorCreate = {
+            indicator_code: undefined, // 自动生成
+            indicator_name: indicatorItem.indicator_name,
+            indicator_type: indicatorType,
+            object_type: objectType,
+            description: indicatorItem.description,
+            data_type: indicatorItem.data_type,
+            enum_values: indicatorItem.enum_values,
+            indicator_task_id: undefined // 不关联任务，后续会关联
+          };
 
-      setResult(response);
-      setShowResult(true);
+          const response = await indicatorService.create(indicatorData);
+
+          const createdIndicator: CreatedIndicator = {
+            id: response.id,
+            indicator_code: response.indicator_code,
+            indicator_name: response.indicator_name,
+            indicator_type: response.indicator_type,
+            object_type: response.object_type
+          };
+
+          newCreatedIndicators.push(createdIndicator);
+          newResults.push({
+            index: idx,
+            success: true,
+            indicator: createdIndicator,
+            error: null
+          });
+
+        } catch (error: any) {
+          newResults.push({
+            index: idx,
+            success: false,
+            indicator: null,
+            error: error.response?.data?.detail || "创建失败"
+          });
+        }
+      }
+
+      setCreatedIndicators(newCreatedIndicators);
+      setCreateResults(newResults);
+      setCurrentStep(2);
 
     } catch (error: any) {
-      console.error("Batch create failed:", error);
-      alert(error.response?.data?.detail || "批量创建失败，请重试");
+      console.error("Batch create indicators failed:", error);
+      alert("批量创建指标失败，请重试");
     } finally {
-      setSaving(false);
+      setIsCreating(false);
     }
   };
 
-  // 取消处理
-  const handleCancel = () => {
-    if (confirm("确定要取消吗？未保存的更改将丢失")) {
-      router.push("/fraudhunter/indicators");
+  // 第二步：返回修改指标
+  const handleBackToStep1 = () => {
+    setCurrentStep(1);
+    setCreatedIndicators([]);
+    setCreateResults([]);
+  };
+
+  // 第三步：创建任务
+  const handleCreateTask = async () => {
+    const errors = validateStep3();
+    if (errors.length > 0) {
+      alert("表单验证失败:\n" + errors.join("\n"));
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const indicatorIds = createdIndicators.map(ind => ind.id);
+      const result = await indicatorService.createTaskWithIndicators(taskData, indicatorIds);
+
+      setFinalResult(result);
+      setCurrentStep(3);
+
+    } catch (error: any) {
+      console.error("Create task failed:", error);
+      alert(error.response?.data?.detail || "创建任务失败，请重试");
+    } finally {
+      setIsCreating(false);
     }
   };
 
-  // 结果显示页面
-  if (showResult && result) {
-    return (
-      <div className="container mx-auto py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">批量创建结果</h1>
-          <Button onClick={() => router.push("/fraudhunter/indicators")}>
-            返回指标列表
-          </Button>
-        </div>
+  // 完成流程
+  const handleFinish = () => {
+    router.push("/fraudhunter/indicators");
+  };
 
-        {/* 概览 */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>创建概览</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <p><strong>指标任务：</strong>{result.task_name} ({result.task_code})</p>
-              <p><strong>总计：</strong>{result.total} 个指标</p>
-              <p className="text-green-600"><strong>成功：</strong>{result.success_count} 个</p>
-              {result.failed_count > 0 && (
-                <p className="text-red-600"><strong>失败：</strong>{result.failed_count} 个</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 详细结果 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>详细结果</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {result.results.map((item: any, idx: number) => (
-                <div
-                  key={idx}
-                  className={`p-4 rounded-md border ${
-                    item.success
-                      ? "bg-green-50 border-green-200"
-                      : "bg-red-50 border-red-200"
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        {item.success ? (
-                          <Check className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <X className="h-5 w-5 text-red-600" />
-                        )}
-                        <span className="font-medium">
-                          第 {idx + 1} 个指标
-                        </span>
-                      </div>
-                      {item.success ? (
-                        <div className="text-sm text-muted-foreground">
-                          <p>编码: {item.indicator?.indicator_code}</p>
-                          <p>名称: {item.indicator?.indicator_name}</p>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-red-600">{item.error}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // 创建表单页面
   return (
     <div className="container mx-auto py-6">
       {/* 页面头部 */}
@@ -264,147 +245,47 @@ export default function BatchNewIndicatorPage() {
           <ArrowLeft className="h-4 w-4 mr-2" />
           返回
         </Button>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleCancel}>
-            取消
-          </Button>
-          <Button onClick={handleSubmit} disabled={saving}>
-            {saving ? "创建中..." : "批量创建"}
-          </Button>
+
+        {/* 步骤指示器 */}
+        <div className="flex items-center gap-4">
+          <div className={`flex items-center gap-2 ${currentStep >= 1 ? "text-blue-600" : "text-gray-400"}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+              currentStep >= 1 ? "bg-blue-600 text-white" : "bg-gray-200"
+            }`}>1</div>
+            <span>创建指标</span>
+          </div>
+          <ChevronRight className="h-4 w-4 text-gray-400" />
+          <div className={`flex items-center gap-2 ${currentStep >= 2 ? "text-blue-600" : "text-gray-400"}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+              currentStep >= 2 ? "bg-blue-600 text-white" : "bg-gray-200"
+            }`}>2</div>
+            <span>确认指标</span>
+          </div>
+          <ChevronRight className="h-4 w-4 text-gray-400" />
+          <div className={`flex items-center gap-2 ${currentStep >= 3 ? "text-blue-600" : "text-gray-400"}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+              currentStep >= 3 ? "bg-blue-600 text-white" : "bg-gray-200"
+            }`}>3</div>
+            <span>创建任务</span>
+          </div>
         </div>
       </div>
 
-      {/* 任务选择 */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>指标任务</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <RadioGroup value={taskMode} onValueChange={(v) => setTaskMode(v as any)}>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="existing" id="existing" />
-              <Label htmlFor="existing">使用现有任务</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="new" id="new" />
-              <Label htmlFor="new">创建新任务</Label>
-            </div>
-          </RadioGroup>
-
-          {taskMode === "existing" && (
-            <div>
-              <Label>选择指标任务 *</Label>
-              <Select
-                value={String(selectedTaskId)}
-                onValueChange={(v) => setSelectedTaskId(Number(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="选择指标任务" />
-                </SelectTrigger>
-                <SelectContent>
-                  {existingTasks.map((task) => (
-                    <SelectItem key={task.id} value={String(task.id)}>
-                      {task.task_name} ({task.task_code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {taskMode === "new" && (
-            <div className="space-y-4 p-4 border rounded-md">
-              <div>
-                <Label>任务名称 *</Label>
-                <Input
-                  value={newTaskData.task_name}
-                  onChange={(e) => setNewTaskData({ ...newTaskData, task_name: e.target.value })}
-                  placeholder="如: 登录行为指标任务"
-                />
-              </div>
-              <div>
-                <Label>描述</Label>
-                <Textarea
-                  value={newTaskData.description}
-                  onChange={(e) => setNewTaskData({ ...newTaskData, description: e.target.value })}
-                  placeholder="描述任务用途"
-                  rows={2}
-                />
-              </div>
-              <div>
-                <Label>SQL内容 *</Label>
-                <Textarea
-                  value={newTaskData.logic_content}
-                  onChange={(e) => setNewTaskData({ ...newTaskData, logic_content: e.target.value })}
-                  placeholder="SELECT account_id, indicator_code, indicator_value, dt FROM ..."
-                  rows={8}
-                  className="font-mono text-sm"
-                />
-              </div>
-              <div>
-                <Label>依赖源表</Label>
-                <Input
-                  value={newTaskData.source_tables}
-                  onChange={(e) => setNewTaskData({ ...newTaskData, source_tables: e.target.value })}
-                  placeholder="如: user_login,user_session"
-                />
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 批量指标 */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>批量指标 ({indicators.length}/50)</CardTitle>
-            <Button onClick={handleAddIndicator} size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              添加指标
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {indicators.map((indicator, idx) => (
-            <div key={idx} className="p-4 border rounded-md space-y-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-medium">指标 {idx + 1}</h3>
-                {indicators.length > 1 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemoveIndicator(idx)}
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
-                )}
-              </div>
-
+      {/* 步骤1：配置和创建指标 */}
+      {currentStep === 1 && (
+        <>
+          {/* 公共设置 */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>公共设置（所有指标共享）</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>指标名称 *</Label>
-                  <Input
-                    value={indicator.indicator_name}
-                    onChange={(e) => updateIndicator(idx, "indicator_name", e.target.value)}
-                    placeholder="如: 7天登录频率"
-                  />
-                </div>
-
-                <div>
-                  <Label>描述</Label>
-                  <Input
-                    value={indicator.description}
-                    onChange={(e) => updateIndicator(idx, "description", e.target.value)}
-                    placeholder="指标描述"
-                  />
-                </div>
-
                 <div>
                   <Label>指标类型 *</Label>
                   <Select
-                    value={indicator.indicator_type}
-                    onValueChange={(v) => updateIndicator(idx, "indicator_type", v)}
+                    value={indicatorType}
+                    onValueChange={setIndicatorType}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -414,13 +295,16 @@ export default function BatchNewIndicatorPage() {
                       <SelectItem value="realtime">实时</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    所有指标将使用相同的类型
+                  </p>
                 </div>
 
                 <div>
                   <Label>对象类型 *</Label>
                   <Select
-                    value={indicator.object_type}
-                    onValueChange={(v) => updateIndicator(idx, "object_type", v)}
+                    value={objectType}
+                    onValueChange={setObjectType}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -431,48 +315,322 @@ export default function BatchNewIndicatorPage() {
                       <SelectItem value="loan_acct_no">贷款账号</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    所有指标将使用相同的对象类型
+                  </p>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
 
-                <div>
-                  <Label>数据类型 *</Label>
-                  <Select
-                    value={indicator.data_type}
-                    onValueChange={(v) => {
-                      updateIndicator(idx, "data_type", v);
-                      if (v !== "enum") {
-                        updateIndicator(idx, "enum_values", "");
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="numeric">数值</SelectItem>
-                      <SelectItem value="enum">枚举</SelectItem>
-                      <SelectItem value="text">文本</SelectItem>
-                      <SelectItem value="boolean">布尔</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {indicator.data_type === "enum" && (
-                  <div className="col-span-2">
-                    <Label>枚举值 *</Label>
-                    <Textarea
-                      value={indicator.enum_values}
-                      onChange={(e) => updateIndicator(idx, "enum_values", e.target.value)}
-                      placeholder='["low", "medium", "high"]'
-                      rows={2}
-                      className="font-mono text-sm"
-                    />
+          {/* 批量指标配置 */}
+          <Card className="mb-6">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>指标配置 ({indicators.length}/50)</CardTitle>
+                <Button onClick={handleAddIndicator} size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  添加指标
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {indicators.map((indicator, idx) => (
+                <div key={idx} className="p-4 border rounded-md space-y-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-medium">指标 {idx + 1}</h3>
+                    {indicators.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveIndicator(idx)}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    )}
                   </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>指标名称 *</Label>
+                      <Input
+                        value={indicator.indicator_name}
+                        onChange={(e) => updateIndicator(idx, "indicator_name", e.target.value)}
+                        placeholder="如: 7天登录频率"
+                      />
+                    </div>
+
+                    <div>
+                      <Label>描述</Label>
+                      <Input
+                        value={indicator.description}
+                        onChange={(e) => updateIndicator(idx, "description", e.target.value)}
+                        placeholder="指标描述"
+                      />
+                    </div>
+
+                    <div>
+                      <Label>数据类型 *</Label>
+                      <Select
+                        value={indicator.data_type}
+                        onValueChange={(v) => {
+                          updateIndicator(idx, "data_type", v);
+                          if (v !== "enum") {
+                            updateIndicator(idx, "enum_values", "");
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="numeric">数值</SelectItem>
+                          <SelectItem value="enum">枚举</SelectItem>
+                          <SelectItem value="text">文本</SelectItem>
+                          <SelectItem value="boolean">布尔</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {indicator.data_type === "enum" && (
+                      <div className="col-span-2">
+                        <Label>枚举值 *</Label>
+                        <Textarea
+                          value={indicator.enum_values}
+                          onChange={(e) => updateIndicator(idx, "enum_values", e.target.value)}
+                          placeholder='["low", "medium", "high"]'
+                          rows={2}
+                          className="font-mono text-sm"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* 创建按钮 */}
+          <div className="flex justify-end">
+            <Button
+              onClick={handleCreateIndicators}
+              disabled={isCreating}
+              size="lg"
+            >
+              {isCreating ? "创建中..." : "创建指标"}
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* 步骤2：显示创建结果 */}
+      {currentStep === 2 && (
+        <>
+          {/* 创建结果概览 */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>指标创建结果</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <p><strong>总计：</strong>{indicators.length} 个指标</p>
+                <p className="text-green-600"><strong>成功：</strong>{createdIndicators.length} 个</p>
+                {createResults.some(r => !r.success) && (
+                  <p className="text-red-600"><strong>失败：</strong>{createResults.filter(r => !r.success).length} 个</p>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* 成功创建的指标ID列表 */}
+          {createdIndicators.length > 0 && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>成功创建的指标</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {createdIndicators.map((indicator, idx) => (
+                    <div key={idx} className="p-4 bg-green-50 border border-green-200 rounded-md">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Check className="h-5 w-5 text-green-600" />
+                        <span className="font-medium">指标 {idx + 1}</span>
+                      </div>
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <p><strong>ID:</strong> {indicator.id}</p>
+                        <p><strong>编码:</strong> {indicator.indicator_code}</p>
+                        <p><strong>名称:</strong> {indicator.indicator_name}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 复制所有ID */}
+                <div className="mt-4 p-4 bg-gray-50 rounded-md">
+                  <Label className="text-sm font-medium">所有指标ID（复制到任务SQL中使用）：</Label>
+                  <div className="mt-2 p-3 bg-white border rounded-md font-mono text-sm">
+                    {createdIndicators.map(ind => ind.id).join(", ")}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 失败的指标 */}
+          {createResults.some(r => !r.success) && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>创建失败的指标</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {createResults
+                    .filter(r => !r.success)
+                    .map((result, idx) => (
+                      <div key={idx} className="p-4 bg-red-50 border border-red-200 rounded-md">
+                        <div className="flex items-center gap-2 mb-2">
+                          <X className="h-5 w-5 text-red-600" />
+                          <span className="font-medium">指标 {result.index + 1}</span>
+                        </div>
+                        <p className="text-sm text-red-600">{result.error}</p>
+                      </div>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 操作按钮 */}
+          <div className="flex justify-between">
+            <Button variant="outline" onClick={handleBackToStep1}>
+              返回修改
+            </Button>
+            <Button
+              onClick={() => setCurrentStep(3)}
+              disabled={createdIndicators.length === 0}
+            >
+              继续创建任务
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* 步骤3：创建任务 */}
+      {currentStep === 3 && (
+        <>
+          {/* 任务配置 */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>指标任务设置</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>任务名称 *</Label>
+                <Input
+                  value={taskData.task_name}
+                  onChange={(e) => setTaskData({ ...taskData, task_name: e.target.value })}
+                  placeholder="如: 登录行为指标任务"
+                />
+              </div>
+              <div>
+                <Label>描述</Label>
+                <Textarea
+                  value={taskData.description}
+                  onChange={(e) => setTaskData({ ...taskData, description: e.target.value })}
+                  placeholder="描述任务用途"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <Label>SQL内容 *</Label>
+                <Textarea
+                  value={taskData.logic_content}
+                  onChange={(e) => setTaskData({ ...taskData, logic_content: e.target.value })}
+                  placeholder={`SELECT account_id, indicator_code, indicator_value, dt FROM your_table\nWHERE indicator_id IN (${createdIndicators.map(ind => ind.id).join(", ")})`}
+                  rows={8}
+                  className="font-mono text-sm"
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  提示：可以使用上面复制的指标ID列表
+                </p>
+              </div>
+              <div>
+                <Label>依赖源表</Label>
+                <Input
+                  value={taskData.source_tables}
+                  onChange={(e) => setTaskData({ ...taskData, source_tables: e.target.value })}
+                  placeholder="如: user_login,user_session"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 已关联的指标 */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>已关联的指标</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                将关联到这个任务的指标列表：
+              </p>
+              <div className="space-y-2">
+                {createdIndicators.map((indicator, idx) => (
+                  <div key={idx} className="p-3 bg-gray-50 rounded-md">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-medium">ID: {indicator.id}</span>
+                        <span className="mx-2">·</span>
+                        <span>{indicator.indicator_name}</span>
+                        <span className="mx-2">·</span>
+                        <span className="text-muted-foreground">{indicator.indicator_code}</span>
+                      </div>
+                      <Check className="h-4 w-4 text-green-600" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 创建按钮 */}
+          <div className="flex justify-between">
+            <Button variant="outline" onClick={() => setCurrentStep(2)}>
+              返回上一步
+            </Button>
+            <Button
+              onClick={handleCreateTask}
+              disabled={isCreating}
+              size="lg"
+            >
+              {isCreating ? "创建中..." : "创建任务"}
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* 最终结果 */}
+      {finalResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                <Check className="h-6 w-6 text-green-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">创建成功！</h3>
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>任务编码: {finalResult.task_code}</p>
+                <p>关联指标数量: {finalResult.indicator_ids.length}</p>
+              </div>
+              <div className="mt-6">
+                <Button onClick={handleFinish} className="w-full">
+                  完成
+                </Button>
+              </div>
             </div>
-          ))}
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
