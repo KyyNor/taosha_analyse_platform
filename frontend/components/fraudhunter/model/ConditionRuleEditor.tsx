@@ -15,7 +15,6 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import {
   ConditionRule,
   Indicator,
@@ -58,9 +57,9 @@ export function ConditionRuleEditor({
     const newAllowedOps = getAllowedOperatorsForType(newIndicator?.data_type)
 
     // 如果左元素函数不兼容，清除函数
-    let leftFunction = rule.leftFunction
-    if (leftFunction && leftFunction !== 'none' && !isNumericType(newIndicator?.data_type)) {
-      leftFunction = undefined
+    let left_function = rule.left_function
+    if (left_function && !isNumericType(newIndicator?.data_type)) {
+      left_function = undefined
     }
 
     onChange({
@@ -68,7 +67,7 @@ export function ConditionRuleEditor({
       indicator: indicatorCode,
       operator: newAllowedOps[0] || '>',
       value: createDefaultConstantValue(newIndicator?.data_type),
-      leftFunction
+      left_function
     })
   }
 
@@ -76,7 +75,7 @@ export function ConditionRuleEditor({
   const handleLeftFunctionChange = (value: string) => {
     onChange({
       ...rule,
-      leftFunction: value === 'none' ? undefined : (value as 'abs')
+      left_function: value === 'none' ? undefined : 'abs'
     })
   }
 
@@ -124,47 +123,6 @@ export function ConditionRuleEditor({
   // 更新值表达式
   const updateValue = (newValue: any) => {
     onChange({ ...rule, value: newValue })
-  }
-
-  // ==================== 辅助函数 ====================
-
-  // 获取左元素的显示文本（包括函数）
-  const getLeftElementDisplay = () => {
-    const indicator = indicators.find(ind => ind.indicator_code === rule.indicator)
-    const indicatorName = indicator?.indicator_name || rule.indicator
-
-    if (rule.leftFunction === 'abs') {
-      return `abs(${indicatorName})`
-    }
-    return indicatorName
-  }
-
-  // 获取右元素的显示文本
-  const getRightElementDisplay = () => {
-    switch (rule.value.type) {
-      case 'constant':
-        if (Array.isArray(rule.value.value)) {
-          return `[${rule.value.value.join(', ')}]`
-        }
-        return String(rule.value.value || '')
-
-      case 'indicator':
-        const indicator = indicators.find(ind => ind.indicator_code === rule.value.indicator)
-        return indicator?.indicator_name || rule.value.indicator
-
-      case 'time_function':
-        const timeIndicator = indicators.find(ind => ind.indicator_code === rule.value.indicator)
-        const timeIndicatorName = timeIndicator?.indicator_name || rule.value.indicator
-        return `${rule.value.function}(${timeIndicatorName}, ${rule.value.offset}, ${rule.value.unit})`
-
-      case 'math_function':
-        const mathIndicator = indicators.find(ind => ind.indicator_code === rule.value.indicator)
-        const mathIndicatorName = mathIndicator?.indicator_name || rule.value.indicator
-        return `${rule.value.function}(${mathIndicatorName})`
-
-      default:
-        return ''
-    }
   }
 
   // ==================== 渲染右元素配置 ====================
@@ -369,7 +327,7 @@ export function ConditionRuleEditor({
 
           {/* 函数选择（仅数值类型显示） */}
           {isNumericType(currentIndicator?.data_type) && (
-            <Select value={rule.leftFunction || 'none'} onValueChange={handleLeftFunctionChange}>
+            <Select value={rule.left_function || 'none'} onValueChange={handleLeftFunctionChange}>
               <SelectTrigger className="w-[80px] h-8">
                 <SelectValue />
               </SelectTrigger>
@@ -463,21 +421,8 @@ export function ConditionRuleEditor({
           {/* 根据类型显示配置 */}
           {renderValueConfig()}
         </div>
-
-        {/* 类型预览标签 */}
-        <div className="flex-shrink-0">
-          <Badge variant="outline" className="text-xs">
-            {currentIndicator?.data_type || 'unknown'}
-          </Badge>
-        </div>
       </div>
 
-      {/* 条件表达式预览 */}
-      <div className="px-12 pb-2">
-        <div className="text-xs text-muted-foreground font-mono bg-blue-50 dark:bg-blue-950/20 px-3 py-2 rounded border-l-2 border-blue-200">
-          💡 {getLeftElementDisplay()} {rule.operator} {getRightElementDisplay()}
-        </div>
-      </div>
     </>
   )
 }

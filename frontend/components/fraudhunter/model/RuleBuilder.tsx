@@ -21,7 +21,7 @@ import { Trash2, Plus, Code, CheckCircle2, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   RuleConfig,
-  RuleGroup,
+  GroupRule,
   ConditionRule,
   Indicator
 } from '@/types/fraudhunter/rule'
@@ -44,7 +44,7 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
         indicator: indicators[0]?.indicator_code || '',
         operator: '>',
         value: { type: 'constant', value: 0 },
-        leftFunction: undefined
+        left_function: undefined
       }
     ],
     output: {
@@ -71,7 +71,7 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
       indicator: indicators[0]?.indicator_code || '',
       operator: '>',
       value: { type: 'constant', value: 0 },
-      leftFunction: undefined
+      left_function: undefined
     }
 
     setRule(prevRule => {
@@ -90,7 +90,7 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
 
   // 添加规则组
   const addRuleGroup = useCallback(() => {
-    const newGroup: RuleGroup = {
+    const newGroup: GroupRule = {
       type: 'group',
       logic: 'AND',
       rules: [
@@ -99,7 +99,7 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
           indicator: indicators[0]?.indicator_code || '',
           operator: '>',
           value: { type: 'constant', value: 0 },
-          leftFunction: undefined
+          left_function: undefined
         }
       ]
     }
@@ -119,7 +119,7 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
   }, [])
 
   // 更新规则
-  const updateRuleAtIndex = useCallback((index: number, updatedRule: ConditionRule | RuleGroup) => {
+  const updateRuleAtIndex = useCallback((index: number, updatedRule: ConditionRule | GroupRule) => {
     setRule(prevRule => ({
       ...prevRule,
       rules: prevRule.rules.map((r, i) => i === index ? updatedRule : r)
@@ -148,7 +148,7 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
       indicator: indicators[0]?.indicator_code || '',
       operator: '>',
       value: { type: 'constant', value: 0 },
-      leftFunction: undefined
+      left_function: undefined
     }
 
     setRule(prevRule => ({
@@ -388,17 +388,19 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
 
                       {/* 规则组内的条件 */}
                       <div className="ml-16 space-y-0 border-l-2 border-muted">
-                        {ruleItem.rules.map((condition, conditionIndex) => (
-                          <div key={conditionIndex} className="flex items-center gap-2 border-l-2 border-background pl-4 -ml-[2px]">
+                        {ruleItem.rules.filter(r => r.type === 'condition').map((condition, conditionIndex) => {
+                          const originalIndex = ruleItem.rules.indexOf(condition)
+                          return (
+                          <div key={originalIndex} className="flex items-center gap-2 border-l-2 border-background pl-4 -ml-[2px]">
                             {/* 条件序号 */}
                             <div className="flex-shrink-0 w-12 text-center">
                               <Badge variant="outline" className="text-xs">
-                                {conditionIndex + 1}
+                                {originalIndex + 1}
                               </Badge>
                             </div>
 
                             {/* 逻辑连接符（组内第一个条件之后才显示） */}
-                            {conditionIndex > 0 && (
+                            {originalIndex > 0 && (
                               <div className="flex-shrink-0">
                                 <Badge variant="outline" className="text-xs">
                                   {ruleItem.logic}
@@ -409,10 +411,10 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
                             {/* 条件编辑器 */}
                             <div className="flex-1">
                               <ConditionRuleEditor
-                                rule={condition}
+                                rule={condition as ConditionRule}
                                 indicators={indicators}
                                 onChange={(updatedCondition) =>
-                                  updateConditionInGroup(index, conditionIndex, updatedCondition)
+                                  updateConditionInGroup(index, originalIndex, updatedCondition)
                                 }
                               />
                             </div>
@@ -421,7 +423,7 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
                             <div className="flex-shrink-0">
                               {!readOnly && (
                                 <Button
-                                  onClick={() => removeConditionFromGroup(index, conditionIndex)}
+                                  onClick={() => removeConditionFromGroup(index, originalIndex)}
                                   variant="ghost"
                                   size="sm"
                                   className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
@@ -431,7 +433,8 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
                               )}
                             </div>
                           </div>
-                        ))}
+                          )
+                        })}
 
                         {ruleItem.rules.length === 0 && (
                           <div className="text-center text-muted-foreground py-4 ml-16">

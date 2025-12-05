@@ -76,12 +76,6 @@ export default function RuleConfigPage() {
             可视化规则配置平台
           </p>
         </div>
-        <Badge variant="outline" className="text-sm">
-          <span className="flex items-center gap-1">
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-            系统正常
-          </span>
-        </Badge>
       </div>
 
       {/* 规则构建器 */}

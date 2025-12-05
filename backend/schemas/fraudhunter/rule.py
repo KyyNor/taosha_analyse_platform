@@ -157,6 +157,10 @@ class ConditionRule(BaseModel):
         ...,
         description="值表达式：常量值、指标引用、时间函数或数学函数"
     )
+    left_function: Optional[Literal["abs"]] = Field(
+        None,
+        description="左元素函数：abs（绝对值），仅数值类型指标可用"
+    )
 
     @field_validator('value', mode='before')
     @classmethod

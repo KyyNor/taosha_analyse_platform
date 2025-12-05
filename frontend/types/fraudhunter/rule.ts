@@ -98,7 +98,7 @@ export interface ConditionRule {
   indicator: string           // 指标编码，如 'i_login_cnt_7d'
   operator: ComparisonOperator
   value: ValueExpression      // 值表达式：常量值、指标引用、时间函数或数学函数
-  leftFunction?: 'abs' | 'none'  // 左元素的函数处理，仅数值类型指标可用
+  left_function?: 'abs'       // 左元素函数：abs（绝对值），仅数值类型指标可用
 }
 
 /**
@@ -373,7 +373,7 @@ export function conditionRuleToString(rule: ConditionRule, indicators: Indicator
 
   // 构建左元素表达式
   let leftExpression = indicatorName
-  if (rule.leftFunction === 'abs') {
+  if (rule.left_function === 'abs') {
     leftExpression = `abs(${indicatorName})`
   }
 

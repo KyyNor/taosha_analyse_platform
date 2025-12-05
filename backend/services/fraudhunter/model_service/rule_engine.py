@@ -763,15 +763,20 @@ class RuleEngine:
         """
 
         def condition_to_sql(condition: ConditionRule) -> str:
-            """将条件转换为SQL（支持值表达式）"""
+            """将条件转换为SQL（支持值表达式和左元素函数）"""
             indicator = condition.indicator
             operator = condition.operator
             value_expr = condition.value
 
+            # 处理左元素函数
+            left_sql = indicator
+            if condition.left_function == 'abs':
+                left_sql = f"ABS({indicator})"
+
             # 基础比较操作符
             if operator in ['>', '>=', '<', '<=', '=', '!=']:
                 right_sql = self._value_expression_to_sql(value_expr)
-                return f"{indicator} {operator} {right_sql}"
+                return f"{left_sql} {operator} {right_sql}"
 
             # 集合操作（只支持常量值）
             elif operator in ['in', 'not in']:
@@ -779,7 +784,7 @@ class RuleEngine:
                     raise ValueError(f"操作符 {operator} 只支持常量值")
                 values_sql = self._format_constant_sql(value_expr.value)
                 op_sql = 'IN' if operator == 'in' else 'NOT IN'
-                return f"{indicator} {op_sql} ({values_sql})"
+                return f"{left_sql} {op_sql} ({values_sql})"
 
             # 正则匹配（只支持常量字符串）
             elif operator in ['regexp', 'not regexp']:
@@ -787,9 +792,9 @@ class RuleEngine:
                     raise ValueError(f"操作符 {operator} 只支持常量值")
                 pattern = str(value_expr.value).replace("'", "''")
                 if operator == 'regexp':
-                    return f"{indicator} RLIKE '{pattern}'"
+                    return f"{left_sql} RLIKE '{pattern}'"
                 else:
-                    return f"NOT ({indicator} RLIKE '{pattern}')"
+                    return f"NOT ({left_sql} RLIKE '{pattern}')"
 
             return "1=1"
 
