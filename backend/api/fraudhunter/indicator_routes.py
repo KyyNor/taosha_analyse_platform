@@ -18,6 +18,8 @@ from schemas.fraudhunter.batch_create import (
     IndicatorBatchCreateResponse,
     CreateTaskWithIndicatorsRequest,
     CreateTaskWithIndicatorsResponse,
+    TaskPreExecuteRequest,
+    TaskPreExecuteResponse,
 )
 from services.fraudhunter.indicator_service import IndicatorManager
 from utils.logger import logger
@@ -90,6 +92,63 @@ async def batch_create_indicators(
     except Exception as e:
         logger.error(f"批量创建指标失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"批量创建指标失败: {str(e)}")
+
+
+@router.post("/batch/validate-task", response_model=TaskPreExecuteResponse, summary="预执行验证任务")
+async def validate_task_before_create(
+    validation_request: TaskPreExecuteRequest,
+    db: Session = Depends(get_db)
+):
+    """在创建任务前预执行验证SQL和字段
+
+    验证SQL逻辑是否正确，输出字段是否包含：
+    - target_id
+    - etl_date
+    - 所有关联指标的编码字段
+
+    Args:
+        validation_request: 预执行验证请求
+        db: 数据库会话
+
+    Returns:
+        验证结果，包含字段验证详情和样本数据
+    """
+    try:
+        from services.fraudhunter.task_service import indicator_executor
+
+        # 执行预验证
+        validation_result = await indicator_executor.validate_task_logic(
+            db=db,
+            task_data=validation_request.task_data,
+            indicator_ids=validation_request.indicator_ids,
+            etl_date=validation_request.etl_date,
+            sample_size=10  # 验证时使用小样本
+        )
+
+        # 检查字段验证是否通过
+        field_validation = validation_result['field_validation']
+        if not field_validation['valid']:
+            return TaskPreExecuteResponse(
+                success=False,
+                message=f"字段验证失败，缺失字段: {', '.join(field_validation['missing_fields'])}",
+                validation_details=field_validation
+            )
+
+        return TaskPreExecuteResponse(
+            success=True,
+            message="预执行验证通过，SQL逻辑正确，字段完整",
+            sample_result=validation_result['sample_result'],
+            validation_details=validation_result
+        )
+
+    except ValueError as e:
+        return TaskPreExecuteResponse(
+            success=False,
+            message=str(e)
+        )
+    except Exception as e:
+        logger.error(f"预执行验证失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"预执行验证失败: {str(e)}")
 
 
 @router.post("/batch/create-task", response_model=CreateTaskWithIndicatorsResponse, summary="创建任务并关联指标")

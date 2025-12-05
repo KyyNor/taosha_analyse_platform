@@ -125,6 +125,28 @@ export interface IndicatorBatchCreateResponse {
   results: IndicatorBatchCreateResult[];
 }
 
+// ============ 预执行验证相关类型定义 ============
+export interface TaskPreExecuteRequest {
+  task_data: IndicatorTaskCreate;
+  indicator_ids: number[];
+  etl_date?: string;
+}
+
+export interface TaskPreExecuteResponse {
+  success: boolean;
+  message: string;
+  execution_id?: string;
+  sample_results?: Record<string, any>;
+  validation_details?: {
+    valid: boolean;
+    required_fields: string[];
+    actual_fields: string[];
+    missing_fields: string[];
+    extra_fields: string[];
+    indicator_codes: string[];
+  };
+}
+
 // ============ 任务相关类型定义 ============
 export interface TaskExecution {
   id: number;
@@ -297,6 +319,16 @@ export const indicatorService = {
     const response = await api.post(`${BASE_PATH}/indicators/batch/create-task`, {
       task_data: taskData,
       indicator_ids: indicatorIds
+    });
+    return response.data;
+  },
+
+  // 预执行验证任务
+  async validateTaskBeforeCreate(taskData: IndicatorTaskCreate, indicatorIds: number[], etlDate?: string): Promise<any> {
+    const response = await api.post(`${BASE_PATH}/indicators/batch/validate-task`, {
+      task_data: taskData,
+      indicator_ids: indicatorIds,
+      etl_date: etlDate
     });
     return response.data;
   },

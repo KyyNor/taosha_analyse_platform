@@ -18,7 +18,8 @@ import { indicatorService } from "@/lib/services/fraudhunterService";
 import type {
   IndicatorCreate,
   IndicatorTaskCreate,
-  IndicatorBatchCreateItem
+  IndicatorBatchCreateItem,
+  TaskPreExecuteResponse
 } from "@/lib/services/fraudhunterService";
 
 interface CreatedIndicator {
@@ -31,8 +32,9 @@ interface CreatedIndicator {
 
 export default function BatchNewIndicatorPage() {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [isCreating, setIsCreating] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
 
   // 步骤1：指标配置
   const [indicatorType, setIndicatorType] = useState("offline");
@@ -57,6 +59,10 @@ export default function BatchNewIndicatorPage() {
     logic_content: "",
     source_tables: ""
   });
+
+  // 步骤3：预执行验证
+  const [etlDate, setEtlDate] = useState("");
+  const [validationResult, setValidationResult] = useState<any>(null);
 
   // 最终结果
   const [finalResult, setFinalResult] = useState<any>(null);
@@ -205,7 +211,40 @@ export default function BatchNewIndicatorPage() {
     setCreateResults([]);
   };
 
-  // 第三步：创建任务
+  // 第三步：预执行验证
+  const handleValidateTask = async () => {
+    const errors = validateStep3();
+    if (errors.length > 0) {
+      alert("表单验证失败:\n" + errors.join("\n"));
+      return;
+    }
+
+    setIsValidating(true);
+    try {
+      const indicatorIds = createdIndicators.map(ind => ind.id);
+      const result: TaskPreExecuteResponse = await indicatorService.validateTaskBeforeCreate(
+        taskData,
+        indicatorIds,
+        etlDate || undefined
+      );
+
+      setValidationResult(result);
+
+      if (result.success) {
+        setCurrentStep(4); // 验证通过，进入第4步创建任务
+      } else {
+        alert("预执行验证失败: " + result.message);
+      }
+
+    } catch (error: any) {
+      console.error("Task validation failed:", error);
+      alert(error.response?.data?.detail || "预执行验证失败，请重试");
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  // 第四步：创建任务
   const handleCreateTask = async () => {
     const errors = validateStep3();
     if (errors.length > 0) {
@@ -219,7 +258,7 @@ export default function BatchNewIndicatorPage() {
       const result = await indicatorService.createTaskWithIndicators(taskData, indicatorIds);
 
       setFinalResult(result);
-      setCurrentStep(3);
+      setCurrentStep(4); // 修改为第4步
 
     } catch (error: any) {
       console.error("Create task failed:", error);
@@ -266,6 +305,13 @@ export default function BatchNewIndicatorPage() {
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
               currentStep >= 3 ? "bg-blue-600 text-white" : "bg-gray-200"
             }`}>3</div>
+            <span>验证任务</span>
+          </div>
+          <ChevronRight className="h-4 w-4 text-gray-400" />
+          <div className={`flex items-center gap-2 ${currentStep >= 4 ? "text-blue-600" : "text-gray-400"}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+              currentStep >= 4 ? "bg-blue-600 text-white" : "bg-gray-200"
+            }`}>4</div>
             <span>创建任务</span>
           </div>
         </div>
@@ -509,19 +555,22 @@ export default function BatchNewIndicatorPage() {
               onClick={() => setCurrentStep(3)}
               disabled={createdIndicators.length === 0}
             >
-              继续创建任务
+              配置任务
             </Button>
           </div>
         </>
       )}
 
-      {/* 步骤3：创建任务 */}
+      {/* 步骤3：配置和验证任务 */}
       {currentStep === 3 && (
         <>
           {/* 任务配置 */}
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>指标任务设置</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                配置SQL任务逻辑，系统将验证输出字段是否包含 target_id、etl_date 和所有指标字段
+              </p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -546,12 +595,24 @@ export default function BatchNewIndicatorPage() {
                 <Textarea
                   value={taskData.logic_content}
                   onChange={(e) => setTaskData({ ...taskData, logic_content: e.target.value })}
-                  placeholder={`SELECT account_id, indicator_code, indicator_value, dt FROM your_table\nWHERE indicator_id IN (${createdIndicators.map(ind => ind.id).join(", ")})`}
+                  placeholder={`SELECT target_id, etl_date, ${createdIndicators.map(ind => ind.indicator_code).join(', ')} FROM your_table\nWHERE dt = '${date}' -- ${date} 会被替换为实际日期`}
                   rows={8}
                   className="font-mono text-sm"
                 />
                 <p className="text-sm text-muted-foreground mt-1">
-                  提示：可以使用上面复制的指标ID列表
+                  提示：SQL中可以使用 {'${date}'} 变量，系统会自动替换为实际ETL日期
+                </p>
+              </div>
+              <div>
+                <Label>ETL日期（可选，默认为昨天）</Label>
+                <Input
+                  type="date"
+                  value={etlDate}
+                  onChange={(e) => setEtlDate(e.target.value)}
+                  placeholder="留空使用昨天的日期"
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  验证时使用的日期，留空则默认为昨天
                 </p>
               </div>
               <div>
@@ -593,24 +654,108 @@ export default function BatchNewIndicatorPage() {
             </CardContent>
           </Card>
 
-          {/* 创建按钮 */}
+          {/* 验证结果 */}
+          {validationResult && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className={validationResult.success ? "text-green-600" : "text-red-600"}>
+                  预执行验证结果
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className={`p-4 rounded-md ${validationResult.success ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
+                    <p className={validationResult.success ? "text-green-700" : "text-red-700"}>
+                      {validationResult.message}
+                    </p>
+                  </div>
+
+                  {validationResult.validation_details && (
+                    <div>
+                      <h4 className="font-medium mb-2">字段验证详情：</h4>
+                      <div className="space-y-2 text-sm">
+                        <div><strong>必需字段：</strong> {validationResult.validation_details.required_fields.join(", ")}</div>
+                        <div><strong>实际字段：</strong> {validationResult.validation_details.actual_fields.join(", ")}</div>
+                        {validationResult.validation_details.missing_fields.length > 0 && (
+                          <div className="text-red-600"><strong>缺失字段：</strong> {validationResult.validation_details.missing_fields.join(", ")}</div>
+                        )}
+                        {validationResult.validation_details.extra_fields.length > 0 && (
+                          <div className="text-orange-600"><strong>多余字段：</strong> {validationResult.validation_details.extra_fields.join(", ")}</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {validationResult.sample_results && (
+                    <div>
+                      <h4 className="font-medium mb-2">样本数据（前3条）：</h4>
+                      <div className="bg-gray-50 p-3 rounded-md">
+                        <pre className="text-xs overflow-x-auto">
+                          {JSON.stringify(validationResult.sample_results.slice(0, 3), null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 操作按钮 */}
           <div className="flex justify-between">
             <Button variant="outline" onClick={() => setCurrentStep(2)}>
               返回上一步
             </Button>
-            <Button
-              onClick={handleCreateTask}
-              disabled={isCreating}
-              size="lg"
-            >
-              {isCreating ? "创建中..." : "创建任务"}
-            </Button>
+            <div className="flex gap-2">
+              {validationResult?.success && (
+                <Button
+                  onClick={handleCreateTask}
+                  disabled={isCreating}
+                  size="lg"
+                >
+                  {isCreating ? "创建中..." : "创建任务"}
+                </Button>
+              )}
+              <Button
+                onClick={handleValidateTask}
+                disabled={isValidating}
+                variant={validationResult?.success ? "outline" : "default"}
+                size="lg"
+              >
+                {isValidating ? "验证中..." : "预执行验证"}
+              </Button>
+            </div>
           </div>
         </>
       )}
 
-      {/* 最终结果 */}
-      {finalResult && (
+      {/* 步骤4：任务创建成功 */}
+      {currentStep === 4 && finalResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                <Check className="h-6 w-6 text-green-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">任务创建成功！</h3>
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>任务编码: {finalResult.task_code}</p>
+                <p>任务名称: {finalResult.task_name}</p>
+                <p>关联指标数量: {finalResult.indicator_count}</p>
+                <p>预执行验证: 已通过</p>
+              </div>
+              <div className="mt-6">
+                <Button onClick={handleFinish} className="w-full">
+                  完成
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 最终结果（兼容旧版本） */}
+      {finalResult && currentStep !== 4 && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
             <div className="text-center">
