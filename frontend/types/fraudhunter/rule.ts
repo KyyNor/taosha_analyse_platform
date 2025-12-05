@@ -365,6 +365,25 @@ export function valueExpressionToString(expr: ValueExpression): string {
 }
 
 /**
+ * 生成条件规则的完整表达式字符串（包含左元素函数）
+ */
+export function conditionRuleToString(rule: ConditionRule, indicators: Indicator[]): string {
+  const indicator = indicators.find(ind => ind.indicator_code === rule.indicator)
+  const indicatorName = indicator?.indicator_name || rule.indicator
+
+  // 构建左元素表达式
+  let leftExpression = indicatorName
+  if (rule.leftFunction === 'abs') {
+    leftExpression = `abs(${indicatorName})`
+  }
+
+  // 构建右元素表达式
+  const rightExpression = valueExpressionToString(rule.value)
+
+  return `${leftExpression} ${rule.operator} ${rightExpression}`
+}
+
+/**
  * 根据操作符获取允许的值表达式类型
  */
 export function getAllowedValueTypes(operator: ComparisonOperator): ValueType[] {

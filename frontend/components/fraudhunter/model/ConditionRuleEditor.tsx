@@ -12,7 +12,6 @@
  * - 自动类型验证和兼容性检查
  */
 
-import { useState } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -25,7 +24,6 @@ import {
   getAllowedOperatorsForType,
   createDefaultConstantValue,
   isNumericType,
-  isDateType,
   isCompatibleType,
   getInputType,
   isMultiValueOperator,
@@ -128,6 +126,47 @@ export function ConditionRuleEditor({
     onChange({ ...rule, value: newValue })
   }
 
+  // ==================== 辅助函数 ====================
+
+  // 获取左元素的显示文本（包括函数）
+  const getLeftElementDisplay = () => {
+    const indicator = indicators.find(ind => ind.indicator_code === rule.indicator)
+    const indicatorName = indicator?.indicator_name || rule.indicator
+
+    if (rule.leftFunction === 'abs') {
+      return `abs(${indicatorName})`
+    }
+    return indicatorName
+  }
+
+  // 获取右元素的显示文本
+  const getRightElementDisplay = () => {
+    switch (rule.value.type) {
+      case 'constant':
+        if (Array.isArray(rule.value.value)) {
+          return `[${rule.value.value.join(', ')}]`
+        }
+        return String(rule.value.value || '')
+
+      case 'indicator':
+        const indicator = indicators.find(ind => ind.indicator_code === rule.value.indicator)
+        return indicator?.indicator_name || rule.value.indicator
+
+      case 'time_function':
+        const timeIndicator = indicators.find(ind => ind.indicator_code === rule.value.indicator)
+        const timeIndicatorName = timeIndicator?.indicator_name || rule.value.indicator
+        return `${rule.value.function}(${timeIndicatorName}, ${rule.value.offset}, ${rule.value.unit})`
+
+      case 'math_function':
+        const mathIndicator = indicators.find(ind => ind.indicator_code === rule.value.indicator)
+        const mathIndicatorName = mathIndicator?.indicator_name || rule.value.indicator
+        return `${rule.value.function}(${mathIndicatorName})`
+
+      default:
+        return ''
+    }
+  }
+
   // ==================== 渲染右元素配置 ====================
 
   const renderValueConfig = () => {
@@ -139,7 +178,7 @@ export function ConditionRuleEditor({
               value={Array.isArray(rule.value.value) ? rule.value.value.join('\n') : (rule.value.value || '')}
               onChange={(e) => updateValue({
                 ...rule.value,
-                value: e.target.value.split('\n').filter(v => v.trim())
+                value: e.target.value.split('\n').filter(v => v.trim()) as string[]
               })}
               placeholder="每行一个值"
               className="h-20 resize-none"
@@ -158,14 +197,17 @@ export function ConditionRuleEditor({
           return (
             <Input
               value={rule.value.value || ''}
-              onChange={(e) => updateValue({
-                ...rule.value,
-                value: currentIndicator?.data_type === 'bool' || currentIndicator?.data_type === 'boolean'
-                  ? e.target.checked
-                  : (currentIndicator?.data_type === 'int' || currentIndicator?.data_type === 'float' || currentIndicator?.data_type === 'numeric'
-                      ? parseFloat(e.target.value) || 0
-                      : e.target.value)
-              })}
+              onChange={(e) => {
+              let newValue: string | number | boolean | string[] | number[]
+              if (currentIndicator?.data_type === 'bool' || currentIndicator?.data_type === 'boolean') {
+                newValue = e.target.checked
+              } else if (currentIndicator?.data_type === 'int' || currentIndicator?.data_type === 'float' || currentIndicator?.data_type === 'numeric') {
+                newValue = parseFloat(e.target.value) || 0
+              } else {
+                newValue = e.target.value
+              }
+              updateValue({ ...rule.value, value: newValue })
+            }}
               type={getInputType(currentIndicator?.data_type)}
               className="flex-1"
             />
@@ -288,145 +330,154 @@ export function ConditionRuleEditor({
   const allowedOperators = getAllowedOperatorsForType(currentIndicator?.data_type)
 
   return (
-    <div className="flex items-center gap-2 w-full py-2">
-      {/* 逻辑连接符 */}
-      {showLogic && (
+    <>
+      <div className="flex items-center gap-2 w-full py-2">
+        {/* 逻辑连接符 */}
+        {showLogic && (
+          <div className="flex-shrink-0">
+            <Select value={logic} onValueChange={onLogicChange}>
+              <SelectTrigger className="w-[80px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="AND">AND</SelectItem>
+                <SelectItem value="OR">OR</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* 左元素：指标 + 可选函数 */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <Select value={rule.indicator} onValueChange={handleIndicatorChange}>
+            <SelectTrigger className="w-[180px] h-8">
+              <SelectValue placeholder="选择指标" />
+            </SelectTrigger>
+            <SelectContent>
+              {indicators.map((ind) => (
+                <SelectItem key={ind.indicator_code} value={ind.indicator_code}>
+                  <div className="flex items-center justify-between w-full">
+                    <span>{ind.indicator_name}</span>
+                    <span className="text-xs text-muted-foreground ml-2">
+                      ({ind.data_type})
+                    </span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* 函数选择（仅数值类型显示） */}
+          {isNumericType(currentIndicator?.data_type) && (
+            <Select value={rule.leftFunction || 'none'} onValueChange={handleLeftFunctionChange}>
+              <SelectTrigger className="w-[80px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">无</SelectItem>
+                <SelectItem value="abs">abs(绝对值)</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        {/* 操作符 */}
         <div className="flex-shrink-0">
-          <Select value={logic} onValueChange={onLogicChange}>
-            <SelectTrigger className="w-[80px] h-8">
+          <Select
+            value={rule.operator}
+            onValueChange={(v) => handleOperatorChange(v as ComparisonOperator)}
+          >
+            <SelectTrigger className="w-[120px] h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="AND">AND</SelectItem>
-              <SelectItem value="OR">OR</SelectItem>
+              {/* 基础比较操作符 */}
+              {OPERATOR_GROUPS.comparison.some(op => allowedOperators.includes(op.value)) && (
+                <>
+                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    基础比较
+                  </div>
+                  {OPERATOR_GROUPS.comparison
+                    .filter(op => allowedOperators.includes(op.value))
+                    .map((op) => (
+                      <SelectItem key={op.value} value={op.value}>
+                        {op.label}
+                      </SelectItem>
+                    ))}
+                </>
+              )}
+
+              {/* 集合操作符 */}
+              {OPERATOR_GROUPS.set.some(op => allowedOperators.includes(op.value)) && (
+                <>
+                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1">
+                    集合操作
+                  </div>
+                  {OPERATOR_GROUPS.set
+                    .filter(op => allowedOperators.includes(op.value))
+                    .map((op) => (
+                      <SelectItem key={op.value} value={op.value}>
+                        {op.label}
+                      </SelectItem>
+                    ))}
+                </>
+              )}
+
+              {/* 正则匹配操作符 */}
+              {OPERATOR_GROUPS.pattern.some(op => allowedOperators.includes(op.value)) && (
+                <>
+                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1">
+                    正则匹配
+                  </div>
+                  {OPERATOR_GROUPS.pattern
+                    .filter(op => allowedOperators.includes(op.value))
+                    .map((op) => (
+                      <SelectItem key={op.value} value={op.value}>
+                        {op.label}
+                      </SelectItem>
+                    ))}
+                </>
+              )}
             </SelectContent>
           </Select>
         </div>
-      )}
 
-      {/* 左元素：指标 + 可选函数 */}
-      <div className="flex items-center gap-1 flex-shrink-0">
-        <Select value={rule.indicator} onValueChange={handleIndicatorChange}>
-          <SelectTrigger className="w-[180px] h-8">
-            <SelectValue placeholder="选择指标" />
-          </SelectTrigger>
-          <SelectContent>
-            {indicators.map((ind) => (
-              <SelectItem key={ind.indicator_code} value={ind.indicator_code}>
-                <div className="flex items-center justify-between w-full">
-                  <span>{ind.indicator_name}</span>
-                  <span className="text-xs text-muted-foreground ml-2">
-                    ({ind.data_type})
-                  </span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* 函数选择（仅数值类型显示） */}
-        {isNumericType(currentIndicator?.data_type) && (
-          <Select value={rule.leftFunction || 'none'} onValueChange={handleLeftFunctionChange}>
-            <SelectTrigger className="w-[80px] h-8">
+        {/* 右元素：类型切换 + 动态配置 */}
+        <div className="flex items-center gap-1 flex-1 min-w-[200px]">
+          {/* 类型切换 */}
+          <Select
+            value={rule.value.type}
+            onValueChange={handleValueTypeChange}
+          >
+            <SelectTrigger className="w-[100px] h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">无</SelectItem>
-              <SelectItem value="abs">abs</SelectItem>
+              <SelectItem value="constant">常量</SelectItem>
+              <SelectItem value="indicator">指标</SelectItem>
+              <SelectItem value="time_function">时间函数</SelectItem>
+              <SelectItem value="math_function">数学函数</SelectItem>
             </SelectContent>
           </Select>
-        )}
+
+          {/* 根据类型显示配置 */}
+          {renderValueConfig()}
+        </div>
+
+        {/* 类型预览标签 */}
+        <div className="flex-shrink-0">
+          <Badge variant="outline" className="text-xs">
+            {currentIndicator?.data_type || 'unknown'}
+          </Badge>
+        </div>
       </div>
 
-      {/* 操作符 */}
-      <div className="flex-shrink-0">
-        <Select
-          value={rule.operator}
-          onValueChange={(v) => handleOperatorChange(v as ComparisonOperator)}
-        >
-          <SelectTrigger className="w-[120px] h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {/* 基础比较操作符 */}
-            {OPERATOR_GROUPS.comparison.some(op => allowedOperators.includes(op.value)) && (
-              <>
-                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                  基础比较
-                </div>
-                {OPERATOR_GROUPS.comparison
-                  .filter(op => allowedOperators.includes(op.value))
-                  .map((op) => (
-                    <SelectItem key={op.value} value={op.value}>
-                      {op.label}
-                    </SelectItem>
-                  ))}
-              </>
-            )}
-
-            {/* 集合操作符 */}
-            {OPERATOR_GROUPS.set.some(op => allowedOperators.includes(op.value)) && (
-              <>
-                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1">
-                  集合操作
-                </div>
-                {OPERATOR_GROUPS.set
-                  .filter(op => allowedOperators.includes(op.value))
-                  .map((op) => (
-                    <SelectItem key={op.value} value={op.value}>
-                      {op.label}
-                    </SelectItem>
-                  ))}
-              </>
-            )}
-
-            {/* 正则匹配操作符 */}
-            {OPERATOR_GROUPS.pattern.some(op => allowedOperators.includes(op.value)) && (
-              <>
-                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1">
-                  正则匹配
-                </div>
-                {OPERATOR_GROUPS.pattern
-                  .filter(op => allowedOperators.includes(op.value))
-                  .map((op) => (
-                    <SelectItem key={op.value} value={op.value}>
-                      {op.label}
-                    </SelectItem>
-                  ))}
-              </>
-            )}
-          </SelectContent>
-        </Select>
+      {/* 条件表达式预览 */}
+      <div className="px-12 pb-2">
+        <div className="text-xs text-muted-foreground font-mono bg-blue-50 dark:bg-blue-950/20 px-3 py-2 rounded border-l-2 border-blue-200">
+          💡 {getLeftElementDisplay()} {rule.operator} {getRightElementDisplay()}
+        </div>
       </div>
-
-      {/* 右元素：类型切换 + 动态配置 */}
-      <div className="flex items-center gap-1 flex-1 min-w-[200px]">
-        {/* 类型切换 */}
-        <Select
-          value={rule.value.type}
-          onValueChange={handleValueTypeChange}
-        >
-          <SelectTrigger className="w-[100px] h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="constant">常量</SelectItem>
-            <SelectItem value="indicator">指标</SelectItem>
-            <SelectItem value="time_function">时间函数</SelectItem>
-            <SelectItem value="math_function">数学函数</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* 根据类型显示配置 */}
-        {renderValueConfig()}
-      </div>
-
-      {/* 类型预览标签 */}
-      <div className="flex-shrink-0">
-        <Badge variant="outline" className="text-xs">
-          {currentIndicator?.data_type || 'unknown'}
-        </Badge>
-      </div>
-    </div>
+    </>
   )
 }

@@ -286,7 +286,7 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
               {rule.rules.map((ruleItem, index) => (
                 <div key={index} className="relative">
                   {ruleItem.type === 'condition' ? (
-                    <div className="flex items-center gap-2 border-b last:border-b-0 py-2">
+                    <div className="flex items-center gap-2 border-b last:border-b-0 py-2 px-4">
                       {/* 序号 */}
                       <div className="flex-shrink-0 w-12 text-center">
                         <Badge variant="secondary" className="text-xs">
@@ -294,18 +294,12 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
                         </Badge>
                       </div>
 
-                      {/* 逻辑连接符（第一个条件之后才显示） */}
+                      {/* 逻辑连接符提示（仅显示不可编辑） */}
                       {index > 0 && (
                         <div className="flex-shrink-0">
-                          <Select value={rule.logic} onValueChange={updateLogic}>
-                            <SelectTrigger className="w-[80px] h-8">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="AND">AND</SelectItem>
-                              <SelectItem value="OR">OR</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <Badge variant="outline" className="text-xs">
+                            {rule.logic}
+                          </Badge>
                         </div>
                       )}
 
@@ -344,15 +338,9 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
 
                         {index > 0 && (
                           <div className="flex-shrink-0">
-                            <Select value={rule.logic} onValueChange={updateLogic}>
-                              <SelectTrigger className="w-[80px] h-8">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="AND">AND</SelectItem>
-                                <SelectItem value="OR">OR</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <Badge variant="outline" className="text-xs">
+                              {rule.logic}
+                            </Badge>
                           </div>
                         )}
 
@@ -412,18 +400,9 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
                             {/* 逻辑连接符（组内第一个条件之后才显示） */}
                             {conditionIndex > 0 && (
                               <div className="flex-shrink-0">
-                                <Select
-                                  value={ruleItem.logic}
-                                  onValueChange={(v: 'AND' | 'OR') => updateGroupLogic(index, v)}
-                                >
-                                  <SelectTrigger className="w-[80px] h-8">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="AND">AND</SelectItem>
-                                    <SelectItem value="OR">OR</SelectItem>
-                                  </SelectContent>
-                                </Select>
+                                <Badge variant="outline" className="text-xs">
+                                  {ruleItem.logic}
+                                </Badge>
                               </div>
                             )}
 
