@@ -13,7 +13,7 @@ FraudHunter规则引擎核心服务
 """
 
 import re
-from typing import Dict, List, Set, Any, Optional
+from typing import Dict, List, Set, Any, Optional, Union
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from sqlalchemy.orm import Session
@@ -113,15 +113,19 @@ class RuleEngine:
 
             # 2. 验证指标是否存在
             self._validate_indicators_exist(indicators, result)
+            logger.info(1)
 
             # 3. 验证规则结构
             self._validate_rule_structure(rule_config, result)
+            logger.info(2)
 
             # 4. 验证数据类型和操作符匹配
             self._validate_operator_compatibility(rule_config, result)
+            logger.info(3)
 
             # 5. 验证输出配置
             self._validate_output_config(rule_config.output, result)
+            logger.info(4)
 
             # 6. 检查规则深度
             max_depth = self._get_max_depth(rule_config)
@@ -257,26 +261,39 @@ class RuleEngine:
                         f"{path}: 操作符 {condition.operator} 的值数组不能为空"
                     )
 
-            # 验证正则表达式语法
+            # 验证正则表达式语法（支持单值和多值）
             if condition.operator in ['regexp', 'not regexp']:
                 # 检查是否为常量值类型
                 if not isinstance(condition.value, ConstantValue):
                     result.errors.append(
-                        f"{path}: 操作符 {condition.operator} 只支持常量字符串值"
+                        f"{path}: 操作符 {condition.operator} 只支持常量值"
                     )
-                elif not isinstance(condition.value.value, str):
+                elif not isinstance(condition.value.value, (str, list)):
                     result.errors.append(
-                        f"{path}: 操作符 {condition.operator} 需要字符串类型的值"
+                        f"{path}: 操作符 {condition.operator} 需要字符串类型或字符串数组类型的值"
                     )
+                elif isinstance(condition.value.value, list):
+                    # 验证数组中的每个值都是字符串
+                    if not all(isinstance(item, str) for item in condition.value.value):
+                        result.errors.append(
+                            f"{path}: 操作符 {condition.operator} 的数组值必须全部为字符串类型"
+                        )
+                    elif len(condition.value.value) == 0:
+                        result.errors.append(
+                            f"{path}: 操作符 {condition.operator} 的数组值不能为空"
+                        )
+                    # 数组情况，不验证单个正则表达式，因为它们会在SQL生成时合并为 x|y|z 格式
                 else:
+                    # 单值情况，验证正则表达式语法
                     try:
                         re.compile(condition.value.value)
-                    except re.error as e:
+                    except Exception as e:
                         result.errors.append(
                             f"{path}: 正则表达式语法错误: {str(e)}"
                         )
 
         def traverse_rule(rule: Rule, path: str):
+            logger.info(f"c {rule} {path}")
             if isinstance(rule, ConditionRule):
                 validate_condition(rule, path)
             elif isinstance(rule, GroupRule):
@@ -836,9 +853,9 @@ class RuleEngine:
                     pattern = str(value_expr.value).replace("'", "''")
 
                 if operator == 'regexp':
-                    return f"{left_sql} RLIKE '{pattern}'"
+                    return f"{left_sql} REGEXP '{pattern}'"
                 else:
-                    return f"NOT ({left_sql} RLIKE '{pattern}')"
+                    return f"{left_sql} NOT REGEXP '{pattern}')"
 
             return "1=1"
 

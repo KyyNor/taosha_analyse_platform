@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { X, Plus } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import React from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import {
   ConditionRule,
   Indicator,
@@ -428,21 +428,23 @@ interface MultiValueInputProps {
 }
 
 function MultiValueInput({ values, dataType, onChange }: MultiValueInputProps) {
-  const [inputValue, setInputValue] = React.useState('')
-  const [editingIndex, setEditingIndex] = React.useState<number | null>(null)
-  const [editValue, setEditValue] = React.useState('')
-  const [showInput, setShowInput] = React.useState(false)
-  const inputRef = React.useRef<HTMLInputElement>(null)
-  const editInputRef = React.useRef<HTMLInputElement>(null)
+  console.log('MultiValueInput 组件初始化, dataType:', dataType, 'initial values:', values)
+
+  const [inputValue, setInputValue] = useState('')
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [showInput, setShowInput] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const editInputRef = useRef<HTMLInputElement>(null)
 
   // 自动聚焦输入框
-  React.useEffect(() => {
+  useEffect(() => {
     if (showInput && inputRef.current) {
       inputRef.current.focus()
     }
   }, [showInput])
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (editingIndex !== null && editInputRef.current) {
       editInputRef.current.focus()
     }
@@ -459,20 +461,43 @@ function MultiValueInput({ values, dataType, onChange }: MultiValueInputProps) {
 
   // 验证输入值
   const validateValue = (value: string): boolean => {
-    if (dataType === 'numeric' || dataType === 'int' || dataType === 'float') {
-      return !isNaN(Number(value))
+    // 对于空值直接返回false
+    if (!value || value.trim().length === 0) {
+      return false
     }
-    return value.trim().length > 0
+
+    // 数值类型验证
+    if (dataType === 'numeric' || dataType === 'int' || dataType === 'float') {
+      const num = Number(value)
+      const isValid = !isNaN(num)
+      console.log(`数值验证: ${value} -> ${num}, valid: ${isValid}`)
+      return isValid
+    }
+
+    // 其他类型默认通过验证
+    console.log(`非数值验证通过: ${value}, dataType: ${dataType}`)
+    return true
   }
 
   // 添加标签
   const addTag = () => {
-    if (inputValue.trim() && validateValue(inputValue)) {
-      const newValues = [...values, convertValue(inputValue.trim())]
-      onChange(newValues)
-      setInputValue('')
-      setShowInput(false)
+    console.log('addTag called with inputValue:', inputValue, 'dataType:', dataType)
+
+    if (!inputValue.trim()) {
+      console.log('输入值为空，不添加')
+      return
     }
+
+    if (!validateValue(inputValue)) {
+      console.log('验证失败，不添加值:', inputValue)
+      return
+    }
+
+    const newValues = [...values, convertValue(inputValue.trim())]
+    console.log('添加新标签:', newValues)
+    onChange(newValues)
+    setInputValue('')
+    setShowInput(false)
   }
 
   // 删除标签
@@ -506,10 +531,14 @@ function MultiValueInput({ values, dataType, onChange }: MultiValueInputProps) {
 
   // 处理键盘事件
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    console.log('键盘事件:', e.key, 'inputValue:', inputValue)
+
     if (e.key === 'Enter') {
+      console.log('按下Enter键，准备添加标签')
       e.preventDefault()
       addTag()
     } else if (e.key === 'Escape') {
+      console.log('按下Escape键，取消输入')
       setShowInput(false)
       setInputValue('')
     }

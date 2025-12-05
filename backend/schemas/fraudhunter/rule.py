@@ -187,12 +187,15 @@ class ConditionRule(BaseModel):
             if len(v.value) == 0:
                 raise ValueError(f"操作符 {operator} 的值数组不能为空")
 
-        # regexp/not regexp 只支持常量字符串
+        # regexp/not regexp 支持常量字符串和字符串数组（自动转换为 x|y|z 格式）
         if operator in ['regexp', 'not regexp']:
             if not isinstance(v, ConstantValue):
-                raise ValueError(f"操作符 {operator} 只支持常量字符串值")
-            if not isinstance(v.value, str):
-                raise ValueError(f"操作符 {operator} 需要字符串类型的值")
+                raise ValueError(f"操作符 {operator} 只支持常量值")
+            if not isinstance(v.value, (str, list)):
+                raise ValueError(f"操作符 {operator} 需要字符串类型或字符串数组类型的值")
+            # 如果是数组，验证所有元素都是字符串
+            if isinstance(v.value, list) and not all(isinstance(item, str) for item in v.value):
+                raise ValueError(f"操作符 {operator} 的数组值必须全部为字符串类型")
 
         return v
 
