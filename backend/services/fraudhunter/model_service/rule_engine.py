@@ -243,24 +243,34 @@ class RuleEngine:
         def validate_condition(condition: ConditionRule, path: str):
             # 验证 in/not in 的值必须是数组
             if condition.operator in ['in', 'not in']:
-                if not isinstance(condition.value, list):
+                # 检查是否为常量值类型
+                if not isinstance(condition.value, ConstantValue):
+                    result.errors.append(
+                        f"{path}: 操作符 {condition.operator} 只支持常量数组值"
+                    )
+                elif not isinstance(condition.value.value, list):
                     result.errors.append(
                         f"{path}: 操作符 {condition.operator} 需要数组类型的值"
                     )
-                elif len(condition.value) == 0:
+                elif len(condition.value.value) == 0:
                     result.errors.append(
                         f"{path}: 操作符 {condition.operator} 的值数组不能为空"
                     )
 
             # 验证正则表达式语法
             if condition.operator in ['regexp', 'not regexp']:
-                if not isinstance(condition.value, str):
+                # 检查是否为常量值类型
+                if not isinstance(condition.value, ConstantValue):
+                    result.errors.append(
+                        f"{path}: 操作符 {condition.operator} 只支持常量字符串值"
+                    )
+                elif not isinstance(condition.value.value, str):
                     result.errors.append(
                         f"{path}: 操作符 {condition.operator} 需要字符串类型的值"
                     )
                 else:
                     try:
-                        re.compile(condition.value)
+                        re.compile(condition.value.value)
                     except re.error as e:
                         result.errors.append(
                             f"{path}: 正则表达式语法错误: {str(e)}"
