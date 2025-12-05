@@ -1,8 +1,9 @@
 /**
  * FraudHunter 规则引擎类型定义
  *
- * 版本: v2.0.0 (支持高级操作符)
+ * 版本: v2.1.0 (支持值表达式)
  * 支持操作符: 基础比较、集合操作(in/not in)、正则匹配(regexp/not regexp)
+ * 支持值表达式: 常量值、指标引用、时间函数、数学函数
  */
 
 // ==================== 基础类型定义 ====================
@@ -30,16 +31,73 @@ export type RuleType = 'condition' | 'group'
  */
 export type IndicatorDataType = 'numeric' | 'enum' | 'boolean' | 'text'
 
+/**
+ * 时间单位
+ */
+export type TimeUnit = 'days' | 'months' | 'years'
+
+/**
+ * 值表达式类型
+ */
+export type ValueType = 'constant' | 'indicator' | 'time_function' | 'math_function'
+
+// ==================== 值表达式定义 ====================
+
+/**
+ * 常量值表达式
+ */
+export interface ConstantValue {
+  type: 'constant'
+  value: string | number | boolean | string[] | number[]
+}
+
+/**
+ * 指标引用表达式
+ */
+export interface IndicatorReference {
+  type: 'indicator'
+  indicator: string
+}
+
+/**
+ * 时间函数表达式
+ */
+export interface TimeFunction {
+  type: 'time_function'
+  function: 'date_add' | 'date_sub'
+  indicator: string
+  offset: number
+  unit: TimeUnit
+}
+
+/**
+ * 数学函数表达式
+ */
+export interface MathFunction {
+  type: 'math_function'
+  function: 'abs'
+  indicator: string
+}
+
+/**
+ * 值表达式联合类型
+ */
+export type ValueExpression =
+  | ConstantValue
+  | IndicatorReference
+  | TimeFunction
+  | MathFunction
+
 // ==================== 规则结构定义 ====================
 
 /**
- * 条件规则（支持多值）
+ * 条件规则（支持值表达式）
  */
 export interface ConditionRule {
   type: 'condition'
   indicator: string           // 指标编码，如 'i_login_cnt_7d'
   operator: ComparisonOperator
-  value: string | number | boolean | string[] | number[]  // 关键：支持数组
+  value: ValueExpression      // 值表达式：常量值、指标引用、时间函数或数学函数
 }
 
 /**
@@ -199,4 +257,116 @@ export function getDefaultValue(dataType?: IndicatorDataType): string | number |
     default:
       return ''
   }
+}
+
+// ==================== 值表达式辅助函数 ====================
+
+/**
+ * 判断值表达式是否为常量值
+ */
+export function isConstantValue(expr: ValueExpression): expr is ConstantValue {
+  return expr.type === 'constant'
+}
+
+/**
+ * 判断值表达式是否为指标引用
+ */
+export function isIndicatorReference(expr: ValueExpression): expr is IndicatorReference {
+  return expr.type === 'indicator'
+}
+
+/**
+ * 判断值表达式是否为时间函数
+ */
+export function isTimeFunction(expr: ValueExpression): expr is TimeFunction {
+  return expr.type === 'time_function'
+}
+
+/**
+ * 判断值表达式是否为数学函数
+ */
+export function isMathFunction(expr: ValueExpression): expr is MathFunction {
+  return expr.type === 'math_function'
+}
+
+/**
+ * 创建默认常量值表达式
+ */
+export function createDefaultConstantValue(dataType?: IndicatorDataType): ConstantValue {
+  return {
+    type: 'constant',
+    value: getDefaultValue(dataType)
+  }
+}
+
+/**
+ * 创建默认指标引用表达式
+ */
+export function createDefaultIndicatorReference(): IndicatorReference {
+  return {
+    type: 'indicator',
+    indicator: ''
+  }
+}
+
+/**
+ * 创建默认时间函数表达式
+ */
+export function createDefaultTimeFunction(): TimeFunction {
+  return {
+    type: 'time_function',
+    function: 'date_add',
+    indicator: '',
+    offset: 7,
+    unit: 'days'
+  }
+}
+
+/**
+ * 创建默认数学函数表达式
+ */
+export function createDefaultMathFunction(): MathFunction {
+  return {
+    type: 'math_function',
+    function: 'abs',
+    indicator: ''
+  }
+}
+
+/**
+ * 将值表达式转换为可读字符串（用于预览）
+ */
+export function valueExpressionToString(expr: ValueExpression): string {
+  switch (expr.type) {
+    case 'constant':
+      if (Array.isArray(expr.value)) {
+        return `[${expr.value.join(', ')}]`
+      }
+      return String(expr.value)
+
+    case 'indicator':
+      return expr.indicator
+
+    case 'time_function':
+      return `${expr.function}(${expr.indicator}, ${expr.offset}, '${expr.unit}')`
+
+    case 'math_function':
+      return `${expr.function}(${expr.indicator})`
+
+    default:
+      return ''
+  }
+}
+
+/**
+ * 根据操作符获取允许的值表达式类型
+ */
+export function getAllowedValueTypes(operator: ComparisonOperator): ValueType[] {
+  // in/not in 和 regexp 只支持常量值
+  if (isMultiValueOperator(operator) || isRegexpOperator(operator)) {
+    return ['constant']
+  }
+
+  // 其他操作符支持所有值表达式类型
+  return ['constant', 'indicator', 'time_function', 'math_function']
 }

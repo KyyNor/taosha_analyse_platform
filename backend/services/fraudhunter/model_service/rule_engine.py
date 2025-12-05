@@ -1,24 +1,29 @@
 """
 FraudHunter规则引擎核心服务
 
-版本: v2.0.0 (支持高级操作符)
+版本: v2.1.0 (支持值表达式)
 
 功能：
-1. 规则验证：检查规则结构、指标存在性、操作符兼容性
-2. 规则评估：执行规则判断，返回是否命中
-3. SQL生成：将规则转换为Spark SQL表达式
+1. 规则验证：检查规则结构、指标存在性、操作符兼容性、值表达式类型兼容性
+2. 规则评估：执行规则判断，支持指标引用、时间函数、数学函数
+3. SQL生成：将规则转换为Spark SQL表达式，支持所有值表达式类型
 
 支持操作符: 基础比较、集合操作(in/not in)、正则匹配(regexp/not regexp)
+支持值表达式: 常量值、指标引用、时间函数(date_add/date_sub)、数学函数(abs)
 """
 
 import re
 from typing import Dict, List, Set, Any, Optional
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from sqlalchemy.orm import Session
 from loguru import logger
 
 from schemas.fraudhunter.rule import (
     RuleConfig, Rule, ConditionRule, GroupRule,
-    ComparisonOperator, RuleValidationResult
+    ComparisonOperator, RuleValidationResult,
+    ValueExpression, ConstantValue, IndicatorReference,
+    TimeFunction, MathFunction
 )
 from models.fraudhunter.indicator import FraudHunterIndicatorDefinition
 
@@ -36,6 +41,48 @@ class RuleEngine:
 
     def __init__(self, db: Session):
         self.db = db
+        self._indicator_cache: Dict[str, Optional[FraudHunterIndicatorDefinition]] = {}
+
+    # ==================== 辅助方法 ====================
+
+    def _get_indicator_cached(self, indicator_code: str) -> Optional[FraudHunterIndicatorDefinition]:
+        """
+        带缓存的指标查询（性能优化）
+
+        Args:
+            indicator_code: 指标编码
+
+        Returns:
+            指标定义对象，不存在则返回 None
+        """
+        if indicator_code not in self._indicator_cache:
+            indicator = self.db.query(FraudHunterIndicatorDefinition).filter(
+                FraudHunterIndicatorDefinition.indicator_code == indicator_code
+            ).first()
+            self._indicator_cache[indicator_code] = indicator
+
+        return self._indicator_cache[indicator_code]
+
+    def _extract_indicators_from_value_expression(self, expr: ValueExpression) -> Set[str]:
+        """
+        从值表达式中提取指标编码
+
+        Args:
+            expr: 值表达式
+
+        Returns:
+            指标编码集合
+        """
+        indicators = set()
+
+        if isinstance(expr, IndicatorReference):
+            indicators.add(expr.indicator)
+        elif isinstance(expr, TimeFunction):
+            indicators.add(expr.indicator)
+        elif isinstance(expr, MathFunction):
+            indicators.add(expr.indicator)
+
+        return indicators
 
     # ==================== 规则验证 ====================
 
@@ -102,12 +149,15 @@ class RuleEngine:
         return result
 
     def _extract_indicators(self, config: RuleConfig) -> Set[str]:
-        """递归提取所有使用的指标编码"""
+        """递归提取所有使用的指标编码（包括值表达式中的指标）"""
         indicators = set()
 
         def extract_from_rule(rule: Rule):
             if isinstance(rule, ConditionRule):
+                # 添加左侧指标
                 indicators.add(rule.indicator)
+                # 从值表达式中提取指标
+                indicators.update(self._extract_indicators_from_value_expression(rule.value))
             elif isinstance(rule, GroupRule):
                 for sub_rule in rule.rules:
                     extract_from_rule(sub_rule)
@@ -226,6 +276,96 @@ class RuleEngine:
         for i, rule in enumerate(config.rules):
             traverse_rule(rule, f"root.rules[{i}]")
 
+        # 调用值表达式类型验证
+        self._validate_value_expressions(config, result)
+
+    def _validate_value_expressions(
+        self,
+        config: RuleConfig,
+        result: RuleValidationResult
+    ):
+        """
+        验证值表达式的类型兼容性（严格模式）
+
+        验证规则：
+        - IndicatorReference: 左右指标类型必须匹配
+        - TimeFunction: 左侧和参数都必须是 text 类型
+        - MathFunction: 左侧和参数都必须是 numeric 类型
+        """
+
+        def validate_condition(condition: ConditionRule, path: str):
+            # 获取左侧指标信息
+            left_ind = self._get_indicator_cached(condition.indicator)
+            if not left_ind:
+                # 指标不存在的错误在其他地方已经处理
+                return
+
+            left_type = left_ind.data_type
+            value_expr = condition.value
+
+            # 常量值：跳过（已在 Pydantic 验证器中验证）
+            if isinstance(value_expr, ConstantValue):
+                return
+
+            # 指标引用：验证类型兼容
+            elif isinstance(value_expr, IndicatorReference):
+                right_ind = self._get_indicator_cached(value_expr.indicator)
+                if not right_ind:
+                    result.errors.append(
+                        f"{path}: 引用指标 {value_expr.indicator} 不存在"
+                    )
+                    return
+
+                if left_type != right_ind.data_type:
+                    result.errors.append(
+                        f"{path}: 类型不兼容 - {condition.indicator}({left_type}) "
+                        f"vs {value_expr.indicator}({right_ind.data_type})"
+                    )
+
+            # 时间函数：验证左侧和参数都是 text
+            elif isinstance(value_expr, TimeFunction):
+                if left_type != 'text':
+                    result.errors.append(
+                        f"{path}: 时间比较要求左侧为text类型，实际为{left_type}"
+                    )
+
+                param_ind = self._get_indicator_cached(value_expr.indicator)
+                if not param_ind:
+                    result.errors.append(
+                        f"{path}: 时间函数参数指标 {value_expr.indicator} 不存在"
+                    )
+                elif param_ind.data_type != 'text':
+                    result.errors.append(
+                        f"{path}: 时间函数参数必须为text类型，实际为{param_ind.data_type}"
+                    )
+
+            # 数学函数：验证左侧和参数都是 numeric
+            elif isinstance(value_expr, MathFunction):
+                if left_type != 'numeric':
+                    result.errors.append(
+                        f"{path}: 数学函数比较要求左侧为numeric类型，实际为{left_type}"
+                    )
+
+                param_ind = self._get_indicator_cached(value_expr.indicator)
+                if not param_ind:
+                    result.errors.append(
+                        f"{path}: 数学函数参数指标 {value_expr.indicator} 不存在"
+                    )
+                elif param_ind.data_type != 'numeric':
+                    result.errors.append(
+                        f"{path}: abs()参数必须为numeric类型，实际为{param_ind.data_type}"
+                    )
+
+        def traverse_rule(rule: Rule, path: str):
+            if isinstance(rule, ConditionRule):
+                validate_condition(rule, path)
+            elif isinstance(rule, GroupRule):
+                for i, sub_rule in enumerate(rule.rules):
+                    traverse_rule(sub_rule, f"{path}.rules[{i}]")
+
+        for i, rule in enumerate(config.rules):
+            traverse_rule(rule, f"root.rules[{i}]")
+
     def _validate_output_config(
         self,
         output: Any,
@@ -287,6 +427,90 @@ class RuleEngine:
 
     # ==================== 规则评估 ====================
 
+    def _evaluate_value_expression(
+        self,
+        value_expr: ValueExpression,
+        indicator_values: Dict[str, Any]
+    ) -> Any:
+        """
+        计算值表达式的实际值
+
+        Args:
+            value_expr: 值表达式
+            indicator_values: 指标值字典
+
+        Returns:
+            计算后的值，失败返回 None
+        """
+        # 常量值
+        if isinstance(value_expr, ConstantValue):
+            return value_expr.value
+
+        # 指标引用
+        elif isinstance(value_expr, IndicatorReference):
+            value = indicator_values.get(value_expr.indicator)
+            if value is None:
+                logger.warning(f"指标 {value_expr.indicator} 值缺失")
+            return value
+
+        # 时间函数
+        elif isinstance(value_expr, TimeFunction):
+            base_value = indicator_values.get(value_expr.indicator)
+            if base_value is None:
+                logger.warning(f"时间函数参数指标 {value_expr.indicator} 值缺失")
+                return None
+
+            # 解析日期
+            try:
+                if isinstance(base_value, str):
+                    base_date = datetime.strptime(base_value, '%Y-%m-%d')
+                elif isinstance(base_value, datetime):
+                    base_date = base_value
+                else:
+                    logger.error(f"日期格式错误: {base_value}")
+                    return None
+            except ValueError as e:
+                logger.error(f"日期解析失败: {e}")
+                return None
+
+            # 计算偏移
+            offset = value_expr.offset
+            if value_expr.function == "date_sub":
+                offset = -offset
+
+            # 应用偏移
+            try:
+                if value_expr.unit == "days":
+                    result = base_date + timedelta(days=offset)
+                elif value_expr.unit == "months":
+                    result = base_date + relativedelta(months=offset)
+                elif value_expr.unit == "years":
+                    result = base_date + relativedelta(years=offset)
+                else:
+                    logger.error(f"不支持的时间单位: {value_expr.unit}")
+                    return None
+
+                return result.strftime('%Y-%m-%d')
+            except Exception as e:
+                logger.error(f"时间计算失败: {e}")
+                return None
+
+        # 数学函数
+        elif isinstance(value_expr, MathFunction):
+            param_value = indicator_values.get(value_expr.indicator)
+            if param_value is None:
+                logger.warning(f"数学函数参数指标 {value_expr.indicator} 值缺失")
+                return None
+
+            if value_expr.function == "abs":
+                try:
+                    return abs(float(param_value))
+                except (ValueError, TypeError) as e:
+                    logger.error(f"abs()参数值错误: {param_value}, {e}")
+                    return None
+
+        return None
+
     def evaluate_rule(
         self,
         rule_config: RuleConfig,
@@ -304,7 +528,8 @@ class RuleEngine:
         """
 
         def evaluate_condition(condition: ConditionRule) -> bool:
-            """评估单个条件"""
+            """评估单个条件（支持值表达式）"""
+            # 获取左侧指标值
             actual_value = indicator_values.get(condition.indicator)
             if actual_value is None:
                 logger.warning(
@@ -312,8 +537,19 @@ class RuleEngine:
                 )
                 return False
 
+            # 计算右侧值表达式
+            expected_value = self._evaluate_value_expression(
+                condition.value,
+                indicator_values
+            )
+
+            if expected_value is None:
+                logger.warning(
+                    f"值表达式计算失败，默认为False"
+                )
+                return False
+
             operator = condition.operator
-            expected_value = condition.value
 
             try:
                 # 基础比较操作符
@@ -322,13 +558,13 @@ class RuleEngine:
                         actual_value, operator, expected_value
                     )
 
-                # 集合操作符
+                # 集合操作符（expected_value 是列表）
                 elif operator in ['in', 'not in']:
                     return self._evaluate_set_operation(
                         actual_value, operator, expected_value
                     )
 
-                # 正则匹配操作符
+                # 正则匹配操作符（expected_value 是字符串）
                 elif operator in ['regexp', 'not regexp']:
                     return self._evaluate_regexp_operation(
                         actual_value, operator, expected_value
@@ -458,49 +694,102 @@ class RuleEngine:
 
     # ==================== SQL生成 ====================
 
+    def _value_expression_to_sql(self, value_expr: ValueExpression) -> str:
+        """
+        将值表达式转换为 Spark SQL
+
+        Args:
+            value_expr: 值表达式
+
+        Returns:
+            str: SQL 字符串
+        """
+        # 常量值
+        if isinstance(value_expr, ConstantValue):
+            return self._format_constant_sql(value_expr.value)
+
+        # 指标引用
+        elif isinstance(value_expr, IndicatorReference):
+            return value_expr.indicator
+
+        # 时间函数
+        elif isinstance(value_expr, TimeFunction):
+            ind = value_expr.indicator
+            offset = value_expr.offset
+
+            # 根据函数调整符号
+            if value_expr.function == "date_sub":
+                offset = -offset
+
+            # 根据单位选择 SQL 函数
+            if value_expr.unit == "days":
+                if offset >= 0:
+                    return f"DATE_ADD({ind}, {offset})"
+                else:
+                    return f"DATE_SUB({ind}, {-offset})"
+
+            elif value_expr.unit == "months":
+                return f"ADD_MONTHS({ind}, {offset})"
+
+            elif value_expr.unit == "years":
+                return f"ADD_MONTHS({ind}, {offset * 12})"
+
+        # 数学函数
+        elif isinstance(value_expr, MathFunction):
+            if value_expr.function == "abs":
+                return f"ABS({value_expr.indicator})"
+
+        return "NULL"
+
+    def _format_constant_sql(self, value: Any) -> str:
+        """格式化常量为 SQL"""
+        if isinstance(value, str):
+            value_escaped = value.replace("'", "''")
+            return f"'{value_escaped}'"
+        elif isinstance(value, bool):
+            return 'TRUE' if value else 'FALSE'
+        elif isinstance(value, list):
+            return ', '.join([self._format_constant_sql(v) for v in value])
+        else:
+            return str(value)
+
     def generate_sql_expression(self, rule_config: RuleConfig) -> str:
         """
-        将规则配置转换为SQL WHERE子句表达式（支持所有操作符）
+        将规则配置转换为SQL WHERE子句表达式（支持所有操作符和值表达式）
         用于在Spark SQL中直接应用规则
 
         Returns:
             str: SQL表达式，如 "(i_login_cnt_7d > 10 AND (i_device_change_cnt >= 3 OR i_user_status IN ('suspended', 'banned')))"
         """
 
-        def format_value(value: Any) -> str:
-            """格式化值为SQL表示"""
-            if isinstance(value, str):
-                # 转义单引号
-                value_escaped = value.replace("'", "''")
-                return f"'{value_escaped}'"
-            elif isinstance(value, bool):
-                return 'TRUE' if value else 'FALSE'
-            else:
-                return str(value)
-
         def condition_to_sql(condition: ConditionRule) -> str:
-            """将条件转换为SQL"""
+            """将条件转换为SQL（支持值表达式）"""
             indicator = condition.indicator
             operator = condition.operator
-            value = condition.value
+            value_expr = condition.value
 
-            # 基础比较
+            # 基础比较操作符
             if operator in ['>', '>=', '<', '<=', '=', '!=']:
-                return f"{indicator} {operator} {format_value(value)}"
+                right_sql = self._value_expression_to_sql(value_expr)
+                return f"{indicator} {operator} {right_sql}"
 
-            # 集合操作
+            # 集合操作（只支持常量值）
             elif operator in ['in', 'not in']:
-                values_str = ', '.join([format_value(v) for v in value])
+                if not isinstance(value_expr, ConstantValue):
+                    raise ValueError(f"操作符 {operator} 只支持常量值")
+                values_sql = self._format_constant_sql(value_expr.value)
                 op_sql = 'IN' if operator == 'in' else 'NOT IN'
-                return f"{indicator} {op_sql} ({values_str})"
+                return f"{indicator} {op_sql} ({values_sql})"
 
-            # 正则匹配（Spark SQL语法）
+            # 正则匹配（只支持常量字符串）
             elif operator in ['regexp', 'not regexp']:
-                pattern_escaped = value.replace("'", "''")
+                if not isinstance(value_expr, ConstantValue):
+                    raise ValueError(f"操作符 {operator} 只支持常量值")
+                pattern = str(value_expr.value).replace("'", "''")
                 if operator == 'regexp':
-                    return f"{indicator} RLIKE '{pattern_escaped}'"
+                    return f"{indicator} RLIKE '{pattern}'"
                 else:
-                    return f"NOT ({indicator} RLIKE '{pattern_escaped}')"
+                    return f"NOT ({indicator} RLIKE '{pattern}')"
 
             return "1=1"
 
