@@ -163,3 +163,5 @@ embeddings_model/*
 !embeddings_model/start_embeddings_models.sh
 
 .gemini/
+
+dolphinscheduler-sdk-python-main/
