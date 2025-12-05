@@ -23,7 +23,8 @@ from api.agents_routes import router as agents_router
 from api.fraudhunter import (
     indicator_task_router,
     indicator_router,
-    task_router as fraudhunter_task_router
+    task_router as fraudhunter_task_router,
+    model_router
 )
 from services.query_engine import get_query_engine
 from services.nlquery_service.async_query_service import get_async_query_service
@@ -266,6 +267,7 @@ fraudhunter_prefix = f"{api_prefix}/fraudhunter"
 app.include_router(indicator_task_router, prefix=fraudhunter_prefix)
 app.include_router(indicator_router, prefix=fraudhunter_prefix)
 app.include_router(fraudhunter_task_router, prefix=fraudhunter_prefix)
+app.include_router(model_router, prefix=fraudhunter_prefix)  # 模型管理（规则引擎）
 
 # API 根路径信息
 @app.get(f"{api_prefix}/", tags=["API信息"])
