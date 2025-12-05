@@ -25,8 +25,8 @@ from .agent_chat_models import (
     ChatSession
 )
 from .fraudhunter import (
-    FraudHunterIndicatorGroup,
-    FraudHunterIndicatorGroupHistory,
+    FraudHunterIndicatorTask,
+    FraudHunterIndicatorTaskHistory,
     FraudHunterIndicatorDefinition,
     FraudHunterIndicatorHistory,
     FraudHunterModelDefinition,
@@ -70,8 +70,8 @@ __all__ = [
     "AgentCheckpoint",
 
     # FraudHunter模块
-    "FraudHunterIndicatorGroup",
-    "FraudHunterIndicatorGroupHistory",
+    "FraudHunterIndicatorTask",
+    "FraudHunterIndicatorTaskHistory",
     "FraudHunterIndicatorDefinition",
     "FraudHunterIndicatorHistory",
     "FraudHunterModelDefinition",

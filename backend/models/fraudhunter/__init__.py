@@ -3,8 +3,8 @@ FraudHunter模块数据库模型
 """
 
 from .indicator import (
-    FraudHunterIndicatorGroup,
-    FraudHunterIndicatorGroupHistory,
+    FraudHunterIndicatorTask,
+    FraudHunterIndicatorTaskHistory,
     FraudHunterIndicatorDefinition,
     FraudHunterIndicatorHistory,
 )
@@ -18,8 +18,8 @@ from .task import (
 )
 
 __all__ = [
-    'FraudHunterIndicatorGroup',
-    'FraudHunterIndicatorGroupHistory',
+    'FraudHunterIndicatorTask',
+    'FraudHunterIndicatorTaskHistory',
     'FraudHunterIndicatorDefinition',
     'FraudHunterIndicatorHistory',
     'FraudHunterModelDefinition',

@@ -9,16 +9,16 @@ from typing import Optional
 from models.db_base import Base
 
 
-class FraudHunterIndicatorGroup(Base):
-    """指标组表（存储SQL加工逻辑）"""
-    __tablename__ = "fraudhunter_indicator_group"
+class FraudHunterIndicatorTask(Base):
+    """指标任务表（存储SQL加工逻辑）"""
+    __tablename__ = "fraudhunter_indicator_task"
 
     # 主键
     id = Column(Integer, primary_key=True, autoincrement=True, comment='主键ID')
 
     # 基本信息
-    group_code = Column(String(64), unique=True, nullable=False, comment='指标组编码')
-    group_name = Column(String(128), nullable=False, comment='指标组名称')
+    task_code = Column(String(64), unique=True, nullable=False, comment='指标任务编码')
+    task_name = Column(String(128), nullable=False, comment='指标任务名称')
     description = Column(Text, comment='描述')
 
     # 加工逻辑
@@ -27,10 +27,6 @@ class FraudHunterIndicatorGroup(Base):
 
     # 数据源配置
     source_tables = Column(String(512), comment='依赖的源表列表，逗号分隔')
-
-    # 输出配置
-    output_table = Column(String(128), comment='输出表名')
-    output_mode = Column(String(16), default='row', comment='输出模式：row（行存）')
 
     # 版本管理
     current_version = Column(Integer, default=1, comment='当前发布版本')
@@ -46,37 +42,35 @@ class FraudHunterIndicatorGroup(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
 
     # 关系
-    indicators = relationship("FraudHunterIndicatorDefinition", back_populates="indicator_group", cascade="all, delete-orphan")
-    histories = relationship("FraudHunterIndicatorGroupHistory", back_populates="indicator_group", cascade="all, delete-orphan")
+    indicators = relationship("FraudHunterIndicatorDefinition", back_populates="indicator_task", cascade="all, delete-orphan")
+    histories = relationship("FraudHunterIndicatorTaskHistory", back_populates="indicator_task", cascade="all, delete-orphan")
 
     # 索引
     __table_args__ = (
-        Index('idx_fh_group_code', 'group_code'),
-        Index('idx_fh_group_status', 'status'),
+        Index('idx_fh_task_code', 'task_code'),
+        Index('idx_fh_task_status', 'status'),
     )
 
     def __repr__(self):
-        return f"<FraudHunterIndicatorGroup(id={self.id}, group_code='{self.group_code}', status='{self.status}')>"
+        return f"<FraudHunterIndicatorTask(id={self.id}, task_code='{self.task_code}', status='{self.status}')>"
 
 
-class FraudHunterIndicatorGroupHistory(Base):
-    """指标组版本历史表"""
-    __tablename__ = "fraudhunter_indicator_group_history"
+class FraudHunterIndicatorTaskHistory(Base):
+    """指标任务版本历史表"""
+    __tablename__ = "fraudhunter_indicator_task_history"
 
     # 主键
     id = Column(Integer, primary_key=True, autoincrement=True, comment='主键ID')
-    group_id = Column(Integer, ForeignKey('fraudhunter_indicator_group.id'), nullable=False, comment='指标组ID')
+    task_id = Column(Integer, ForeignKey('fraudhunter_indicator_task.id'), nullable=False, comment='指标任务ID')
     version = Column(Integer, nullable=False, comment='版本号')
 
     # 历史快照
-    group_code = Column(String(64), nullable=False, comment='指标组编码')
-    group_name = Column(String(128), nullable=False, comment='指标组名称')
+    task_code = Column(String(64), nullable=False, comment='指标任务编码')
+    task_name = Column(String(128), nullable=False, comment='指标任务名称')
     description = Column(Text, comment='描述')
     logic_type = Column(String(16), comment='逻辑类型')
     logic_content = Column(Text, comment='SQL内容')
     source_tables = Column(String(512), comment='源表列表')
-    output_table = Column(String(128), comment='输出表名')
-    output_mode = Column(String(16), comment='输出模式')
 
     # 变更信息
     change_type = Column(String(16), nullable=False, comment='变更类型：create/update/publish/archive')
@@ -87,17 +81,17 @@ class FraudHunterIndicatorGroupHistory(Base):
     created_at = Column(DateTime, default=datetime.utcnow, comment='创建时间')
 
     # 关系
-    indicator_group = relationship("FraudHunterIndicatorGroup", back_populates="histories")
+    indicator_task = relationship("FraudHunterIndicatorTask", back_populates="histories")
 
     # 索引
     __table_args__ = (
-        Index('uk_fh_group_version', 'group_id', 'version', unique=True),
-        Index('idx_fh_grouphist_group_id', 'group_id'),
-        Index('idx_fh_grouphist_created_at', 'created_at'),
+        Index('uk_fh_task_version', 'task_id', 'version', unique=True),
+        Index('idx_fh_taskhist_task_id', 'task_id'),
+        Index('idx_fh_taskhist_created_at', 'created_at'),
     )
 
     def __repr__(self):
-        return f"<FraudHunterIndicatorGroupHistory(id={self.id}, group_id={self.group_id}, version={self.version})>"
+        return f"<FraudHunterIndicatorTaskHistory(id={self.id}, task_id={self.task_id}, version={self.version})>"
 
 
 class FraudHunterIndicatorDefinition(Base):
@@ -117,8 +111,8 @@ class FraudHunterIndicatorDefinition(Base):
     data_type = Column(String(16), nullable=False, comment='数据类型：numeric/enum/text/boolean')
     enum_values = Column(Text, comment='枚举值（当data_type=enum时，JSON数组格式）')
 
-    # 指标组关联
-    indicator_group_id = Column(Integer, ForeignKey('fraudhunter_indicator_group.id'), nullable=False, comment='指标组ID')
+    # 指标任务关联
+    indicator_task_id = Column(Integer, ForeignKey('fraudhunter_indicator_task.id'), nullable=False, comment='指标任务ID')
 
     # 版本管理
     current_version = Column(Integer, default=1, comment='当前发布版本')
@@ -134,13 +128,13 @@ class FraudHunterIndicatorDefinition(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
 
     # 关系
-    indicator_group = relationship("FraudHunterIndicatorGroup", back_populates="indicators")
+    indicator_task = relationship("FraudHunterIndicatorTask", back_populates="indicators")
     histories = relationship("FraudHunterIndicatorHistory", back_populates="indicator", cascade="all, delete-orphan")
 
     # 索引
     __table_args__ = (
         Index('idx_fh_indicator_code', 'indicator_code'),
-        Index('idx_fh_indicator_group_id', 'indicator_group_id'),
+        Index('idx_fh_indicator_task_id', 'indicator_task_id'),
         Index('idx_fh_indicator_status', 'status'),
         Index('idx_fh_indicator_type', 'indicator_type'),
     )
@@ -165,7 +159,7 @@ class FraudHunterIndicatorHistory(Base):
     description = Column(Text, comment='描述')
     data_type = Column(String(16), comment='数据类型')
     enum_values = Column(Text, comment='枚举值')
-    indicator_group_id = Column(Integer, comment='指标组ID')
+    indicator_task_id = Column(Integer, comment='指标任务ID')
 
     # 变更信息
     change_type = Column(String(16), nullable=False, comment='变更类型：create/update/publish/archive')

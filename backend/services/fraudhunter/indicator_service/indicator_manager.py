@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from models.fraudhunter.indicator import (
     FraudHunterIndicatorDefinition,
     FraudHunterIndicatorHistory,
-    FraudHunterIndicatorGroup
+    FraudHunterIndicatorTask
 )
 from schemas.fraudhunter.indicator import (
     IndicatorCreate,
@@ -48,8 +48,8 @@ class IndicatorManager:
             raise ValueError(f"指标编码已存在: {indicator_data.indicator_code}")
 
         # 验证指标组是否存在
-        group = self.db.query(FraudHunterIndicatorGroup).filter(
-            FraudHunterIndicatorGroup.id == indicator_data.indicator_group_id
+        group = self.db.query(FraudHunterIndicatorTask).filter(
+            FraudHunterIndicatorTask.id == indicator_data.indicator_group_id
         ).first()
 
         if not group:

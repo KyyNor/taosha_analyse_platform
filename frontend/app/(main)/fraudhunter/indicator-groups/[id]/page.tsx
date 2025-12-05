@@ -16,21 +16,21 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
-import { indicatorGroupService } from "@/lib/services/fraudhunterService";
-import type { IndicatorGroup, IndicatorGroupUpdate } from "@/lib/services/fraudhunterService";
+import { indicatorTaskService } from "@/lib/services/fraudhunterService";
+import type { IndicatorTask, IndicatorTaskUpdate } from "@/lib/services/fraudhunterService";
 
-export default function IndicatorGroupDetailPage() {
+export default function IndicatorTaskDetailPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
-  const groupId = Number(params.id);
+  const taskId = Number(params.id);
   const mode = searchParams.get("mode");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isEditMode, setIsEditMode] = useState(mode === "edit");
-  const [data, setData] = useState<IndicatorGroup | null>(null);
-  const [originalData, setOriginalData] = useState<IndicatorGroup | null>(null);
+  const [data, setData] = useState<IndicatorTask | null>(null);
+  const [originalData, setOriginalData] = useState<IndicatorTask | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
 
   // 试运行对话框状态
@@ -38,7 +38,7 @@ export default function IndicatorGroupDetailPage() {
   const [dryRunData, setDryRunData] = useState({
     etl_date: new Date().toISOString().split("T")[0],
     sample_size: 100,
-    group_version: 1
+    task_version: 1
   });
 
   // 发布对话框状态
@@ -52,11 +52,11 @@ export default function IndicatorGroupDetailPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const result = await indicatorGroupService.get(groupId);
+      const result = await indicatorTaskService.get(taskId);
       setData(result);
       setOriginalData(JSON.parse(JSON.stringify(result)));
     } catch (error) {
-      console.error("Failed to load indicator group:", error);
+      console.error("Failed to load indicator task:", error);
       alert("加载失败");
     } finally {
       setLoading(false);
@@ -65,7 +65,7 @@ export default function IndicatorGroupDetailPage() {
 
   useEffect(() => {
     loadData();
-  }, [groupId]);
+  }, [taskId]);
 
   // 监听mode参数变化
   useEffect(() => {
@@ -80,7 +80,7 @@ export default function IndicatorGroupDetailPage() {
   }, [data, originalData]);
 
   // 字段更新
-  const updateField = (field: keyof IndicatorGroup, value: any) => {
+  const updateField = (field: keyof IndicatorTask, value: any) => {
     if (!data) return;
     setData({ ...data, [field]: value });
   };
@@ -91,21 +91,20 @@ export default function IndicatorGroupDetailPage() {
 
     // 验证
     if (data.status !== "draft" && data.logic_content !== originalData?.logic_content) {
-      alert("只有草稿状态的指标组才允许修改SQL内容");
+      alert("只有草稿状态的指标任务才允许修改SQL内容");
       return;
     }
 
     setSaving(true);
     try {
-      const updateData: IndicatorGroupUpdate = {
-        group_name: data.group_name,
+      const updateData: IndicatorTaskUpdate = {
+        task_name: data.task_name,
         description: data.description,
         logic_content: data.logic_content,
-        source_tables: data.source_tables,
-        output_table: data.output_table
+        source_tables: data.source_tables
       };
 
-      const response = await indicatorGroupService.update(groupId, updateData);
+      const response = await indicatorTaskService.update(taskId, updateData);
 
       // 检查响应中的 success 字段
       if (response.success === false) {
@@ -121,9 +120,9 @@ export default function IndicatorGroupDetailPage() {
       // 成功
       alert("保存成功");
       await loadData();
-      router.push(`/fraudhunter/indicator-groups/${groupId}`);
+      router.push(`/fraudhunter/indicator-groups/${taskId}`);
     } catch (error: any) {
-      console.error("Failed to update indicator group:", error);
+      console.error("Failed to update indicator task:", error);
       // 仅处理网络错误或500错误
       alert(error.response?.data?.detail || "保存失败，请重试");
     } finally {
@@ -136,18 +135,18 @@ export default function IndicatorGroupDetailPage() {
     if (hasChanges && !confirm("确定要取消吗？未保存的更改将丢失")) {
       return;
     }
-    router.push(`/fraudhunter/indicator-groups/${groupId}`);
+    router.push(`/fraudhunter/indicator-groups/${taskId}`);
   };
 
   // 进入编辑模式
   const handleEdit = () => {
-    router.push(`/fraudhunter/indicator-groups/${groupId}?mode=edit`);
+    router.push(`/fraudhunter/indicator-groups/${taskId}?mode=edit`);
   };
 
   // 试运行
   const handleDryRun = async () => {
     try {
-      const result = await indicatorGroupService.dryRun(groupId, dryRunData);
+      const result = await indicatorTaskService.dryRun(taskId, dryRunData);
       alert(`试运行任务已提交\n任务ID: ${result.task_id}\n请到任务列表查看进度`);
       setDryRunDialogOpen(false);
     } catch (error: any) {
@@ -159,26 +158,26 @@ export default function IndicatorGroupDetailPage() {
   // 发布
   const handlePublish = async () => {
     try {
-      await indicatorGroupService.publish(groupId, publishData);
+      await indicatorTaskService.publish(taskId, publishData);
       alert("发布成功");
       setPublishDialogOpen(false);
       await loadData();
     } catch (error: any) {
-      console.error("Failed to publish indicator group:", error);
+      console.error("Failed to publish indicator task:", error);
       alert(error.response?.data?.detail || "发布失败");
     }
   };
 
   // 归档
   const handleArchive = async () => {
-    if (!confirm("确定要归档此指标组吗？")) return;
+    if (!confirm("确定要归档此指标任务吗？")) return;
 
     try {
-      await indicatorGroupService.archive(groupId);
+      await indicatorTaskService.archive(taskId);
       alert("归档成功");
       await loadData();
     } catch (error: any) {
-      console.error("Failed to archive indicator group:", error);
+      console.error("Failed to archive indicator task:", error);
       alert(error.response?.data?.detail || "归档失败");
     }
   };
@@ -194,7 +193,7 @@ export default function IndicatorGroupDetailPage() {
   if (!data) {
     return (
       <div className="container mx-auto py-6">
-        <div className="text-center">指标组不存在</div>
+        <div className="text-center">指标任务不存在</div>
       </div>
     );
   }
@@ -211,7 +210,7 @@ export default function IndicatorGroupDetailPage() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             返回
           </Button>
-          <h1 className="text-2xl font-bold">{data.group_name}</h1>
+          <h1 className="text-2xl font-bold">{data.task_name}</h1>
           <Badge>{data.status}</Badge>
         </div>
         <div className="flex gap-2">
@@ -238,9 +237,9 @@ export default function IndicatorGroupDetailPage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>指标组编码</Label>
+              <Label>指标任务编码</Label>
               <div className="mt-1 p-2 bg-muted rounded">
-                {data.group_code}
+                {data.task_code}
               </div>
             </div>
             <div>
@@ -252,16 +251,16 @@ export default function IndicatorGroupDetailPage() {
           </div>
 
           <div>
-            <Label htmlFor="group-name">指标组名称</Label>
+            <Label htmlFor="task-name">指标任务名称</Label>
             {isEditMode ? (
               <Input
-                id="group-name"
-                value={data.group_name}
-                onChange={(e) => updateField("group_name", e.target.value)}
+                id="task-name"
+                value={data.task_name}
+                onChange={(e) => updateField("task_name", e.target.value)}
               />
             ) : (
               <div className="mt-1 p-2 bg-muted rounded">
-                {data.group_name}
+                {data.task_name}
               </div>
             )}
           </div>
@@ -356,21 +355,6 @@ export default function IndicatorGroupDetailPage() {
               </div>
             )}
           </div>
-
-          <div>
-            <Label htmlFor="output-table">输出表名</Label>
-            {isEditMode ? (
-              <Input
-                id="output-table"
-                value={data.output_table || ""}
-                onChange={(e) => updateField("output_table", e.target.value)}
-              />
-            ) : (
-              <div className="mt-1 p-2 bg-muted rounded">
-                {data.output_table}
-              </div>
-            )}
-          </div>
         </CardContent>
       </Card>
 
@@ -398,7 +382,7 @@ export default function IndicatorGroupDetailPage() {
       <Dialog open={dryRunDialogOpen} onOpenChange={setDryRunDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>指标组试运行</DialogTitle>
+            <DialogTitle>指标任务试运行</DialogTitle>
             <DialogDescription>
               提交异步任务进行试运行，可在任务列表查看进度
             </DialogDescription>
@@ -430,15 +414,15 @@ export default function IndicatorGroupDetailPage() {
               />
             </div>
             <div>
-              <Label htmlFor="group-version">指标组版本</Label>
+              <Label htmlFor="task-version">指标任务版本</Label>
               <Input
-                id="group-version"
+                id="task-version"
                 type="number"
-                value={dryRunData.group_version}
+                value={dryRunData.task_version}
                 onChange={(e) =>
                   setDryRunData({
                     ...dryRunData,
-                    group_version: Number(e.target.value)
+                    task_version: Number(e.target.value)
                   })
                 }
               />
@@ -457,9 +441,9 @@ export default function IndicatorGroupDetailPage() {
       <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>发布指标组</DialogTitle>
+            <DialogTitle>发布指标任务</DialogTitle>
             <DialogDescription>
-              将指定版本的指标组发布到生产环境
+              将指定版本的指标任务发布到生产环境
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">

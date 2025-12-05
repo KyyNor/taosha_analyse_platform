@@ -7,35 +7,34 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { indicatorGroupService } from "@/lib/services/fraudhunterService";
-import type { IndicatorGroupCreate } from "@/lib/services/fraudhunterService";
+import { indicatorTaskService } from "@/lib/services/fraudhunterService";
+import type { IndicatorTaskCreate } from "@/lib/services/fraudhunterService";
 
-export default function NewIndicatorGroupPage() {
+export default function NewIndicatorTaskPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState<IndicatorGroupCreate>({
-    group_code: "",
-    group_name: "",
+  const [formData, setFormData] = useState<IndicatorTaskCreate>({
+    task_code: "",
+    task_name: "",
     description: "",
     logic_content: "",
-    source_tables: "",
-    output_table: "anti_fraud.indicator_result_row"
+    source_tables: ""
   });
 
   // 表单验证
   const validateForm = () => {
     const errors: string[] = [];
 
-    if (!formData.group_code?.trim()) {
-      errors.push("指标组编码不能为空");
-    } else if (formData.group_code.length > 64) {
-      errors.push("指标组编码不能超过64个字符");
+    if (!formData.task_code?.trim()) {
+      errors.push("指标任务编码不能为空");
+    } else if (formData.task_code.length > 64) {
+      errors.push("指标任务编码不能超过64个字符");
     }
 
-    if (!formData.group_name?.trim()) {
-      errors.push("指标组名称不能为空");
-    } else if (formData.group_name.length > 128) {
-      errors.push("指标组名称不能超过128个字符");
+    if (!formData.task_name?.trim()) {
+      errors.push("指标任务名称不能为空");
+    } else if (formData.task_name.length > 128) {
+      errors.push("指标任务名称不能超过128个字符");
     }
 
     if (!formData.logic_content?.trim()) {
@@ -55,7 +54,7 @@ export default function NewIndicatorGroupPage() {
 
     setSaving(true);
     try {
-      const response = await indicatorGroupService.create(formData);
+      const response = await indicatorTaskService.create(formData);
 
       // 检查响应中的 success 字段
       if (response.success === false) {
@@ -69,10 +68,10 @@ export default function NewIndicatorGroupPage() {
       }
 
       // 成功
-      alert("指标组创建成功");
+      alert("指标任务创建成功");
       router.push(`/fraudhunter/indicator-groups/${response.data.id}`);
     } catch (error: any) {
-      console.error("Failed to create indicator group:", error);
+      console.error("Failed to create indicator task:", error);
       // 仅处理网络错误或500错误
       alert(error.response?.data?.detail || "创建失败，请重试");
     } finally {
@@ -88,7 +87,7 @@ export default function NewIndicatorGroupPage() {
   };
 
   // 字段更新处理
-  const updateField = (field: keyof IndicatorGroupCreate, value: string) => {
+  const updateField = (field: keyof IndicatorTaskCreate, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -108,7 +107,7 @@ export default function NewIndicatorGroupPage() {
             取消
           </Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? "创建中..." : "创建指标组"}
+            {saving ? "创建中..." : "创建指标任务"}
           </Button>
         </div>
       </div>
@@ -120,11 +119,11 @@ export default function NewIndicatorGroupPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="group-code">指标组编码 *</Label>
+            <Label htmlFor="task-code">指标任务编码 *</Label>
             <Input
-              id="group-code"
-              value={formData.group_code}
-              onChange={(e) => updateField("group_code", e.target.value)}
+              id="task-code"
+              value={formData.task_code}
+              onChange={(e) => updateField("task_code", e.target.value)}
               placeholder="如: login_behavior"
               maxLength={64}
             />
@@ -134,12 +133,12 @@ export default function NewIndicatorGroupPage() {
           </div>
 
           <div>
-            <Label htmlFor="group-name">指标组名称 *</Label>
+            <Label htmlFor="task-name">指标任务名称 *</Label>
             <Input
-              id="group-name"
-              value={formData.group_name}
-              onChange={(e) => updateField("group_name", e.target.value)}
-              placeholder="如: 登录行为指标组"
+              id="task-name"
+              value={formData.task_name}
+              onChange={(e) => updateField("task_name", e.target.value)}
+              placeholder="如: 登录行为指标任务"
               maxLength={128}
             />
             <p className="text-sm text-muted-foreground mt-1">
@@ -153,22 +152,9 @@ export default function NewIndicatorGroupPage() {
               id="description"
               value={formData.description}
               onChange={(e) => updateField("description", e.target.value)}
-              placeholder="描述指标组的用途和业务含义"
+              placeholder="描述指标任务的用途和业务含义"
               rows={3}
             />
-          </div>
-
-          <div>
-            <Label htmlFor="output-table">输出表名</Label>
-            <Input
-              id="output-table"
-              value={formData.output_table}
-              onChange={(e) => updateField("output_table", e.target.value)}
-              placeholder="默认: anti_fraud.indicator_result_row"
-            />
-            <p className="text-sm text-muted-foreground mt-1">
-              指标结果存储的Hive表名
-            </p>
           </div>
         </CardContent>
       </Card>
@@ -190,7 +176,7 @@ export default function NewIndicatorGroupPage() {
               className="font-mono text-sm"
             />
             <p className="text-sm text-muted-foreground mt-1">
-              必须包含字段: account_id, indicator_code, indicator_value, dt
+              编写SQL查询逻辑，禁止使用危险操作（DROP、DELETE等）
             </p>
           </div>
 

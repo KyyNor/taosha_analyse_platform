@@ -21,7 +21,7 @@ from api.metadata_routes import router as metadata_router
 from api.user_routes import router as user_router
 from api.agents_routes import router as agents_router
 from api.fraudhunter import (
-    indicator_group_router,
+    indicator_task_router,
     indicator_router,
     task_router as fraudhunter_task_router
 )
@@ -263,7 +263,7 @@ app.include_router(agents_router, prefix=api_prefix)
 
 # 注册 FraudHunter 路由
 fraudhunter_prefix = f"{api_prefix}/fraudhunter"
-app.include_router(indicator_group_router, prefix=fraudhunter_prefix)
+app.include_router(indicator_task_router, prefix=fraudhunter_prefix)
 app.include_router(indicator_router, prefix=fraudhunter_prefix)
 app.include_router(fraudhunter_task_router, prefix=fraudhunter_prefix)
 

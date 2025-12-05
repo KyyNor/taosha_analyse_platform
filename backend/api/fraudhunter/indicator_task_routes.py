@@ -1,0 +1,294 @@
+"""
+FraudHunter指标任务管理API路由
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from typing import Optional
+from models.db_base import get_db
+from schemas.fraudhunter.indicator import (
+    IndicatorTaskCreate,
+    IndicatorTaskUpdate,
+    IndicatorTaskResponse,
+    IndicatorTaskListResponse,
+    DryRunRequest,
+    DryRunResponse,
+    PublishRequest,
+)
+from services.fraudhunter.indicator_service import (
+    IndicatorTaskManager,
+    SQLValidator
+)
+from services.fraudhunter.task_service import task_manager, indicator_executor
+from utils.logger import logger
+
+
+router = APIRouter(prefix="/indicator-tasks", tags=["指标任务管理"])
+
+
+@router.post("", summary="创建指标任务")
+async def create_indicator_task(
+    task_data: IndicatorTaskCreate,
+    db: Session = Depends(get_db)
+):
+    """创建新的指标任务
+
+    参数:
+    - task_code: 指标任务编码
+    - task_name: 指标任务名称
+    - logic_content: SQL加工逻辑
+    - source_tables: 依赖的源表（逗号分隔）
+
+    返回:
+    - success=true: { success: true, data: IndicatorTask }
+    - success=false: { success: false, message: str, errors: list }
+    """
+    try:
+        # SQL验证
+        validator = SQLValidator()
+        validation_result = validator.validate_sql(task_data.logic_content)
+
+        if not validation_result['valid']:
+            # 返回200状态码，但包含错误信息
+            return {
+                'success': False,
+                'message': 'SQL验证失败',
+                'errors': validation_result['errors']
+            }
+
+        # 创建指标任务
+        manager = IndicatorTaskManager(db)
+        task = manager.create_indicator_task(
+            task_data,
+            created_by="system"  # 实际应该从JWT token中获取
+        )
+
+        return {
+            'success': True,
+            'data': task
+        }
+
+    except ValueError as e:
+        return {
+            'success': False,
+            'message': str(e),
+            'errors': [str(e)]
+        }
+    except Exception as e:
+        logger.error(f"创建指标任务失败: {e!r}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建指标任务失败: {str(e)}")
+
+
+@router.get("", response_model=IndicatorTaskListResponse, summary="获取指标任务列表")
+async def list_indicator_tasks(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    status: Optional[str] = Query(None, description="状态筛选"),
+    task_code: Optional[str] = Query(None, description="编码筛选（模糊匹配）"),
+    db: Session = Depends(get_db)
+):
+    """获取指标任务列表
+
+    支持分页和筛选
+    """
+    try:
+        manager = IndicatorTaskManager(db)
+        items, total = manager.list_indicator_tasks(
+            page=page,
+            page_size=page_size,
+            status=status,
+            task_code=task_code
+        )
+
+        return {
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'items': items
+        }
+
+    except Exception as e:
+        logger.error(f"获取指标任务列表失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取指标任务列表失败: {str(e)}")
+
+
+@router.get("/{task_id}", response_model=IndicatorTaskResponse, summary="获取指标任务详情")
+async def get_indicator_task(
+    task_id: int,
+    db: Session = Depends(get_db)
+):
+    """获取指定ID的指标任务详情"""
+    try:
+        manager = IndicatorTaskManager(db)
+        task = manager.get_indicator_task(task_id)
+
+        if not task:
+            raise HTTPException(status_code=404, detail=f"指标任务不存在: {task_id}")
+
+        return task
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取指标任务详情失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取指标任务详情失败: {str(e)}")
+
+
+@router.put("/{task_id}", summary="更新指标任务")
+async def update_indicator_task(
+    task_id: int,
+    task_data: IndicatorTaskUpdate,
+    db: Session = Depends(get_db)
+):
+    """更新指标任务信息
+
+    只有draft状态的指标任务才允许修改逻辑内容
+
+    返回:
+    - success=true: { success: true, data: IndicatorTask }
+    - success=false: { success: false, message: str, errors: list }
+    """
+    try:
+        # 如果更新了SQL，需要验证
+        if task_data.logic_content:
+            validator = SQLValidator()
+            validation_result = validator.validate_sql(task_data.logic_content)
+
+            if not validation_result['valid']:
+                # 返回200状态码，但包含错误信息
+                return {
+                    'success': False,
+                    'message': 'SQL验证失败',
+                    'errors': validation_result['errors']
+                }
+
+        manager = IndicatorTaskManager(db)
+        task = manager.update_indicator_task(
+            task_id,
+            task_data,
+            updated_by="system"
+        )
+
+        return {
+            'success': True,
+            'data': task
+        }
+
+    except ValueError as e:
+        return {
+            'success': False,
+            'message': str(e),
+            'errors': [str(e)]
+        }
+    except Exception as e:
+        logger.error(f"更新指标任务失败: {e!r}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"更新指标任务失败: {str(e)}")
+
+
+@router.post("/{task_id}/dry-run", response_model=DryRunResponse, summary="指标任务试运行")
+async def dry_run_indicator_task(
+    task_id: int,
+    dry_run_request: DryRunRequest,
+    db: Session = Depends(get_db)
+):
+    """提交指标任务试运行任务
+
+    异步执行，返回task_id用于查询进度
+    """
+    try:
+        # 验证指标任务是否存在
+        manager = IndicatorTaskManager(db)
+        task = manager.get_indicator_task(task_id)
+
+        if not task:
+            raise HTTPException(status_code=404, detail=f"指标任务不存在: {task_id}")
+
+        # 提交异步任务
+        execution_id = await task_manager.submit_task(
+            db=db,
+            task_type='indicator',
+            task_id=task_id,
+            task_func=indicator_executor.execute_dry_run,
+            created_by="system",
+            etl_date=dry_run_request.etl_date,
+            sample_size=dry_run_request.sample_size,
+            task_version=dry_run_request.task_version
+        )
+
+        return {
+            'task_id': execution_id,
+            'status': 'pending',
+            'message': '任务已提交，请通过task_id查询进度'
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"提交试运行任务失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"提交试运行任务失败: {str(e)}")
+
+
+@router.post("/{task_id}/publish", response_model=IndicatorTaskResponse, summary="发布指标任务")
+async def publish_indicator_task(
+    task_id: int,
+    publish_request: PublishRequest,
+    db: Session = Depends(get_db)
+):
+    """发布指标任务到指定版本"""
+    try:
+        manager = IndicatorTaskManager(db)
+        task = manager.publish_indicator_task(
+            task_id,
+            publish_request.version,
+            updated_by="system",
+            change_description=publish_request.change_description
+        )
+
+        return task
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"发布指标任务失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"发布指标任务失败: {str(e)}")
+
+
+@router.post("/{task_id}/archive", response_model=IndicatorTaskResponse, summary="归档指标任务")
+async def archive_indicator_task(
+    task_id: int,
+    db: Session = Depends(get_db)
+):
+    """归档指标任务"""
+    try:
+        manager = IndicatorTaskManager(db)
+        task = manager.archive_indicator_task(task_id, updated_by="system")
+
+        return task
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"归档指标任务失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"归档指标任务失败: {str(e)}")
+
+
+@router.delete("/{task_id}", summary="删除指标任务")
+async def delete_indicator_task(
+    task_id: int,
+    db: Session = Depends(get_db)
+):
+    """删除指标任务（物理删除）
+
+    只能删除没有关联指标的指标任务
+    """
+    try:
+        manager = IndicatorTaskManager(db)
+        manager.delete_indicator_task(task_id)
+
+        return {'message': f'指标任务 {task_id} 已删除'}
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"删除指标任务失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"删除指标任务失败: {str(e)}")

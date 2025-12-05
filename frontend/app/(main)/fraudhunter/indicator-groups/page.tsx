@@ -3,21 +3,21 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MetadataTable } from "@/components/ui/MetadataTable";
 import { Badge } from "@/components/ui/badge";
-import { indicatorGroupService } from "@/lib/services/fraudhunterService";
-import type { IndicatorGroup } from "@/lib/services/fraudhunterService";
+import { indicatorTaskService } from "@/lib/services/fraudhunterService";
+import type { IndicatorTask } from "@/lib/services/fraudhunterService";
 
-export default function IndicatorGroupsPage() {
+export default function IndicatorTasksPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<IndicatorGroup[]>([]);
+  const [data, setData] = useState<IndicatorTask[]>([]);
 
   const load = async () => {
     setLoading(true);
     try {
-      const response = await indicatorGroupService.list({});
+      const response = await indicatorTaskService.list({});
       setData(response.items || []);
     } catch (error) {
-      console.error("Failed to load indicator groups:", error);
+      console.error("Failed to load indicator tasks:", error);
     } finally {
       setLoading(false);
     }
@@ -30,8 +30,8 @@ export default function IndicatorGroupsPage() {
   // 表格列配置
   const columns = [
     { key: "id", label: "ID", type: "number" as const },
-    { key: "group_code", label: "指标组编码", type: "text" as const },
-    { key: "group_name", label: "指标组名称", type: "text" as const },
+    { key: "task_code", label: "指标任务编码", type: "text" as const },
+    { key: "task_name", label: "指标任务名称", type: "text" as const },
     {
       key: "status",
       label: "状态",
@@ -54,11 +54,11 @@ export default function IndicatorGroupsPage() {
   ];
 
   // 操作处理
-  const handleView = (item: IndicatorGroup) => {
+  const handleView = (item: IndicatorTask) => {
     router.push(`/fraudhunter/indicator-groups/${item.id}`);
   };
 
-  const handleEdit = (item: IndicatorGroup) => {
+  const handleEdit = (item: IndicatorTask) => {
     router.push(`/fraudhunter/indicator-groups/${item.id}?mode=edit`);
   };
 
@@ -66,13 +66,13 @@ export default function IndicatorGroupsPage() {
     router.push("/fraudhunter/indicator-groups/new");
   };
 
-  const handleDelete = async (item: IndicatorGroup) => {
+  const handleDelete = async (item: IndicatorTask) => {
     try {
-      await indicatorGroupService.delete(item.id);
+      await indicatorTaskService.delete(item.id);
       // 重新加载列表
       await load();
     } catch (error: any) {
-      console.error("Failed to delete indicator group:", error);
+      console.error("Failed to delete indicator task:", error);
       alert(error.response?.data?.detail || "删除失败");
     }
   };
@@ -80,8 +80,8 @@ export default function IndicatorGroupsPage() {
   return (
     <div className="container mx-auto py-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">指标组管理</h1>
-        <p className="text-muted-foreground">管理反诈指标组及其SQL加工逻辑</p>
+        <h1 className="text-2xl font-bold">指标任务管理</h1>
+        <p className="text-muted-foreground">管理反诈指标任务及其SQL加工逻辑</p>
       </div>
 
       <MetadataTable
@@ -93,8 +93,8 @@ export default function IndicatorGroupsPage() {
         onView={handleView}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        searchPlaceholder="搜索指标组编码或名称..."
-        emptyText="暂无指标组数据"
+        searchPlaceholder="搜索指标任务编码或名称..."
+        emptyText="暂无指标任务数据"
       />
     </div>
   );

@@ -2,17 +2,15 @@ import api from "../api";
 
 const BASE_PATH = "/fraudhunter";
 
-// ============ 指标组相关类型定义 ============
-export interface IndicatorGroup {
+// ============ 指标任务相关类型定义 ============
+export interface IndicatorTask {
   id: number;
-  group_code: string;
-  group_name: string;
+  task_code: string;
+  task_name: string;
   description?: string;
   logic_type: string;
   logic_content: string;
   source_tables?: string;
-  output_table?: string;
-  output_mode: string;
   current_version: number;
   latest_version: number;
   status: string;
@@ -22,30 +20,27 @@ export interface IndicatorGroup {
   updated_at: string;
 }
 
-export interface IndicatorGroupCreate {
-  group_code: string;
-  group_name: string;
+export interface IndicatorTaskCreate {
+  task_code: string;
+  task_name: string;
   description?: string;
   logic_type?: string;
   logic_content: string;
   source_tables?: string;
-  output_table?: string;
-  output_mode?: string;
 }
 
-export interface IndicatorGroupUpdate {
-  group_name?: string;
+export interface IndicatorTaskUpdate {
+  task_name?: string;
   description?: string;
   logic_content?: string;
   source_tables?: string;
-  output_table?: string;
 }
 
-export interface IndicatorGroupListResponse {
+export interface IndicatorTaskListResponse {
   total: number;
   page: number;
   page_size: number;
-  items: IndicatorGroup[];
+  items: IndicatorTask[];
 }
 
 // ============ 指标相关类型定义 ============
@@ -57,7 +52,7 @@ export interface Indicator {
   description?: string;
   data_type: string;
   enum_values?: string;
-  indicator_group_id: number;
+  indicator_task_id: number;
   current_version: number;
   latest_version: number;
   status: string;
@@ -74,7 +69,7 @@ export interface IndicatorCreate {
   description?: string;
   data_type: string;
   enum_values?: string;
-  indicator_group_id: number;
+  indicator_task_id: number;
 }
 
 export interface IndicatorUpdate {
@@ -132,7 +127,7 @@ export interface TaskResult {
 
 export interface DryRunRequest {
   etl_date: string;
-  group_version?: number;
+  task_version?: number;
   sample_size?: number;
 }
 
@@ -147,57 +142,57 @@ export interface PublishRequest {
   change_description?: string;
 }
 
-// ============ 指标组API ============
-export const indicatorGroupService = {
-  // 获取指标组列表
+// ============ 指标任务API ============
+export const indicatorTaskService = {
+  // 获取指标任务列表
   async list(params?: {
     page?: number;
     page_size?: number;
     status?: string;
-    group_code?: string;
-  }): Promise<IndicatorGroupListResponse> {
-    const response = await api.get(`${BASE_PATH}/indicator-groups`, { params });
+    task_code?: string;
+  }): Promise<IndicatorTaskListResponse> {
+    const response = await api.get(`${BASE_PATH}/indicator-tasks`, { params });
     return response.data;
   },
 
-  // 获取指标组详情
-  async get(id: number): Promise<IndicatorGroup> {
-    const response = await api.get(`${BASE_PATH}/indicator-groups/${id}`);
+  // 获取指标任务详情
+  async get(id: number): Promise<IndicatorTask> {
+    const response = await api.get(`${BASE_PATH}/indicator-tasks/${id}`);
     return response.data;
   },
 
-  // 创建指标组
-  async create(data: IndicatorGroupCreate): Promise<IndicatorGroup> {
-    const response = await api.post(`${BASE_PATH}/indicator-groups`, data);
+  // 创建指标任务
+  async create(data: IndicatorTaskCreate): Promise<IndicatorTask> {
+    const response = await api.post(`${BASE_PATH}/indicator-tasks`, data);
     return response.data;
   },
 
-  // 更新指标组
-  async update(id: number, data: IndicatorGroupUpdate): Promise<IndicatorGroup> {
-    const response = await api.put(`${BASE_PATH}/indicator-groups/${id}`, data);
+  // 更新指标任务
+  async update(id: number, data: IndicatorTaskUpdate): Promise<IndicatorTask> {
+    const response = await api.put(`${BASE_PATH}/indicator-tasks/${id}`, data);
     return response.data;
   },
 
-  // 删除指标组
+  // 删除指标任务
   async delete(id: number): Promise<void> {
-    await api.delete(`${BASE_PATH}/indicator-groups/${id}`);
+    await api.delete(`${BASE_PATH}/indicator-tasks/${id}`);
   },
 
-  // 指标组试运行
+  // 指标任务试运行
   async dryRun(id: number, data: DryRunRequest): Promise<DryRunResponse> {
-    const response = await api.post(`${BASE_PATH}/indicator-groups/${id}/dry-run`, data);
+    const response = await api.post(`${BASE_PATH}/indicator-tasks/${id}/dry-run`, data);
     return response.data;
   },
 
-  // 发布指标组
-  async publish(id: number, data: PublishRequest): Promise<IndicatorGroup> {
-    const response = await api.post(`${BASE_PATH}/indicator-groups/${id}/publish`, data);
+  // 发布指标任务
+  async publish(id: number, data: PublishRequest): Promise<IndicatorTask> {
+    const response = await api.post(`${BASE_PATH}/indicator-tasks/${id}/publish`, data);
     return response.data;
   },
 
-  // 归档指标组
-  async archive(id: number): Promise<IndicatorGroup> {
-    const response = await api.post(`${BASE_PATH}/indicator-groups/${id}/archive`);
+  // 归档指标任务
+  async archive(id: number): Promise<IndicatorTask> {
+    const response = await api.post(`${BASE_PATH}/indicator-tasks/${id}/archive`);
     return response.data;
   },
 };
@@ -210,7 +205,7 @@ export const indicatorService = {
     page_size?: number;
     status?: string;
     indicator_type?: string;
-    indicator_group_id?: number;
+    indicator_task_id?: number;
   }): Promise<IndicatorListResponse> {
     const response = await api.get(`${BASE_PATH}/indicators`, { params });
     return response.data;
@@ -285,7 +280,7 @@ export const taskService = {
 };
 
 export default {
-  indicatorGroup: indicatorGroupService,
+  indicatorTask: indicatorTaskService,
   indicator: indicatorService,
   task: taskService,
 };

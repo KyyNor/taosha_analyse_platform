@@ -6,7 +6,7 @@ import asyncio
 from typing import Dict, Any
 from datetime import datetime, date
 from sqlalchemy.orm import Session
-from models.fraudhunter.indicator import FraudHunterIndicatorGroup
+from models.fraudhunter.indicator import FraudHunterIndicatorTask
 from models.fraudhunter.task import FraudHunterTaskExecutionRecord
 from utils.logger import logger
 
@@ -40,8 +40,8 @@ class IndicatorExecutor:
             执行结果摘要
         """
         # 获取指标组
-        group = db.query(FraudHunterIndicatorGroup).filter(
-            FraudHunterIndicatorGroup.id == group_id
+        group = db.query(FraudHunterIndicatorTask).filter(
+            FraudHunterIndicatorTask.id == group_id
         ).first()
 
         if not group:

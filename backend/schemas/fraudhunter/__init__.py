@@ -3,11 +3,11 @@ FraudHunter模块Pydantic schemas
 """
 
 from .indicator import (
-    IndicatorGroupBase,
-    IndicatorGroupCreate,
-    IndicatorGroupUpdate,
-    IndicatorGroupResponse,
-    IndicatorGroupListResponse,
+    IndicatorTaskBase,
+    IndicatorTaskCreate,
+    IndicatorTaskUpdate,
+    IndicatorTaskResponse,
+    IndicatorTaskListResponse,
     IndicatorBase,
     IndicatorCreate,
     IndicatorUpdate,
@@ -26,11 +26,11 @@ from .task import (
 
 __all__ = [
     # 指标组相关
-    'IndicatorGroupBase',
-    'IndicatorGroupCreate',
-    'IndicatorGroupUpdate',
-    'IndicatorGroupResponse',
-    'IndicatorGroupListResponse',
+    'IndicatorTaskBase',
+    'IndicatorTaskCreate',
+    'IndicatorTaskUpdate',
+    'IndicatorTaskResponse',
+    'IndicatorTaskListResponse',
 
     # 指标相关
     'IndicatorBase',
