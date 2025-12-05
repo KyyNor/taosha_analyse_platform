@@ -574,7 +574,7 @@ class RuleEngine:
                         actual_value, operator, expected_value
                     )
 
-                # 正则匹配操作符（expected_value 是字符串）
+                # 正则匹配操作符（expected_value 可能是字符串或数组）
                 elif operator in ['regexp', 'not regexp']:
                     return self._evaluate_regexp_operation(
                         actual_value, operator, expected_value
@@ -682,10 +682,26 @@ class RuleEngine:
         self,
         actual: Any,
         operator: str,
-        pattern: str
+        pattern_input: Union[str, list]
     ) -> bool:
-        """正则操作（regexp / not regexp）"""
+        """正则操作（regexp / not regexp），支持单值和多值"""
         actual_str = str(actual)
+
+        # 处理多值情况：将数组转换为正则表达式的 OR 格式
+        if isinstance(pattern_input, list):
+            # 过滤空值并构建模式
+            patterns = []
+            for val in pattern_input:
+                if val:  # 过滤空值
+                    patterns.append(str(val))
+
+            if not patterns:
+                pattern = ''  # 如果没有有效值，使用空模式
+            else:
+                pattern = '|'.join(patterns)  # 转换为 x|y|z 格式
+        else:
+            # 单值情况
+            pattern = str(pattern_input)
 
         try:
             compiled_pattern = re.compile(pattern)
@@ -796,11 +812,29 @@ class RuleEngine:
                 op_sql = 'IN' if operator == 'in' else 'NOT IN'
                 return f"{left_sql} {op_sql} ({values_sql})"
 
-            # 正则匹配（只支持常量字符串）
+            # 正则匹配（支持多值，自动转换为 x|y|z 格式）
             elif operator in ['regexp', 'not regexp']:
                 if not isinstance(value_expr, ConstantValue):
                     raise ValueError(f"操作符 {operator} 只支持常量值")
-                pattern = str(value_expr.value).replace("'", "''")
+
+                # 处理多值情况：将数组转换为正则表达式的 OR 格式
+                if isinstance(value_expr.value, list):
+                    # 过滤空值并转义特殊字符
+                    patterns = []
+                    for val in value_expr.value:
+                        if val:  # 过滤空值
+                            # 转义正则表达式特殊字符
+                            escaped_val = str(val).replace("'", "''").replace('|', '\\|')
+                            patterns.append(escaped_val)
+
+                    if not patterns:
+                        pattern = ''  # 如果没有有效值，使用空模式
+                    else:
+                        pattern = '|'.join(patterns)  # 转换为 x|y|z 格式
+                else:
+                    # 单值情况
+                    pattern = str(value_expr.value).replace("'", "''")
+
                 if operator == 'regexp':
                     return f"{left_sql} RLIKE '{pattern}'"
                 else:

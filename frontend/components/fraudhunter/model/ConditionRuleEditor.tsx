@@ -15,6 +15,11 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { X, Plus } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import React from 'react'
 import {
   ConditionRule,
   Indicator,
@@ -130,25 +135,12 @@ export function ConditionRuleEditor({
   const renderValueConfig = () => {
     switch (rule.value.type) {
       case 'constant':
-        if (isMultiValueOperator(rule.operator)) {
+        if (isMultiValueOperator(rule.operator) || isRegexpOperator(rule.operator)) {
           return (
-            <Textarea
-              value={Array.isArray(rule.value.value) ? rule.value.value.join('\n') : (rule.value.value || '')}
-              onChange={(e) => updateValue({
-                ...rule.value,
-                value: e.target.value.split('\n').filter(v => v.trim()) as string[]
-              })}
-              placeholder="每行一个值"
-              className="h-20 resize-none"
-            />
-          )
-        } else if (isRegexpOperator(rule.operator)) {
-          return (
-            <Input
-              value={rule.value.value || ''}
-              onChange={(e) => updateValue({ ...rule.value, value: e.target.value })}
-              placeholder="正则表达式"
-              className="flex-1"
+            <MultiValueInput
+              values={Array.isArray(rule.value.value) ? rule.value.value : (rule.value.value ? [rule.value.value] : [])}
+              dataType={currentIndicator?.data_type}
+              onChange={(values) => updateValue({ ...rule.value, value: values })}
             />
           )
         } else {
@@ -381,13 +373,13 @@ export function ConditionRuleEditor({
                 </>
               )}
 
-              {/* 正则匹配操作符 */}
-              {OPERATOR_GROUPS.pattern.some(op => allowedOperators.includes(op.value)) && (
+              {/* 包含匹配操作符 */}
+              {OPERATOR_GROUPS.inclusion.some(op => allowedOperators.includes(op.value)) && (
                 <>
                   <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1">
-                    正则匹配
+                    包含/不包含
                   </div>
-                  {OPERATOR_GROUPS.pattern
+                  {OPERATOR_GROUPS.inclusion
                     .filter(op => allowedOperators.includes(op.value))
                     .map((op) => (
                       <SelectItem key={op.value} value={op.value}>
@@ -424,5 +416,185 @@ export function ConditionRuleEditor({
       </div>
 
     </>
+  )
+}
+
+// ==================== 多值输入组件 ====================
+
+interface MultiValueInputProps {
+  values: (string | number)[]
+  dataType?: string
+  onChange: (values: string[] | number[]) => void
+}
+
+function MultiValueInput({ values, dataType, onChange }: MultiValueInputProps) {
+  const [inputValue, setInputValue] = React.useState('')
+  const [editingIndex, setEditingIndex] = React.useState<number | null>(null)
+  const [editValue, setEditValue] = React.useState('')
+  const [showInput, setShowInput] = React.useState(false)
+  const inputRef = React.useRef<HTMLInputElement>(null)
+  const editInputRef = React.useRef<HTMLInputElement>(null)
+
+  // 自动聚焦输入框
+  React.useEffect(() => {
+    if (showInput && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [showInput])
+
+  React.useEffect(() => {
+    if (editingIndex !== null && editInputRef.current) {
+      editInputRef.current.focus()
+    }
+  }, [editingIndex])
+
+  // 类型转换函数
+  const convertValue = (value: string): string | number => {
+    if (dataType === 'numeric' || dataType === 'int' || dataType === 'float') {
+      const num = Number(value)
+      return isNaN(num) ? 0 : num
+    }
+    return value
+  }
+
+  // 验证输入值
+  const validateValue = (value: string): boolean => {
+    if (dataType === 'numeric' || dataType === 'int' || dataType === 'float') {
+      return !isNaN(Number(value))
+    }
+    return value.trim().length > 0
+  }
+
+  // 添加标签
+  const addTag = () => {
+    if (inputValue.trim() && validateValue(inputValue)) {
+      const newValues = [...values, convertValue(inputValue.trim())]
+      onChange(newValues)
+      setInputValue('')
+      setShowInput(false)
+    }
+  }
+
+  // 删除标签
+  const removeTag = (index: number) => {
+    const newValues = values.filter((_, i) => i !== index)
+    onChange(newValues)
+  }
+
+  // 开始编辑标签
+  const startEditing = (index: number) => {
+    setEditingIndex(index)
+    setEditValue(String(values[index]))
+  }
+
+  // 完成编辑
+  const finishEditing = () => {
+    if (editingIndex !== null && editValue.trim() && validateValue(editValue)) {
+      const newValues = [...values]
+      newValues[editingIndex] = convertValue(editValue.trim())
+      onChange(newValues)
+    }
+    setEditingIndex(null)
+    setEditValue('')
+  }
+
+  // 取消编辑
+  const cancelEditing = () => {
+    setEditingIndex(null)
+    setEditValue('')
+  }
+
+  // 处理键盘事件
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      addTag()
+    } else if (e.key === 'Escape') {
+      setShowInput(false)
+      setInputValue('')
+    }
+  }
+
+  const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      finishEditing()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      cancelEditing()
+    }
+  }
+
+  // 截断长文本
+  const truncateText = (text: string | number, maxLength: number = 15): string => {
+    const str = String(text)
+    return str.length > maxLength ? `${str.slice(0, maxLength)}...` : str
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 p-2 border rounded-md min-h-[40px]">
+      {/* 现有标签 */}
+      {values.map((value, index) => (
+        <div key={index} className="relative">
+          {editingIndex === index ? (
+            <Input
+              ref={editInputRef}
+              type={dataType === 'numeric' || dataType === 'int' || dataType === 'float' ? 'number' : 'text'}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={finishEditing}
+              onKeyDown={handleEditKeyDown}
+              className="h-6 w-20 text-xs"
+            />
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge
+                  variant="secondary"
+                  className="gap-1 cursor-pointer hover:bg-secondary/80"
+                  onDoubleClick={() => startEditing(index)}
+                >
+                  <span>{truncateText(value)}</span>
+                  <X
+                    className="h-3 w-3 cursor-pointer hover:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeTag(index)
+                    }}
+                  />
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{String(value)}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      ))}
+
+      {/* 添加按钮 */}
+      {showInput ? (
+        <Input
+          ref={inputRef}
+          type={dataType === 'numeric' || dataType === 'int' || dataType === 'float' ? 'number' : 'text'}
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onBlur={addTag}
+          onKeyDown={handleInputKeyDown}
+          placeholder={dataType === 'numeric' || dataType === 'int' || dataType === 'float' ? "输入数值" : "输入文本"}
+          className="h-6 w-24 text-xs"
+        />
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowInput(true)}
+          className="h-6 px-2 text-xs"
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          添加
+        </Button>
+      )}
+    </div>
   )
 }

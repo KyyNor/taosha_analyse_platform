@@ -189,9 +189,9 @@ export const OPERATOR_GROUPS: Record<string, OperatorOption[]> = {
     { value: 'in', label: '在集合内 (IN)', requiresMultiValue: true, requiresRegexp: false },
     { value: 'not in', label: '不在集合内 (NOT IN)', requiresMultiValue: true, requiresRegexp: false },
   ],
-  pattern: [
-    { value: 'regexp', label: '正则匹配 (REGEXP)', requiresMultiValue: false, requiresRegexp: true },
-    { value: 'not regexp', label: '正则不匹配 (NOT REGEXP)', requiresMultiValue: false, requiresRegexp: true },
+  inclusion: [
+    { value: 'regexp', label: '包含', requiresMultiValue: true, requiresRegexp: false },
+    { value: 'not regexp', label: '不包含', requiresMultiValue: true, requiresRegexp: false },
   ],
 }
 
