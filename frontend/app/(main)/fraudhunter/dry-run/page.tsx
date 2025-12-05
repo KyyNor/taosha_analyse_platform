@@ -123,17 +123,17 @@ export default function TasksPage() {
 
   // 操作处理
   const handleView = (item: TaskExecution) => {
-    router.push(`/fraudhunter/tasks/${item.execution_id}`);
+    router.push(`/fraudhunter/dry-run/${item.execution_id}`);
   };
 
   return (
     <div className="container mx-auto py-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">任务管理</h1>
-        <p className="text-muted-foreground">监控指标和模型的执行任务</p>
+        <h1 className="text-2xl font-bold">试运行任务详情</h1>
+        <p className="text-muted-foreground">监控指标和模型的执行试运行任务</p>
         {hasRunningTasks() && (
           <p className="text-sm text-blue-600 mt-2">
-            ⏱️ 检测到运行中的任务，自动刷新已启用（每5秒）
+            ⏱️ 检测到运行中的试运行任务，自动刷新已启用（每5秒）
           </p>
         )}
       </div>
@@ -142,12 +142,12 @@ export default function TasksPage() {
       <div className="flex gap-4 mb-4">
         <Select value={taskTypeFilter} onValueChange={setTaskTypeFilter}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="任务类型筛选" />
+            <SelectValue placeholder="试运行任务类型筛选" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部类型</SelectItem>
-            <SelectItem value="indicator_task">指标任务</SelectItem>
-            <SelectItem value="indicator">指标</SelectItem>
+            <SelectItem value="indicator_task">指标任务试运行</SelectItem>
+            <SelectItem value="indicator">指标试运行</SelectItem>
           </SelectContent>
         </Select>
 

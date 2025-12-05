@@ -55,21 +55,22 @@ class TaskManager:
         db.add(task_execution)
         db.commit()
 
-        # 创建异步任务
+        # 创建异步任务，将 task_id 也传递给任务函数
         task = asyncio.create_task(
-            self._run_task(execution_id, task_func, **kwargs)
+            self._run_task(execution_id, task_func, task_id, **kwargs)
         )
         self.running_tasks[execution_id] = task
 
         logger.info(f"任务已提交: {execution_id}, 类型: {task_type}")
         return execution_id
 
-    async def _run_task(self, execution_id: str, task_func: Callable, **kwargs) -> None:
+    async def _run_task(self, execution_id: str, task_func: Callable, task_id: int, **kwargs) -> None:
         """执行任务
 
         Args:
             execution_id: 任务执行ID
             task_func: 任务执行函数
+            task_id: 任务关联ID
             **kwargs: 传递给任务函数的参数
         """
         with get_db_session() as db:
@@ -89,8 +90,8 @@ class TaskManager:
 
                 logger.info(f"开始执行任务: {execution_id}")
 
-                # 执行任务
-                result = await task_func(db, execution_id, **kwargs)
+                # 执行任务，传递 task_id 作为参数
+                result = await task_func(db, execution_id, task_id, **kwargs)
 
                 # 更新任务状态为成功
                 task_execution.status = 'success'
