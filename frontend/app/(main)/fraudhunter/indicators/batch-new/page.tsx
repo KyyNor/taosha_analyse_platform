@@ -659,28 +659,43 @@ export default function BatchNewIndicatorPage() {
                     </p>
                   </div>
 
-                  {validationResult.validation_details && (
+                  {validationResult.validation_details?.field_validation && (
                     <div>
                       <h4 className="font-medium mb-2">字段验证详情：</h4>
                       <div className="space-y-2 text-sm">
-                        <div><strong>必需字段：</strong> {validationResult.validation_details.required_fields.join(", ")}</div>
-                        <div><strong>实际字段：</strong> {validationResult.validation_details.actual_fields.join(", ")}</div>
-                        {validationResult.validation_details.missing_fields.length > 0 && (
-                          <div className="text-red-600"><strong>缺失字段：</strong> {validationResult.validation_details.missing_fields.join(", ")}</div>
+                        <div className={validationResult.validation_details.field_validation.valid ? "text-green-600" : "text-red-600"}>
+                          <strong>验证状态：</strong> {validationResult.validation_details.field_validation.valid ? "✅ 通过" : "❌ 失败"}
+                        </div>
+                        <div><strong>必需字段：</strong> {validationResult.validation_details.field_validation.required_fields.join(", ")}</div>
+                        <div><strong>实际字段：</strong> {validationResult.validation_details.field_validation.actual_fields.join(", ")}</div>
+                        {validationResult.validation_details.field_validation.missing_fields.length > 0 && (
+                          <div className="text-red-600"><strong>缺失字段：</strong> {validationResult.validation_details.field_validation.missing_fields.join(", ")}</div>
                         )}
-                        {validationResult.validation_details.extra_fields.length > 0 && (
-                          <div className="text-orange-600"><strong>多余字段：</strong> {validationResult.validation_details.extra_fields.join(", ")}</div>
+                        {validationResult.validation_details.field_validation.extra_fields.length > 0 && (
+                          <div className="text-orange-600"><strong>多余字段：</strong> {validationResult.validation_details.field_validation.extra_fields.join(", ")}</div>
                         )}
+                        <div><strong>关联指标编码：</strong> {validationResult.validation_details.field_validation.indicator_codes.join(", ")}</div>
                       </div>
                     </div>
                   )}
 
-                  {validationResult.sample_results && (
+                  {validationResult.validation_details?.processed_sql && (
+                    <div>
+                      <h4 className="font-medium mb-2">处理后的SQL：</h4>
+                      <div className="bg-gray-50 p-3 rounded-md">
+                        <pre className="text-xs overflow-x-auto whitespace-pre-wrap">
+                          {validationResult.validation_details.processed_sql}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+
+                  {validationResult.validation_details?.sample_result && (
                     <div>
                       <h4 className="font-medium mb-2">样本数据（前3条）：</h4>
                       <div className="bg-gray-50 p-3 rounded-md">
                         <pre className="text-xs overflow-x-auto">
-                          {JSON.stringify(validationResult.sample_results.slice(0, 3), null, 2)}
+                          {JSON.stringify(validationResult.validation_details.sample_result.slice(0, 3), null, 2)}
                         </pre>
                       </div>
                     </div>
