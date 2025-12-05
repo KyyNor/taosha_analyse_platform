@@ -289,71 +289,71 @@ SQL语句:
             'log_content': log_content
         }
 
-  async def validate_task_logic(
-        self,
-        db: Session,
-        task_data: IndicatorTaskCreate,
-        indicator_ids: List[int],
-        etl_date: Optional[str] = None,
-        sample_size: int = 10
-    ) -> Dict[str, Any]:
-        """验证任务逻辑（不需要创建任务）
+    async def validate_task_logic(
+            self,
+            db: Session,
+            task_data: IndicatorTaskCreate,
+            indicator_ids: List[int],
+            etl_date: Optional[str] = None,
+            sample_size: int = 10
+        ) -> Dict[str, Any]:
+            """验证任务逻辑（不需要创建任务）
 
-        在创建任务前验证SQL逻辑和字段输出
+            在创建任务前验证SQL逻辑和字段输出
 
-        Args:
-            db: 数据库会话
-            task_data: 任务数据
-            indicator_ids: 关联的指标ID列表
-            etl_date: ETL日期，如果为None则使用昨天
-            sample_size: 样本大小
+            Args:
+                db: 数据库会话
+                task_data: 任务数据
+                indicator_ids: 关联的指标ID列表
+                etl_date: ETL日期，如果为None则使用昨天
+                sample_size: 样本大小
 
-        Returns:
-            验证结果
-        """
-        if etl_date is None:
-            etl_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+            Returns:
+                验证结果
+            """
+            if etl_date is None:
+                etl_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
 
-        logger.info(f"开始验证任务逻辑，关联 {len(indicator_ids)} 个指标")
+            logger.info(f"开始验证任务逻辑，关联 {len(indicator_ids)} 个指标")
 
-        # 替换SQL中的日期变量
-        processed_sql = self._replace_date_variables(task_data.logic_content, etl_date)
+            # 替换SQL中的日期变量
+            processed_sql = self._replace_date_variables(task_data.logic_content, etl_date)
 
-        # 获取关联的指标编码
-        indicators = db.query(FraudHunterIndicatorDefinition).filter(
-            FraudHunterIndicatorDefinition.id.in_(indicator_ids)
-        ).all()
+            # 获取关联的指标编码
+            indicators = db.query(FraudHunterIndicatorDefinition).filter(
+                FraudHunterIndicatorDefinition.id.in_(indicator_ids)
+            ).all()
 
-        if len(indicators) != len(indicator_ids):
-            found_ids = [ind.id for ind in indicators]
-            missing_ids = set(indicator_ids) - set(found_ids)
-            raise ValueError(f"指标不存在: {missing_ids}")
+            if len(indicators) != len(indicator_ids):
+                found_ids = [ind.id for ind in indicators]
+                missing_ids = set(indicator_ids) - set(found_ids)
+                raise ValueError(f"指标不存在: {missing_ids}")
 
-        indicator_codes = [ind.indicator_code for ind in indicators]
+            indicator_codes = [ind.indicator_code for ind in indicators]
 
-        # 模拟SQL执行
-        result = await self._mock_spark_execution(
-            processed_sql,
-            etl_date,
-            sample_size,
-            indicator_codes
-        )
+            # 模拟SQL执行
+            result = await self._mock_spark_execution(
+                processed_sql,
+                etl_date,
+                sample_size,
+                indicator_codes
+            )
 
-        # 字段验证
-        validation_result = self._validate_output_fields(
-            result['sample_result'], indicator_ids, db
-        )
+            # 字段验证
+            validation_result = self._validate_output_fields(
+                result['sample_result'], indicator_ids, db
+            )
 
-        return {
-            'sql_valid': True,
-            'execution_success': True,
-            'field_validation': validation_result,
-            'sample_result': result['sample_result'],
-            'processed_sql': processed_sql,
-            'execution_time_seconds': result['duration_seconds'],
-            'etl_date_used': etl_date,
-            'indicator_codes': indicator_codes
-        }
+            return {
+                'sql_valid': True,
+                'execution_success': True,
+                'field_validation': validation_result,
+                'sample_result': result['sample_result'],
+                'processed_sql': processed_sql,
+                'execution_time_seconds': result['duration_seconds'],
+                'etl_date_used': etl_date,
+                'indicator_codes': indicator_codes
+            }
 
     async def execute_production(
         self,

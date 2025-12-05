@@ -595,7 +595,7 @@ export default function BatchNewIndicatorPage() {
                 <Textarea
                   value={taskData.logic_content}
                   onChange={(e) => setTaskData({ ...taskData, logic_content: e.target.value })}
-                  placeholder={`SELECT target_id, etl_date, ${createdIndicators.map(ind => ind.indicator_code).join(', ')} FROM your_table\nWHERE dt = '${date}' -- ${date} 会被替换为实际日期`}
+                  placeholder={'sql'}
                   rows={8}
                   className="font-mono text-sm"
                 />
@@ -731,27 +731,60 @@ export default function BatchNewIndicatorPage() {
 
       {/* 步骤4：任务创建成功 */}
       {currentStep === 4 && finalResult && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-                <Check className="h-6 w-6 text-green-600" />
+        <>
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-green-600">任务创建成功！</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-center p-6 bg-green-50 rounded-lg">
+                  <div className="text-center">
+                    <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+                      <Check className="h-8 w-8 text-green-600" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">任务创建成功！</h3>
+                    <p className="text-gray-600">预执行验证已通过，指标任务已成功创建</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <h4 className="font-medium mb-2">任务信息</h4>
+                    <div className="space-y-2 text-sm">
+                      <div><strong>任务编码:</strong> {finalResult.task_code}</div>
+                      <div><strong>任务名称:</strong> {finalResult.task_name}</div>
+                      <div><strong>关联指标数量:</strong> {finalResult.indicator_count}</div>
+                      <div><strong>预执行验证:</strong> <span className="text-green-600">已通过</span></div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <h4 className="font-medium mb-2">关联的指标</h4>
+                    <div className="space-y-2 text-sm max-h-32 overflow-y-auto">
+                      {createdIndicators.map((indicator, idx) => (
+                        <div key={idx} className="flex justify-between">
+                          <span>{indicator.indicator_code}</span>
+                          <span className="text-muted-foreground">{indicator.indicator_name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">任务创建成功！</h3>
-              <div className="text-sm text-gray-600 space-y-1">
-                <p>任务编码: {finalResult.task_code}</p>
-                <p>任务名称: {finalResult.task_name}</p>
-                <p>关联指标数量: {finalResult.indicator_count}</p>
-                <p>预执行验证: 已通过</p>
-              </div>
-              <div className="mt-6">
-                <Button onClick={handleFinish} className="w-full">
-                  完成
-                </Button>
-              </div>
-            </div>
+            </CardContent>
+          </Card>
+
+          {/* 操作按钮 */}
+          <div className="flex justify-center gap-4">
+            <Button variant="outline" onClick={() => router.push("/fraudhunter/indicators")}>
+              返回指标列表
+            </Button>
+            <Button onClick={handleFinish}>
+              完成
+            </Button>
           </div>
-        </div>
+        </>
       )}
 
       {/* 最终结果（兼容旧版本） */}
