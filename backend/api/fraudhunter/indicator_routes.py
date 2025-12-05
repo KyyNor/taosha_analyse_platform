@@ -12,6 +12,8 @@ from schemas.fraudhunter.indicator import (
     IndicatorResponse,
     IndicatorListResponse,
     PublishRequest,
+    IndicatorTaskBatchCreate,
+    IndicatorBatchCreateResponse,
 )
 from services.fraudhunter.indicator_service import IndicatorManager
 from utils.logger import logger
@@ -48,6 +50,41 @@ async def create_indicator(
     except Exception as e:
         logger.error(f"创建指标失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"创建指标失败: {str(e)}")
+
+
+@router.post("/batch", response_model=IndicatorBatchCreateResponse, summary="批量创建指标")
+async def batch_create_indicators(
+    batch_data: IndicatorTaskBatchCreate,
+    db: Session = Depends(get_db)
+):
+    """批量创建指标
+
+    支持两种模式：
+    1. 为现有指标任务批量创建指标（提供 indicator_task_id）
+    2. 新建指标任务并批量创建指标（提供 new_task）
+
+    参数:
+    - indicator_task_id: 现有指标任务ID（与new_task二选一）
+    - new_task: 新建指标任务数据（与indicator_task_id二选一）
+    - indicators: 指标列表（1-50个）
+
+    返回:
+    - 批量创建结果，包含每个指标的成功/失败状态
+    """
+    try:
+        manager = IndicatorManager(db)
+        result = manager.batch_create_indicators(
+            batch_data,
+            created_by="system"
+        )
+
+        return result
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"批量创建指标失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"批量创建指标失败: {str(e)}")
 
 
 @router.get("", response_model=IndicatorListResponse, summary="获取指标列表")

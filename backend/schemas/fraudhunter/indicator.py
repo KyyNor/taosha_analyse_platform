@@ -12,7 +12,7 @@ import json
 
 class IndicatorTaskBase(BaseModel):
     """指标任务基础模型"""
-    task_code: str = Field(..., min_length=1, max_length=64, description="指标任务编码")
+    task_code: Optional[str] = Field(None, max_length=64, description="指标任务编码（留空自动生成）")
     task_name: str = Field(..., min_length=1, max_length=128, description="指标任务名称")
     description: Optional[str] = Field(None, description="描述")
     logic_type: str = Field("sql", description="逻辑类型：sql/pyspark")
@@ -60,7 +60,7 @@ class IndicatorTaskListResponse(BaseModel):
 
 class IndicatorBase(BaseModel):
     """指标基础模型"""
-    indicator_code: str = Field(..., min_length=1, max_length=64, description="指标编码")
+    indicator_code: Optional[str] = Field(None, max_length=64, description="指标编码（留空自动生成）")
     indicator_name: str = Field(..., min_length=1, max_length=128, description="指标名称")
     indicator_type: str = Field(..., description="指标类型：offline/realtime")
     object_type: str = Field(..., description="对象类型：cust_no/dep_acct_no/loan_acct_no")
@@ -138,6 +138,101 @@ class IndicatorListResponse(BaseModel):
     page: int
     page_size: int
     items: List[IndicatorResponse]
+
+
+# ==================== 批量创建相关 ====================
+
+class IndicatorBatchCreateItem(BaseModel):
+    """批量创建中的单个指标"""
+    indicator_name: str = Field(..., min_length=1, max_length=128, description="指标名称")
+    indicator_type: str = Field(..., description="指标类型：offline/realtime")
+    object_type: str = Field(..., description="对象类型：cust_no/dep_acct_no/loan_acct_no")
+    description: Optional[str] = Field(None, description="指标描述")
+    data_type: str = Field(..., description="数据类型：numeric/enum/text/boolean")
+    enum_values: Optional[str] = Field(None, description="枚举值（JSON数组格式）")
+
+    @field_validator('indicator_type')
+    @classmethod
+    def validate_indicator_type(cls, v):
+        if v not in ['offline', 'realtime']:
+            raise ValueError('indicator_type必须是offline或realtime')
+        return v
+
+    @field_validator('object_type')
+    @classmethod
+    def validate_object_type(cls, v):
+        if v not in ['cust_no', 'dep_acct_no', 'loan_acct_no']:
+            raise ValueError('object_type必须是cust_no、dep_acct_no或loan_acct_no')
+        return v
+
+    @field_validator('data_type')
+    @classmethod
+    def validate_data_type(cls, v):
+        if v not in ['numeric', 'enum', 'text', 'boolean']:
+            raise ValueError('data_type必须是numeric、enum、text或boolean')
+        return v
+
+    @field_validator('enum_values')
+    @classmethod
+    def validate_enum_values(cls, v, info):
+        if v is not None and info.data.get('data_type') == 'enum':
+            try:
+                values = json.loads(v)
+                if not isinstance(values, list):
+                    raise ValueError('enum_values必须是JSON数组格式')
+            except json.JSONDecodeError:
+                raise ValueError('enum_values必须是有效的JSON数组')
+        return v
+
+
+class IndicatorTaskBatchCreate(BaseModel):
+    """批量创建指标请求模型"""
+    # 指标任务相关（二选一）
+    indicator_task_id: Optional[int] = Field(None, description="现有指标任务ID")
+    new_task: Optional[IndicatorTaskCreate] = Field(None, description="新建指标任务数据")
+
+    # 批量指标数据
+    indicators: List[IndicatorBatchCreateItem] = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="指标列表（1-50个）"
+    )
+
+    @field_validator('indicators')
+    @classmethod
+    def validate_indicators(cls, v):
+        if not v or len(v) == 0:
+            raise ValueError('指标列表不能为空')
+        if len(v) > 50:
+            raise ValueError('单次最多创建50个指标')
+        return v
+
+    def model_post_init(self, __context):
+        """验证必须提供任务ID或新建任务数据之一"""
+        if not self.indicator_task_id and not self.new_task:
+            raise ValueError('必须提供indicator_task_id或new_task之一')
+        if self.indicator_task_id and self.new_task:
+            raise ValueError('不能同时提供indicator_task_id和new_task')
+
+
+class IndicatorBatchCreateResult(BaseModel):
+    """批量创建中单个指标的结果"""
+    index: int = Field(..., description="指标在列表中的索引")
+    success: bool = Field(..., description="是否创建成功")
+    indicator: Optional[IndicatorResponse] = Field(None, description="创建成功的指标")
+    error: Optional[str] = Field(None, description="错误信息")
+
+
+class IndicatorBatchCreateResponse(BaseModel):
+    """批量创建响应模型"""
+    task_id: int = Field(..., description="指标任务ID（新建或现有）")
+    task_code: str = Field(..., description="指标任务编码")
+    task_name: str = Field(..., description="指标任务名称")
+    total: int = Field(..., description="总共尝试创建的指标数")
+    success_count: int = Field(..., description="成功创建的指标数")
+    failed_count: int = Field(..., description="失败的指标数")
+    results: List[IndicatorBatchCreateResult] = Field(..., description="每个指标的创建结果")
 
 
 # ==================== 试运行相关 ====================

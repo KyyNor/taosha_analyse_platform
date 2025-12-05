@@ -21,7 +21,7 @@ export interface IndicatorTask {
 }
 
 export interface IndicatorTaskCreate {
-  task_code: string;
+  task_code?: string;
   task_name: string;
   description?: string;
   logic_type?: string;
@@ -64,7 +64,7 @@ export interface Indicator {
 }
 
 export interface IndicatorCreate {
-  indicator_code: string;
+  indicator_code?: string;
   indicator_name: string;
   indicator_type: string;
   object_type: string;
@@ -87,6 +87,39 @@ export interface IndicatorListResponse {
   page: number;
   page_size: number;
   items: Indicator[];
+}
+
+// ============ 批量创建相关类型定义 ============
+export interface IndicatorBatchCreateItem {
+  indicator_name: string;
+  indicator_type: string;
+  object_type: string;
+  description?: string;
+  data_type: string;
+  enum_values?: string;
+}
+
+export interface IndicatorTaskBatchCreate {
+  indicator_task_id?: number;
+  new_task?: IndicatorTaskCreate;
+  indicators: IndicatorBatchCreateItem[];
+}
+
+export interface IndicatorBatchCreateResult {
+  index: number;
+  success: boolean;
+  indicator?: Indicator;
+  error?: string;
+}
+
+export interface IndicatorBatchCreateResponse {
+  task_id: number;
+  task_code: string;
+  task_name: string;
+  total: number;
+  success_count: number;
+  failed_count: number;
+  results: IndicatorBatchCreateResult[];
 }
 
 // ============ 任务相关类型定义 ============
@@ -247,6 +280,12 @@ export const indicatorService = {
   // 归档指标
   async archive(id: number): Promise<Indicator> {
     const response = await api.post(`${BASE_PATH}/indicators/${id}/archive`);
+    return response.data;
+  },
+
+  // 批量创建指标
+  async batchCreate(data: IndicatorTaskBatchCreate): Promise<IndicatorBatchCreateResponse> {
+    const response = await api.post(`${BASE_PATH}/indicators/batch`, data);
     return response.data;
   },
 };

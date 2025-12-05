@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MetadataTable } from "@/components/ui/MetadataTable";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ListPlus } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -141,6 +143,10 @@ export default function IndicatorsPage() {
     router.push("/fraudhunter/indicators/new");
   };
 
+  const handleBatchCreate = () => {
+    router.push("/fraudhunter/indicators/batch-new");
+  };
+
   const handleDelete = async (item: Indicator) => {
     try {
       await indicatorService.delete(item.id);
@@ -153,9 +159,15 @@ export default function IndicatorsPage() {
 
   return (
     <div className="container mx-auto py-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">指标管理</h1>
-        <p className="text-muted-foreground">管理反诈指标定义</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">指标管理</h1>
+          <p className="text-muted-foreground">管理反诈指标定义</p>
+        </div>
+        <Button onClick={handleBatchCreate} variant="outline">
+          <ListPlus className="h-4 w-4 mr-2" />
+          批量创建
+        </Button>
       </div>
 
       {/* 筛选器 */}

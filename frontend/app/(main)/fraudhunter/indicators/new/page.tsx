@@ -25,7 +25,7 @@ export default function NewIndicatorPage() {
     indicator_code: "",
     indicator_name: "",
     indicator_type: "offline",
-    object_type: "cust_no",
+    object_type: "dep_acct_no",
     description: "",
     data_type: "numeric",
     enum_values: "",
@@ -48,12 +48,6 @@ export default function NewIndicatorPage() {
   // 表单验证
   const validateForm = () => {
     const errors: string[] = [];
-
-    if (!formData.indicator_code?.trim()) {
-      errors.push("指标编码不能为空");
-    } else if (formData.indicator_code.length > 64) {
-      errors.push("指标编码不能超过64个字符");
-    }
 
     if (!formData.indicator_name?.trim()) {
       errors.push("指标名称不能为空");
@@ -156,20 +150,6 @@ export default function NewIndicatorPage() {
           <CardTitle>基本信息</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="indicator-code">指标编码 *</Label>
-            <Input
-              id="indicator-code"
-              value={formData.indicator_code}
-              onChange={(e) => updateField("indicator_code", e.target.value)}
-              placeholder="如: login_freq_7d"
-              maxLength={64}
-            />
-            <p className="text-sm text-muted-foreground mt-1">
-              唯一标识，1-64个字符
-            </p>
-          </div>
-
           <div>
             <Label htmlFor="indicator-name">指标名称 *</Label>
             <Input
