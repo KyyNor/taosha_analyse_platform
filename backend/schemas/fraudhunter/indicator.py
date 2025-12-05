@@ -63,6 +63,7 @@ class IndicatorBase(BaseModel):
     indicator_code: str = Field(..., min_length=1, max_length=64, description="指标编码")
     indicator_name: str = Field(..., min_length=1, max_length=128, description="指标名称")
     indicator_type: str = Field(..., description="指标类型：offline/realtime")
+    object_type: str = Field(..., description="对象类型：cust_no/dep_acct_no/loan_acct_no")
     description: Optional[str] = Field(None, description="指标描述")
     data_type: str = Field(..., description="数据类型：numeric/enum/text/boolean")
     enum_values: Optional[str] = Field(None, description="枚举值（JSON数组格式）")
@@ -73,6 +74,13 @@ class IndicatorBase(BaseModel):
     def validate_indicator_type(cls, v):
         if v not in ['offline', 'realtime']:
             raise ValueError('indicator_type必须是offline或realtime')
+        return v
+
+    @field_validator('object_type')
+    @classmethod
+    def validate_object_type(cls, v):
+        if v not in ['cust_no', 'dep_acct_no', 'loan_acct_no']:
+            raise ValueError('object_type必须是cust_no、dep_acct_no或loan_acct_no')
         return v
 
     @field_validator('data_type')
@@ -104,6 +112,7 @@ class IndicatorUpdate(BaseModel):
     """更新指标请求模型"""
     indicator_name: Optional[str] = Field(None, min_length=1, max_length=128)
     description: Optional[str] = None
+    object_type: Optional[str] = None
     data_type: Optional[str] = None
     enum_values: Optional[str] = None
 

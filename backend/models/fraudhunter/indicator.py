@@ -105,6 +105,7 @@ class FraudHunterIndicatorDefinition(Base):
     indicator_code = Column(String(64), unique=True, nullable=False, comment='指标编码')
     indicator_name = Column(String(128), nullable=False, comment='指标名称')
     indicator_type = Column(String(16), nullable=False, comment='指标类型：offline/realtime')
+    object_type = Column(String(32), nullable=False, default='cust_no', comment='对象类型：cust_no/dep_acct_no/loan_acct_no')
     description = Column(Text, comment='指标描述')
 
     # 数据类型
@@ -137,6 +138,7 @@ class FraudHunterIndicatorDefinition(Base):
         Index('idx_fh_indicator_task_id', 'indicator_task_id'),
         Index('idx_fh_indicator_status', 'status'),
         Index('idx_fh_indicator_type', 'indicator_type'),
+        Index('idx_fh_indicator_object_type', 'object_type'),
     )
 
     def __repr__(self):
@@ -156,6 +158,7 @@ class FraudHunterIndicatorHistory(Base):
     indicator_code = Column(String(64), nullable=False, comment='指标编码')
     indicator_name = Column(String(128), nullable=False, comment='指标名称')
     indicator_type = Column(String(16), nullable=False, comment='指标类型')
+    object_type = Column(String(32), comment='对象类型')
     description = Column(Text, comment='描述')
     data_type = Column(String(16), comment='数据类型')
     enum_values = Column(Text, comment='枚举值')

@@ -49,6 +49,7 @@ export interface Indicator {
   indicator_code: string;
   indicator_name: string;
   indicator_type: string;
+  object_type: string;
   description?: string;
   data_type: string;
   enum_values?: string;
@@ -66,6 +67,7 @@ export interface IndicatorCreate {
   indicator_code: string;
   indicator_name: string;
   indicator_type: string;
+  object_type: string;
   description?: string;
   data_type: string;
   enum_values?: string;
@@ -75,6 +77,7 @@ export interface IndicatorCreate {
 export interface IndicatorUpdate {
   indicator_name?: string;
   description?: string;
+  object_type?: string;
   data_type?: string;
   enum_values?: string;
 }
@@ -205,6 +208,7 @@ export const indicatorService = {
     page_size?: number;
     status?: string;
     indicator_type?: string;
+    object_type?: string;
     indicator_task_id?: number;
   }): Promise<IndicatorListResponse> {
     const response = await api.get(`${BASE_PATH}/indicators`, { params });

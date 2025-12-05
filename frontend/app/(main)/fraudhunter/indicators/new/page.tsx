@@ -25,6 +25,7 @@ export default function NewIndicatorPage() {
     indicator_code: "",
     indicator_name: "",
     indicator_type: "offline",
+    object_type: "cust_no",
     description: "",
     data_type: "numeric",
     enum_values: "",
@@ -62,6 +63,10 @@ export default function NewIndicatorPage() {
 
     if (!formData.indicator_type) {
       errors.push("请选择指标类型");
+    }
+
+    if (!formData.object_type) {
+      errors.push("请选择对象类型");
     }
 
     if (!formData.data_type) {
@@ -210,6 +215,28 @@ export default function NewIndicatorPage() {
               </p>
             </div>
 
+            <div>
+              <Label htmlFor="object-type">对象类型 *</Label>
+              <Select
+                value={formData.object_type}
+                onValueChange={(value) => updateField("object_type", value)}
+              >
+                <SelectTrigger id="object-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cust_no">客户号</SelectItem>
+                  <SelectItem value="dep_acct_no">存款账号</SelectItem>
+                  <SelectItem value="loan_acct_no">贷款账号</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground mt-1">
+                指标计算的对象类型
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="indicator-task">关联指标任务 *</Label>
               <Select

@@ -108,6 +108,7 @@ class IndicatorManager:
         page_size: int = 20,
         status: Optional[str] = None,
         indicator_type: Optional[str] = None,
+        object_type: Optional[str] = None,
         indicator_task_id: Optional[int] = None,
         indicator_code: Optional[str] = None
     ) -> tuple[List[FraudHunterIndicatorDefinition], int]:
@@ -118,6 +119,7 @@ class IndicatorManager:
             page_size: 每页数量
             status: 状态筛选
             indicator_type: 指标类型筛选
+            object_type: 对象类型筛选
             indicator_task_id: 指标组ID筛选
             indicator_code: 编码筛选（模糊匹配）
 
@@ -133,6 +135,10 @@ class IndicatorManager:
         # 类型筛选
         if indicator_type:
             query = query.filter(FraudHunterIndicatorDefinition.indicator_type == indicator_type)
+
+        # 对象类型筛选
+        if object_type:
+            query = query.filter(FraudHunterIndicatorDefinition.object_type == object_type)
 
         # 指标任务筛选
         if indicator_task_id:
@@ -342,6 +348,7 @@ class IndicatorManager:
             indicator_code=indicator.indicator_code,
             indicator_name=indicator.indicator_name,
             indicator_type=indicator.indicator_type,
+            object_type=indicator.object_type,
             description=indicator.description,
             data_type=indicator.data_type,
             enum_values=indicator.enum_values,
