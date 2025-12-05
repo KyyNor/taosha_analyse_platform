@@ -231,7 +231,8 @@ export default function BatchNewIndicatorPage() {
       setValidationResult(result);
 
       if (result.success) {
-        setCurrentStep(4); // 验证通过，进入第4步创建任务
+        // 验证通过，但不自动跳转，等待用户点击创建任务
+        // 显示创建任务按钮
       } else {
         alert("预执行验证失败: " + result.message);
       }
@@ -604,18 +605,6 @@ export default function BatchNewIndicatorPage() {
                 </p>
               </div>
               <div>
-                <Label>ETL日期（可选，默认为昨天）</Label>
-                <Input
-                  type="date"
-                  value={etlDate}
-                  onChange={(e) => setEtlDate(e.target.value)}
-                  placeholder="留空使用昨天的日期"
-                />
-                <p className="text-sm text-muted-foreground mt-1">
-                  验证时使用的日期，留空则默认为昨天
-                </p>
-              </div>
-              <div>
                 <Label>依赖源表</Label>
                 <Input
                   value={taskData.source_tables}
@@ -785,29 +774,6 @@ export default function BatchNewIndicatorPage() {
             </Button>
           </div>
         </>
-      )}
-
-      {/* 最终结果（兼容旧版本） */}
-      {finalResult && currentStep !== 4 && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-                <Check className="h-6 w-6 text-green-600" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">创建成功！</h3>
-              <div className="text-sm text-gray-600 space-y-1">
-                <p>任务编码: {finalResult.task_code}</p>
-                <p>关联指标数量: {finalResult.indicator_ids.length}</p>
-              </div>
-              <div className="mt-6">
-                <Button onClick={handleFinish} className="w-full">
-                  完成
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

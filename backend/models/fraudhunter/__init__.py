@@ -7,6 +7,7 @@ from .indicator import (
     FraudHunterIndicatorTaskHistory,
     FraudHunterIndicatorDefinition,
     FraudHunterIndicatorHistory,
+    FraudHunterSequenceCounter,
 )
 from .model import (
     FraudHunterModelDefinition,
@@ -26,4 +27,5 @@ __all__ = [
     'FraudHunterModelHistory',
     'FraudHunterTaskExecution',
     'FraudHunterTaskExecutionRecord',
+    'FraudHunterSequenceCounter'
 ]
