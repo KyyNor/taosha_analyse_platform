@@ -14,13 +14,13 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { indicatorService, indicatorGroupService } from "@/lib/services/fraudhunterService";
-import type { IndicatorCreate, IndicatorGroup } from "@/lib/services/fraudhunterService";
+import { indicatorService, indicatorTaskService } from "@/lib/services/fraudhunterService";
+import type { IndicatorCreate, IndicatorTask } from "@/lib/services/fraudhunterService";
 
 export default function NewIndicatorPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
-  const [indicatorGroups, setIndicatorGroups] = useState<IndicatorGroup[]>([]);
+  const [IndicatorTasks, setIndicatorTasks] = useState<IndicatorTask[]>([]);
   const [formData, setFormData] = useState<IndicatorCreate>({
     indicator_code: "",
     indicator_name: "",
@@ -28,20 +28,20 @@ export default function NewIndicatorPage() {
     description: "",
     data_type: "numeric",
     enum_values: "",
-    indicator_group_id: 0
+    indicator_task_id: 0
   });
 
-  // 加载指标组列表
+  // 加载指标任务列表
   useEffect(() => {
-    const loadIndicatorGroups = async () => {
+    const loadIndicatorTasks = async () => {
       try {
-        const response = await indicatorGroupService.list({});
-        setIndicatorGroups(response.items || []);
+        const response = await indicatorTaskService.list({});
+        setIndicatorTasks(response.items || []);
       } catch (error) {
-        console.error("Failed to load indicator groups:", error);
+        console.error("Failed to load indicator tasks:", error);
       }
     };
-    loadIndicatorGroups();
+    loadIndicatorTasks();
   }, []);
 
   // 表单验证
@@ -83,8 +83,8 @@ export default function NewIndicatorPage() {
       }
     }
 
-    if (!formData.indicator_group_id || formData.indicator_group_id === 0) {
-      errors.push("请选择关联的指标组");
+    if (!formData.indicator_task_id || formData.indicator_task_id === 0) {
+      errors.push("请选择关联的指标任务");
     }
 
     return errors;
@@ -211,24 +211,24 @@ export default function NewIndicatorPage() {
             </div>
 
             <div>
-              <Label htmlFor="indicator-group">关联指标组 *</Label>
+              <Label htmlFor="indicator-task">关联指标任务 *</Label>
               <Select
-                value={String(formData.indicator_group_id)}
-                onValueChange={(value) => updateField("indicator_group_id", Number(value))}
+                value={String(formData.indicator_task_id)}
+                onValueChange={(value) => updateField("indicator_task_id", Number(value))}
               >
-                <SelectTrigger id="indicator-group">
-                  <SelectValue placeholder="选择指标组" />
+                <SelectTrigger id="indicator-task">
+                  <SelectValue placeholder="选择指标任务" />
                 </SelectTrigger>
                 <SelectContent>
-                  {indicatorGroups.map((group) => (
-                    <SelectItem key={group.id} value={String(group.id)}>
-                      {group.group_name}
+                  {IndicatorTasks.map((task) => (
+                    <SelectItem key={task.id} value={String(task.id)}>
+                      {task.task_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="text-sm text-muted-foreground mt-1">
-                指标所属的指标组
+                指标所属的指标任务
               </p>
             </div>
           </div>

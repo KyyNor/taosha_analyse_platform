@@ -28,7 +28,7 @@ const navItems: NavItem[] = [
     type: 'dropdown',
     label: "猎诈",
     items: [
-      { href: "/fraudhunter/indicator-groups", label: "指标组" },
+      { href: "/fraudhunter/indicator-tasks", label: "指标任务" },
       { href: "/fraudhunter/indicators", label: "指标" },
       { href: "/fraudhunter/tasks", label: "任务" }
     ]

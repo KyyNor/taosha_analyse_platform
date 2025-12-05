@@ -120,7 +120,7 @@ export default function IndicatorTaskDetailPage() {
       // 成功
       alert("保存成功");
       await loadData();
-      router.push(`/fraudhunter/indicator-groups/${taskId}`);
+      router.push(`/fraudhunter/indicator-tasks/${taskId}`);
     } catch (error: any) {
       console.error("Failed to update indicator task:", error);
       // 仅处理网络错误或500错误
@@ -135,12 +135,12 @@ export default function IndicatorTaskDetailPage() {
     if (hasChanges && !confirm("确定要取消吗？未保存的更改将丢失")) {
       return;
     }
-    router.push(`/fraudhunter/indicator-groups/${taskId}`);
+    router.push(`/fraudhunter/indicator-tasks/${taskId}`);
   };
 
   // 进入编辑模式
   const handleEdit = () => {
-    router.push(`/fraudhunter/indicator-groups/${taskId}?mode=edit`);
+    router.push(`/fraudhunter/indicator-tasks/${taskId}?mode=edit`);
   };
 
   // 试运行
@@ -205,7 +205,7 @@ export default function IndicatorTaskDetailPage() {
         <div className="flex items-center gap-4">
           <Button
             variant="outline"
-            onClick={() => router.push("/fraudhunter/indicator-groups")}
+            onClick={() => router.push("/fraudhunter/indicator-tasks")}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             返回

@@ -25,7 +25,7 @@ from .task import (
 )
 
 __all__ = [
-    # 指标组相关
+    # 指标任务相关
     'IndicatorTaskBase',
     'IndicatorTaskCreate',
     'IndicatorTaskUpdate',

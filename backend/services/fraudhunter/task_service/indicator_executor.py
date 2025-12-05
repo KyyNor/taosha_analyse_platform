@@ -21,36 +21,36 @@ class IndicatorExecutor:
         self,
         db: Session,
         execution_id: str,
-        group_id: int,
+        task_id: int,
         etl_date: str,
         sample_size: int = 100,
-        group_version: int = None
+        task_version: int = None
     ) -> Dict[str, Any]:
-        """执行指标组试运行（模拟）
+        """执行指标任务试运行（模拟）
 
         Args:
             db: 数据库会话
             execution_id: 执行ID
-            group_id: 指标组ID
+            task_id: 指标任务ID
             etl_date: ETL日期
             sample_size: 样本大小
-            group_version: 指标组版本号（可选）
+            task_version: 指标任务版本号（可选）
 
         Returns:
             执行结果摘要
         """
-        # 获取指标组
-        group = db.query(FraudHunterIndicatorTask).filter(
-            FraudHunterIndicatorTask.id == group_id
+        # 获取指标任务
+        task = db.query(FraudHunterIndicatorTask).filter(
+            FraudHunterIndicatorTask.id == task_id
         ).first()
 
-        if not group:
-            raise ValueError(f"指标组不存在: {group_id}")
+        if not task:
+            raise ValueError(f"指标任务不存在: {task_id}")
 
         # 确定使用的版本
-        version = group_version if group_version else group.current_version
+        version = task_version if task_version else task.current_version
 
-        logger.info(f"开始执行指标组试运行: {group.group_code}, 版本: {version}, ETL日期: {etl_date}")
+        logger.info(f"开始执行指标任务试运行: {task.task_code}, 版本: {version}, ETL日期: {etl_date}")
 
         # 记录执行详情
         record = FraudHunterTaskExecutionRecord(
@@ -58,8 +58,8 @@ class IndicatorExecutor:
             etl_date=datetime.strptime(etl_date, '%Y-%m-%d').date(),
             version=version,
             parameters={
-                'group_id': group_id,
-                'group_code': group.group_code,
+                'task_id': task_id,
+                'task_code': task.task_code,
                 'etl_date': etl_date,
                 'sample_size': sample_size
             }
@@ -70,7 +70,7 @@ class IndicatorExecutor:
         try:
             # 模拟SQL执行（实际应该调用Spark JDBC连接执行）
             result = await self._mock_spark_execution(
-                group.logic_content,
+                task.logic_content,
                 etl_date,
                 sample_size
             )
@@ -83,7 +83,7 @@ class IndicatorExecutor:
 
             db.commit()
 
-            logger.info(f"指标组试运行完成: {group.group_code}, 处理 {result['rows_processed']} 行")
+            logger.info(f"指标任务试运行完成: {task.task_code}, 处理 {result['rows_processed']} 行")
 
             return {
                 'total_records': result['rows_output'],
@@ -96,7 +96,7 @@ class IndicatorExecutor:
             record.error_message = str(e)
             db.commit()
 
-            logger.error(f"指标组试运行失败: {group.group_code}, 错误: {str(e)}")
+            logger.error(f"指标任务试运行失败: {task.task_code}, 错误: {str(e)}")
             raise
 
     async def _mock_spark_execution(
@@ -162,10 +162,10 @@ SQL语句:
         self,
         db: Session,
         execution_id: str,
-        group_id: int,
+        task_id: int,
         etl_date: str
     ) -> Dict[str, Any]:
-        """执行指标组生产任务（预留）
+        """执行指标任务生产任务（预留）
 
         实际生产环境中执行完整的指标计算
         此方法目前不实现，预留给后续集成DolphinScheduler时使用
@@ -173,7 +173,7 @@ SQL语句:
         Args:
             db: 数据库会话
             execution_id: 执行ID
-            group_id: 指标组ID
+            task_id: 指标任务ID
             etl_date: ETL日期
 
         Returns:

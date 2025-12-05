@@ -10,27 +10,27 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { indicatorService, indicatorGroupService } from "@/lib/services/fraudhunterService";
-import type { Indicator, IndicatorGroup } from "@/lib/services/fraudhunterService";
+import { indicatorService, indicatorTaskService } from "@/lib/services/fraudhunterService";
+import type { Indicator, IndicatorTask } from "@/lib/services/fraudhunterService";
 
 export default function IndicatorsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Indicator[]>([]);
-  const [indicatorGroups, setIndicatorGroups] = useState<IndicatorGroup[]>([]);
+  const [IndicatorTasks, setIndicatorTasks] = useState<IndicatorTask[]>([]);
 
   // 筛选状态
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [groupFilter, setGroupFilter] = useState<string>("all");
+  const [taskFilter, setTaskFilter] = useState<string>("all");
 
-  // 加载指标组列表用于筛选
-  const loadIndicatorGroups = async () => {
+  // 加载指标任务列表用于筛选
+  const loadIndicatorTasks = async () => {
     try {
-      const response = await indicatorGroupService.list({});
-      setIndicatorGroups(response.items || []);
+      const response = await indicatorTaskService.list({});
+      setIndicatorTasks(response.items || []);
     } catch (error) {
-      console.error("Failed to load indicator groups:", error);
+      console.error("Failed to load indicator tasks:", error);
     }
   };
 
@@ -41,7 +41,7 @@ export default function IndicatorsPage() {
       const params: any = {};
       if (statusFilter !== "all") params.status = statusFilter;
       if (typeFilter !== "all") params.indicator_type = typeFilter;
-      if (groupFilter !== "all") params.indicator_group_id = Number(groupFilter);
+      if (taskFilter !== "all") params.indicator_task_id = Number(taskFilter);
 
       const response = await indicatorService.list(params);
       setData(response.items || []);
@@ -53,12 +53,12 @@ export default function IndicatorsPage() {
   };
 
   useEffect(() => {
-    loadIndicatorGroups();
+    loadIndicatorTasks();
   }, []);
 
   useEffect(() => {
     load();
-  }, [statusFilter, typeFilter, groupFilter]);
+  }, [statusFilter, typeFilter, taskFilter]);
 
   // 表格列配置
   const columns = [
@@ -89,7 +89,7 @@ export default function IndicatorsPage() {
         return <span>{labels[value] || value}</span>;
       }
     },
-    { key: "indicator_group_id", label: "指标组ID", type: "number" as const },
+    { key: "indicator_task_id", label: "指标任务ID", type: "number" as const },
     {
       key: "status",
       label: "状态",
@@ -166,15 +166,15 @@ export default function IndicatorsPage() {
           </SelectContent>
         </Select>
 
-        <Select value={groupFilter} onValueChange={setGroupFilter}>
+        <Select value={taskFilter} onValueChange={setTaskFilter}>
           <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="指标组筛选" />
+            <SelectValue placeholder="指标任务筛选" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">全部指标组</SelectItem>
-            {indicatorGroups.map((group) => (
-              <SelectItem key={group.id} value={String(group.id)}>
-                {group.group_name}
+            <SelectItem value="all">全部指标任务</SelectItem>
+            {IndicatorTasks.map((task) => (
+              <SelectItem key={task.id} value={String(task.id)}>
+                {task.task_name}
               </SelectItem>
             ))}
           </SelectContent>

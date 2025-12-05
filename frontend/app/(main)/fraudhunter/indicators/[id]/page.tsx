@@ -23,8 +23,8 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
-import { indicatorService, indicatorGroupService } from "@/lib/services/fraudhunterService";
-import type { Indicator, IndicatorUpdate, IndicatorGroup, PublishRequest } from "@/lib/services/fraudhunterService";
+import { indicatorService, indicatorTaskService } from "@/lib/services/fraudhunterService";
+import type { Indicator, IndicatorUpdate, IndicatorTask, PublishRequest } from "@/lib/services/fraudhunterService";
 
 export default function IndicatorDetailPage() {
   const router = useRouter();
@@ -39,7 +39,7 @@ export default function IndicatorDetailPage() {
   const [data, setData] = useState<Indicator | null>(null);
   const [originalData, setOriginalData] = useState<Indicator | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
-  const [indicatorGroups, setIndicatorGroups] = useState<IndicatorGroup[]>([]);
+  const [IndicatorTasks, setIndicatorTasks] = useState<IndicatorTask[]>([]);
 
   // 发布对话框状态
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
@@ -48,13 +48,13 @@ export default function IndicatorDetailPage() {
     change_description: ""
   });
 
-  // 加载指标组列表
-  const loadIndicatorGroups = async () => {
+  // 加载指标任务列表
+  const loadIndicatorTasks = async () => {
     try {
-      const response = await indicatorGroupService.list({});
-      setIndicatorGroups(response.items || []);
+      const response = await indicatorTaskService.list({});
+      setIndicatorTasks(response.items || []);
     } catch (error) {
-      console.error("Failed to load indicator groups:", error);
+      console.error("Failed to load indicator tasks:", error);
     }
   };
 
@@ -74,7 +74,7 @@ export default function IndicatorDetailPage() {
   };
 
   useEffect(() => {
-    loadIndicatorGroups();
+    loadIndicatorTasks();
     loadData();
   }, [indicatorId]);
 
@@ -285,10 +285,10 @@ export default function IndicatorDetailPage() {
               </div>
             </div>
             <div>
-              <Label>关联指标组</Label>
+              <Label>关联指标任务</Label>
               <div className="mt-1 p-2 bg-muted rounded">
-                {indicatorGroups.find(g => g.id === data.indicator_group_id)?.group_name ||
-                 `指标组 ${data.indicator_group_id}`}
+                {IndicatorTasks.find(g => g.id === data.indicator_task_id)?.task_name ||
+                 `指标任务 ${data.indicator_task_id}`}
               </div>
             </div>
           </div>

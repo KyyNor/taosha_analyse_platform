@@ -37,7 +37,7 @@ class IndicatorManager:
             创建的指标对象
 
         Raises:
-            ValueError: 如果指标编码已存在或指标组不存在
+            ValueError: 如果指标编码已存在或指标任务不存在
         """
         # 验证编码唯一性
         existing = self.db.query(FraudHunterIndicatorDefinition).filter(
@@ -47,13 +47,13 @@ class IndicatorManager:
         if existing:
             raise ValueError(f"指标编码已存在: {indicator_data.indicator_code}")
 
-        # 验证指标组是否存在
-        group = self.db.query(FraudHunterIndicatorTask).filter(
-            FraudHunterIndicatorTask.id == indicator_data.indicator_group_id
+        # 验证指标任务是否存在
+        task = self.db.query(FraudHunterIndicatorTask).filter(
+            FraudHunterIndicatorTask.id == indicator_data.indicator_task_id
         ).first()
 
-        if not group:
-            raise ValueError(f"指标组不存在: {indicator_data.indicator_group_id}")
+        if not task:
+            raise ValueError(f"指标任务不存在: {indicator_data.indicator_task_id}")
 
         # 创建指标记录
         db_indicator = FraudHunterIndicatorDefinition(
@@ -108,7 +108,7 @@ class IndicatorManager:
         page_size: int = 20,
         status: Optional[str] = None,
         indicator_type: Optional[str] = None,
-        indicator_group_id: Optional[int] = None,
+        indicator_task_id: Optional[int] = None,
         indicator_code: Optional[str] = None
     ) -> tuple[List[FraudHunterIndicatorDefinition], int]:
         """获取指标列表
@@ -118,7 +118,7 @@ class IndicatorManager:
             page_size: 每页数量
             status: 状态筛选
             indicator_type: 指标类型筛选
-            indicator_group_id: 指标组ID筛选
+            indicator_task_id: 指标组ID筛选
             indicator_code: 编码筛选（模糊匹配）
 
         Returns:
@@ -134,9 +134,9 @@ class IndicatorManager:
         if indicator_type:
             query = query.filter(FraudHunterIndicatorDefinition.indicator_type == indicator_type)
 
-        # 指标组筛选
-        if indicator_group_id:
-            query = query.filter(FraudHunterIndicatorDefinition.indicator_group_id == indicator_group_id)
+        # 指标任务筛选
+        if indicator_task_id:
+            query = query.filter(FraudHunterIndicatorDefinition.indicator_task_id == indicator_task_id)
 
         # 编码筛选（模糊匹配）
         if indicator_code:
@@ -345,7 +345,7 @@ class IndicatorManager:
             description=indicator.description,
             data_type=indicator.data_type,
             enum_values=indicator.enum_values,
-            indicator_group_id=indicator.indicator_group_id,
+            indicator_task_id=indicator.indicator_task_id,
             change_type=change_type,
             change_description=change_description,
             created_by=created_by

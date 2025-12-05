@@ -89,7 +89,7 @@ export default function TasksPage() {
       type: "text" as const,
       render: (value: string) => (
         <Badge variant="outline">
-          {value === "indicator_group" ? "指标组" : value === "indicator" ? "指标" : value}
+          {value === "indicator_task" ? "指标任务" : value === "indicator" ? "指标" : value}
         </Badge>
       )
     },
@@ -146,7 +146,7 @@ export default function TasksPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部类型</SelectItem>
-            <SelectItem value="indicator_group">指标组</SelectItem>
+            <SelectItem value="indicator_task">指标任务</SelectItem>
             <SelectItem value="indicator">指标</SelectItem>
           </SelectContent>
         </Select>

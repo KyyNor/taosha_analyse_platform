@@ -171,7 +171,7 @@ export default function TaskDetailPage() {
               <div className="text-sm font-medium text-muted-foreground">任务类型</div>
               <div className="mt-1 p-2 bg-muted rounded">
                 <Badge variant="outline">
-                  {progress.task_type === "indicator_group" ? "指标组" :
+                  {progress.task_type === "indicator_task" ? "指标任务" :
                    progress.task_type === "indicator" ? "指标" : progress.task_type}
                 </Badge>
               </div>

@@ -55,15 +55,15 @@ export default function IndicatorTasksPage() {
 
   // 操作处理
   const handleView = (item: IndicatorTask) => {
-    router.push(`/fraudhunter/indicator-groups/${item.id}`);
+    router.push(`/fraudhunter/indicator-tasks/${item.id}`);
   };
 
   const handleEdit = (item: IndicatorTask) => {
-    router.push(`/fraudhunter/indicator-groups/${item.id}?mode=edit`);
+    router.push(`/fraudhunter/indicator-tasks/${item.id}?mode=edit`);
   };
 
   const handleAdd = () => {
-    router.push("/fraudhunter/indicator-groups/new");
+    router.push("/fraudhunter/indicator-tasks/new");
   };
 
   const handleDelete = async (item: IndicatorTask) => {
