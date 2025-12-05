@@ -29,7 +29,7 @@ export type RuleType = 'condition' | 'group'
 /**
  * 指标数据类型
  */
-export type IndicatorDataType = 'numeric' | 'enum' | 'boolean' | 'text'
+export type IndicatorDataType = 'int' | 'float' | 'string' | 'bool' | 'date' | 'text' | 'numeric' | 'enum' | 'boolean'
 
 /**
  * 时间单位
