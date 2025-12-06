@@ -25,7 +25,7 @@ from api.fraudhunter import (
     indicator_router,
     task_router as fraudhunter_task_router,
     model_router,
-    risk_control_model_router
+    risk_control_model_router,
     wide_table_router
 )
 from services.query_engine import get_query_engine

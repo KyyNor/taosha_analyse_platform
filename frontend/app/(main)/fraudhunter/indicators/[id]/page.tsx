@@ -384,9 +384,14 @@ export default function IndicatorDetailPage() {
             ) : (
               <div className="mt-1 p-2 bg-muted rounded">
                 {{
+                  int: "整数",
+                  float: "浮点数",
+                  string: "字符串",
+                  bool: "布尔",
+                  date: "日期",
+                  text: "文本",
                   numeric: "数值",
                   enum: "枚举",
-                  text: "文本",
                   boolean: "布尔"
                 }[data.data_type] || data.data_type}
               </div>

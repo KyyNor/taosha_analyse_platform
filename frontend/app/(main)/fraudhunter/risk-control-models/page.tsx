@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MetadataTable } from "@/components/ui/MetadataTable";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -172,18 +173,28 @@ export default function RiskControlModelsPage() {
   };
 
   // 自定义操作按钮
-  const customActions = (item: RiskControlModel) => [
-    {
-      label: "发布",
-      onClick: () => handlePublish(item),
-      disabled: item.status === "archived"
-    },
-    {
-      label: "归档",
-      onClick: () => handleArchive(item),
-      disabled: item.status === "archived"
-    }
-  ];
+  const customActions = (item: RiskControlModel) => (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => handlePublish(item)}
+        disabled={item.status === "archived"}
+        title="发布"
+      >
+        发布
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => handleArchive(item)}
+        disabled={item.status === "archived"}
+        title="归档"
+      >
+        归档
+      </Button>
+    </>
+  );
 
   return (
     <div className="container mx-auto py-6 animate-in fade-in slide-in-from-bottom-4 duration-500">

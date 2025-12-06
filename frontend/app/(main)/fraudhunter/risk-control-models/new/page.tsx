@@ -61,7 +61,15 @@ export default function NewRiskControlModelPage() {
           status: "online",
           page_size: 1000
         });
-        setIndicators(response.items || []);
+        // 转换为规则引擎需要的格式
+        const transformedIndicators: Indicator[] = (response.items || []).map(item => ({
+          indicator_code: item.indicator_code,
+          indicator_name: item.indicator_name,
+          data_type: item.data_type,
+          enum_values: item.enum_values ? item.enum_values.split(',').map(v => v.trim()) : undefined,
+          description: item.description
+        }));
+        setIndicators(transformedIndicators);
       } catch (error) {
         console.error("Failed to load indicators:", error);
       }

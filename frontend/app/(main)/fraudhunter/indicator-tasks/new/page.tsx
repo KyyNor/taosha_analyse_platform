@@ -63,7 +63,12 @@ export default function NewIndicatorTaskPage() {
 
       // 成功
       alert("指标任务创建成功");
-      router.push(`/fraudhunter/indicator-tasks/${response.data.id}`);
+      if (response.data?.id) {
+        router.push(`/fraudhunter/indicator-tasks/${response.data.id}`);
+      } else {
+        // 如果没有返回 ID，返回列表页
+        router.push("/fraudhunter/indicator-tasks");
+      }
     } catch (error: any) {
       console.error("Failed to create indicator task:", error);
       // 仅处理网络错误或500错误

@@ -1,4 +1,5 @@
 import api from "../api";
+import type { IndicatorDataType } from "@/types/fraudhunter/rule";
 
 const BASE_PATH = "/fraudhunter";
 
@@ -37,6 +38,20 @@ export interface IndicatorTaskUpdate {
   source_tables?: string;
 }
 
+export interface IndicatorTaskUpdateResponse {
+  success: boolean;
+  message?: string;
+  errors?: string[];
+  data?: IndicatorTask;
+}
+
+export interface IndicatorTaskCreateResponse {
+  success: boolean;
+  message?: string;
+  errors?: string[];
+  data?: IndicatorTask;
+}
+
 export interface IndicatorTaskListResponse {
   total: number;
   page: number;
@@ -52,7 +67,7 @@ export interface Indicator {
   indicator_type: string;
   object_type: string;
   description?: string;
-  data_type: string;
+  data_type: IndicatorDataType;
   enum_values?: string;
   indicator_task_id: number;
   current_version: number;
@@ -70,7 +85,7 @@ export interface IndicatorCreate {
   indicator_type: string;
   object_type: string;
   description?: string;
-  data_type: string;
+  data_type: IndicatorDataType;
   enum_values?: string;
   indicator_task_id?: number;
 }
@@ -79,7 +94,7 @@ export interface IndicatorUpdate {
   indicator_name?: string;
   description?: string;
   object_type?: string;
-  data_type?: string;
+  data_type?: IndicatorDataType;
   enum_values?: string;
 }
 
@@ -94,7 +109,7 @@ export interface IndicatorListResponse {
 export interface IndicatorBatchCreateItem {
   indicator_name: string;
   description?: string;
-  data_type: string;
+  data_type: IndicatorDataType;
   enum_values?: string;
 }
 
@@ -251,13 +266,13 @@ export const indicatorTaskService = {
   },
 
   // 创建指标任务
-  async create(data: IndicatorTaskCreate): Promise<IndicatorTask> {
+  async create(data: IndicatorTaskCreate): Promise<IndicatorTaskCreateResponse> {
     const response = await api.post(`${BASE_PATH}/indicator-tasks`, data);
     return response.data;
   },
 
   // 更新指标任务
-  async update(id: number, data: IndicatorTaskUpdate): Promise<IndicatorTask> {
+  async update(id: number, data: IndicatorTaskUpdate): Promise<IndicatorTaskUpdateResponse> {
     const response = await api.put(`${BASE_PATH}/indicator-tasks/${id}`, data);
     return response.data;
   },

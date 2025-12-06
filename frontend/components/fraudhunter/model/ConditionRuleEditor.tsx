@@ -136,28 +136,50 @@ export function ConditionRuleEditor({
     switch (rule.value.type) {
       case 'constant':
         if (isMultiValueOperator(rule.operator) || isRegexpOperator(rule.operator)) {
+          // 将值转换为数组，并过滤掉布尔值（多值输入不支持布尔类型）
+          const valueArray = Array.isArray(rule.value.value)
+            ? rule.value.value.filter((v): v is string | number => typeof v !== 'boolean')
+            : (rule.value.value !== undefined && typeof rule.value.value !== 'boolean' ? [rule.value.value] : []);
+
           return (
             <MultiValueInput
-              values={Array.isArray(rule.value.value) ? rule.value.value : (rule.value.value ? [rule.value.value] : [])}
+              values={valueArray}
               dataType={currentIndicator?.data_type}
               onChange={(values) => updateValue({ ...rule.value, value: values })}
             />
           )
         } else {
+          // 布尔类型使用下拉选择
+          if (currentIndicator?.data_type === 'bool' || currentIndicator?.data_type === 'boolean') {
+            return (
+              <Select
+                value={String(rule.value.value)}
+                onValueChange={(value) => updateValue({ ...rule.value, value: value === 'true' })}
+              >
+                <SelectTrigger className="w-[150px] h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">是</SelectItem>
+                  <SelectItem value="false">否</SelectItem>
+                </SelectContent>
+              </Select>
+            )
+          }
+
+          // 其他类型使用普通输入框
           return (
             <Input
-              value={rule.value.value || ''}
+              value={String(rule.value.value || '')}
               onChange={(e) => {
-              let newValue: string | number | boolean | string[] | number[]
-              if (currentIndicator?.data_type === 'bool' || currentIndicator?.data_type === 'boolean') {
-                newValue = e.target.checked
-              } else if (currentIndicator?.data_type === 'int' || currentIndicator?.data_type === 'float' || currentIndicator?.data_type === 'numeric') {
-                newValue = parseFloat(e.target.value) || 0
-              } else {
-                newValue = e.target.value
-              }
-              updateValue({ ...rule.value, value: newValue })
-            }}
+                let newValue: string | number | boolean | string[] | number[]
+                if (currentIndicator?.data_type === 'int' || currentIndicator?.data_type === 'float' || currentIndicator?.data_type === 'numeric') {
+                  newValue = parseFloat(e.target.value) || 0
+                } else {
+                  newValue = e.target.value
+                }
+                updateValue({ ...rule.value, value: newValue })
+              }}
               type={getInputType(currentIndicator?.data_type)}
               className="flex-1"
             />
@@ -424,7 +446,7 @@ export function ConditionRuleEditor({
 interface MultiValueInputProps {
   values: (string | number)[]
   dataType?: string
-  onChange: (values: string[] | number[]) => void
+  onChange: (values: (string | number)[]) => void
 }
 
 function MultiValueInput({ values, dataType, onChange }: MultiValueInputProps) {
