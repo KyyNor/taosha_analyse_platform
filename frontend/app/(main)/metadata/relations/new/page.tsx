@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { createRelation } from "@/lib/services/metadataService";
 import { ArrowLeft, Save, X, Plus, Link } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface NewRelationConfig {
   relation_family: string;
@@ -18,6 +19,7 @@ interface NewRelationConfig {
 
 export default function NewRelationConfigPage() {
   const router = useRouter();
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [relationData, setRelationData] = useState<NewRelationConfig>({
     relation_family: '',
@@ -77,8 +79,13 @@ export default function NewRelationConfigPage() {
     }
   };
 
-  const handleCancel = () => {
-    if (confirm('确定要取消创建关系配置吗？')) {
+  const handleCancel = async () => {
+    const confirmed = await confirm({
+      title: "确认取消",
+      description: "确定要取消创建关系配置吗？",
+      variant: "default"
+    });
+    if (confirmed) {
       router.push('/metadata/relations');
     }
   };
@@ -258,6 +265,7 @@ export default function NewRelationConfigPage() {
           </Card>
         </div>
       </div>
+      <DialogComponent />
     </div>
   );
 }

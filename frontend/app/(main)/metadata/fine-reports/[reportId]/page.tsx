@@ -18,6 +18,7 @@ import {
 } from "@/lib/services/metadataService";
 import { ArrowLeft, Save, Edit, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function FineReportDetailPage() {
   const router = useRouter();
@@ -25,6 +26,7 @@ export default function FineReportDetailPage() {
   const searchParams = useSearchParams();
   const reportId = parseInt(params.reportId as string);
   const isEditMode = searchParams.get('mode') === 'edit';
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [report, setReport] = useState<FineReport | null>(null);
   const [editData, setEditData] = useState<FineReportUpdateData>({});
@@ -105,7 +107,12 @@ export default function FineReportDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm(`确定要删除报表"${report?.report_name}"吗？`)) {
+    const confirmed = await confirm({
+      title: "确认删除",
+      description: `确定要删除报表"${report?.report_name}"吗？`,
+      variant: "destructive"
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -373,6 +380,7 @@ export default function FineReportDetailPage() {
           </div>
         </CardContent>
       </Card>
+      <DialogComponent />
     </div>
   );
 }

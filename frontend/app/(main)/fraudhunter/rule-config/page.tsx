@@ -10,7 +10,8 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle2, FileJson } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { CheckCircle2, FileJson, Info } from 'lucide-react'
 import type { Indicator, RuleConfig } from '@/types/fraudhunter/rule'
 import { RuleBuilder } from '@/components/fraudhunter/model/RuleBuilder'
 import { RuleImportExport } from '@/components/fraudhunter/model/RuleImportExport'
@@ -112,9 +113,12 @@ export default function RuleConfigPage() {
               onImport={handleRuleImport}
             />
           ) : (
-            <div className="text-sm text-muted-foreground text-center py-4">
-              请先配置规则，然后即可导出。或直接导入已有的规则配置。
-            </div>
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                请先配置规则，然后即可导出。或直接导入已有的规则配置。
+              </AlertDescription>
+            </Alert>
           )}
         </CardContent>
       </Card>

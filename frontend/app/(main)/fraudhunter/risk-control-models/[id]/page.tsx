@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { ArrowLeft, FileCode, AlertCircle } from "lucide-react";
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,6 +41,7 @@ import {
   getModelStatusLabel,
   getModelStatusVariant
 } from "@/types/fraudhunter/risk-control-model";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function RiskControlModelDetailPage() {
   const router = useRouter();
@@ -47,6 +49,7 @@ export default function RiskControlModelDetailPage() {
   const searchParams = useSearchParams();
   const modelId = Number(params.id);
   const mode = searchParams.get("mode");
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -107,7 +110,7 @@ export default function RiskControlModelDetailPage() {
       setPublishData(prev => ({ ...prev, version: result.latest_version }));
     } catch (error) {
       console.error("Failed to load risk control model:", error);
-      alert("加载失败");
+      toast.error("加载失败");
     } finally {
       setLoading(false);
     }
@@ -151,14 +154,14 @@ export default function RiskControlModelDetailPage() {
     try {
       const result = await modelService.previewSQL(data.rule_config);
       setSqlPreview(result.sql_expression);
-      alert("SQL已重新生成");
+      toast.success("SQL已重新生成");
     } catch (error: any) {
       console.error("Failed to generate SQL:", error);
       const detail = error.response?.data?.detail;
       if (detail?.errors) {
-        alert("SQL生成失败:\n" + detail.errors.join("\n"));
+        toast.error("SQL生成失败: " + detail.errors.join(", "));
       } else {
-        alert(detail?.message || "SQL生成失败");
+        toast.error(detail?.message || "SQL生成失败");
       }
     } finally {
       setGeneratingSQL(false);
@@ -170,7 +173,7 @@ export default function RiskControlModelDetailPage() {
     if (!data || !hasChanges) return;
 
     if (data.is_send_alert_message && !data.alert_message_target?.trim()) {
-      alert("开启告警消息时，告警目标不能为空");
+      toast.error("开启告警消息时，告警目标不能为空");
       return;
     }
 
@@ -187,16 +190,16 @@ export default function RiskControlModelDetailPage() {
       };
 
       await riskControlModelService.update(modelId, updateData);
-      alert("保存成功");
+      toast.success("保存成功");
       await loadData();
       router.push(`/fraudhunter/risk-control-models/${modelId}`);
     } catch (error: any) {
       console.error("Failed to update risk control model:", error);
       const detail = error.response?.data?.detail;
       if (typeof detail === 'object' && detail?.errors) {
-        alert("保存失败:\n" + detail.errors.join("\n"));
+        toast.error("保存失败: " + detail.errors.join(", "));
       } else {
-        alert(detail || "保存失败");
+        toast.error(detail || "保存失败");
       }
     } finally {
       setSaving(false);
@@ -204,9 +207,16 @@ export default function RiskControlModelDetailPage() {
   };
 
   // 取消编辑
-  const handleCancel = () => {
-    if (hasChanges && !confirm("确定要取消吗？未保存的更改将丢失")) {
-      return;
+  const handleCancel = async () => {
+    if (hasChanges) {
+      const confirmed = await confirm({
+        title: "确认取消",
+        description: "确定要取消吗？未保存的更改将丢失",
+        variant: "default"
+      });
+      if (!confirmed) {
+        return;
+      }
     }
     router.push(`/fraudhunter/risk-control-models/${modelId}`);
   };
@@ -219,32 +229,37 @@ export default function RiskControlModelDetailPage() {
   // 发布
   const handlePublish = async () => {
     if (!publishData.version || publishData.version < 1) {
-      alert("请输入有效的版本号");
+      toast.error("请输入有效的版本号");
       return;
     }
 
     try {
       await riskControlModelService.publish(modelId, publishData);
-      alert("发布成功");
+      toast.success("发布成功");
       setPublishDialogOpen(false);
       await loadData();
     } catch (error: any) {
       console.error("Failed to publish risk control model:", error);
-      alert(error.response?.data?.detail || "发布失败");
+      toast.error(error.response?.data?.detail || "发布失败");
     }
   };
 
   // 归档
   const handleArchive = async () => {
-    if (!confirm("确定要归档此模型吗？")) return;
+    const confirmed = await confirm({
+      title: "确认归档",
+      description: "确定要归档此模型吗？",
+      variant: "destructive"
+    });
+    if (!confirmed) return;
 
     try {
       await riskControlModelService.archive(modelId);
-      alert("归档成功");
+      toast.success("归档成功");
       await loadData();
     } catch (error: any) {
       console.error("Failed to archive risk control model:", error);
-      alert(error.response?.data?.detail || "归档失败");
+      toast.error(error.response?.data?.detail || "归档失败");
     }
   };
 
@@ -584,6 +599,7 @@ export default function RiskControlModelDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <DialogComponent />
     </div>
   );
 }

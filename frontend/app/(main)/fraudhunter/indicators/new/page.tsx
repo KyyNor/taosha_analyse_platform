@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,9 +17,11 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { indicatorService, indicatorTaskService } from "@/lib/services/fraudhunterService";
 import type { IndicatorCreate, IndicatorTask } from "@/lib/services/fraudhunterService";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function NewIndicatorPage() {
   const router = useRouter();
+  const { confirm, DialogComponent } = useConfirmDialog();
   const [saving, setSaving] = useState(false);
   const [IndicatorTasks, setIndicatorTasks] = useState<IndicatorTask[]>([]);
   const [formData, setFormData] = useState<IndicatorCreate>({
@@ -93,27 +96,32 @@ export default function NewIndicatorPage() {
   const handleSave = async () => {
     const errors = validateForm();
     if (errors.length > 0) {
-      alert("表单验证失败:\n" + errors.join("\n"));
+      toast.error("表单验证失败: " + errors.join(", "));
       return;
     }
 
     setSaving(true);
     try {
       const result = await indicatorService.create(formData);
-      alert("指标创建成功");
+      toast.success("指标创建成功");
       router.push(`/fraudhunter/indicators/${result.id}`);
     } catch (error: any) {
       console.error("Failed to create indicator:", error);
       const detail = error.response?.data?.detail;
-      alert(detail || "创建失败，请重试");
+      toast.error(detail || "创建失败，请重试");
     } finally {
       setSaving(false);
     }
   };
 
   // 取消处理
-  const handleCancel = () => {
-    if (confirm("确定要取消吗？未保存的更改将丢失")) {
+  const handleCancel = async () => {
+    const confirmed = await confirm({
+      title: "确认取消",
+      description: "确定要取消吗？未保存的更改将丢失",
+      variant: "default"
+    });
+    if (confirmed) {
       router.push("/fraudhunter/indicators");
     }
   };
@@ -293,6 +301,7 @@ export default function NewIndicatorPage() {
           )}
         </CardContent>
       </Card>
+      <DialogComponent />
     </div>
   );
 }

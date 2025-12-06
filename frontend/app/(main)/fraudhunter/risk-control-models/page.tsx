@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from 'sonner';
 import { MetadataTable } from "@/components/ui/MetadataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,11 +23,13 @@ import {
   getModelStatusLabel,
   getModelStatusVariant
 } from "@/types/fraudhunter/risk-control-model";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function RiskControlModelsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<RiskControlModel[]>([]);
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   // 筛选状态
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -115,17 +118,20 @@ export default function RiskControlModelsPage() {
   };
 
   const handleDelete = async (item: RiskControlModel) => {
-    if (!confirm(`确定要删除模型 "${item.model_name}" 吗？`)) {
-      return;
-    }
-
-    try {
-      await riskControlModelService.delete(item.id);
-      await load();
-    } catch (error: any) {
-      console.error("Failed to delete risk control model:", error);
-      alert(error.response?.data?.detail || "删除失败");
-    }
+    confirm({
+      title: "确认删除",
+      description: `确定要删除模型 "${item.model_name}" 吗？`,
+      onConfirm: async () => {
+        try {
+          await riskControlModelService.delete(item.id);
+          await load();
+        } catch (error: any) {
+          console.error("Failed to delete risk control model:", error);
+          toast.error(error.response?.data?.detail || "删除失败");
+        }
+      },
+      variant: "destructive"
+    });
   };
 
   const handlePublish = async (item: RiskControlModel) => {
@@ -138,7 +144,7 @@ export default function RiskControlModelsPage() {
 
     const versionNum = parseInt(version);
     if (isNaN(versionNum) || versionNum < 1 || versionNum > item.latest_version) {
-      alert("无效的版本号");
+      toast.error("无效的版本号");
       return;
     }
 
@@ -150,26 +156,29 @@ export default function RiskControlModelsPage() {
         change_description: description || undefined
       });
       await load();
-      alert("发布成功");
+      toast.success("发布成功");
     } catch (error: any) {
       console.error("Failed to publish risk control model:", error);
-      alert(error.response?.data?.detail || "发布失败");
+      toast.error(error.response?.data?.detail || "发布失败");
     }
   };
 
   const handleArchive = async (item: RiskControlModel) => {
-    if (!confirm(`确定要归档模型 "${item.model_name}" 吗？`)) {
-      return;
-    }
-
-    try {
-      await riskControlModelService.archive(item.id);
-      await load();
-      alert("归档成功");
-    } catch (error: any) {
-      console.error("Failed to archive risk control model:", error);
-      alert(error.response?.data?.detail || "归档失败");
-    }
+    confirm({
+      title: "确认归档",
+      description: `确定要归档模型 "${item.model_name}" 吗？`,
+      onConfirm: async () => {
+        try {
+          await riskControlModelService.archive(item.id);
+          await load();
+          toast.success("归档成功");
+        } catch (error: any) {
+          console.error("Failed to archive risk control model:", error);
+          toast.error(error.response?.data?.detail || "归档失败");
+        }
+      },
+      variant: "default"
+    });
   };
 
   // 自定义操作按钮
@@ -197,7 +206,9 @@ export default function RiskControlModelsPage() {
   );
 
   return (
-    <div className="container mx-auto py-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <>
+      <DialogComponent />
+      <div className="container mx-auto py-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">预警管控模型管理</h1>
         <p className="text-muted-foreground">管理FraudHunter预警管控模型定义</p>
@@ -252,5 +263,6 @@ export default function RiskControlModelsPage() {
         customActions={customActions}
       />
     </div>
+    </>
   );
 }

@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Check, X, ChevronDown, ChevronRight } from "lucide-react";
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -71,7 +72,7 @@ export default function BatchNewIndicatorPage() {
   // 添加指标
   const handleAddIndicator = () => {
     if (indicators.length >= 50) {
-      alert("最多可添加50个指标");
+      toast.error("最多可添加50个指标");
       return;
     }
     setIndicators([
@@ -88,7 +89,7 @@ export default function BatchNewIndicatorPage() {
   // 删除指标
   const handleRemoveIndicator = (index: number) => {
     if (indicators.length <= 1) {
-      alert("至少保留一个指标");
+      toast.error("至少保留一个指标");
       return;
     }
     setIndicators(indicators.filter((_, i) => i !== index));
@@ -144,7 +145,7 @@ export default function BatchNewIndicatorPage() {
   const handleCreateIndicators = async () => {
     const errors = validateStep1();
     if (errors.length > 0) {
-      alert("表单验证失败:\n" + errors.join("\n"));
+      toast.error("表单验证失败: " + errors.join(", "));
       return;
     }
 
@@ -203,7 +204,7 @@ export default function BatchNewIndicatorPage() {
 
     } catch (error: any) {
       console.error("Batch create indicators failed:", error);
-      alert("批量创建指标失败，请重试");
+      toast.error("批量创建指标失败，请重试");
     } finally {
       setIsCreating(false);
     }
@@ -239,12 +240,12 @@ export default function BatchNewIndicatorPage() {
         // 验证通过，但不自动跳转，等待用户点击创建任务
         // 显示创建任务按钮
       } else {
-        alert("预执行验证失败: " + result.message);
+        toast.error("预执行验证失败: " + result.message);
       }
 
     } catch (error: any) {
       console.error("Task validation failed:", error);
-      alert(error.response?.data?.detail || "预执行验证失败，请重试");
+      toast.error(error.response?.data?.detail || "预执行验证失败，请重试");
     } finally {
       setIsValidating(false);
     }
@@ -254,7 +255,7 @@ export default function BatchNewIndicatorPage() {
   const handleCreateTask = async () => {
     const errors = validateStep3();
     if (errors.length > 0) {
-      alert("表单验证失败:\n" + errors.join("\n"));
+      toast.error("表单验证失败: " + errors.join(", "));
       return;
     }
 
@@ -268,7 +269,7 @@ export default function BatchNewIndicatorPage() {
 
     } catch (error: any) {
       console.error("Create task failed:", error);
-      alert(error.response?.data?.detail || "创建任务失败，请重试");
+      toast.error(error.response?.data?.detail || "创建任务失败，请重试");
     } finally {
       setIsCreating(false);
     }

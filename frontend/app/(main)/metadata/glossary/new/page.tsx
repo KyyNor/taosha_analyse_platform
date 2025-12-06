@@ -8,9 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createGlossaryTerm } from "@/lib/services/metadataService";
 import { ArrowLeft, Save, X, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 // 字典映射项接口
 interface DictMapping {
@@ -43,6 +45,7 @@ const TERM_TYPES = [
 
 export default function NewGlossaryTermPage() {
   const router = useRouter();
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [termData, setTermData] = useState<NewGlossaryTerm>({
     name: '',
@@ -177,8 +180,13 @@ export default function NewGlossaryTermPage() {
     }
   };
 
-  const handleCancel = () => {
-    if (confirm('确定要取消创建术语吗？')) {
+  const handleCancel = async () => {
+    const confirmed = await confirm({
+      title: "确认取消",
+      description: "确定要取消创建术语吗？",
+      variant: "default"
+    });
+    if (confirmed) {
       router.push('/metadata/glossary');
     }
   };
@@ -409,14 +417,12 @@ export default function NewGlossaryTermPage() {
           )}
 
           {termData.type === "" && (
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center py-8 text-muted-foreground">
-                  <Plus className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>请先选择术语类型以显示对应的输入表单</p>
-                </div>
-              </CardContent>
-            </Card>
+            <Alert>
+              <Plus className="h-4 w-4" />
+              <AlertDescription className="text-center">
+                请先选择术语类型以显示对应的输入表单
+              </AlertDescription>
+            </Alert>
           )}
         </div>
 
@@ -463,6 +469,7 @@ export default function NewGlossaryTermPage() {
           </Card>
         </div>
       </div>
+      <DialogComponent />
     </div>
   );
 }

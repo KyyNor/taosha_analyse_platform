@@ -15,7 +15,8 @@ import {
   Area,
   AreaChart
 } from 'recharts';
-import { TrendingUp, Calendar, BarChart3 } from 'lucide-react';
+import { TrendingUp, Calendar, BarChart3, Inbox } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export interface LineChartData {
   name: string;
@@ -85,12 +86,12 @@ export const LineChart: React.FC<LineChartProps> = ({
             )}
           </div>
         </div>
-        <div className="flex items-center justify-center h-48 text-gray-400">
-          <div className="text-center">
-            <BarChart3 className="w-12 h-12 mx-auto mb-2" />
-            <p>暂无数据</p>
-          </div>
-        </div>
+        <Alert className="border-dashed">
+          <Inbox className="h-4 w-4" />
+          <AlertDescription className="text-center">
+            暂无数据
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }

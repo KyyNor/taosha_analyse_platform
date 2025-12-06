@@ -10,9 +10,11 @@ import { Label } from "@/components/ui/label";
 import { createFineReport, getDesignerUrls, type FineReportCreateData, type DesignerUrl } from "@/lib/services/metadataService";
 import { ArrowLeft, Save, X, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function NewFineReportPage() {
   const router = useRouter();
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [reportData, setReportData] = useState<FineReportCreateData>({
     report_name: '',
@@ -96,8 +98,13 @@ export default function NewFineReportPage() {
     }
   };
 
-  const handleCancel = () => {
-    if (confirm('确定要取消创建报表吗？')) {
+  const handleCancel = async () => {
+    const confirmed = await confirm({
+      title: "确认取消",
+      description: "确定要取消创建报表吗？",
+      variant: "default"
+    });
+    if (confirmed) {
       router.push('/metadata/fine-reports');
     }
   };
@@ -295,6 +302,7 @@ export default function NewFineReportPage() {
           </div>
         </CardContent>
       </Card>
+      <DialogComponent />
     </div>
   );
 }

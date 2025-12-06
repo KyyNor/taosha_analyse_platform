@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, FileCode, AlertCircle } from "lucide-react";
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { riskControlModelService } from "@/lib/services/fraudhunterService";
 import { indicatorService } from "@/lib/services/fraudhunterService";
 import { modelService } from "@/lib/services/fraudhunter/modelService";
@@ -24,9 +26,11 @@ import type { RuleConfig, Indicator } from "@/types/fraudhunter/rule";
 import { RuleBuilder } from "@/components/fraudhunter/model/RuleBuilder";
 import { RuleImportExport } from "@/components/fraudhunter/model/RuleImportExport";
 import { getObjectTypeLabel } from "@/types/fraudhunter/risk-control-model";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function NewRiskControlModelPage() {
   const router = useRouter();
+  const { confirm, DialogComponent } = useConfirmDialog();
   const [saving, setSaving] = useState(false);
   const [generatingSQL, setGeneratingSQL] = useState(false);
   const [indicators, setIndicators] = useState<Indicator[]>([]);
@@ -156,7 +160,7 @@ export default function NewRiskControlModelPage() {
   // 生成SQL预览
   const handleGenerateSQL = async () => {
     if (!formData.rule_config || formData.rule_config.rules.length === 0) {
-      alert("请先配置规则");
+      toast.error("请先配置规则");
       return;
     }
 
@@ -169,9 +173,9 @@ export default function NewRiskControlModelPage() {
       console.error("Failed to generate SQL:", error);
       const detail = error.response?.data?.detail;
       if (detail?.errors) {
-        alert("SQL生成失败:\n" + detail.errors.join("\n"));
+        toast.error("SQL生成失败: " + detail.errors.join(", "));
       } else {
-        alert(detail?.message || "SQL生成失败");
+        toast.error(detail?.message || "SQL生成失败");
       }
     } finally {
       setGeneratingSQL(false);
@@ -182,14 +186,14 @@ export default function NewRiskControlModelPage() {
   const handleSave = async () => {
     const errors = validateForm();
     if (errors.length > 0) {
-      alert("表单验证失败:\n" + errors.join("\n"));
+      toast.error("表单验证失败: " + errors.join(", "));
       return;
     }
 
     // 推断并设置 object_type
     const { objectType } = inferObjectType();
     if (!objectType) {
-      alert("无法推断对象类型，请检查规则配置");
+      toast.error("无法推断对象类型，请检查规则配置");
       return;
     }
 
@@ -200,15 +204,15 @@ export default function NewRiskControlModelPage() {
         object_type: objectType
       };
       const result = await riskControlModelService.create(submitData);
-      alert("预警管控模型创建成功");
+      toast.success("预警管控模型创建成功");
       router.push(`/fraudhunter/risk-control-models/${result.id}`);
     } catch (error: any) {
       console.error("Failed to create risk control model:", error);
       const detail = error.response?.data?.detail;
       if (typeof detail === 'object' && detail?.errors) {
-        alert("创建失败:\n" + detail.errors.join("\n"));
+        toast.error("创建失败: " + detail.errors.join(", "));
       } else {
-        alert(detail || "创建失败，请重试");
+        toast.error(detail || "创建失败，请重试");
       }
     } finally {
       setSaving(false);
@@ -217,9 +221,12 @@ export default function NewRiskControlModelPage() {
 
   // 取消处理
   const handleCancel = () => {
-    if (confirm("确定要取消吗？未保存的更改将丢失")) {
-      router.push("/fraudhunter/risk-control-models");
-    }
+    confirm({
+      title: "确认取消",
+      description: "确定要取消吗？未保存的更改将丢失",
+      onConfirm: () => router.push("/fraudhunter/risk-control-models"),
+      variant: "default"
+    });
   };
 
   // 字段更新处理
@@ -239,7 +246,9 @@ export default function NewRiskControlModelPage() {
   };
 
   return (
-    <div className="container mx-auto py-6">
+    <>
+      <DialogComponent />
+      <div className="container mx-auto py-6">
       {/* 页面头部 */}
       <div className="flex items-center justify-between mb-6">
         <Button
@@ -349,10 +358,12 @@ export default function NewRiskControlModelPage() {
                 {sqlPreview}
               </pre>
             ) : (
-              <div className="text-center text-muted-foreground py-8">
-                <AlertCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>点击"生成SQL"按钮预览离线模型SQL</p>
-              </div>
+              <Alert className="border-dashed">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-center">
+                  点击"生成SQL"按钮预览离线模型SQL
+                </AlertDescription>
+              </Alert>
             )}
           </CardContent>
         </Card>
@@ -408,5 +419,6 @@ export default function NewRiskControlModelPage() {
         </Card>
       </div>
     </div>
+    </>
   );
 }

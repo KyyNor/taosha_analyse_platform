@@ -17,7 +17,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Trash2, Plus, Code, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Trash2, Plus, Code, CheckCircle2, AlertCircle, Info } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
   RuleConfig,
@@ -308,9 +310,12 @@ function RuleGroupRenderer({
                     />
                   </div>
                 ) : (
-                  <div className="text-center text-muted-foreground py-4 ml-16">
-                    规则组为空，点击"添加条件"或"添加规则组"按钮
-                  </div>
+                  <Alert className="ml-16 border-dashed">
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      规则组为空，点击"添加条件"或"添加规则组"按钮
+                    </AlertDescription>
+                  </Alert>
                 )}
               </div>
             )}
@@ -434,7 +439,7 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
       return result
     } catch (error) {
       console.error('SQL预览失败:', error)
-      alert('SQL预览失败: ' + (error as Error).message)
+      toast.error('SQL预览失败: ' + (error as Error).message)
     } finally {
       setLoading(false)
     }
@@ -502,9 +507,12 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
         </CardHeader>
         <CardContent>
           {rule.rules.length === 0 ? (
-            <div className="text-center text-muted-foreground py-8">
-              暂无规则条件，点击上方按钮添加
-            </div>
+            <Alert className="border-dashed">
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                暂无规则条件，点击上方按钮添加
+              </AlertDescription>
+            </Alert>
           ) : (
             <div className="border rounded-lg overflow-hidden">
               <RuleGroupRenderer

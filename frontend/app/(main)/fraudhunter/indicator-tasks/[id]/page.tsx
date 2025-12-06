@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { indicatorTaskService } from "@/lib/services/fraudhunterService";
 import type { IndicatorTask, IndicatorTaskUpdate } from "@/lib/services/fraudhunterService";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function IndicatorTaskDetailPage() {
   const router = useRouter();
@@ -25,6 +27,7 @@ export default function IndicatorTaskDetailPage() {
   const searchParams = useSearchParams();
   const taskId = Number(params.id);
   const mode = searchParams.get("mode");
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -57,7 +60,7 @@ export default function IndicatorTaskDetailPage() {
       setOriginalData(JSON.parse(JSON.stringify(result)));
     } catch (error) {
       console.error("Failed to load indicator task:", error);
-      alert("加载失败");
+      toast.error("加载失败");
     } finally {
       setLoading(false);
     }
@@ -91,7 +94,7 @@ export default function IndicatorTaskDetailPage() {
 
     // 验证
     if (data.status !== "draft" && data.logic_content !== originalData?.logic_content) {
-      alert("只有草稿状态的指标任务才允许修改SQL内容");
+      toast.error("只有草稿状态的指标任务才允许修改SQL内容");
       return;
     }
 
@@ -112,19 +115,19 @@ export default function IndicatorTaskDetailPage() {
         const errorMsg = [
           response.message || "保存失败",
           ...(response.errors || [])
-        ].filter(Boolean).join("\n");
-        alert(errorMsg);
+        ].filter(Boolean).join(", ");
+        toast.error(errorMsg);
         return;
       }
 
       // 成功
-      alert("保存成功");
+      toast.success("保存成功");
       await loadData();
       router.push(`/fraudhunter/indicator-tasks/${taskId}`);
     } catch (error: any) {
       console.error("Failed to update indicator task:", error);
       // 仅处理网络错误或500错误
-      alert(error.response?.data?.detail || "保存失败，请重试");
+      toast.error(error.response?.data?.detail || "保存失败，请重试");
     } finally {
       setSaving(false);
     }
@@ -132,10 +135,16 @@ export default function IndicatorTaskDetailPage() {
 
   // 取消编辑
   const handleCancel = () => {
-    if (hasChanges && !confirm("确定要取消吗？未保存的更改将丢失")) {
-      return;
+    if (hasChanges) {
+      confirm({
+        title: "确认取消",
+        description: "确定要取消吗？未保存的更改将丢失",
+        onConfirm: () => router.push(`/fraudhunter/indicator-tasks/${taskId}`),
+        variant: "default"
+      });
+    } else {
+      router.push(`/fraudhunter/indicator-tasks/${taskId}`);
     }
-    router.push(`/fraudhunter/indicator-tasks/${taskId}`);
   };
 
   // 进入编辑模式
@@ -147,11 +156,11 @@ export default function IndicatorTaskDetailPage() {
   const handleDryRun = async () => {
     try {
       const result = await indicatorTaskService.dryRun(taskId, dryRunData);
-      alert(`试运行任务已提交\n任务ID: ${result.task_id}\n请到任务列表查看进度`);
+      toast.info(`试运行任务已提交, 任务ID: ${result.task_id}, 请到任务列表查看进度`);
       setDryRunDialogOpen(false);
     } catch (error: any) {
       console.error("Failed to start dry run:", error);
-      alert(error.response?.data?.detail || "试运行提交失败");
+      toast.error(error.response?.data?.detail || "试运行提交失败");
     }
   };
 
@@ -159,27 +168,32 @@ export default function IndicatorTaskDetailPage() {
   const handlePublish = async () => {
     try {
       await indicatorTaskService.publish(taskId, publishData);
-      alert("发布成功");
+      toast.success("发布成功");
       setPublishDialogOpen(false);
       await loadData();
     } catch (error: any) {
       console.error("Failed to publish indicator task:", error);
-      alert(error.response?.data?.detail || "发布失败");
+      toast.error(error.response?.data?.detail || "发布失败");
     }
   };
 
   // 归档
   const handleArchive = async () => {
-    if (!confirm("确定要归档此指标任务吗？")) return;
-
-    try {
-      await indicatorTaskService.archive(taskId);
-      alert("归档成功");
-      await loadData();
-    } catch (error: any) {
-      console.error("Failed to archive indicator task:", error);
-      alert(error.response?.data?.detail || "归档失败");
-    }
+    confirm({
+      title: "确认归档",
+      description: "确定要归档此指标任务吗？",
+      onConfirm: async () => {
+        try {
+          await indicatorTaskService.archive(taskId);
+          toast.success("归档成功");
+          await loadData();
+        } catch (error: any) {
+          console.error("Failed to archive indicator task:", error);
+          toast.error(error.response?.data?.detail || "归档失败");
+        }
+      },
+      variant: "default"
+    });
   };
 
   if (loading) {
@@ -199,7 +213,9 @@ export default function IndicatorTaskDetailPage() {
   }
 
   return (
-    <div className="container mx-auto py-6">
+    <>
+      <DialogComponent />
+      <div className="container mx-auto py-6">
       {/* 页面头部 */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -511,5 +527,6 @@ export default function IndicatorTaskDetailPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 }

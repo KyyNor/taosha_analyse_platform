@@ -7,6 +7,7 @@ import { MessageSquare, Plus, Trash2, Clock, Menu } from "lucide-react";
 import { useAgentState } from "@/lib/state/agent";
 import { cn } from "@/lib/utils";
 import type { Session } from "@/lib/api";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 // 时间格式化工具函数
 function formatTime(dateStr: string): string {
@@ -69,11 +70,14 @@ export function ChatSidebar() {
     createNewSession,
   } = useAgentState();
 
+  const { confirm, DialogComponent } = useConfirmDialog();
+
   // 分组会话
   const sessionGroups = useMemo(() => groupSessions(sessions), [sessions]);
 
   return (
     <>
+      <DialogComponent />
       <CardHeader className="shrink-0 border-b p-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -161,9 +165,12 @@ export function ChatSidebar() {
                           )}
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (confirm("确认删除此会话吗？")) {
-                              deleteSession(session.id);
-                            }
+                            confirm({
+                              title: "确认删除",
+                              description: "确认删除此会话吗？",
+                              onConfirm: () => deleteSession(session.id),
+                              variant: "destructive"
+                            });
                           }}
                         >
                           <Trash2 className="w-3 h-3 text-muted-foreground hover:text-destructive transition-colors" />

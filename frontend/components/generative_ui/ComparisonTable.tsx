@@ -3,8 +3,9 @@
  * 用于对比两个主体（如支行、产品等）在多个指标上的表现
  */
 import React from 'react';
-import { GitCompare, TrendingUp, TrendingDown, Award, AlertCircle } from 'lucide-react';
+import { GitCompare, TrendingUp, TrendingDown, Award, AlertCircle, Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export interface ComparisonMetric {
   name: string;

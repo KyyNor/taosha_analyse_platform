@@ -20,7 +20,8 @@ import {
   ChevronFirst,
   ChevronLast,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Inbox
 } from "lucide-react";
 import {
   Dialog,
@@ -37,6 +38,7 @@ import {
   formatBoolean,
   safeString
 } from "@/lib/utils/formatUtils";
+import { Alert, AlertDescription } from "./alert";
 
 interface ColumnConfig {
   key: string;
@@ -263,8 +265,13 @@ export function MetadataTable({
 
         {/* 空状态 */}
         {!loading && paginatedData.length === 0 && (
-          <div className="p-8 text-center text-sm text-muted-foreground">
-            {emptyText}
+          <div className="p-8">
+            <Alert className="border-dashed">
+              <Inbox className="h-4 w-4" />
+              <AlertDescription className="text-center">
+                {emptyText}
+              </AlertDescription>
+            </Alert>
           </div>
         )}
       </div>

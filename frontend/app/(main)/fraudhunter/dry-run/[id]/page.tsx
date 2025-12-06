@@ -2,17 +2,20 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { taskService } from "@/lib/services/fraudhunterService";
 import type { TaskProgress, TaskResult } from "@/lib/services/fraudhunterService";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function TaskDetailPage() {
   const router = useRouter();
   const params = useParams();
   const taskId = params.id as string;
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState<TaskProgress | null>(null);
@@ -36,7 +39,7 @@ export default function TaskDetailPage() {
       }
     } catch (error) {
       console.error("Failed to load task progress:", error);
-      alert("加载任务信息失败");
+      toast.error("加载任务信息失败");
     } finally {
       setLoading(false);
     }
@@ -73,14 +76,19 @@ export default function TaskDetailPage() {
 
   // 取消任务
   const handleCancel = async () => {
-    if (!confirm(`确定要取消任务 ${taskId} 吗？`)) return;
+    const confirmed = await confirm({
+      title: "确认取消任务",
+      description: `确定要取消任务 ${taskId} 吗？`,
+      variant: "destructive"
+    });
+    if (!confirmed) return;
 
     try {
       await taskService.cancel(taskId);
       await loadProgress();
     } catch (error: any) {
       console.error("Failed to cancel task:", error);
-      alert(error.response?.data?.detail || "取消任务失败");
+      toast.error(error.response?.data?.detail || "取消任务失败");
     }
   };
 
@@ -330,6 +338,7 @@ export default function TaskDetailPage() {
           </CardContent>
         </Card>
       )}
+      <DialogComponent />
     </div>
   );
 }

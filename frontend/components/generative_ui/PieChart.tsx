@@ -11,7 +11,8 @@ import {
   Tooltip,
   Legend
 } from 'recharts';
-import { PieChart as PieChartIcon, Percent, Circle } from 'lucide-react';
+import { PieChart as PieChartIcon, Percent, Circle, Inbox } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export interface PieChartData {
   name: string;
@@ -138,10 +139,12 @@ export const PieChart: React.FC<PieChartProps> = ({
           </div>
         </div>
         <div className="flex items-center justify-center h-48 text-gray-400">
-          <div className="text-center">
-            <Circle className="w-12 h-12 mx-auto mb-2" />
-            <p>暂无数据</p>
-          </div>
+          <Alert className="border-dashed">
+            <Inbox className="h-4 w-4" />
+            <AlertDescription className="text-center">
+              暂无数据
+            </AlertDescription>
+          </Alert>
         </div>
       </div>
     );

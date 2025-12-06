@@ -17,6 +17,7 @@ import {
 import { Rocket, RefreshCw } from "lucide-react";
 import { indicatorTaskService } from "@/lib/services/fraudhunterService";
 import type { IndicatorTask } from "@/lib/services/fraudhunterService";
+import { toast } from "sonner";
 
 export default function IndicatorTasksPage() {
   const router = useRouter();
@@ -96,7 +97,7 @@ export default function IndicatorTasksPage() {
       await load();
     } catch (error: any) {
       console.error("Failed to delete indicator task:", error);
-      alert(error.response?.data?.detail || "删除失败");
+      toast.error(error.response?.data?.detail || "删除失败");
     }
   };
 
@@ -115,16 +116,16 @@ export default function IndicatorTasksPage() {
       const result = await indicatorTaskService.publishToDS(selectedTask.id, {});
 
       if (result.success) {
-        alert(`上线成功！\n工作流名称：${result.workflow_name}\nDS任务编号：${result.ds_task_code}`);
+        toast.success(`上线成功！工作流名称：${result.workflow_name}, DS任务编号：${result.ds_task_code}`);
         setPublishDialogOpen(false);
         // 重新加载列表
         await load();
       } else {
-        alert(`上线失败：${result.message}`);
+        toast.error(`上线失败：${result.message}`);
       }
     } catch (error: any) {
       console.error("Failed to publish to DS:", error);
-      alert(error.response?.data?.detail || "上线失败");
+      toast.error(error.response?.data?.detail || "上线失败");
     } finally {
       setIsPublishing(false);
     }
@@ -144,7 +145,7 @@ export default function IndicatorTasksPage() {
   // 执行补数
   const handleConfirmRerun = async () => {
     if (!selectedTask || !startDate) {
-      alert("请填写开始日期");
+      toast.warning("请填写开始日期");
       return;
     }
 
@@ -156,14 +157,14 @@ export default function IndicatorTasksPage() {
       });
 
       if (result.success) {
-        alert(`补数任务已提交！\n开始日期：${result.start_date}\n结束日期：${result.end_date || "今天"}`);
+        toast.success(`补数任务已提交！开始日期：${result.start_date}, 结束日期：${result.end_date || "今天"}`);
         setRerunDialogOpen(false);
       } else {
-        alert(`补数失败：${result.message}`);
+        toast.error(`补数失败：${result.message}`);
       }
     } catch (error: any) {
       console.error("Failed to rerun task:", error);
-      alert(error.response?.data?.detail || "补数失败");
+      toast.error(error.response?.data?.detail || "补数失败");
     } finally {
       setIsRerunning(false);
     }

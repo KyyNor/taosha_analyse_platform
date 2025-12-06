@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { getRelationById, updateRelation } from "@/lib/services/metadataService";
 import { ArrowLeft, Save, X, Edit3, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface RelationConfig {
   id: number;
@@ -26,6 +27,7 @@ export default function RelationConfigDetailPage() {
   const searchParams = useSearchParams();
   const configId = params.configId as string;
   const mode = searchParams.get("mode") || "view";
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [relationData, setRelationData] = useState<RelationConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -122,8 +124,13 @@ export default function RelationConfigDetailPage() {
   };
 
   // 取消编辑
-  const handleCancel = () => {
-    if (confirm('确定要取消编辑吗？未保存的更改将丢失。')) {
+  const handleCancel = async () => {
+    const confirmed = await confirm({
+      title: "确认取消",
+      description: "确定要取消编辑吗？未保存的更改将丢失。",
+      variant: "default"
+    });
+    if (confirmed) {
       if (mode === "edit") {
         router.push(`/metadata/relations/${configId}`);
       } else {
@@ -374,6 +381,7 @@ export default function RelationConfigDetailPage() {
           </Card>
         </div>
       </div>
+      <DialogComponent />
     </div>
   );
 }

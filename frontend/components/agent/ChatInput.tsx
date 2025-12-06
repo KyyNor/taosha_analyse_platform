@@ -6,6 +6,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { InputGroup, InputGroupButton } from "@/components/ui/input-group";
 import { Send, Trash2 } from "lucide-react";
 import { useAgentState } from "@/lib/state/agent";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
@@ -55,10 +66,15 @@ export function ChatInput({ onSendMessage, disabled }: ChatInputProps) {
     }
   }, [handleSend]);
 
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+
   const handleClear = useCallback(() => {
-    if (confirm('确定要清空所有对话记录吗？此操作无法撤销。')) {
-      clearMessages();
-    }
+    setClearDialogOpen(true);
+  }, []);
+
+  const handleConfirmClear = useCallback(() => {
+    clearMessages();
+    setClearDialogOpen(false);
   }, [clearMessages]);
 
   return (
@@ -76,16 +92,33 @@ export function ChatInput({ onSendMessage, disabled }: ChatInputProps) {
             rows={1}
           />
           <div className="flex gap-2 p-2 self-end">
-            <InputGroupButton
-              variant="ghost"
-              onClick={handleClear}
-              disabled={disabled}
-              title="清空对话"
-              className="text-muted-foreground hover:text-destructive transition-colors hover:bg-destructive/10"
-            >
-              <Trash2 className="w-4 h-4" />
-            </InputGroupButton>
-            
+            <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+              <AlertDialogTrigger asChild>
+                <InputGroupButton
+                  variant="ghost"
+                  disabled={disabled}
+                  title="清空对话"
+                  className="text-muted-foreground hover:text-destructive transition-colors hover:bg-destructive/10"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </InputGroupButton>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>确认清空对话记录</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    确定要清空所有对话记录吗？此操作无法撤销。
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>取消</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleConfirmClear} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    确认清空
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
             <Button
               size="icon"
               onClick={handleSend}

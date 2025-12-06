@@ -14,7 +14,8 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, Inbox } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export interface BarChartData {
   name: string;
@@ -111,10 +112,12 @@ export const BarChart: React.FC<BarChartProps> = ({
           </div>
         </div>
         <div className="flex items-center justify-center h-48 text-gray-400">
-          <div className="text-center">
-            <BarChart3 className="w-12 h-12 mx-auto mb-2" />
-            <p>暂无数据</p>
-          </div>
+          <Alert className="border-dashed">
+            <Inbox className="h-4 w-4" />
+            <AlertDescription className="text-center">
+              暂无数据
+            </AlertDescription>
+          </Alert>
         </div>
       </div>
     );
@@ -256,10 +259,12 @@ export const BarChart: React.FC<BarChartProps> = ({
             const values = validData.map(item => Number(item[key]) || 0).filter(v => !isNaN(v));
             if (values.length === 0) {
               return (
-                <div key={key} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                  <div className="text-sm font-medium text-gray-600 dark:text-gray-400">{key}</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">无数据</div>
-                </div>
+                <Alert key={key} className="bg-gray-50 dark:bg-gray-700">
+                  <div className="text-sm font-medium">{key}</div>
+                  <AlertDescription className="text-gray-500 dark:text-gray-400">
+                    无数据
+                  </AlertDescription>
+                </Alert>
               );
             }
 

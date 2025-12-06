@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { createPromptTemplate } from "@/lib/services/metadataService";
 import { ArrowLeft, Save, X, Plus, Trash2, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface NewPromptTemplate {
   name: string;
@@ -19,6 +20,7 @@ interface NewPromptTemplate {
 
 export default function NewPromptTemplatePage() {
   const router = useRouter();
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [templateData, setTemplateData] = useState<NewPromptTemplate>({
     name: '',
@@ -144,8 +146,13 @@ export default function NewPromptTemplatePage() {
     }
   };
 
-  const handleCancel = () => {
-    if (confirm('确定要取消创建提示词模板吗？')) {
+  const handleCancel = async () => {
+    const confirmed = await confirm({
+      title: "确认取消",
+      description: "确定要取消创建提示词模板吗？",
+      variant: "default"
+    });
+    if (confirmed) {
       router.push('/metadata/prompt-templates');
     }
   };
@@ -346,6 +353,7 @@ export default function NewPromptTemplatePage() {
           </Card>
         </div>
       </div>
+      <DialogComponent />
     </div>
   );
 }

@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createTheme, getTables, addTableToTheme } from "@/lib/services/metadataService";
 import { ArrowLeft, Save, X, Plus, FolderOpen, Database } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface NewDataTheme {
   theme_name: string;
@@ -25,6 +27,7 @@ const THEME_TYPES = [
 
 export default function NewDataThemePage() {
   const router = useRouter();
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [themeData, setThemeData] = useState<NewDataTheme>({
     theme_name: '',
@@ -134,8 +137,13 @@ export default function NewDataThemePage() {
     }
   };
 
-  const handleCancel = () => {
-    if (confirm('确定要取消创建数据主题吗？')) {
+  const handleCancel = async () => {
+    const confirmed = await confirm({
+      title: "确认取消",
+      description: "确定要取消创建数据主题吗？",
+      variant: "default"
+    });
+    if (confirmed) {
       router.push('/metadata/themes');
     }
   };
@@ -297,10 +305,12 @@ export default function NewDataThemePage() {
                 </CardHeader>
                 <CardContent>
                   {selectedTables.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded">
-                      暂未选择任何表
-                      <p className="text-sm mt-2">点击上方"添加表"按钮开始选择数据表</p>
-                    </div>
+                    <Alert className="border-dashed">
+                      <Database className="h-4 w-4" />
+                      <AlertDescription className="text-center">
+                        暂未选择任何表，点击上方"添加表"按钮开始选择数据表
+                      </AlertDescription>
+                    </Alert>
                   ) : (
                     <div className="space-y-3">
                       {selectedTables.map((table) => (
@@ -426,9 +436,12 @@ export default function NewDataThemePage() {
                 !selectedTables.some(selected => selected.id === table.id) &&
                 (tableSearch === "" || table.name.toLowerCase().includes(tableSearch.toLowerCase()))
               ).length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  {tableSearch ? "没有找到匹配的表" : "没有可关联的表"}
-                </div>
+                <Alert>
+                  <FolderOpen className="h-4 w-4" />
+                  <AlertDescription>
+                    {tableSearch ? "没有找到匹配的表" : "没有可关联的表"}
+                  </AlertDescription>
+                </Alert>
               ) : (
                 <div className="divide-y">
                   {allTables.filter(table =>
@@ -476,6 +489,7 @@ export default function NewDataThemePage() {
           </div>
         </div>
       )}
+      <DialogComponent />
     </div>
   );
 }

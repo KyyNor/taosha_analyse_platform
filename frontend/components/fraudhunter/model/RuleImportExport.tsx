@@ -15,6 +15,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Download, Upload, FileJson, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { RuleConfig } from '@/types/fraudhunter/rule'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface RuleImportExportProps {
   currentRule: RuleConfig
@@ -62,7 +63,7 @@ export function RuleImportExport({ currentRule, onImport, onExport }: RuleImport
       console.log('规则配置已导出:', filename)
     } catch (error) {
       console.error('导出失败:', error)
-      alert('导出失败: ' + (error as Error).message)
+      toast.error('导出失败: ' + (error as Error).message)
     }
   }
 

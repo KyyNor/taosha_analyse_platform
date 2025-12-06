@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,10 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { indicatorTaskService } from "@/lib/services/fraudhunterService";
 import type { IndicatorTaskCreate } from "@/lib/services/fraudhunterService";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function NewIndicatorTaskPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const { confirm, DialogComponent } = useConfirmDialog();
   const [formData, setFormData] = useState<IndicatorTaskCreate>({
     task_code: "",
     task_name: "",
@@ -43,7 +46,7 @@ export default function NewIndicatorTaskPage() {
   const handleSave = async () => {
     const errors = validateForm();
     if (errors.length > 0) {
-      alert("表单验证失败:\n" + errors.join("\n"));
+      toast.error("表单验证失败: " + errors.join(", "));
       return;
     }
 
@@ -57,13 +60,13 @@ export default function NewIndicatorTaskPage() {
         const errorMsg = [
           response.message || "创建失败",
           ...(response.errors || [])
-        ].filter(Boolean).join("\n");
-        alert(errorMsg);
+        ].filter(Boolean).join(", ");
+        toast.error(errorMsg);
         return;
       }
 
       // 成功
-      alert("指标任务创建成功");
+      toast.success("指标任务创建成功");
       if (response.data?.id) {
         router.push(`/fraudhunter/indicator-tasks/${response.data.id}`);
       } else {
@@ -73,7 +76,7 @@ export default function NewIndicatorTaskPage() {
     } catch (error: any) {
       console.error("Failed to create indicator task:", error);
       // 仅处理网络错误或500错误
-      alert(error.response?.data?.detail || "创建失败，请重试");
+      toast.error(error.response?.data?.detail || "创建失败，请重试");
     } finally {
       setSaving(false);
     }
@@ -81,9 +84,12 @@ export default function NewIndicatorTaskPage() {
 
   // 取消处理
   const handleCancel = () => {
-    if (confirm("确定要取消吗？未保存的更改将丢失")) {
-      router.push("/fraudhunter/indicator-tasks");
-    }
+    confirm({
+      title: "确认取消",
+      description: "确定要取消吗？未保存的更改将丢失",
+      onConfirm: () => router.push("/fraudhunter/indicator-tasks"),
+      variant: "default"
+    });
   };
 
   // 字段更新处理
@@ -92,7 +98,9 @@ export default function NewIndicatorTaskPage() {
   };
 
   return (
-    <div className="container mx-auto py-6">
+    <>
+      <DialogComponent />
+      <div className="container mx-auto py-6">
       {/* 页面头部 */}
       <div className="flex items-center justify-between mb-6">
         <Button
@@ -196,5 +204,6 @@ export default function NewIndicatorTaskPage() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }

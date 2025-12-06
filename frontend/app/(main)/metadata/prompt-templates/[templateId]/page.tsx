@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { getPromptTemplateById, updatePromptTemplate } from "@/lib/services/metadataService";
 import { ArrowLeft, Save, X, Edit3, Eye, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface PromptTemplate {
   id: number;
@@ -26,6 +27,7 @@ export default function PromptTemplateDetailPage() {
   const searchParams = useSearchParams();
   const templateId = params.templateId as string;
   const mode = searchParams.get("mode") || "view";
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [templateData, setTemplateData] = useState<PromptTemplate | null>(null);
   const [loading, setLoading] = useState(true);
@@ -204,8 +206,13 @@ export default function PromptTemplateDetailPage() {
   };
 
   // 取消编辑
-  const handleCancel = () => {
-    if (confirm('确定要取消编辑吗？未保存的更改将丢失。')) {
+  const handleCancel = async () => {
+    const confirmed = await confirm({
+      title: "确认取消",
+      description: "确定要取消编辑吗？未保存的更改将丢失。",
+      variant: "default"
+    });
+    if (confirmed) {
       if (mode === "edit") {
         router.push(`/metadata/prompt-templates/${templateId}`);
       } else {
@@ -490,6 +497,7 @@ export default function PromptTemplateDetailPage() {
           </Card>
         </div>
       </div>
+      <DialogComponent />
     </div>
   );
 }

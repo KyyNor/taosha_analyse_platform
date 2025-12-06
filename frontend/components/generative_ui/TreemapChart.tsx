@@ -8,7 +8,8 @@ import {
   ResponsiveContainer,
   Tooltip
 } from 'recharts';
-import { Network, BarChart3, Layers } from 'lucide-react';
+import { Network, BarChart3, Layers, Inbox } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export interface TreemapNode {
   name: string;
@@ -146,10 +147,12 @@ export const TreemapChart: React.FC<TreemapChartProps> = ({
           </div>
         </div>
         <div className="flex items-center justify-center h-64 text-gray-400">
-          <div className="text-center">
-            <Layers className="w-12 h-12 mx-auto mb-2" />
-            <p>暂无数据</p>
-          </div>
+          <Alert className="border-dashed">
+            <Inbox className="h-4 w-4" />
+            <AlertDescription className="text-center">
+              暂无数据
+            </AlertDescription>
+          </Alert>
         </div>
       </div>
     );

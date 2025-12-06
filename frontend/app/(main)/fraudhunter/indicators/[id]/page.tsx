@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { indicatorService, indicatorTaskService } from "@/lib/services/fraudhunterService";
 import type { Indicator, IndicatorUpdate, IndicatorTask, PublishRequest } from "@/lib/services/fraudhunterService";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function IndicatorDetailPage() {
   const router = useRouter();
@@ -32,6 +34,7 @@ export default function IndicatorDetailPage() {
   const searchParams = useSearchParams();
   const indicatorId = Number(params.id);
   const mode = searchParams.get("mode");
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -67,7 +70,7 @@ export default function IndicatorDetailPage() {
       setOriginalData(JSON.parse(JSON.stringify(result)));
     } catch (error) {
       console.error("Failed to load indicator:", error);
-      alert("加载失败");
+      toast.error("加载失败");
     } finally {
       setLoading(false);
     }
@@ -105,11 +108,11 @@ export default function IndicatorDetailPage() {
       try {
         const parsed = JSON.parse(data.enum_values);
         if (!Array.isArray(parsed)) {
-          alert("枚举值必须是JSON数组格式");
+          toast.error("枚举值必须是JSON数组格式");
           return;
         }
       } catch (e) {
-        alert("枚举值必须是有效的JSON格式");
+        toast.error("枚举值必须是有效的JSON格式");
         return;
       }
     }
@@ -124,22 +127,29 @@ export default function IndicatorDetailPage() {
       };
 
       await indicatorService.update(indicatorId, updateData);
-      alert("保存成功");
+      toast.success("保存成功");
       await loadData();
       router.push(`/fraudhunter/indicators/${indicatorId}`);
     } catch (error: any) {
       console.error("Failed to update indicator:", error);
       const detail = error.response?.data?.detail;
-      alert(detail || "保存失败");
+      toast.error(detail || "保存失败");
     } finally {
       setSaving(false);
     }
   };
 
   // 取消编辑
-  const handleCancel = () => {
-    if (hasChanges && !confirm("确定要取消吗？未保存的更改将丢失")) {
-      return;
+  const handleCancel = async () => {
+    if (hasChanges) {
+      const confirmed = await confirm({
+        title: "确认取消",
+        description: "确定要取消吗？未保存的更改将丢失",
+        variant: "default"
+      });
+      if (!confirmed) {
+        return;
+      }
     }
     router.push(`/fraudhunter/indicators/${indicatorId}`);
   };
@@ -153,26 +163,31 @@ export default function IndicatorDetailPage() {
   const handlePublish = async () => {
     try {
       await indicatorService.publish(indicatorId, publishData);
-      alert("发布成功");
+      toast.success("发布成功");
       setPublishDialogOpen(false);
       await loadData();
     } catch (error: any) {
       console.error("Failed to publish indicator:", error);
-      alert(error.response?.data?.detail || "发布失败");
+      toast.error(error.response?.data?.detail || "发布失败");
     }
   };
 
   // 归档
   const handleArchive = async () => {
-    if (!confirm("确定要归档此指标吗？")) return;
+    const confirmed = await confirm({
+      title: "确认归档",
+      description: "确定要归档此指标吗？",
+      variant: "destructive"
+    });
+    if (!confirmed) return;
 
     try {
       await indicatorService.archive(indicatorId);
-      alert("归档成功");
+      toast.success("归档成功");
       await loadData();
     } catch (error: any) {
       console.error("Failed to archive indicator:", error);
-      alert(error.response?.data?.detail || "归档失败");
+      toast.error(error.response?.data?.detail || "归档失败");
     }
   };
 
@@ -482,6 +497,7 @@ export default function IndicatorDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <DialogComponent />
     </div>
   );
 }

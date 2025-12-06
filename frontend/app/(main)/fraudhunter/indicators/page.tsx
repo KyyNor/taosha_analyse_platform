@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from 'sonner';
 import { MetadataTable } from "@/components/ui/MetadataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -153,7 +154,7 @@ export default function IndicatorsPage() {
       await load();
     } catch (error: any) {
       console.error("Failed to delete indicator:", error);
-      alert(error.response?.data?.detail || "删除失败");
+      toast.error(error.response?.data?.detail || "删除失败");
     }
   };
 

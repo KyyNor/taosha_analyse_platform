@@ -8,8 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getThemeById, updateTheme, getThemeTables, addTableToTheme, removeTableFromTheme, getTables } from "@/lib/services/metadataService";
-import { ArrowLeft, Save, X, Edit3, Eye, Plus, Trash2, Link } from "lucide-react";
+import { ArrowLeft, Save, X, Edit3, Eye, Plus, Trash2, Link, Database } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface DataTheme {
   id: number;
@@ -39,6 +41,7 @@ export default function DataThemeDetailPage() {
   const searchParams = useSearchParams();
   const themeId = params.themeId as string;
   const mode = searchParams.get("mode") || "view";
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [themeData, setThemeData] = useState<DataTheme | null>(null);
   const [themeTables, setThemeTables] = useState<ThemeTable[]>([]);
@@ -170,8 +173,13 @@ export default function DataThemeDetailPage() {
   };
 
   // 取消编辑
-  const handleCancel = () => {
-    if (confirm('确定要取消编辑吗？未保存的更改将丢失。')) {
+  const handleCancel = async () => {
+    const confirmed = await confirm({
+      title: "确认取消",
+      description: "确定要取消编辑吗？未保存的更改将丢失。",
+      variant: "default"
+    });
+    if (confirmed) {
       if (mode === "edit") {
         router.push(`/metadata/themes/${themeId}`);
       } else {
@@ -201,7 +209,12 @@ export default function DataThemeDetailPage() {
 
   // 从主题移除表
   const handleRemoveTable = async (tableId: number) => {
-    if (!confirm('确定要移除这个表吗？')) return;
+    const confirmed = await confirm({
+      title: "确认移除",
+      description: "确定要移除这个表吗？",
+      variant: "destructive"
+    });
+    if (!confirmed) return;
 
     try {
       await removeTableFromTheme(Number(themeId), tableId);
@@ -404,12 +417,15 @@ export default function DataThemeDetailPage() {
             </CardHeader>
             <CardContent>
               {themeTables.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded">
-                  暂无关联的数据表
-                  {!isEditing && (
-                    <p className="text-sm mt-2">点击上方"添加表"按钮开始关联</p>
-                  )}
-                </div>
+                <Alert className="border-dashed">
+                  <Database className="h-4 w-4" />
+                  <AlertDescription className="text-center">
+                    暂无关联的数据表
+                    {!isEditing && (
+                      <span>，点击上方"添加表"按钮开始关联</span>
+                    )}
+                  </AlertDescription>
+                </Alert>
               ) : (
                 <div className="space-y-3">
                   {themeTables.map((table) => (
@@ -466,9 +482,12 @@ export default function DataThemeDetailPage() {
                     {/* 表列表 */}
                     <div className="flex-1 overflow-y-auto border rounded">
                       {availableTables.length === 0 ? (
-                        <div className="text-center py-8 text-gray-500">
-                          {tableSearch ? "没有找到匹配的表" : "没有可关联的表"}
-                        </div>
+                        <Alert>
+                          <Database className="h-4 w-4" />
+                          <AlertDescription>
+                            {tableSearch ? "没有找到匹配的表" : "没有可关联的表"}
+                          </AlertDescription>
+                        </Alert>
                       ) : (
                         <div className="divide-y">
                           {availableTables.map((table) => (
@@ -588,6 +607,7 @@ export default function DataThemeDetailPage() {
           </Card>
         </div>
       </div>
+      <DialogComponent />
     </div>
   );
 }

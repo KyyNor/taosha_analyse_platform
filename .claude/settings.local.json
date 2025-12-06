@@ -53,7 +53,10 @@
       "Bash(npx shadcn@latest add:*)",
       "mcp__shadcn__get_project_registries",
       "Bash(ls:*)",
-      "WebFetch(domain:python.langchain.com)"
+      "WebFetch(domain:python.langchain.com)",
+      "Bash(npx shadcn-ui@latest add:*)",
+      "Bash(tail:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": [],

@@ -13,6 +13,7 @@ import { getTableById, getColumnsByTable, batchUpdateTableAndColumns } from "@/l
 import { ArrowLeft, Edit, Database, Save, X } from "lucide-react";
 import { formatDateTime, formatBoolean } from "@/lib/utils/formatUtils";
 import { toast } from "sonner";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function TableDetailPage() {
   const params = useParams();
@@ -20,6 +21,7 @@ export default function TableDetailPage() {
   const searchParams = useSearchParams();
   const tableId = params.tableId as string;
   const mode = searchParams.get('mode');
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
   const [tableData, setTableData] = useState<any>(null);
@@ -179,12 +181,16 @@ export default function TableDetailPage() {
 
   const handleCancel = () => {
     if (hasChanges) {
-      if (confirm('您有未保存的更改，确定要取消吗？')) {
-        // 恢复原始数据
-        setTableData(JSON.parse(JSON.stringify(originalTableData)));
-        setColumnsData(JSON.parse(JSON.stringify(originalColumnsData)));
-        router.push(`/metadata/tables/${tableId}`);
-      }
+      confirm({
+        title: '确认取消',
+        description: '您有未保存的更改，确定要取消吗？',
+        onConfirm: () => {
+          // 恢复原始数据
+          setTableData(JSON.parse(JSON.stringify(originalTableData)));
+          setColumnsData(JSON.parse(JSON.stringify(originalColumnsData)));
+          router.push(`/metadata/tables/${tableId}`);
+        }
+      });
     } else {
       router.push(`/metadata/tables/${tableId}`);
     }
@@ -192,9 +198,11 @@ export default function TableDetailPage() {
 
   const handleBack = () => {
     if (hasChanges && isEditMode) {
-      if (confirm('您有未保存的更改，确定要离开吗？')) {
-        router.push('/metadata/tables');
-      }
+      confirm({
+        title: '确认离开',
+        description: '您有未保存的更改，确定要离开吗？',
+        onConfirm: () => router.push('/metadata/tables')
+      });
     } else {
       router.push('/metadata/tables');
     }
@@ -240,9 +248,12 @@ export default function TableDetailPage() {
 
   // 删除字段
   const handleDeleteColumn = (index: number) => {
-    if (confirm('确定要删除这个字段吗？')) {
-      setColumnsData(prev => prev.filter((_, i) => i !== index));
-    }
+    confirm({
+      title: '确认删除',
+      description: '确定要删除这个字段吗？',
+      onConfirm: () => setColumnsData(prev => prev.filter((_, i) => i !== index)),
+      variant: "destructive"
+    });
   };
 
   if (loading) {
@@ -565,6 +576,7 @@ export default function TableDetailPage() {
           )}
         </CardContent>
       </Card>
+      <DialogComponent />
     </div>
   );
 }
