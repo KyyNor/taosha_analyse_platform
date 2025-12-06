@@ -228,6 +228,21 @@ class IndicatorTaskManager:
         self.db.refresh(db_task)
 
         logger.info(f"发布指标任务成功: {db_task.task_code}, 版本: {version}")
+
+        # 触发宽表版本变更检查
+        try:
+            from services.fraudhunter.wide_table_service.version_manager import WideTableVersionManager
+
+            # 获取该任务关联的指标，并从中获取object_type
+            if db_task.indicators:
+                object_type = db_task.indicators[0].object_type
+                version_manager = WideTableVersionManager(self.db)
+                version_manager.create_new_version(object_type, created_by=updated_by)
+                logger.info(f"已触发object_type={object_type}的宽表版本变更检查")
+        except Exception as e:
+            logger.error(f"触发宽表版本变更检查失败: {e}", exc_info=True)
+            # 不影响主流程，继续返回
+
         return db_task
 
     def archive_indicator_task(

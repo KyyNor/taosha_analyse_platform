@@ -23,7 +23,8 @@ from api.agents_routes import router as agents_router
 from api.fraudhunter import (
     indicator_task_router,
     indicator_router,
-    task_router as fraudhunter_task_router
+    task_router as fraudhunter_task_router,
+    wide_table_router
 )
 from services.query_engine import get_query_engine
 from services.nlquery_service.async_query_service import get_async_query_service
@@ -208,6 +209,15 @@ async def lifespan(app: FastAPI):
         # 这些服务在多worker环境下只需要运行一次
         await _initialize_system_services()
 
+        # 启动实时指标调度器
+        try:
+            from services.fraudhunter.wide_table_service.realtime_scheduler import realtime_scheduler
+            realtime_scheduler.start()
+            logger.info("实时指标调度器已启动")
+        except Exception as e:
+            logger.error(f"实时指标调度器启动失败: {e}", exc_info=True)
+            # 不影响主应用启动
+
         from services.agents.agent_service import agent_service
         async with agent_service.lifespan():
             logger.info("=== 淘沙分析平台启动成功 ===")
@@ -220,6 +230,14 @@ async def lifespan(app: FastAPI):
     # 关闭时的清理
     logger.info("=== 淘沙分析平台关闭中 ===")
     try:
+        # 关闭实时指标调度器
+        try:
+            from services.fraudhunter.wide_table_service.realtime_scheduler import realtime_scheduler
+            realtime_scheduler.shutdown()
+            logger.info("实时指标调度器已关闭")
+        except Exception as e:
+            logger.error(f"实时指标调度器关闭失败: {e}", exc_info=True)
+
         # 清理异步 Playwright 浏览器（每个worker都需要清理）
         logger.info("清理异步 Playwright 浏览器...")
         from services.agents.fine_report_tools import cleanup_async_browser
@@ -266,6 +284,7 @@ fraudhunter_prefix = f"{api_prefix}/fraudhunter"
 app.include_router(indicator_task_router, prefix=fraudhunter_prefix)
 app.include_router(indicator_router, prefix=fraudhunter_prefix)
 app.include_router(fraudhunter_task_router, prefix=fraudhunter_prefix)
+app.include_router(wide_table_router, prefix=fraudhunter_prefix)
 
 # API 根路径信息
 @app.get(f"{api_prefix}/", tags=["API信息"])
