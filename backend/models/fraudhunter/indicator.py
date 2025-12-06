@@ -24,9 +24,14 @@ class FraudHunterIndicatorTask(Base):
     # 加工逻辑
     logic_type = Column(String(16), default='sql', comment='逻辑类型：sql/pyspark（预留）')
     logic_content = Column(Text, nullable=False, comment='SQL内容或代码')
+    realtime_logic_content = Column(Text, nullable=False, comment='实时指标SQL内容或代码')
 
     # 数据源配置
     source_tables = Column(String(512), comment='依赖的源表列表，逗号分隔')
+
+    # DS任务信息
+    ds_task_name = Column(String(512), comment='DS任务名称')
+    ds_task_code = Column(String(512), comment='DS任务编号')
 
     # 版本管理
     current_version = Column(Integer, default=1, comment='当前发布版本')
@@ -70,6 +75,7 @@ class FraudHunterIndicatorTaskHistory(Base):
     description = Column(Text, comment='描述')
     logic_type = Column(String(16), comment='逻辑类型')
     logic_content = Column(Text, comment='SQL内容')
+    realtime_logic_content = Column(Text, comment='实时指标SQL内容或代码')
     source_tables = Column(String(512), comment='源表列表')
 
     # 变更信息

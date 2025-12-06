@@ -26,6 +26,7 @@ export interface IndicatorTaskCreate {
   description?: string;
   logic_type?: string;
   logic_content: string;
+  realtime_logic_content?: string;
   source_tables?: string;
 }
 
@@ -203,6 +204,33 @@ export interface PublishRequest {
   change_description?: string;
 }
 
+export interface PublishToDSRequest {
+  schedule_cron?: string;
+}
+
+export interface PublishToDSResponse {
+  success: boolean;
+  message: string;
+  workflow_name?: string;
+  workflow_code?: string;
+  ds_task_name?: string;
+  ds_task_code?: string;
+  online_success?: boolean;
+}
+
+export interface RerunRequest {
+  start_date: string;
+  end_date?: string;
+}
+
+export interface RerunResponse {
+  success: boolean;
+  message: string;
+  workflow_code?: string;
+  start_date: string;
+  end_date?: string;
+}
+
 // ============ 指标任务API ============
 export const indicatorTaskService = {
   // 获取指标任务列表
@@ -254,6 +282,18 @@ export const indicatorTaskService = {
   // 归档指标任务
   async archive(id: number): Promise<IndicatorTask> {
     const response = await api.post(`${BASE_PATH}/indicator-tasks/${id}/archive`);
+    return response.data;
+  },
+
+  // 上线到 DolphinScheduler
+  async publishToDS(id: number, data: PublishToDSRequest = {}): Promise<PublishToDSResponse> {
+    const response = await api.post(`${BASE_PATH}/indicator-tasks/${id}/publish-to-ds`, data);
+    return response.data;
+  },
+
+  // 补数
+  async rerun(id: number, data: RerunRequest): Promise<RerunResponse> {
+    const response = await api.post(`${BASE_PATH}/indicator-tasks/${id}/rerun`, data);
     return response.data;
   },
 };

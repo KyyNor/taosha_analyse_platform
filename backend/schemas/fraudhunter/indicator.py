@@ -171,3 +171,55 @@ class PublishRequest(BaseModel):
     """发布请求模型"""
     version: int = Field(..., ge=1, description="要发布的版本号")
     change_description: Optional[str] = Field(None, description="变更说明")
+
+
+# ==================== DolphinScheduler 相关 ====================
+
+class PublishToDSRequest(BaseModel):
+    """上线到 DolphinScheduler 请求模型"""
+    schedule_cron: Optional[str] = Field(None, description="定时调度表达式（cron），不填则使用默认配置")
+
+
+class PublishToDSResponse(BaseModel):
+    """上线到 DolphinScheduler 响应模型"""
+    success: bool = Field(..., description="是否成功")
+    message: str = Field(..., description="提示信息")
+    workflow_name: Optional[str] = Field(None, description="工作流名称")
+    workflow_code: Optional[str] = Field(None, description="工作流编码")
+    ds_task_name: Optional[str] = Field(None, description="DS任务名称")
+    ds_task_code: Optional[str] = Field(None, description="DS任务编号")
+    online_success: Optional[bool] = Field(None, description="调度是否上线成功")
+
+
+class RerunRequest(BaseModel):
+    """补数请求模型"""
+    start_date: str = Field(..., description="开始日期，格式：YYYY-MM-DD")
+    end_date: Optional[str] = Field(None, description="结束日期，格式：YYYY-MM-DD，默认为今天")
+
+    @field_validator('start_date')
+    @classmethod
+    def validate_start_date(cls, v):
+        try:
+            datetime.strptime(v, '%Y-%m-%d')
+        except ValueError:
+            raise ValueError('start_date格式必须是YYYY-MM-DD')
+        return v
+
+    @field_validator('end_date')
+    @classmethod
+    def validate_end_date(cls, v):
+        if v is not None:
+            try:
+                datetime.strptime(v, '%Y-%m-%d')
+            except ValueError:
+                raise ValueError('end_date格式必须是YYYY-MM-DD')
+        return v
+
+
+class RerunResponse(BaseModel):
+    """补数响应模型"""
+    success: bool = Field(..., description="是否成功")
+    message: str = Field(..., description="提示信息")
+    workflow_code: Optional[str] = Field(None, description="工作流编码")
+    start_date: str = Field(..., description="开始日期")
+    end_date: Optional[str] = Field(None, description="结束日期")

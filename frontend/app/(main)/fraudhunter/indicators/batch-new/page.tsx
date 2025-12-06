@@ -57,6 +57,7 @@ export default function BatchNewIndicatorPage() {
     task_name: "",
     description: "",
     logic_content: "",
+    realtime_logic_content: "",
     source_tables: ""
   });
 
@@ -129,7 +130,11 @@ export default function BatchNewIndicatorPage() {
       errors.push("任务名称不能为空");
     }
     if (!taskData.logic_content?.trim()) {
-      errors.push("SQL内容不能为空");
+      errors.push("离线指标SQL内容不能为空");
+    }
+    // 如果是实时指标，检查实时SQL是否填写
+    if (indicatorType === "realtime" && !taskData.realtime_logic_content?.trim()) {
+      errors.push("实时指标SQL内容不能为空");
     }
 
     return errors;
@@ -592,11 +597,11 @@ export default function BatchNewIndicatorPage() {
                 />
               </div>
               <div>
-                <Label>SQL内容 *</Label>
+                <Label>离线指标SQL *</Label>
                 <Textarea
                   value={taskData.logic_content}
                   onChange={(e) => setTaskData({ ...taskData, logic_content: e.target.value })}
-                  placeholder={'sql'}
+                  placeholder={'离线指标的SQL逻辑'}
                   rows={8}
                   className="font-mono text-sm"
                 />
@@ -604,6 +609,21 @@ export default function BatchNewIndicatorPage() {
                   提示：SQL中可以使用 {'${date}'} 变量，系统会自动替换为实际ETL日期
                 </p>
               </div>
+              {indicatorType === "realtime" && (
+                <div>
+                  <Label>实时指标SQL *</Label>
+                  <Textarea
+                    value={taskData.realtime_logic_content}
+                    onChange={(e) => setTaskData({ ...taskData, realtime_logic_content: e.target.value })}
+                    placeholder={'实时指标的SQL逻辑'}
+                    rows={8}
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    提示：实时指标SQL用于实时计算场景
+                  </p>
+                </div>
+              )}
               <div>
                 <Label>依赖源表</Label>
                 <Input
