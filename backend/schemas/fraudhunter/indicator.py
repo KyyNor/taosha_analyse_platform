@@ -17,6 +17,7 @@ class IndicatorTaskBase(BaseModel):
     description: Optional[str] = Field(None, description="描述")
     logic_type: str = Field("sql", description="逻辑类型：sql/pyspark")
     logic_content: str = Field(..., min_length=1, description="SQL内容或代码")
+    realtime_logic_content: str = Field(..., description="实时指标SQL")
     source_tables: Optional[str] = Field(None, description="依赖的源表列表，逗号分隔")
 
 
