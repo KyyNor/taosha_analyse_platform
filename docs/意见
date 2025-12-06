@@ -1,0 +1,48 @@
+这部分模块叫fraudhunter
+由于与主功能关系不大，为做区分代码都建立一个fraudhunter文件夹，例如
+backend/
+├── api/                              # API路由层
+|   ├──fraudhunter
+    │   ├── indicator_routes.py          # 指标管理API
+    │   ├── model_routes.py               # 模型管理API
+    │   ├── task_routes.py                # 任务管理API
+    │   └── backtest_routes.py            # 回测API
+
+
+业务表的开头也从af_ 改为 fraudhunter_
+前端页面路径也加一个fraudhunter/
+
+
+indicator_group 这个我是这样想的
+af_indicator_definition这个表只存一个id，在新表中存处理逻辑（SQL），如果是一个sql加工多个指标，那么这多个指标存的id就是同一个
+指标和模型定义应该有一个历史表，用来存储历史记录，在指标、模型表中需存储当前发布的版本号，以及当最新的版本号
+
+key_column、value_column、schedule_type、schedule_cron、output_table、output_partition_field 字段都不需要
+需要一个指标类型的字段，来明确指标是数值型、枚举型还是文本型、布尔型，这个影响后续能做的逻辑操作
+
+af_model_definition表 model_type、stream_source、stream_consumer_group、window_type、window_seconds、ds_task_id、backtest_precision、backtest_recall、backtest_f1_score、last_backtest_time 的字段不需要
+
+af_indicator_group、af_backtest_record表不需要
+
+
+af_task_execution 简化一下，只保留以下字段
+id task_type task_id execution_id start_date end_time status result_summary created_by created_at
+
+另外增加 af_task_execution_record 表
+
+
+anti_fraud.model_hit_result 表也不要
+
+接口 POST /api/taosha/v1/anti-fraud/indicators/{id}/dry-run 的参数应该是etl_date，不是partition，其值为 2025-10-20 格式的日期
+新增一个参数 indicator_version，表示要跑哪个版本的指标逻辑
+
+
+这一整段都去掉 ### 5.5 回测功能API
+改为模型中新增dry-run功能，输入开始时间、结束时间，来执行模型测试
+
+
+不需要这个 result['warnings'].append("指标SQL通常需要GROUP BY子句")
+
+指标、模型的执行都改成异步的：
+先新建到任务表，然后后台逐个执行，页面轮询任务状态，任务完成后前端再去拉取结果
+

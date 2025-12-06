@@ -58,6 +58,7 @@ interface MetadataTableProps {
   onDelete?: (item: any, index: number) => void;
   searchPlaceholder?: string;
   showActions?: boolean;
+  customActions?: (item: any, index: number) => React.ReactNode;
   pagination?: {
     pageSize: number;
     currentPage: number;
@@ -78,6 +79,7 @@ export function MetadataTable({
   onDelete,
   searchPlaceholder = "搜索...",
   showActions = true,
+  customActions,
   pagination,
   emptyText = "暂无数据"
 }: MetadataTableProps) {
@@ -249,6 +251,7 @@ export function MetadataTable({
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
+                        {customActions && customActions(row, index)}
                       </div>
                     </TableCell>
                   )}

@@ -3,6 +3,7 @@ import { ReactNode } from "react";
 import { AppProvider } from "../lib/state/app";
 import { ThemeProvider } from "../lib/state/theme";
 import { Toaster } from "../components/ui/sonner";
+import { TooltipProvider } from "../components/ui/tooltip";
 
 export const metadata = {
   title: "Taosha Analyse Platform",
@@ -15,7 +16,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="min-h-dvh bg-background text-foreground">
         <ThemeProvider>
           <AppProvider>
-            {children}
+            <TooltipProvider>
+              {children}
+            </TooltipProvider>
             <Toaster richColors closeButton />
           </AppProvider>
         </ThemeProvider>

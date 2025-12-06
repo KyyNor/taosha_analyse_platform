@@ -28,6 +28,17 @@ from .fine_report_models import (
     MetadataFineReport
 )
 
+from .fraudhunter import (
+    FraudHunterIndicatorTask,
+    FraudHunterIndicatorTaskHistory,
+    FraudHunterIndicatorDefinition,
+    FraudHunterIndicatorHistory,
+    FraudHunterModelDefinition,
+    FraudHunterModelHistory,
+    FraudHunterTaskExecution,
+    FraudHunterTaskExecutionRecord,
+)
+
 __all__ = [
     # 基础配置
     "Base",
@@ -64,4 +75,14 @@ __all__ = [
     
     # FineReport报表元数据模型
     "MetadataFineReport",
+
+    # FraudHunter模块
+    "FraudHunterIndicatorTask",
+    "FraudHunterIndicatorTaskHistory",
+    "FraudHunterIndicatorDefinition",
+    "FraudHunterIndicatorHistory",
+    "FraudHunterModelDefinition",
+    "FraudHunterModelHistory",
+    "FraudHunterTaskExecution",
+    "FraudHunterTaskExecutionRecord",
 ]
