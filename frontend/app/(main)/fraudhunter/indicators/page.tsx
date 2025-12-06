@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MetadataTable } from "@/components/ui/MetadataTable";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ListPlus } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -22,6 +24,7 @@ export default function IndicatorsPage() {
   // 筛选状态
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [objectTypeFilter, setObjectTypeFilter] = useState<string>("all");
   const [taskFilter, setTaskFilter] = useState<string>("all");
 
   // 加载指标任务列表用于筛选
@@ -41,6 +44,7 @@ export default function IndicatorsPage() {
       const params: any = {};
       if (statusFilter !== "all") params.status = statusFilter;
       if (typeFilter !== "all") params.indicator_type = typeFilter;
+      if (objectTypeFilter !== "all") params.object_type = objectTypeFilter;
       if (taskFilter !== "all") params.indicator_task_id = Number(taskFilter);
 
       const response = await indicatorService.list(params);
@@ -58,7 +62,7 @@ export default function IndicatorsPage() {
 
   useEffect(() => {
     load();
-  }, [statusFilter, typeFilter, taskFilter]);
+  }, [statusFilter, typeFilter, objectTypeFilter, taskFilter]);
 
   // 表格列配置
   const columns = [
@@ -74,6 +78,23 @@ export default function IndicatorsPage() {
           {value === "offline" ? "离线" : "实时"}
         </Badge>
       )
+    },
+    {
+      key: "object_type",
+      label: "对象类型",
+      type: "text" as const,
+      render: (value: string) => {
+        const labels: Record<string, string> = {
+          cust_no: "客户号",
+          dep_acct_no: "存款账号",
+          loan_acct_no: "贷款账号"
+        };
+        return (
+          <Badge variant="secondary">
+            {labels[value] || value}
+          </Badge>
+        );
+      }
     },
     {
       key: "data_type",
@@ -122,6 +143,10 @@ export default function IndicatorsPage() {
     router.push("/fraudhunter/indicators/new");
   };
 
+  const handleBatchCreate = () => {
+    router.push("/fraudhunter/indicators/batch-new");
+  };
+
   const handleDelete = async (item: Indicator) => {
     try {
       await indicatorService.delete(item.id);
@@ -134,9 +159,15 @@ export default function IndicatorsPage() {
 
   return (
     <div className="container mx-auto py-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">指标管理</h1>
-        <p className="text-muted-foreground">管理反诈指标定义</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">指标管理</h1>
+          <p className="text-muted-foreground">管理反诈指标定义</p>
+        </div>
+        <Button onClick={handleBatchCreate} variant="outline">
+          <ListPlus className="h-4 w-4 mr-2" />
+          批量创建
+        </Button>
       </div>
 
       {/* 筛选器 */}
@@ -163,6 +194,18 @@ export default function IndicatorsPage() {
             <SelectItem value="all">全部类型</SelectItem>
             <SelectItem value="offline">离线</SelectItem>
             <SelectItem value="realtime">实时</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={objectTypeFilter} onValueChange={setObjectTypeFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="对象类型筛选" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部对象类型</SelectItem>
+            <SelectItem value="cust_no">客户号</SelectItem>
+            <SelectItem value="dep_acct_no">存款账号</SelectItem>
+            <SelectItem value="loan_acct_no">贷款账号</SelectItem>
           </SelectContent>
         </Select>
 

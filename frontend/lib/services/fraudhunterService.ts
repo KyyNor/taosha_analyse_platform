@@ -21,11 +21,12 @@ export interface IndicatorTask {
 }
 
 export interface IndicatorTaskCreate {
-  task_code: string;
+  task_code?: string;
   task_name: string;
   description?: string;
   logic_type?: string;
   logic_content: string;
+  realtime_logic_content?: string;
   source_tables?: string;
 }
 
@@ -49,6 +50,7 @@ export interface Indicator {
   indicator_code: string;
   indicator_name: string;
   indicator_type: string;
+  object_type: string;
   description?: string;
   data_type: string;
   enum_values?: string;
@@ -63,18 +65,20 @@ export interface Indicator {
 }
 
 export interface IndicatorCreate {
-  indicator_code: string;
+  indicator_code?: string;
   indicator_name: string;
   indicator_type: string;
+  object_type: string;
   description?: string;
   data_type: string;
   enum_values?: string;
-  indicator_task_id: number;
+  indicator_task_id?: number;
 }
 
 export interface IndicatorUpdate {
   indicator_name?: string;
   description?: string;
+  object_type?: string;
   data_type?: string;
   enum_values?: string;
 }
@@ -84,6 +88,64 @@ export interface IndicatorListResponse {
   page: number;
   page_size: number;
   items: Indicator[];
+}
+
+// ============ 批量创建相关类型定义 ============
+export interface IndicatorBatchCreateItem {
+  indicator_name: string;
+  description?: string;
+  data_type: string;
+  enum_values?: string;
+}
+
+export interface IndicatorTaskBatchCreate {
+  indicator_type: string;
+  object_type: string;
+  task_data: IndicatorTaskCreate;
+  indicators: IndicatorBatchCreateItem[];
+}
+
+export interface IndicatorBatchCreateResult {
+  index: number;
+  success: boolean;
+  indicator?: {
+    id: number;
+    indicator_code: string;
+    indicator_name: string;
+  };
+  error?: string;
+}
+
+export interface IndicatorBatchCreateResponse {
+  task_id: number;
+  task_code: string;
+  task_name: string;
+  total: number;
+  success_count: number;
+  failed_count: number;
+  results: IndicatorBatchCreateResult[];
+}
+
+// ============ 预执行验证相关类型定义 ============
+export interface TaskPreExecuteRequest {
+  task_data: IndicatorTaskCreate;
+  indicator_ids: number[];
+  etl_date?: string;
+}
+
+export interface TaskPreExecuteResponse {
+  success: boolean;
+  message: string;
+  execution_id?: string;
+  sample_results?: Record<string, any>;
+  validation_details?: {
+    valid: boolean;
+    required_fields: string[];
+    actual_fields: string[];
+    missing_fields: string[];
+    extra_fields: string[];
+    indicator_codes: string[];
+  };
 }
 
 // ============ 任务相关类型定义 ============
@@ -142,6 +204,33 @@ export interface PublishRequest {
   change_description?: string;
 }
 
+export interface PublishToDSRequest {
+  schedule_cron?: string;
+}
+
+export interface PublishToDSResponse {
+  success: boolean;
+  message: string;
+  workflow_name?: string;
+  workflow_code?: string;
+  ds_task_name?: string;
+  ds_task_code?: string;
+  online_success?: boolean;
+}
+
+export interface RerunRequest {
+  start_date: string;
+  end_date?: string;
+}
+
+export interface RerunResponse {
+  success: boolean;
+  message: string;
+  workflow_code?: string;
+  start_date: string;
+  end_date?: string;
+}
+
 // ============ 指标任务API ============
 export const indicatorTaskService = {
   // 获取指标任务列表
@@ -195,6 +284,18 @@ export const indicatorTaskService = {
     const response = await api.post(`${BASE_PATH}/indicator-tasks/${id}/archive`);
     return response.data;
   },
+
+  // 上线到 DolphinScheduler
+  async publishToDS(id: number, data: PublishToDSRequest = {}): Promise<PublishToDSResponse> {
+    const response = await api.post(`${BASE_PATH}/indicator-tasks/${id}/publish-to-ds`, data);
+    return response.data;
+  },
+
+  // 补数
+  async rerun(id: number, data: RerunRequest): Promise<RerunResponse> {
+    const response = await api.post(`${BASE_PATH}/indicator-tasks/${id}/rerun`, data);
+    return response.data;
+  },
 };
 
 // ============ 指标API ============
@@ -205,6 +306,7 @@ export const indicatorService = {
     page_size?: number;
     status?: string;
     indicator_type?: string;
+    object_type?: string;
     indicator_task_id?: number;
   }): Promise<IndicatorListResponse> {
     const response = await api.get(`${BASE_PATH}/indicators`, { params });
@@ -243,6 +345,31 @@ export const indicatorService = {
   // 归档指标
   async archive(id: number): Promise<Indicator> {
     const response = await api.post(`${BASE_PATH}/indicators/${id}/archive`);
+    return response.data;
+  },
+
+  // 批量创建指标
+  async batchCreate(data: IndicatorTaskBatchCreate): Promise<IndicatorBatchCreateResponse> {
+    const response = await api.post(`${BASE_PATH}/indicators/batch`, data);
+    return response.data;
+  },
+
+  // 创建任务并关联指标
+  async createTaskWithIndicators(taskData: IndicatorTaskCreate, indicatorIds: number[]): Promise<any> {
+    const response = await api.post(`${BASE_PATH}/indicators/batch/create-task`, {
+      task_data: taskData,
+      indicator_ids: indicatorIds
+    });
+    return response.data;
+  },
+
+  // 预执行验证任务
+  async validateTaskBeforeCreate(taskData: IndicatorTaskCreate, indicatorIds: number[], etlDate?: string): Promise<any> {
+    const response = await api.post(`${BASE_PATH}/indicators/batch/validate-task`, {
+      task_data: taskData,
+      indicator_ids: indicatorIds,
+      etl_date: etlDate
+    });
     return response.data;
   },
 };

@@ -7,6 +7,7 @@ from .indicator import (
     FraudHunterIndicatorTaskHistory,
     FraudHunterIndicatorDefinition,
     FraudHunterIndicatorHistory,
+    FraudHunterSequenceCounter,
 )
 from .risk_control_model import (
     FraudHunterModelDefinition,
@@ -15,6 +16,11 @@ from .risk_control_model import (
 from .task import (
     FraudHunterTaskExecution,
     FraudHunterTaskExecutionRecord,
+)
+from .wide_table import (
+    FraudHunterIndicatorRunProgress,
+    FraudHunterWideTableVersion,
+    FraudHunterWideTableSnapshot,
 )
 
 __all__ = [
@@ -26,4 +32,8 @@ __all__ = [
     'FraudHunterModelHistory',
     'FraudHunterTaskExecution',
     'FraudHunterTaskExecutionRecord',
+    'FraudHunterSequenceCounter',
+    'FraudHunterIndicatorRunProgress',
+    'FraudHunterWideTableVersion',
+    'FraudHunterWideTableSnapshot',
 ]

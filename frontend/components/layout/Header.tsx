@@ -1,12 +1,15 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from "../ui/dropdown-menu";
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+  navigationMenuTriggerStyle,
+} from "@/components/ui/navigation-menu";
+import { cn } from "@/lib/utils";
 
 type NavItem = {
   type: 'link';
@@ -48,65 +51,53 @@ const navItems: NavItem[] = [
 ];
 
 export default function Header() {
-  // 为每个dropdown维护独立的开关状态
-  const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({});
-
-  const handleDropdownChange = (label: string, isOpen: boolean) => {
-    setOpenDropdowns(prev => ({ ...prev, [label]: isOpen }));
-  };
-
   const renderNavItem = (item: NavItem) => {
     if (item.type === 'link') {
       return (
-        <Link
-          key={item.href}
-          href={item.href}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          {item.label}
-        </Link>
+        <NavigationMenuItem key={item.href}>
+          <Link href={item.href} legacyBehavior passHref>
+            <NavigationMenuLink className={cn(navigationMenuTriggerStyle(), "text-muted-foreground hover:text-foreground")}>
+              {item.label}
+            </NavigationMenuLink>
+          </Link>
+        </NavigationMenuItem>
       );
     }
 
     // type === 'dropdown'
-    const isOpen = openDropdowns[item.label] || false;
     return (
-      <DropdownMenu
-        key={item.label}
-        open={isOpen}
-        onOpenChange={(open) => handleDropdownChange(item.label, open)}
-      >
-        <DropdownMenuTrigger asChild>
-          <button
-            onMouseEnter={() => handleDropdownChange(item.label, true)}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            {item.label}
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          onMouseEnter={() => handleDropdownChange(item.label, true)}
-          onMouseLeave={() => handleDropdownChange(item.label, false)}
-          align="end"
-          className="min-w-[12rem] bg-background border border-solid"
-        >
-          {item.items.map((subItem) => (
-            <DropdownMenuItem key={subItem.href} asChild>
-              <Link href={subItem.href}>{subItem.label}</Link>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <NavigationMenuItem key={item.label}>
+        <NavigationMenuTrigger>{item.label}</NavigationMenuTrigger>
+        <NavigationMenuContent>
+          <ul className="grid gap-3 p-4 w-[200px] md:w-[300px]">
+            {item.items.map((subItem) => (
+              <li key={subItem.href}>
+                <Link href={subItem.href} legacyBehavior passHref>
+                  <NavigationMenuLink
+                    className={cn(
+                      "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                    )}
+                  >
+                    <div className="text-sm font-medium leading-none">{subItem.label}</div>
+                  </NavigationMenuLink>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </NavigationMenuContent>
+      </NavigationMenuItem>
     );
   };
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur">
       <div className="mx-auto max-w-screen-2xl px-6 h-14 flex items-center justify-between">
-        <Link href="/nlquery" className="font-semibold">淘沙分析平台</Link>
-        <nav className="flex items-center gap-4 text-sm">
-          {navItems.map((item) => renderNavItem(item))}
-        </nav>
+        <Link href="/nlquery" className="font-semibold text-lg">淘沙分析平台</Link>
+        <NavigationMenu>
+          <NavigationMenuList className="flex items-center gap-1">
+            {navItems.map((item) => renderNavItem(item))}
+          </NavigationMenuList>
+        </NavigationMenu>
       </div>
     </header>
   );

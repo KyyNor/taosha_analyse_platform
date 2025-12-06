@@ -13,6 +13,7 @@ from schemas.fraudhunter.indicator import (
     IndicatorTaskCreate,
     IndicatorTaskUpdate
 )
+from services.fraudhunter.sequence_service import SequenceManager
 from utils.logger import logger
 
 
@@ -21,13 +22,14 @@ class IndicatorTaskManager:
 
     def __init__(self, db: Session):
         self.db = db
+        self.sequence_manager = SequenceManager(db)
 
     def create_indicator_task(
         self,
         task_data: IndicatorTaskCreate,
         created_by: str
     ) -> FraudHunterIndicatorTask:
-        """创建指标任务
+        """创建指标任务（自动生成编码）
 
         Args:
             task_data: 指标任务创建数据
@@ -37,15 +39,20 @@ class IndicatorTaskManager:
             创建的指标任务对象
 
         Raises:
-            ValueError: 如果指标任务编码已存在
+            ValueError: 如果指标任务编码已存在（当手动指定编码时）
         """
-        # 验证编码唯一性
-        existing = self.db.query(FraudHunterIndicatorTask).filter(
-            FraudHunterIndicatorTask.task_code == task_data.task_code
-        ).first()
+        # 如果未提供编码，自动生成
+        if not task_data.task_code:
+            task_data.task_code = self.sequence_manager.generate_task_code()
+            logger.info(f"自动生成指标任务编码: {task_data.task_code}")
+        else:
+            # 如果提供了编码，仍需验证唯一性
+            existing = self.db.query(FraudHunterIndicatorTask).filter(
+                FraudHunterIndicatorTask.task_code == task_data.task_code
+            ).first()
 
-        if existing:
-            raise ValueError(f"指标任务编码已存在: {task_data.task_code}")
+            if existing:
+                raise ValueError(f"指标任务编码已存在: {task_data.task_code}")
 
         # 创建指标任务记录
         db_task = FraudHunterIndicatorTask(
@@ -221,6 +228,21 @@ class IndicatorTaskManager:
         self.db.refresh(db_task)
 
         logger.info(f"发布指标任务成功: {db_task.task_code}, 版本: {version}")
+
+        # 触发宽表版本变更检查
+        try:
+            from services.fraudhunter.wide_table_service.version_manager import WideTableVersionManager
+
+            # 获取该任务关联的指标，并从中获取object_type
+            if db_task.indicators:
+                object_type = db_task.indicators[0].object_type
+                version_manager = WideTableVersionManager(self.db)
+                version_manager.create_new_version(object_type, created_by=updated_by)
+                logger.info(f"已触发object_type={object_type}的宽表版本变更检查")
+        except Exception as e:
+            logger.error(f"触发宽表版本变更检查失败: {e}", exc_info=True)
+            # 不影响主流程，继续返回
+
         return db_task
 
     def archive_indicator_task(

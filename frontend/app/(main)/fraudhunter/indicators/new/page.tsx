@@ -25,6 +25,7 @@ export default function NewIndicatorPage() {
     indicator_code: "",
     indicator_name: "",
     indicator_type: "offline",
+    object_type: "dep_acct_no",
     description: "",
     data_type: "numeric",
     enum_values: "",
@@ -48,12 +49,6 @@ export default function NewIndicatorPage() {
   const validateForm = () => {
     const errors: string[] = [];
 
-    if (!formData.indicator_code?.trim()) {
-      errors.push("指标编码不能为空");
-    } else if (formData.indicator_code.length > 64) {
-      errors.push("指标编码不能超过64个字符");
-    }
-
     if (!formData.indicator_name?.trim()) {
       errors.push("指标名称不能为空");
     } else if (formData.indicator_name.length > 128) {
@@ -62,6 +57,10 @@ export default function NewIndicatorPage() {
 
     if (!formData.indicator_type) {
       errors.push("请选择指标类型");
+    }
+
+    if (!formData.object_type) {
+      errors.push("请选择对象类型");
     }
 
     if (!formData.data_type) {
@@ -152,20 +151,6 @@ export default function NewIndicatorPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="indicator-code">指标编码 *</Label>
-            <Input
-              id="indicator-code"
-              value={formData.indicator_code}
-              onChange={(e) => updateField("indicator_code", e.target.value)}
-              placeholder="如: login_freq_7d"
-              maxLength={64}
-            />
-            <p className="text-sm text-muted-foreground mt-1">
-              唯一标识，1-64个字符
-            </p>
-          </div>
-
-          <div>
             <Label htmlFor="indicator-name">指标名称 *</Label>
             <Input
               id="indicator-name"
@@ -210,6 +195,28 @@ export default function NewIndicatorPage() {
               </p>
             </div>
 
+            <div>
+              <Label htmlFor="object-type">对象类型 *</Label>
+              <Select
+                value={formData.object_type}
+                onValueChange={(value) => updateField("object_type", value)}
+              >
+                <SelectTrigger id="object-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cust_no">客户号</SelectItem>
+                  <SelectItem value="dep_acct_no">存款账号</SelectItem>
+                  <SelectItem value="loan_acct_no">贷款账号</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground mt-1">
+                指标计算的对象类型
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="indicator-task">关联指标任务 *</Label>
               <Select

@@ -13,6 +13,14 @@ from schemas.fraudhunter.indicator import (
     IndicatorListResponse,
     PublishRequest,
 )
+from schemas.fraudhunter.batch_create import (
+    IndicatorTaskBatchCreate,
+    IndicatorBatchCreateResponse,
+    CreateTaskWithIndicatorsRequest,
+    CreateTaskWithIndicatorsResponse,
+    TaskPreExecuteRequest,
+    TaskPreExecuteResponse,
+)
 from services.fraudhunter.indicator_service import IndicatorManager
 from utils.logger import logger
 
@@ -50,12 +58,160 @@ async def create_indicator(
         raise HTTPException(status_code=500, detail=f"创建指标失败: {str(e)}")
 
 
+@router.post("/batch", response_model=IndicatorBatchCreateResponse, summary="批量创建指标")
+async def batch_create_indicators(
+    batch_data: IndicatorTaskBatchCreate,
+    db: Session = Depends(get_db)
+):
+    """批量创建指标
+
+    新建指标任务并批量创建指标，分两步：
+    1. 先创建所有指标，获得ID列表
+    2. 再创建指标任务，包含这些指标的ID
+
+    参数:
+    - indicator_type: 指标类型（所有指标共享）
+    - object_type: 对象类型（所有指标共享）
+    - task_data: 指标任务数据
+    - indicators: 指标列表（1-50个）
+
+    返回:
+    - 批量创建结果，包含每个指标的成功/失败状态
+    """
+    try:
+        manager = IndicatorManager(db)
+        result = manager.batch_create_indicators(
+            batch_data,
+            created_by="system"
+        )
+
+        return result
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"批量创建指标失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"批量创建指标失败: {str(e)}")
+
+
+@router.post("/batch/validate-task", response_model=TaskPreExecuteResponse, summary="预执行验证任务")
+async def validate_task_before_create(
+    validation_request: TaskPreExecuteRequest,
+    db: Session = Depends(get_db)
+):
+    """在创建任务前预执行验证SQL和字段
+
+    验证SQL逻辑是否正确，输出字段是否包含：
+    - target_id
+    - etl_date
+    - 所有关联指标的编码字段
+
+    Args:
+        validation_request: 预执行验证请求
+        db: 数据库会话
+
+    Returns:
+        验证结果，包含字段验证详情和样本数据
+    """
+    try:
+        from services.fraudhunter.task_service import indicator_executor
+
+        # 执行预验证
+        validation_result = await indicator_executor.validate_task_logic(
+            db=db,
+            task_data=validation_request.task_data,
+            indicator_ids=validation_request.indicator_ids,
+            etl_date=validation_request.etl_date,
+            sample_size=10  # 验证时使用小样本
+        )
+
+        # 检查字段验证是否通过
+        field_validation = validation_result['field_validation']
+        if not field_validation['valid']:
+            return TaskPreExecuteResponse(
+                success=False,
+                message=f"字段验证失败，缺失字段: {', '.join(field_validation['missing_fields'])}",
+                validation_details=field_validation
+            )
+
+        return TaskPreExecuteResponse(
+            success=True,
+            message="预执行验证通过，SQL逻辑正确，字段完整",
+            sample_result=validation_result['sample_result'],
+            validation_details=validation_result
+        )
+
+    except ValueError as e:
+        return TaskPreExecuteResponse(
+            success=False,
+            message=str(e)
+        )
+    except Exception as e:
+        logger.error(f"预执行验证失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"预执行验证失败: {str(e)}")
+
+
+@router.post("/batch/create-task", response_model=CreateTaskWithIndicatorsResponse, summary="创建任务并关联指标")
+async def create_task_with_indicators(
+    request_data: CreateTaskWithIndicatorsRequest,
+    db: Session = Depends(get_db)
+):
+    """创建指标任务并关联已存在的指标
+
+    Args:
+        - task_data: 指标任务数据
+        - indicator_ids: 要关联的指标ID列表
+
+    Returns:
+        - 创建的任务信息和关联结果
+    """
+    try:
+        from services.fraudhunter.indicator_service import IndicatorTaskManager
+
+        task_manager = IndicatorTaskManager(db)
+
+        # 创建任务
+        task = task_manager.create_indicator_task(
+            request_data.task_data,
+            created_by="system"
+        )
+
+        # 关联指标到任务
+        if request_data.indicator_ids:
+            from models.fraudhunter.indicator import FraudHunterIndicatorDefinition
+
+            # 批量更新指标的indicator_task_id
+            db.query(FraudHunterIndicatorDefinition).filter(
+                FraudHunterIndicatorDefinition.id.in_(request_data.indicator_ids)
+            ).update(
+                {"indicator_task_id": task.id},
+                synchronize_session=False
+            )
+
+            logger.info(f"已将 {len(request_data.indicator_ids)} 个指标关联到任务 {task.task_code}")
+
+        return CreateTaskWithIndicatorsResponse(
+            task_id=task.id,
+            task_code=task.task_code,
+            task_name=task.task_name,
+            indicator_count=len(request_data.indicator_ids),
+            indicator_ids=request_data.indicator_ids
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"创建任务并关联指标失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建任务并关联指标失败: {str(e)}")
+
+
 @router.get("", response_model=IndicatorListResponse, summary="获取指标列表")
 async def list_indicators(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     status: Optional[str] = Query(None, description="状态筛选"),
     indicator_type: Optional[str] = Query(None, description="指标类型筛选"),
+    object_type: Optional[str] = Query(None, description="对象类型筛选"),
     indicator_task_id: Optional[int] = Query(None, description="指标组ID筛选"),
     indicator_code: Optional[str] = Query(None, description="编码筛选（模糊匹配）"),
     db: Session = Depends(get_db)
@@ -71,6 +227,7 @@ async def list_indicators(
             page_size=page_size,
             status=status,
             indicator_type=indicator_type,
+            object_type=object_type,
             indicator_task_id=indicator_task_id,
             indicator_code=indicator_code
         )
