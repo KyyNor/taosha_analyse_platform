@@ -316,20 +316,12 @@ async def publish_to_dolphinscheduler(
         PublishToDSResponse: 上线结果
     """
     try:
-        from services.dolphinscheduler import DolphinSchedulerService, WorkflowGenerator
+        from services.dolphinscheduler import DolphinSchedulerService
         from models.fraudhunter.indicator import FraudHunterIndicatorTask
 
         # 1. 验证指标任务是否存在
         manager = IndicatorTaskManager(db)
-        task = manager.get_indicator_task(task_id)
-
-        if not task:
-            raise HTTPException(status_code=404, detail=f"指标任务不存在: {task_id}")
-
-        # 2. 获取关联的指标列表
-        indicator_task = db.query(FraudHunterIndicatorTask).filter(
-            FraudHunterIndicatorTask.id == task_id
-        ).first()
+        indicator_task = manager.get_indicator_task(task_id)
 
         if not indicator_task:
             raise HTTPException(status_code=404, detail=f"指标任务不存在: {task_id}")
@@ -344,24 +336,12 @@ async def publish_to_dolphinscheduler(
 
         # 3. 初始化 DS 服务
         ds_service = DolphinSchedulerService()
-        workflow_generator = WorkflowGenerator(ds_service)
-
-        # 4. 检查是否已存在工作流
-        workflow_name = f"indicator_task_{indicator_task.task_code}"
-        workflow_exists = ds_service.check_workflow_exists(workflow_name)
-
-        # 5. 生成或更新工作流
-        if workflow_exists:
-            logger.info(f"工作流已存在，执行更新: {workflow_name}")
-            result = workflow_generator.update_workflow_from_task(indicator_task, indicators)
-        else:
-            logger.info(f"工作流不存在，创建新工作流: {workflow_name}")
-            workflow = workflow_generator.generate_workflow_from_task(indicator_task, indicators)
-            result = workflow_generator.publish_workflow(workflow, indicator_task)
+        result = ds_service.submit_indicator_task_workflow(indicator_task)
 
         # 6. 更新数据库中的 DS 任务信息
-        indicator_task.ds_task_name = result.get("ds_task_name")
-        indicator_task.ds_task_code = result.get("ds_task_code")
+        indicator_task.ds_task_name = result.get("workflow_name")
+        indicator_task.ds_task_code = result.get("workflow_code")
+        logger.info(indicator_task)
         db.commit()
         db.refresh(indicator_task)
 
@@ -418,21 +398,6 @@ async def rerun_indicator_task(
 
         if not task:
             raise HTTPException(status_code=404, detail=f"指标任务不存在: {task_id}")
-
-        # 2. 获取指标任务
-        indicator_task = db.query(FraudHunterIndicatorTask).filter(
-            FraudHunterIndicatorTask.id == task_id
-        ).first()
-
-        if not indicator_task:
-            raise HTTPException(status_code=404, detail=f"指标任务不存在: {task_id}")
-
-        # 3. 检查是否已上线到 DS
-        if not indicator_task.ds_task_code:
-            raise HTTPException(
-                status_code=400,
-                detail=f"指标任务 {task_id} 尚未上线到 DolphinScheduler，请先上线"
-            )
 
         # 4. 处理结束日期（默认为今天）
         end_date = request.end_date or datetime.now().strftime('%Y-%m-%d')

@@ -203,14 +203,17 @@ env_prefix: "TAOSHA_"
 dolphinscheduler:
   # DS 服务连接配置
   gateway:
-    url: "http://localhost:12345"
-    api_port: 12346
+    host: "http://localhost:12345"
+    api_port: 25333
     user: "admin"
     password: "dolphinscheduler123"
     tenant: "default"
+    api_token: "70ffd4d0458db3aea6389aaa52d39152"
 
   # 项目配置
-  project_name: "taosha_metrics"
+  project_name: "淘沙分析平台"
+  project_code: 19917269065440
+  
 
   # 工作流配置
   workflow:
@@ -237,7 +240,7 @@ dolphinscheduler:
 fraudhunter:
   # 宽表配置
   wide_table:
-    storage_path: "/data/wide_tables"  # Parquet文件存储路径
+    storage_path: "./wide_tables"  # Parquet文件存储路径
     sync_check_interval: 300  # 秒，检查是否可以同步的间隔
 
     # DuckDB配置

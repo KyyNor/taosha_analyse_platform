@@ -2,184 +2,43 @@
 DolphinScheduler 服务基类
 负责与 DS 的连接管理和基础项目/工作流操作
 """
-
+import os
+import requests
 from typing import Optional, Dict, Any
 from loguru import logger
-from pydolphinscheduler.core.configuration import Configuration
-from pydolphinscheduler.core import Project, Workflow
 from pydolphinscheduler.tasks.shell import Shell
 from pydolphinscheduler.tasks.sql import Sql
-from utils.config import config
+from pydolphinscheduler.tasks.http import Http
+from pydolphinscheduler.core.process_definition import ProcessDefinition
 
+from utils.config import settings
+
+from models.fraudhunter.indicator import FraudHunterIndicatorTask
 
 class DolphinSchedulerService:
     """DolphinScheduler 服务基类"""
 
     def __init__(self):
         """初始化 DS 服务"""
-        self.ds_config = config.get("dolphinscheduler", {})
-        self.gateway_config = self.ds_config.get("gateway", {})
-        self.project_name = self.ds_config.get("project_name", "taosha_metrics")
-        self.workflow_config = self.ds_config.get("workflow", {})
-        self.schedule_config = self.ds_config.get("schedule", {})
-        self.task_config = self.ds_config.get("task", {})
-
         # 初始化 pydolphinscheduler 配置
         self._init_configuration()
-
-        # 获取或创建项目
-        self.project = self._get_or_create_project()
 
     def _init_configuration(self):
         """初始化 pydolphinscheduler 配置"""
         try:
             # 设置 DS 连接配置
-            Configuration.set_config({
-                "java_gateway": {
-                    "address": self.gateway_config.get("url", "http://localhost:12345"),
-                    "port": self.gateway_config.get("api_port", 12346),
-                    "auto_convert": True
-                },
-                "default": {
-                    "user": {
-                        "name": self.gateway_config.get("user", "admin"),
-                        "password": self.gateway_config.get("password", "dolphinscheduler123"),
-                        "tenant": self.gateway_config.get("tenant", "default")
-                    }
-                }
-            })
+            os.environ["PYDS_JAVA_GATEWAY_ADDRESS"] = settings.dolphinscheduler_gateway_host
+            os.environ["PYDS_JAVA_GATEWAY_PORT"] = str(settings.dolphinscheduler_gateway_api_port)
+            os.environ["PYDS_USER_NAME"] = settings.dolphinscheduler_gateway_user
+            os.environ["PYDS_USER_PASSWORD"] = settings.dolphinscheduler_gateway_password
 
-            logger.info(f"DolphinScheduler 配置初始化成功: {self.gateway_config.get('url')}")
+            logger.info(f"DolphinScheduler 配置初始化成功")
 
         except Exception as e:
             logger.error(f"初始化 DolphinScheduler 配置失败: {str(e)}")
             raise
 
-    def _get_or_create_project(self) -> Project:
-        """获取或创建项目"""
-        try:
-            # 尝试获取现有项目
-            project = Project(name=self.project_name)
-            logger.info(f"获取 DolphinScheduler 项目成功: {self.project_name}")
-            return project
-
-        except Exception as e:
-            logger.error(f"获取/创建 DolphinScheduler 项目失败: {str(e)}")
-            raise
-
-    def check_workflow_exists(self, workflow_name: str) -> bool:
-        """
-        检查工作流是否存在
-
-        Args:
-            workflow_name: 工作流名称
-
-        Returns:
-            bool: 是否存在
-        """
-        try:
-            # 注意：pydolphinscheduler 可能没有直接的工作流查询接口
-            # 这里需要根据实际 API 进行调整
-            # 临时返回 False，表示总是创建新工作流
-            logger.info(f"检查工作流是否存在: {workflow_name}")
-            return False
-
-        except Exception as e:
-            logger.warning(f"检查工作流失败: {str(e)}")
-            return False
-
-    def get_workflow_by_name(self, workflow_name: str) -> Optional[Workflow]:
-        """
-        根据名称获取工作流
-
-        Args:
-            workflow_name: 工作流名称
-
-        Returns:
-            Optional[Workflow]: 工作流对象，不存在则返回 None
-        """
-        try:
-            # 注意：这需要根据实际的 pydolphinscheduler API 实现
-            logger.info(f"获取工作流: {workflow_name}")
-            return None
-
-        except Exception as e:
-            logger.error(f"获取工作流失败: {str(e)}")
-            return None
-
-    def create_workflow(
-        self,
-        workflow_name: str,
-        description: str = "",
-        schedule: Optional[str] = None
-    ) -> Workflow:
-        """
-        创建工作流
-
-        Args:
-            workflow_name: 工作流名称
-            description: 工作流描述
-            schedule: 定时调度表达式（cron）
-
-        Returns:
-            Workflow: 创建的工作流对象
-        """
-        try:
-            # 使用配置中的默认值
-            timezone = self.workflow_config.get("default_timezone", "Asia/Shanghai")
-            timeout = self.workflow_config.get("timeout", 60)
-
-            # 创建工作流
-            workflow = Workflow(
-                name=workflow_name,
-                project=self.project,
-                description=description,
-                timezone=timezone,
-                timeout=timeout
-            )
-
-            # 如果提供了调度表达式，则设置调度
-            if schedule:
-                workflow.schedule = schedule
-            else:
-                # 使用配置中的默认调度
-                default_cron = self.schedule_config.get("cron_expression", "0 0 2 * * ?")
-                workflow.schedule = default_cron
-
-            logger.info(f"工作流创建成功: {workflow_name}")
-            return workflow
-
-        except Exception as e:
-            logger.error(f"创建工作流失败: {str(e)}")
-            raise
-
-    def update_workflow(
-        self,
-        workflow: Workflow,
-        description: Optional[str] = None
-    ) -> Workflow:
-        """
-        更新工作流
-
-        Args:
-            workflow: 工作流对象
-            description: 新的描述
-
-        Returns:
-            Workflow: 更新后的工作流对象
-        """
-        try:
-            if description:
-                workflow.description = description
-
-            logger.info(f"工作流更新成功: {workflow.name}")
-            return workflow
-
-        except Exception as e:
-            logger.error(f"更新工作流失败: {str(e)}")
-            raise
-
-    def submit_workflow(self, workflow: Workflow) -> Dict[str, Any]:
+    def submit_indicator_task_workflow(self, indicator_task: FraudHunterIndicatorTask) -> Dict[str, Any]:
         """
         提交工作流到 DolphinScheduler
 
@@ -190,47 +49,89 @@ class DolphinSchedulerService:
             Dict[str, Any]: 提交结果
         """
         try:
+            workflow_code = None
+
+            if indicator_task.ds_task_code:
+                self.offline_ds_workflow(indicator_task.ds_task_code, indicator_task.task_code)
+                self.delete_ds_workflow(indicator_task.ds_task_code)
+
             # 提交工作流
-            workflow.submit()
+            with ProcessDefinition(
+                name=f"{indicator_task.task_code}",
+                schedule=settings.dolphinscheduler_schedule_cron_expression,
+                start_time="2025-01-01",
+                tenant="tenant_exists",
+                project=settings.dolphinscheduler_project_name,
+                user=settings.dolphinscheduler_gateway_user
+            ) as workflow:
+                # [start task_declare]
+
+                # 依赖表检查
+                # todo
+                check_shell1 = Shell(name="check_shell", command="echo hello pydolphinscheduler")
+                check_shell2 = Shell(name="check_shell", command="echo hello pydolphinscheduler")
+                check_shell_group = [check_shell2, check_shell1]
+
+                # 指标SQL执行
+                # indicator_task_sql = Sql(
+                #     name="indicator_task_sql",
+                #     sql="select 1",
+                #     datasource_name="ssxxz"
+                # )
+                indicator_task_sql = Shell(name="indicator_task_sql", command="echo hello pydolphinscheduler")
+
+                # 任务结束回调
+                task_callback = Http(
+                    name='task_callback',
+                    url="http://127.0.0.1"
+                )
+
+                # [end task_declare]
+
+                # [start task_relation_declare]
+                
+                # 配置依赖关系
+                check_shell_group >> indicator_task_sql >> task_callback
+                # [end task_relation_declare]
+
+                workflow_code = workflow.submit()
 
             result = {
                 "success": True,
-                "workflow_name": workflow.name,
-                "workflow_code": getattr(workflow, "code", None),
-                "message": f"工作流 {workflow.name} 提交成功"
+                "workflow_name": indicator_task.task_code,
+                "workflow_code": str(workflow_code),
+                "message": f"工作流 {indicator_task.task_code} 提交成功"
             }
 
-            logger.info(f"工作流提交成功: {workflow.name}")
+            logger.info(f"工作流提交成功: {result}")
             return result
 
         except Exception as e:
             logger.error(f"提交工作流失败: {str(e)}")
             raise
 
-    def online_schedule(self, workflow: Workflow) -> bool:
-        """
-        上线工作流调度
+    def offline_ds_workflow(self, workflow_code, workflow_name):
+        response = requests.post(
+            url=f"http://{settings.dolphinscheduler_gateway_host}:12345/dolphinscheduler/projects/{settings.dolphinscheduler_project_code}/process-definition/{workflow_code}/release",
+            data={
+                "name": workflow_name,
+                "releaseState": "OFFLINE"
+            },
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "token": settings.dolphinscheduler_gateway_api_token
+            }
+        )
+        logger.info(f"offline_ds_workflow: {response.status_code} content:{response.content}")
 
-        Args:
-            workflow: 工作流对象
-
-        Returns:
-            bool: 是否成功
-        """
-        try:
-            # 上线调度
-            online = self.schedule_config.get("online_schedule", True)
-            if online and hasattr(workflow, "online"):
-                workflow.online()
-                logger.info(f"工作流调度上线成功: {workflow.name}")
-                return True
-            else:
-                logger.warning(f"工作流调度未上线: {workflow.name}")
-                return False
-
-        except Exception as e:
-            logger.error(f"上线工作流调度失败: {str(e)}")
-            return False
+    def delete_ds_workflow(self, workflow_code):
+        response = requests.delete(
+            url=f"http://{settings.dolphinscheduler_gateway_host}:12345/dolphinscheduler/projects/{settings.dolphinscheduler_project_code}/process-definition/{workflow_code}",
+            headers={
+                "token": settings.dolphinscheduler_gateway_api_token
+            }
+        )
+        logger.info(f"delete_ds_workflow: {response.status_code} content:{response.content}")
 
     def run_backfill(
         self,

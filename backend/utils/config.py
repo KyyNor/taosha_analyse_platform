@@ -177,6 +177,33 @@ class ConfigManager:
             fine_report_sync_max_retries: int = self._config_data.get('fine_report_sync', {}).get('options', {}).get('max_retries', 3)
             fine_report_sync_retry_delay: float = self._config_data.get('fine_report_sync', {}).get('options', {}).get('retry_delay', 1.0)
 
+            # DolphinScheduler配置
+            dolphinscheduler_gateway_host: str = self._config_data.get('dolphinscheduler', {}).get('gateway', {}).get('host', '127.0.0.1')
+            dolphinscheduler_gateway_api_port: int = self._config_data.get('dolphinscheduler', {}).get('gateway', {}).get('api_port', 25333)
+            dolphinscheduler_gateway_user: str = self._config_data.get('dolphinscheduler', {}).get('gateway', {}).get('user', 'admin')
+            dolphinscheduler_gateway_password: str = self._config_data.get('dolphinscheduler', {}).get('gateway', {}).get('password', 'dolphinscheduler123')
+            dolphinscheduler_gateway_tenant: str = self._config_data.get('dolphinscheduler', {}).get('gateway', {}).get('tenant', 'default')
+            dolphinscheduler_gateway_api_token: str = self._config_data.get('dolphinscheduler', {}).get('gateway', {}).get('api_token', 'default')
+            dolphinscheduler_project_name: str = self._config_data.get('dolphinscheduler', {}).get('project_name', '淘沙分析平台')
+            dolphinscheduler_project_code: str = self._config_data.get('dolphinscheduler', {}).get('project_code', '1')
+            dolphinscheduler_workflow_default_timezone: str = self._config_data.get('dolphinscheduler', {}).get('workflow', {}).get('default_timezone', 'Asia/Shanghai')
+            dolphinscheduler_workflow_timeout: int = self._config_data.get('dolphinscheduler', {}).get('workflow', {}).get('timeout', 60)
+            dolphinscheduler_schedule_cron_expression: str = self._config_data.get('dolphinscheduler', {}).get('schedule', {}).get('cron_expression', '0 0 2 * * ?')
+            dolphinscheduler_schedule_online_schedule: bool = self._config_data.get('dolphinscheduler', {}).get('schedule', {}).get('online_schedule', True)
+            dolphinscheduler_task_table_check_timeout: int = self._config_data.get('dolphinscheduler', {}).get('task', {}).get('table_check', {}).get('timeout', 30)
+            dolphinscheduler_task_table_check_fail_retry_times: int = self._config_data.get('dolphinscheduler', {}).get('task', {}).get('table_check', {}).get('fail_retry_times', 3)
+            dolphinscheduler_task_table_check_fail_retry_interval: int = self._config_data.get('dolphinscheduler', {}).get('task', {}).get('table_check', {}).get('fail_retry_interval', 1)
+            dolphinscheduler_task_sql_task_timeout: int = self._config_data.get('dolphinscheduler', {}).get('task', {}).get('sql_task', {}).get('timeout', 60)
+            dolphinscheduler_task_sql_task_fail_retry_times: int = self._config_data.get('dolphinscheduler', {}).get('task', {}).get('sql_task', {}).get('fail_retry_times', 288)
+            dolphinscheduler_task_sql_task_fail_retry_interval: int = self._config_data.get('dolphinscheduler', {}).get('task', {}).get('sql_task', {}).get('fail_retry_interval', 5)
+
+            # FraudHunter配置
+            fraudhunter_wide_table_storage_path: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('storage_path', './wide_tables')
+            fraudhunter_wide_table_sync_check_interval: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('sync_check_interval', 300)
+            fraudhunter_wide_table_duckdb_config_memory_limit: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb_config', {}).get('memory_limit', '4GB')
+            fraudhunter_wide_table_duckdb_config_threads: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb_config', {}).get('threads', 4)
+            fraudhunter_scheduler_realtime_interval: int = self._config_data.get('fraudhunter', {}).get('scheduler', {}).get('realtime_interval', 300)
+
             class Config:
                 env_prefix = self._config_data.get('env_prefix', 'TAOSHA_')
                 case_sensitive = False
