@@ -33,7 +33,8 @@ const navItems: NavItem[] = [
     items: [
       { href: "/fraudhunter/indicator-tasks", label: "指标任务" },
       { href: "/fraudhunter/indicators", label: "指标" },
-      { href: "/fraudhunter/dry-run", label: "试运行详情" }
+      { href: "/fraudhunter/dry-run", label: "试运行详情" },
+      { href: "/fraudhunter/rule-config", label: "规则引擎" }
     ]
   },
   {

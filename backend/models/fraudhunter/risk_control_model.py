@@ -2,7 +2,7 @@
 FraudHunter模型相关数据库模型
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Index, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Index, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from models.db_base import Base
@@ -20,19 +20,19 @@ class FraudHunterModelDefinition(Base):
     model_name = Column(String(128), nullable=False, comment='模型名称')
     description = Column(Text, comment='模型描述')
 
+    offline_model_sql = Column(Text, comment='离线模型SQL，由模型规则生成')
+    realtime_model_sql = Column(Text, comment='实时模型SQL，由模型规则生成')
+
+    is_send_alert_message = Column(Boolean, default=False, comment='是否发送告警消息')
+    alert_message_target = Column(String(256), comment='告警消息目标')
+    is_acct_control = Column(Boolean, default=False, comment='是否账户控制')
+
     # 模型规则（JSON格式存储可视化定义）
     rule_config = Column(JSON, nullable=False, comment='规则配置JSON')
 
     # 关联指标
     indicator_codes = Column(Text, comment='使用的指标编码列表，JSON数组')
-
-    # 输出配置
-    output_table = Column(String(128), comment='输出表名')
-    output_partition_field = Column(String(64), default='dt', comment='分区字段')
-
-    # 生成的代码（系统自动生成）
-    generated_code = Column(Text, comment='生成的PySpark代码')
-    code_version = Column(Integer, default=1, comment='代码版本')
+    object_type = Column(String(32), comment='对象类型：cust_no/dep_acct_no/loan_acct_no')
 
     # 版本管理
     current_version = Column(Integer, default=1, comment='当前发布版本')

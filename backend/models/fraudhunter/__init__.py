@@ -9,7 +9,7 @@ from .indicator import (
     FraudHunterIndicatorHistory,
     FraudHunterSequenceCounter,
 )
-from .model import (
+from .risk_control_model import (
     FraudHunterModelDefinition,
     FraudHunterModelHistory,
 )

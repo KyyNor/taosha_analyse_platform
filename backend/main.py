@@ -24,6 +24,8 @@ from api.fraudhunter import (
     indicator_task_router,
     indicator_router,
     task_router as fraudhunter_task_router,
+    model_router,
+    risk_control_model_router
     wide_table_router
 )
 from services.query_engine import get_query_engine
@@ -284,6 +286,8 @@ fraudhunter_prefix = f"{api_prefix}/fraudhunter"
 app.include_router(indicator_task_router, prefix=fraudhunter_prefix)
 app.include_router(indicator_router, prefix=fraudhunter_prefix)
 app.include_router(fraudhunter_task_router, prefix=fraudhunter_prefix)
+app.include_router(model_router, prefix=fraudhunter_prefix)  # 模型管理（规则引擎）
+app.include_router(risk_control_model_router, prefix=fraudhunter_prefix)  # 预警管控模型
 app.include_router(wide_table_router, prefix=fraudhunter_prefix)
 
 # API 根路径信息
