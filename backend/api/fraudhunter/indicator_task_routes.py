@@ -338,9 +338,15 @@ async def publish_to_dolphinscheduler(
         ds_service = DolphinSchedulerService()
         result = ds_service.submit_indicator_task_workflow(indicator_task)
 
-        # 6. 更新数据库中的 DS 任务信息
+        # 6. 更新数据库中的 DS 任务信息和状态
         indicator_task.ds_task_name = result.get("workflow_name")
         indicator_task.ds_task_code = result.get("workflow_code")
+        # 如果上线成功，将任务状态更新为 online
+        if result.get("success", False):
+            indicator_task.status = "online"
+            # 同时更新关联的指标状态为 online
+            for indicator in indicators:
+                indicator.status = "online"
         logger.info(indicator_task)
         db.commit()
         db.refresh(indicator_task)

@@ -151,19 +151,71 @@ class DolphinSchedulerService:
             Dict[str, Any]: 补数结果
         """
         try:
-            # 注意：这需要根据实际的 pydolphinscheduler API 实现补数逻辑
-            # 目前 pydolphinscheduler 可能没有直接的补数 API
-            # 这里仅提供接口定义
+            # 如果没有提供结束日期，使用开始日期作为结束日期
+            if not end_date:
+                end_date = start_date
+
+            # 构建scheduleTime参数
+            schedule_time_data = {
+                "complementStartDate": f"{start_date} 00:00:00",
+                "complementEndDate": f"{end_date} 00:00:00"
+            }
+            import json
+            schedule_time_encoded = json.dumps(schedule_time_data)
+
+            # 构建请求参数
+            params = {
+                "processDefinitionCode": workflow_code,
+                "failureStrategy": "CONTINUE",
+                "warningType": "NONE",
+                "warningGroupId": "",
+                "execType": "COMPLEMENT_DATA",
+                "startNodeList": "",
+                "taskDependType": "TASK_POST",
+                "complementDependentMode": "OFF_MODE",
+                "runMode": "RUN_MODE_SERIAL",
+                "processInstancePriority": "MEDIUM",
+                "workerGroup": "default",
+                "environmentCode": "",
+                "startParams": "",
+                "expectedParallelismNumber": "",
+                "dryRun": "0",
+                "scheduleTime": schedule_time_encoded
+            }
 
             logger.info(f"开始补数任务: workflow_code={workflow_code}, start={start_date}, end={end_date}")
 
-            result = {
-                "success": True,
-                "workflow_code": workflow_code,
-                "start_date": start_date,
-                "end_date": end_date,
-                "message": "补数任务已提交"
-            }
+            # 调用DolphinScheduler API
+            response = requests.post(
+                url=f"http://127.0.0.1:12345/dolphinscheduler/projects/{settings.dolphinscheduler_project_code}/executors/start-process-instance",
+                data=params,
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "token": settings.dolphinscheduler_gateway_api_token
+                }
+            )
+
+            logger.info(f"run_backfill response: {response.status_code} content:{response.content}")
+
+            if response.status_code == 200:
+                response_data = response.json() if response.content else {}
+                result = {
+                    "success": True,
+                    "workflow_code": workflow_code,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "message": "补数任务提交成功",
+                    "response_data": response_data
+                }
+            else:
+                result = {
+                    "success": False,
+                    "workflow_code": workflow_code,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "message": f"补数任务提交失败，状态码: {response.status_code}",
+                    "error_content": response.content.decode('utf-8')
+                }
 
             return result
 
