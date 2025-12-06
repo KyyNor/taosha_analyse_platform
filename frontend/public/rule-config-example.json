@@ -1,0 +1,65 @@
+{
+  "logic": "AND",
+  "rules": [
+    {
+      "type": "condition",
+      "indicator": "i_login_cnt_7d",
+      "operator": ">",
+      "value": {
+        "type": "constant",
+        "value": 10
+      }
+    },
+    {
+      "type": "group",
+      "logic": "OR",
+      "rules": [
+        {
+          "type": "condition",
+          "indicator": "i_user_status",
+          "operator": "in",
+          "value": {
+            "type": "constant",
+            "value": ["suspended", "banned"]
+          }
+        },
+        {
+          "type": "condition",
+          "indicator": "i_risk_score",
+          "operator": ">=",
+          "value": {
+            "type": "indicator",
+            "indicator": "i_user_age"
+          }
+        },
+        {
+          "type": "condition",
+          "indicator": "i_tran_date",
+          "operator": ">",
+          "value": {
+            "type": "time_function",
+            "function": "date_sub",
+            "indicator": "i_etl_date",
+            "offset": 7,
+            "unit": "days"
+          }
+        }
+      ]
+    },
+    {
+      "type": "condition",
+      "indicator": "i_device_type",
+      "operator": "regexp",
+      "value": {
+        "type": "constant",
+        "value": ["Android", "iOS"]
+      }
+    }
+  ],
+  "output": {
+    "risk_level": "high",
+    "risk_score": 85,
+    "action": "review",
+    "description": "高风险用户，需要人工审核"
+  }
+}
