@@ -18,6 +18,7 @@ export default function NewIndicatorTaskPage() {
     task_name: "",
     description: "",
     logic_content: "",
+    realtime_logic_content: "",
     source_tables: ""
   });
 
@@ -151,7 +152,7 @@ export default function NewIndicatorTaskPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="logic-content">SQL内容 *</Label>
+            <Label htmlFor="logic-content">离线指标SQL *</Label>
             <Textarea
               id="logic-content"
               value={formData.logic_content}
@@ -161,7 +162,22 @@ export default function NewIndicatorTaskPage() {
               className="font-mono text-sm"
             />
             <p className="text-sm text-muted-foreground mt-1">
-              编写SQL查询逻辑，禁止使用危险操作（DROP、DELETE等）
+              编写离线指标SQL查询逻辑，禁止使用危险操作（DROP、DELETE等）
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="realtime-logic-content">实时指标SQL</Label>
+            <Textarea
+              id="realtime-logic-content"
+              value={formData.realtime_logic_content || ""}
+              onChange={(e) => updateField("realtime_logic_content", e.target.value)}
+              placeholder="SELECT account_id, indicator_code, indicator_value FROM ..."
+              rows={15}
+              className="font-mono text-sm"
+            />
+            <p className="text-sm text-muted-foreground mt-1">
+              编写实时指标SQL查询逻辑（可选）
             </p>
           </div>
 

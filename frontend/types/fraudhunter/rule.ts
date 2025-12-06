@@ -147,6 +147,7 @@ export interface Indicator {
   indicator_code: string
   indicator_name: string
   data_type: IndicatorDataType
+  object_type?: string        // 对象类型：cust_no/dep_acct_no/loan_acct_no
   enum_values?: string[]      // 枚举类型的可选值
   description?: string
 }

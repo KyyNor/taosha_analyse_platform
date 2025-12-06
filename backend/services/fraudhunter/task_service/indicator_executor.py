@@ -1,5 +1,5 @@
 """
-指标执行器（模拟Spark SQL执行）
+指标执行器（模拟Spark SQL执行 - Dry Run专用）
 """
 
 import asyncio
@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
 from models.fraudhunter.indicator import FraudHunterIndicatorTask, FraudHunterIndicatorDefinition
-from models.fraudhunter.task import FraudHunterTaskExecutionRecord
+from models.fraudhunter.dry_run_task import FraudHunterDryRunExecution
 from schemas.fraudhunter.indicator import IndicatorTaskCreate
 from utils.logger import logger
 
@@ -136,19 +136,23 @@ class IndicatorExecutor:
 
         logger.info(f"开始执行指标任务试运行: {task.task_code}, 版本: {version}, ETL日期: {etl_date}")
 
-        # 记录执行详情
-        record = FraudHunterTaskExecutionRecord(
-            execution_id=execution_id,
-            etl_date=datetime.strptime(etl_date, '%Y-%m-%d').date(),
-            version=version,
-            parameters={
-                'task_id': task_id,
-                'task_code': task.task_code,
-                'etl_date': etl_date,
-                'sample_size': sample_size
-            }
-        )
-        db.add(record)
+        # 获取干运行执行记录
+        execution = db.query(FraudHunterDryRunExecution).filter(
+            FraudHunterDryRunExecution.execution_id == execution_id
+        ).first()
+
+        if not execution:
+            raise ValueError(f"执行记录不存在: {execution_id}")
+
+        # 更新执行详情
+        execution.etl_date = datetime.strptime(etl_date, '%Y-%m-%d').date()
+        execution.version = version
+        execution.parameters = {
+            'task_id': task_id,
+            'task_code': task.task_code,
+            'etl_date': etl_date,
+            'sample_size': sample_size
+        }
         db.flush()
 
         try:
@@ -182,11 +186,11 @@ class IndicatorExecutor:
                 if not validation_result['valid']:
                     logger.warning(f"任务 {task.task_code} 字段验证失败")
 
-            # 更新记录
-            record.rows_processed = result['rows_processed']
-            record.rows_output = result['rows_output']
-            record.duration_seconds = result['duration_seconds']
-            record.log_content = result['log_content']
+            # 更新执行记录
+            execution.rows_processed = result['rows_processed']
+            execution.rows_output = result['rows_output']
+            execution.duration_seconds = result['duration_seconds']
+            execution.log_content = result['log_content']
 
             db.commit()
 
@@ -202,7 +206,7 @@ class IndicatorExecutor:
 
         except Exception as e:
             # 记录错误
-            record.error_message = str(e)
+            execution.error_message = str(e)
             db.commit()
 
             logger.error(f"指标任务试运行失败: {task.task_code}, 错误: {str(e)}")

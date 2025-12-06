@@ -11,6 +11,7 @@ export interface IndicatorTask {
   description?: string;
   logic_type: string;
   logic_content: string;
+  realtime_logic_content?: string;
   source_tables?: string;
   current_version: number;
   latest_version: number;

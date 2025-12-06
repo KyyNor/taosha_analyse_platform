@@ -1,5 +1,5 @@
 """
-异步任务管理器
+异步任务管理器（Dry Run专用）
 """
 
 import uuid
@@ -7,7 +7,7 @@ import asyncio
 from typing import Dict, Optional, Callable, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
-from models.fraudhunter.task import FraudHunterTaskExecution
+from models.fraudhunter.dry_run_task import FraudHunterDryRunExecution
 from models.db_base import get_db_session
 from utils.logger import logger
 
@@ -44,7 +44,7 @@ class TaskManager:
         execution_id = f"task_{uuid.uuid4()}"
 
         # 创建任务记录
-        task_execution = FraudHunterTaskExecution(
+        task_execution = FraudHunterDryRunExecution(
             task_type=task_type,
             task_id=task_id,
             execution_id=execution_id,
@@ -76,8 +76,8 @@ class TaskManager:
         with get_db_session() as db:
             try:
                 # 更新任务状态为运行中
-                task_execution = db.query(FraudHunterTaskExecution).filter(
-                    FraudHunterTaskExecution.execution_id == execution_id
+                task_execution = db.query(FraudHunterDryRunExecution).filter(
+                    FraudHunterDryRunExecution.execution_id == execution_id
                 ).first()
 
                 if not task_execution:
@@ -103,8 +103,8 @@ class TaskManager:
 
             except Exception as e:
                 # 更新任务状态为失败
-                task_execution = db.query(FraudHunterTaskExecution).filter(
-                    FraudHunterTaskExecution.execution_id == execution_id
+                task_execution = db.query(FraudHunterDryRunExecution).filter(
+                    FraudHunterDryRunExecution.execution_id == execution_id
                 ).first()
 
                 if task_execution:
@@ -136,8 +136,8 @@ class TaskManager:
         Raises:
             ValueError: 如果任务不存在
         """
-        task_execution = db.query(FraudHunterTaskExecution).filter(
-            FraudHunterTaskExecution.execution_id == execution_id
+        task_execution = db.query(FraudHunterDryRunExecution).filter(
+            FraudHunterDryRunExecution.execution_id == execution_id
         ).first()
 
         if not task_execution:
@@ -183,8 +183,8 @@ class TaskManager:
         Raises:
             ValueError: 如果任务不存在或未完成
         """
-        task_execution = db.query(FraudHunterTaskExecution).filter(
-            FraudHunterTaskExecution.execution_id == execution_id
+        task_execution = db.query(FraudHunterDryRunExecution).filter(
+            FraudHunterDryRunExecution.execution_id == execution_id
         ).first()
 
         if not task_execution:
@@ -218,8 +218,8 @@ class TaskManager:
         Raises:
             ValueError: 如果任务不存在
         """
-        task_execution = db.query(FraudHunterTaskExecution).filter(
-            FraudHunterTaskExecution.execution_id == execution_id
+        task_execution = db.query(FraudHunterDryRunExecution).filter(
+            FraudHunterDryRunExecution.execution_id == execution_id
         ).first()
 
         if not task_execution:
@@ -268,17 +268,17 @@ class TaskManager:
         Returns:
             (任务列表, 总数)
         """
-        query = db.query(FraudHunterTaskExecution)
+        query = db.query(FraudHunterDryRunExecution)
 
         if task_type:
-            query = query.filter(FraudHunterTaskExecution.task_type == task_type)
+            query = query.filter(FraudHunterDryRunExecution.task_type == task_type)
 
         if task_id:
-            query = query.filter(FraudHunterTaskExecution.task_id == task_id)
+            query = query.filter(FraudHunterDryRunExecution.task_id == task_id)
 
         total = query.count()
         offset = (page - 1) * page_size
-        items = query.order_by(FraudHunterTaskExecution.created_at.desc()).offset(offset).limit(page_size).all()
+        items = query.order_by(FraudHunterDryRunExecution.created_at.desc()).offset(offset).limit(page_size).all()
 
         return items, total
 

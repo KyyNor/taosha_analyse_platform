@@ -35,8 +35,7 @@ from .fraudhunter import (
     FraudHunterIndicatorHistory,
     FraudHunterModelDefinition,
     FraudHunterModelHistory,
-    FraudHunterTaskExecution,
-    FraudHunterTaskExecutionRecord,
+    FraudHunterDryRunExecution,
 )
 
 __all__ = [
@@ -83,6 +82,5 @@ __all__ = [
     "FraudHunterIndicatorHistory",
     "FraudHunterModelDefinition",
     "FraudHunterModelHistory",
-    "FraudHunterTaskExecution",
-    "FraudHunterTaskExecutionRecord",
+    "FraudHunterDryRunExecution",
 ]

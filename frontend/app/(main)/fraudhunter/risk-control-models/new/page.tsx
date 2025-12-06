@@ -22,6 +22,7 @@ import { modelService } from "@/lib/services/fraudhunter/modelService";
 import type { RiskControlModelCreate, ObjectType } from "@/types/fraudhunter/risk-control-model";
 import type { RuleConfig, Indicator } from "@/types/fraudhunter/rule";
 import { RuleBuilder } from "@/components/fraudhunter/model/RuleBuilder";
+import { RuleImportExport } from "@/components/fraudhunter/model/RuleImportExport";
 import { getObjectTypeLabel } from "@/types/fraudhunter/risk-control-model";
 
 export default function NewRiskControlModelPage() {
@@ -52,20 +53,20 @@ export default function NewRiskControlModelPage() {
     is_acct_control: false
   });
 
-  // 根据object_type加载指标
+  // 加载所有上线的指标（不按object_type筛选）
   useEffect(() => {
     const loadIndicators = async () => {
       try {
         const response = await indicatorService.list({
-          object_type: formData.object_type,
           status: "online",
           page_size: 1000
         });
-        // 转换为规则引擎需要的格式
+        // 转换为规则引擎需要的格式，包含object_type
         const transformedIndicators: Indicator[] = (response.items || []).map(item => ({
           indicator_code: item.indicator_code,
           indicator_name: item.indicator_name,
           data_type: item.data_type,
+          object_type: item.object_type,
           enum_values: item.enum_values ? item.enum_values.split(',').map(v => v.trim()) : undefined,
           description: item.description
         }));
@@ -75,7 +76,49 @@ export default function NewRiskControlModelPage() {
       }
     };
     loadIndicators();
-  }, [formData.object_type]);
+  }, []);
+
+  // 从规则中提取所有指标编码
+  const extractIndicatorCodes = (rules: any[]): string[] => {
+    const codes: string[] = [];
+    for (const rule of rules) {
+      if (rule.type === 'condition' && rule.indicator) {
+        codes.push(rule.indicator);
+      } else if (rule.type === 'group' && rule.rules) {
+        codes.push(...extractIndicatorCodes(rule.rules));
+      }
+    }
+    return codes;
+  };
+
+  // 推断object_type从规则中使用的指标
+  const inferObjectType = (): { objectType: string | null, error: string | null } => {
+    const indicatorCodes = extractIndicatorCodes(formData.rule_config.rules);
+    if (indicatorCodes.length === 0) {
+      return { objectType: null, error: "至少需要配置一条规则" };
+    }
+
+    const objectTypes = new Set<string>();
+    for (const code of indicatorCodes) {
+      const indicator = indicators.find(ind => ind.indicator_code === code);
+      if (indicator?.object_type) {
+        objectTypes.add(indicator.object_type);
+      }
+    }
+
+    if (objectTypes.size === 0) {
+      return { objectType: null, error: "无法推断对象类型，请确保规则中的指标已配置对象类型" };
+    }
+
+    if (objectTypes.size > 1) {
+      return {
+        objectType: null,
+        error: `规则中的指标对象类型不一致：${Array.from(objectTypes).join(', ')}，请确保所有指标属于同一对象类型`
+      };
+    }
+
+    return { objectType: Array.from(objectTypes)[0], error: null };
+  };
 
   // 表单验证
   const validateForm = () => {
@@ -93,12 +136,14 @@ export default function NewRiskControlModelPage() {
       errors.push("模型名称不能超过128个字符");
     }
 
-    if (!formData.object_type) {
-      errors.push("请选择对象类型");
-    }
-
     if (!formData.rule_config || formData.rule_config.rules.length === 0) {
       errors.push("至少需要配置一条规则");
+    }
+
+    // 验证对象类型一致性
+    const { error } = inferObjectType();
+    if (error) {
+      errors.push(error);
     }
 
     if (formData.is_send_alert_message && !formData.alert_message_target?.trim()) {
@@ -141,9 +186,20 @@ export default function NewRiskControlModelPage() {
       return;
     }
 
+    // 推断并设置 object_type
+    const { objectType } = inferObjectType();
+    if (!objectType) {
+      alert("无法推断对象类型，请检查规则配置");
+      return;
+    }
+
     setSaving(true);
     try {
-      const result = await riskControlModelService.create(formData);
+      const submitData = {
+        ...formData,
+        object_type: objectType
+      };
+      const result = await riskControlModelService.create(submitData);
       alert("预警管控模型创建成功");
       router.push(`/fraudhunter/risk-control-models/${result.id}`);
     } catch (error: any) {
@@ -248,40 +304,22 @@ export default function NewRiskControlModelPage() {
                 rows={3}
               />
             </div>
-
-            <div>
-              <Label htmlFor="object-type">对象类型 *</Label>
-              <Select
-                value={formData.object_type}
-                onValueChange={(value: ObjectType) => updateField("object_type", value)}
-              >
-                <SelectTrigger id="object-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cust_no">客户号</SelectItem>
-                  <SelectItem value="dep_acct_no">存款账号</SelectItem>
-                  <SelectItem value="loan_acct_no">贷款账号</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground mt-1">
-                选择后将加载对应的指标列表
-              </p>
-            </div>
           </CardContent>
         </Card>
 
         {/* 规则配置 */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>规则配置</CardTitle>
-              <Badge variant="outline">
-                对象类型: {getObjectTypeLabel(formData.object_type)}
-              </Badge>
-            </div>
+            <CardTitle>规则配置</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* 导入导出 */}
+            <RuleImportExport
+              currentRule={formData.rule_config}
+              onImport={handleRuleChange}
+            />
+
+            {/* 规则构建器 */}
             <RuleBuilder
               indicators={indicators}
               initialRule={formData.rule_config}

@@ -286,27 +286,16 @@ export default function IndicatorDetailPage() {
             </div>
             <div>
               <Label htmlFor="object-type">对象类型</Label>
-              {isEditMode ? (
-                <Select
-                  value={data.object_type}
-                  onValueChange={(value) => updateField("object_type", value)}
-                >
-                  <SelectTrigger id="object-type" className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cust_no">客户号</SelectItem>
-                    <SelectItem value="dep_acct_no">存款账号</SelectItem>
-                    <SelectItem value="loan_acct_no">贷款账号</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="mt-1 p-2 bg-muted rounded">
-                  <Badge variant="outline">
-                    {data.object_type === "cust_no" ? "客户号" :
-                     data.object_type === "dep_acct_no" ? "存款账号" : "贷款账号"}
-                  </Badge>
-                </div>
+              <div className="mt-1 p-2 bg-muted rounded">
+                <Badge variant="outline">
+                  {data.object_type === "cust_no" ? "客户号" :
+                   data.object_type === "dep_acct_no" ? "存款账号" : "贷款账号"}
+                </Badge>
+              </div>
+              {isEditMode && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  对象类型不可修改
+                </p>
               )}
             </div>
           </div>

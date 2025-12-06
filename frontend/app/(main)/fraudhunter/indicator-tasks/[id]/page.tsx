@@ -320,7 +320,7 @@ export default function IndicatorTaskDetailPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="logic-content">SQL内容</Label>
+            <Label htmlFor="logic-content">离线指标SQL</Label>
             {isEditMode && data.status === "draft" ? (
               <Textarea
                 id="logic-content"
@@ -338,6 +338,23 @@ export default function IndicatorTaskDetailPage() {
               <p className="text-sm text-destructive mt-1">
                 只有草稿状态才允许修改SQL内容
               </p>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="realtime-logic-content">实时指标SQL</Label>
+            {isEditMode && data.status === "draft" ? (
+              <Textarea
+                id="realtime-logic-content"
+                value={data.realtime_logic_content || ""}
+                onChange={(e) => updateField("realtime_logic_content", e.target.value)}
+                rows={15}
+                className="font-mono text-sm"
+              />
+            ) : (
+              <div className="mt-1 p-3 bg-muted rounded font-mono text-sm whitespace-pre-wrap">
+                {data.realtime_logic_content || "未配置"}
+              </div>
             )}
           </div>
 

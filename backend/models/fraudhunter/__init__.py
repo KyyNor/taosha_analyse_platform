@@ -13,9 +13,8 @@ from .risk_control_model import (
     FraudHunterModelDefinition,
     FraudHunterModelHistory,
 )
-from .task import (
-    FraudHunterTaskExecution,
-    FraudHunterTaskExecutionRecord,
+from .dry_run_task import (
+    FraudHunterDryRunExecution,
 )
 from .wide_table import (
     FraudHunterIndicatorRunProgress,
@@ -30,8 +29,7 @@ __all__ = [
     'FraudHunterIndicatorHistory',
     'FraudHunterModelDefinition',
     'FraudHunterModelHistory',
-    'FraudHunterTaskExecution',
-    'FraudHunterTaskExecutionRecord',
+    'FraudHunterDryRunExecution',
     'FraudHunterSequenceCounter',
     'FraudHunterIndicatorRunProgress',
     'FraudHunterWideTableVersion',
