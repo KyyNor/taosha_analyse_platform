@@ -3,10 +3,10 @@
 /**
  * 规则构建器组件
  *
- * 版本: v2.1.0 (支持值表达式)
+ * 版本: v2.2.0 (支持多层嵌套规则组)
  *
  * 功能：
- * - 支持嵌套规则组（AND/OR逻辑）
+ * - 支持无限层级嵌套规则组（AND/OR逻辑）
  * - 条件规则编辑（集成值表达式编辑器）
  * - 实时规则预览
  * - 规则验证和SQL生成预览
@@ -23,7 +23,8 @@ import {
   RuleConfig,
   GroupRule,
   ConditionRule,
-  Indicator
+  Indicator,
+  Rule
 } from '@/types/fraudhunter/rule'
 import { ConditionRuleEditor } from './ConditionRuleEditor'
 import { modelService } from '@/lib/services/fraudhunter/modelService'
@@ -33,6 +34,291 @@ interface RuleBuilderProps {
   initialRule?: RuleConfig
   onChange?: (rule: RuleConfig) => void
   readOnly?: boolean
+}
+
+// 路径类型：用于定位嵌套规则
+type RulePath = number[]
+
+// 辅助函数：根据路径获取规则
+function getRuleAtPath(rules: Rule[], path: RulePath): Rule | null {
+  if (path.length === 0) return null
+
+  let current: Rule | null = rules[path[0]] || null
+
+  for (let i = 1; i < path.length; i++) {
+    if (!current || current.type !== 'group') return null
+    current = current.rules[path[i]] || null
+  }
+
+  return current
+}
+
+// 辅助函数：根据路径更新规则
+function updateRuleAtPath(rules: Rule[], path: RulePath, updater: (rule: Rule) => Rule): Rule[] {
+  if (path.length === 0) return rules
+
+  const [index, ...restPath] = path
+
+  if (restPath.length === 0) {
+    // 更新当前层级的规则
+    return rules.map((rule, i) => i === index ? updater(rule) : rule)
+  } else {
+    // 递归更新嵌套规则
+    return rules.map((rule, i) => {
+      if (i === index && rule.type === 'group') {
+        return {
+          ...rule,
+          rules: updateRuleAtPath(rule.rules, restPath, updater)
+        }
+      }
+      return rule
+    })
+  }
+}
+
+// 辅助函数：根据路径删除规则
+function removeRuleAtPath(rules: Rule[], path: RulePath): Rule[] {
+  if (path.length === 0) return rules
+
+  const [index, ...restPath] = path
+
+  if (restPath.length === 0) {
+    // 删除当前层级的规则
+    return rules.filter((_, i) => i !== index)
+  } else {
+    // 递归删除嵌套规则
+    return rules.map((rule, i) => {
+      if (i === index && rule.type === 'group') {
+        return {
+          ...rule,
+          rules: removeRuleAtPath(rule.rules, restPath)
+        }
+      }
+      return rule
+    })
+  }
+}
+
+// 辅助函数：根据路径添加规则
+function addRuleAtPath(rules: Rule[], path: RulePath, newRule: Rule): Rule[] {
+  if (path.length === 0) {
+    // 添加到根级别
+    return [...rules, newRule]
+  }
+
+  const [index, ...restPath] = path
+
+  if (restPath.length === 0) {
+    // 添加到当前规则组
+    return rules.map((rule, i) => {
+      if (i === index && rule.type === 'group') {
+        return {
+          ...rule,
+          rules: [...rule.rules, newRule]
+        }
+      }
+      return rule
+    })
+  } else {
+    // 递归添加到嵌套规则组
+    return rules.map((rule, i) => {
+      if (i === index && rule.type === 'group') {
+        return {
+          ...rule,
+          rules: addRuleAtPath(rule.rules, restPath, newRule)
+        }
+      }
+      return rule
+    })
+  }
+}
+
+// 递归规则组渲染器
+interface RuleGroupRendererProps {
+  rules: Rule[]
+  parentPath: RulePath
+  parentLogic: 'AND' | 'OR'
+  indicators: Indicator[]
+  depth: number
+  readOnly: boolean
+  onUpdate: (path: RulePath, rule: Rule) => void
+  onRemove: (path: RulePath) => void
+  onAddCondition: (path: RulePath) => void
+  onAddGroup: (path: RulePath) => void
+}
+
+function RuleGroupRenderer({
+  rules,
+  parentPath,
+  parentLogic,
+  indicators,
+  depth,
+  readOnly,
+  onUpdate,
+  onRemove,
+  onAddCondition,
+  onAddGroup
+}: RuleGroupRendererProps) {
+  const indentWidth = depth * 16 // 每层缩进16px
+
+  return (
+    <div className="space-y-0">
+      {rules.map((rule, index) => {
+        const currentPath = [...parentPath, index]
+
+        return (
+          <div key={index} className="relative">
+            {rule.type === 'condition' ? (
+              // 条件规则渲染
+              <div className="flex items-center gap-2 border-b last:border-b-0 py-2 px-4" style={{ paddingLeft: `${indentWidth + 16}px` }}>
+                {/* 序号 */}
+                <div className="flex-shrink-0 w-12 text-center">
+                  <Badge variant={depth > 0 ? "outline" : "secondary"} className="text-xs">
+                    {index + 1}
+                  </Badge>
+                </div>
+
+                {/* 逻辑连接符 */}
+                {index > 0 && (
+                  <div className="flex-shrink-0">
+                    <Badge variant="outline" className="text-xs">
+                      {parentLogic}
+                    </Badge>
+                  </div>
+                )}
+
+                {/* 条件编辑器 */}
+                <div className="flex-1">
+                  <ConditionRuleEditor
+                    rule={rule}
+                    indicators={indicators}
+                    onChange={(updatedRule) => onUpdate(currentPath, updatedRule)}
+                  />
+                </div>
+
+                {/* 删除按钮 */}
+                <div className="flex-shrink-0">
+                  {!readOnly && (
+                    <Button
+                      onClick={() => onRemove(currentPath)}
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              // 规则组渲染（递归）
+              <div className="border-t pt-4 pb-4" style={{ paddingLeft: `${indentWidth}px` }}>
+                <div className="flex items-center gap-2 mb-4">
+                  {/* 规则组序号 */}
+                  <div className="flex-shrink-0 w-12 text-center">
+                    <Badge variant={depth > 0 ? "outline" : "secondary"} className="text-xs">
+                      {index + 1}
+                    </Badge>
+                  </div>
+
+                  {/* 逻辑连接符 */}
+                  {index > 0 && (
+                    <div className="flex-shrink-0">
+                      <Badge variant="outline" className="text-xs">
+                        {parentLogic}
+                      </Badge>
+                    </div>
+                  )}
+
+                  {/* 规则组控制区 */}
+                  <div className="flex items-center gap-2 bg-muted/30 px-3 py-2 rounded-lg flex-1">
+                    <Badge variant="outline">规则组</Badge>
+
+                    {/* 规则组逻辑选择器 */}
+                    <Select
+                      value={rule.logic}
+                      onValueChange={(v: 'AND' | 'OR') =>
+                        onUpdate(currentPath, { ...rule, logic: v })
+                      }
+                    >
+                      <SelectTrigger className="w-[80px] h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="AND">AND</SelectItem>
+                        <SelectItem value="OR">OR</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {/* 添加条件按钮 */}
+                    <Button
+                      onClick={() => onAddCondition(currentPath)}
+                      disabled={readOnly}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      添加条件
+                    </Button>
+
+                    {/* 添加规则组按钮 */}
+                    <Button
+                      onClick={() => onAddGroup(currentPath)}
+                      disabled={readOnly}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      添加规则组
+                    </Button>
+
+                    {/* 规则数量提示 */}
+                    <div className="text-sm text-muted-foreground ml-auto">
+                      {rule.rules.length} 个规则
+                    </div>
+
+                    {/* 删除规则组按钮 */}
+                    {!readOnly && (
+                      <Button
+                        onClick={() => onRemove(currentPath)}
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 递归渲染规则组内的规则 */}
+                {rule.rules.length > 0 ? (
+                  <div className="ml-16 border-l-2 border-muted">
+                    <RuleGroupRenderer
+                      rules={rule.rules}
+                      parentPath={currentPath}
+                      parentLogic={rule.logic}
+                      indicators={indicators}
+                      depth={depth + 1}
+                      readOnly={readOnly}
+                      onUpdate={onUpdate}
+                      onRemove={onRemove}
+                      onAddCondition={onAddCondition}
+                      onAddGroup={onAddGroup}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center text-muted-foreground py-4 ml-16">
+                    规则组为空，点击"添加条件"或"添加规则组"按钮
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 export function RuleBuilder({ indicators, initialRule, onChange, readOnly = false }: RuleBuilderProps) {
@@ -64,9 +350,9 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
     onChange?.(newRule)
   }, [onChange])
 
-  // 添加条件规则
-  const addConditionRule = useCallback((parentPath?: number[]) => {
-    const newRule: ConditionRule = {
+  // 添加条件规则（支持嵌套路径）
+  const handleAddCondition = useCallback((path: RulePath) => {
+    const newCondition: ConditionRule = {
       type: 'condition',
       indicator: indicators[0]?.indicator_code || '',
       operator: '>',
@@ -74,22 +360,14 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
       left_function: undefined
     }
 
-    setRule(prevRule => {
-      if (!parentPath) {
-        // 添加到根级别
-        return {
-          ...prevRule,
-          rules: [...prevRule.rules, newRule]
-        }
-      } else {
-        // 添加到指定的规则组（暂未实现嵌套）
-        return prevRule
-      }
-    })
+    setRule(prevRule => ({
+      ...prevRule,
+      rules: addRuleAtPath(prevRule.rules, path, newCondition)
+    }))
   }, [indicators])
 
-  // 添加规则组
-  const addRuleGroup = useCallback(() => {
+  // 添加规则组（支持嵌套路径）
+  const handleAddGroup = useCallback((path: RulePath) => {
     const newGroup: GroupRule = {
       type: 'group',
       logic: 'AND',
@@ -106,33 +384,23 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
 
     setRule(prevRule => ({
       ...prevRule,
-      rules: [...prevRule.rules, newGroup]
+      rules: addRuleAtPath(prevRule.rules, path, newGroup)
     }))
   }, [indicators])
 
-  // 删除规则
-  const removeRule = useCallback((index: number) => {
+  // 删除规则（支持嵌套路径）
+  const handleRemove = useCallback((path: RulePath) => {
     setRule(prevRule => ({
       ...prevRule,
-      rules: prevRule.rules.filter((_, i) => i !== index)
+      rules: removeRuleAtPath(prevRule.rules, path)
     }))
   }, [])
 
-  // 更新规则
-  const updateRuleAtIndex = useCallback((index: number, updatedRule: ConditionRule | GroupRule) => {
+  // 更新规则（支持嵌套路径）
+  const handleUpdate = useCallback((path: RulePath, updatedRule: Rule) => {
     setRule(prevRule => ({
       ...prevRule,
-      rules: prevRule.rules.map((r, i) => i === index ? updatedRule : r)
-    }))
-  }, [])
-
-  // 更新规则组的逻辑操作符
-  const updateGroupLogic = useCallback((index: number, newLogic: 'AND' | 'OR') => {
-    setRule(prevRule => ({
-      ...prevRule,
-      rules: prevRule.rules.map((r, i) =>
-        i === index && r.type === 'group' ? { ...r, logic: newLogic } : r
-      )
+      rules: updateRuleAtPath(prevRule.rules, path, () => updatedRule)
     }))
   }, [])
 
@@ -140,50 +408,6 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
   const updateLogic = useCallback((newLogic: 'AND' | 'OR') => {
     updateRule({ ...rule, logic: newLogic })
   }, [rule, updateRule])
-
-  // 向规则组添加条件
-  const addConditionToGroup = useCallback((groupIndex: number) => {
-    const newCondition: ConditionRule = {
-      type: 'condition',
-      indicator: indicators[0]?.indicator_code || '',
-      operator: '>',
-      value: { type: 'constant', value: 0 },
-      left_function: undefined
-    }
-
-    setRule(prevRule => ({
-      ...prevRule,
-      rules: prevRule.rules.map((r, i) =>
-        i === groupIndex && r.type === 'group'
-          ? { ...r, rules: [...r.rules, newCondition] }
-          : r
-      )
-    }))
-  }, [indicators])
-
-  // 从规则组删除条件
-  const removeConditionFromGroup = useCallback((groupIndex: number, conditionIndex: number) => {
-    setRule(prevRule => ({
-      ...prevRule,
-      rules: prevRule.rules.map((r, i) =>
-        i === groupIndex && r.type === 'group'
-          ? { ...r, rules: r.rules.filter((_, cIndex) => cIndex !== conditionIndex) }
-          : r
-      )
-    }))
-  }, [])
-
-  // 更新规则组内的条件
-  const updateConditionInGroup = useCallback((groupIndex: number, conditionIndex: number, updatedCondition: ConditionRule) => {
-    setRule(prevRule => ({
-      ...prevRule,
-      rules: prevRule.rules.map((r, i) =>
-        i === groupIndex && r.type === 'group'
-          ? { ...r, rules: r.rules.map((c, cIndex) => cIndex === conditionIndex ? updatedCondition : c) }
-          : r
-      )
-    }))
-  }, [])
 
   // 验证规则
   const validateRule = useCallback(async () => {
@@ -265,11 +489,11 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
           <div className="flex items-center justify-between">
             <span>规则条件</span>
             <div className="flex gap-2">
-              <Button onClick={() => addConditionRule()} disabled={readOnly} variant="outline" size="sm">
+              <Button onClick={() => handleAddCondition([])} disabled={readOnly} variant="outline" size="sm">
                 <Plus className="h-4 w-4 mr-1" />
                 条件
               </Button>
-              <Button onClick={addRuleGroup} disabled={readOnly} variant="outline" size="sm">
+              <Button onClick={() => handleAddGroup([])} disabled={readOnly} variant="outline" size="sm">
                 <Plus className="h-4 w-4 mr-1" />
                 规则组
               </Button>
@@ -283,169 +507,18 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
             </div>
           ) : (
             <div className="border rounded-lg overflow-hidden">
-              {rule.rules.map((ruleItem, index) => (
-                <div key={index} className="relative">
-                  {ruleItem.type === 'condition' ? (
-                    <div className="flex items-center gap-2 border-b last:border-b-0 py-2 px-4">
-                      {/* 序号 */}
-                      <div className="flex-shrink-0 w-12 text-center">
-                        <Badge variant="secondary" className="text-xs">
-                          {index + 1}
-                        </Badge>
-                      </div>
-
-                      {/* 逻辑连接符提示（仅显示不可编辑） */}
-                      {index > 0 && (
-                        <div className="flex-shrink-0">
-                          <Badge variant="outline" className="text-xs">
-                            {rule.logic}
-                          </Badge>
-                        </div>
-                      )}
-
-                      {/* 条件编辑器 */}
-                      <div className="flex-1">
-                        <ConditionRuleEditor
-                          rule={ruleItem}
-                          indicators={indicators}
-                          onChange={(updatedRule) => updateRuleAtIndex(index, updatedRule)}
-                        />
-                      </div>
-
-                      {/* 删除按钮 */}
-                      <div className="flex-shrink-0">
-                        {!readOnly && (
-                          <Button
-                            onClick={() => removeRule(index)}
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="border-t pt-4 pb-4">
-                      <div className="flex items-center gap-2 mb-4">
-                        {/* 规则组序号和删除按钮 */}
-                        <div className="flex-shrink-0 w-12 text-center">
-                          <Badge variant="secondary" className="text-xs">
-                            {index + 1}
-                          </Badge>
-                        </div>
-
-                        {index > 0 && (
-                          <div className="flex-shrink-0">
-                            <Badge variant="outline" className="text-xs">
-                              {rule.logic}
-                            </Badge>
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-2 bg-muted/30 px-3 py-2 rounded-lg flex-1">
-                          <Badge variant="outline">规则组</Badge>
-                          <Select
-                            value={ruleItem.logic}
-                            onValueChange={(v: 'AND' | 'OR') => updateGroupLogic(index, v)}
-                          >
-                            <SelectTrigger className="w-[80px] h-8">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="AND">AND</SelectItem>
-                              <SelectItem value="OR">OR</SelectItem>
-                            </SelectContent>
-                          </Select>
-
-                          <Button
-                            onClick={() => addConditionToGroup(index)}
-                            disabled={readOnly}
-                            variant="outline"
-                            size="sm"
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            添加条件
-                          </Button>
-
-                          <div className="text-sm text-muted-foreground ml-auto">
-                            {ruleItem.rules.length} 个条件
-                          </div>
-
-                          {!readOnly && (
-                            <Button
-                              onClick={() => removeRule(index)}
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 规则组内的条件 */}
-                      <div className="ml-16 space-y-0 border-l-2 border-muted">
-                        {ruleItem.rules.filter(r => r.type === 'condition').map((condition, conditionIndex) => {
-                          const originalIndex = ruleItem.rules.indexOf(condition)
-                          return (
-                          <div key={originalIndex} className="flex items-center gap-2 border-l-2 border-background pl-4 -ml-[2px]">
-                            {/* 条件序号 */}
-                            <div className="flex-shrink-0 w-12 text-center">
-                              <Badge variant="outline" className="text-xs">
-                                {originalIndex + 1}
-                              </Badge>
-                            </div>
-
-                            {/* 逻辑连接符（组内第一个条件之后才显示） */}
-                            {originalIndex > 0 && (
-                              <div className="flex-shrink-0">
-                                <Badge variant="outline" className="text-xs">
-                                  {ruleItem.logic}
-                                </Badge>
-                              </div>
-                            )}
-
-                            {/* 条件编辑器 */}
-                            <div className="flex-1">
-                              <ConditionRuleEditor
-                                rule={condition as ConditionRule}
-                                indicators={indicators}
-                                onChange={(updatedCondition) =>
-                                  updateConditionInGroup(index, originalIndex, updatedCondition)
-                                }
-                              />
-                            </div>
-
-                            {/* 删除按钮 */}
-                            <div className="flex-shrink-0">
-                              {!readOnly && (
-                                <Button
-                                  onClick={() => removeConditionFromGroup(index, originalIndex)}
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                          )
-                        })}
-
-                        {ruleItem.rules.length === 0 && (
-                          <div className="text-center text-muted-foreground py-4 ml-16">
-                            规则组为空，点击"添加条件"按钮添加
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+              <RuleGroupRenderer
+                rules={rule.rules}
+                parentPath={[]}
+                parentLogic={rule.logic}
+                indicators={indicators}
+                depth={0}
+                readOnly={readOnly}
+                onUpdate={handleUpdate}
+                onRemove={handleRemove}
+                onAddCondition={handleAddCondition}
+                onAddGroup={handleAddGroup}
+              />
             </div>
           )}
 
@@ -453,7 +526,7 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
           {rule.rules.length > 1 && (
             <div className="mt-4 pt-4 border-t">
               <div className="text-sm text-muted-foreground">
-                所有条件使用 <Badge variant="outline">{rule.logic}</Badge> 逻辑连接
+                所有根级别规则使用 <Badge variant="outline">{rule.logic}</Badge> 逻辑连接
               </div>
             </div>
           )}

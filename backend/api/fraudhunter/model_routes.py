@@ -93,7 +93,7 @@ async def preview_rule_sql(
     支持的SQL语法：
     - 基础比较: >, >=, <, <=, =, !=
     - 集合操作: IN, NOT IN
-    - 正则匹配: RLIKE, NOT (... RLIKE ...)
+    - 正则匹配: REGEXP, NOT REGEXP ...
 
     示例输出:
     ```sql
