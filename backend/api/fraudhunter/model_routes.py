@@ -3,12 +3,12 @@ FraudHunter模型管理API路由
 
 版本: v2.0.0 (支持高级操作符)
 
-提供规则验证、SQL预览和运行时评估的API端点
+提供规则验证、SQL预览、运行时评估和预警管控模型CRUD的API端点
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from models.db_base import get_db
 from schemas.fraudhunter.rule import (
@@ -17,11 +17,20 @@ from schemas.fraudhunter.rule import (
     SQLPreviewResult,
     RuleEvaluationResult
 )
+from schemas.fraudhunter.risk_control_model import (
+    RiskControlModelCreate,
+    RiskControlModelUpdate,
+    RiskControlModelResponse,
+    RiskControlModelListResponse,
+    RiskControlModelPublishRequest
+)
 from services.fraudhunter.model_service.rule_engine import RuleEngine
+from services.fraudhunter.model_service import RiskControlModelManager
 from utils.logger import logger
 
 
 router = APIRouter(prefix="/models", tags=["模型管理"])
+risk_control_model_router = APIRouter(prefix="/risk-control-models", tags=["预警管控模型"])
 
 
 @router.post(
@@ -267,3 +276,256 @@ async def health_check():
             "pattern": ["regexp", "not regexp"]
         }
     }
+
+
+# ==================== 预警管控模型CRUD端点 ====================
+
+@risk_control_model_router.post(
+    "",
+    response_model=RiskControlModelResponse,
+    summary="创建预警管控模型"
+)
+async def create_risk_control_model(
+    model_data: RiskControlModelCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    创建新的预警管控模型
+
+    参数:
+    - model_code: 模型编码（唯一）
+    - model_name: 模型名称
+    - description: 模型描述
+    - object_type: 对象类型（cust_no/dep_acct_no/loan_acct_no）
+    - rule_config: 规则配置JSON
+    - is_send_alert_message: 是否发送告警消息
+    - alert_message_target: 告警消息目标
+    - is_acct_control: 是否账户控制
+
+    返回:
+    - 创建的预警管控模型完整信息
+    """
+    try:
+        manager = RiskControlModelManager(db)
+        model = manager.create_risk_control_model(model_data, created_by="system")
+        return model
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"创建预警管控模型失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建预警管控模型失败: {str(e)}")
+
+
+@risk_control_model_router.get(
+    "",
+    response_model=RiskControlModelListResponse,
+    summary="获取预警管控模型列表"
+)
+async def list_risk_control_models(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    status: Optional[str] = Query(None, description="状态筛选"),
+    object_type: Optional[str] = Query(None, description="对象类型筛选"),
+    model_code: Optional[str] = Query(None, description="模型编码筛选（模糊匹配）"),
+    db: Session = Depends(get_db)
+):
+    """
+    获取预警管控模型列表，支持分页和筛选
+
+    查询参数:
+    - page: 页码（默认1）
+    - page_size: 每页数量（默认20，最大100）
+    - status: 状态筛选（draft/testing/online/offline/archived）
+    - object_type: 对象类型筛选（cust_no/dep_acct_no/loan_acct_no）
+    - model_code: 模型编码筛选（模糊匹配）
+
+    返回:
+    - total: 总记录数
+    - page: 当前页码
+    - page_size: 每页数量
+    - items: 预警管控模型列表
+    """
+    try:
+        manager = RiskControlModelManager(db)
+        items, total = manager.list_risk_control_models(
+            page=page,
+            page_size=page_size,
+            status=status,
+            object_type=object_type,
+            model_code=model_code
+        )
+
+        return {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "items": items
+        }
+
+    except Exception as e:
+        logger.error(f"获取预警管控模型列表失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取预警管控模型列表失败: {str(e)}")
+
+
+@risk_control_model_router.get(
+    "/{model_id}",
+    response_model=RiskControlModelResponse,
+    summary="获取预警管控模型详情"
+)
+async def get_risk_control_model(
+    model_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    获取指定ID的预警管控模型详情
+
+    参数:
+    - model_id: 模型ID
+
+    返回:
+    - 预警管控模型完整信息
+    """
+    try:
+        manager = RiskControlModelManager(db)
+        model = manager.get_risk_control_model(model_id)
+
+        if not model:
+            raise HTTPException(status_code=404, detail=f"预警管控模型不存在: {model_id}")
+
+        return model
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取预警管控模型详情失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取预警管控模型详情失败: {str(e)}")
+
+
+@risk_control_model_router.put(
+    "/{model_id}",
+    response_model=RiskControlModelResponse,
+    summary="更新预警管控模型"
+)
+async def update_risk_control_model(
+    model_id: int,
+    model_data: RiskControlModelUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    更新预警管控模型配置
+
+    参数:
+    - model_id: 模型ID
+    - 更新字段（所有字段可选）
+
+    返回:
+    - 更新后的预警管控模型信息
+    """
+    try:
+        manager = RiskControlModelManager(db)
+        model = manager.update_risk_control_model(model_id, model_data, updated_by="system")
+        return model
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"更新预警管控模型失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"更新预警管控模型失败: {str(e)}")
+
+
+@risk_control_model_router.delete(
+    "/{model_id}",
+    summary="删除预警管控模型"
+)
+async def delete_risk_control_model(
+    model_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    删除预警管控模型（级联删除历史记录）
+
+    参数:
+    - model_id: 模型ID
+
+    返回:
+    - 删除成功消息
+    """
+    try:
+        manager = RiskControlModelManager(db)
+        manager.delete_risk_control_model(model_id)
+        return {"message": f"预警管控模型 {model_id} 已删除"}
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"删除预警管控模型失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"删除预警管控模型失败: {str(e)}")
+
+
+@risk_control_model_router.post(
+    "/{model_id}/publish",
+    response_model=RiskControlModelResponse,
+    summary="发布预警管控模型"
+)
+async def publish_risk_control_model(
+    model_id: int,
+    publish_data: RiskControlModelPublishRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    发布预警管控模型到指定版本
+
+    参数:
+    - model_id: 模型ID
+    - version: 要发布的版本号
+    - change_description: 变更说明（可选）
+
+    返回:
+    - 发布后的预警管控模型信息
+    """
+    try:
+        manager = RiskControlModelManager(db)
+        model = manager.publish_risk_control_model(
+            model_id,
+            publish_data.version,
+            updated_by="system",
+            change_description=publish_data.change_description
+        )
+        return model
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"发布预警管控模型失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"发布预警管控模型失败: {str(e)}")
+
+
+@risk_control_model_router.post(
+    "/{model_id}/archive",
+    response_model=RiskControlModelResponse,
+    summary="归档预警管控模型"
+)
+async def archive_risk_control_model(
+    model_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    归档预警管控模型
+
+    参数:
+    - model_id: 模型ID
+
+    返回:
+    - 归档后的预警管控模型信息
+    """
+    try:
+        manager = RiskControlModelManager(db)
+        model = manager.archive_risk_control_model(model_id, updated_by="system")
+        return model
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"归档预警管控模型失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"归档预警管控模型失败: {str(e)}")

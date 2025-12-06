@@ -8,7 +8,7 @@ from .indicator import (
     FraudHunterIndicatorDefinition,
     FraudHunterIndicatorHistory,
 )
-from .model import (
+from .risk_control_model import (
     FraudHunterModelDefinition,
     FraudHunterModelHistory,
 )
