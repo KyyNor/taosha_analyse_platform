@@ -336,7 +336,7 @@ async def publish_to_dolphinscheduler(
 
         # 3. 初始化 DS 服务
         ds_service = DolphinSchedulerService()
-        result = ds_service.submit_indicator_task_workflow(indicator_task)
+        result = ds_service.submit_indicator_task_workflow(indicator_task, db)
 
         # 6. 更新数据库中的 DS 任务信息和状态
         indicator_task.ds_task_name = result.get("workflow_name")
