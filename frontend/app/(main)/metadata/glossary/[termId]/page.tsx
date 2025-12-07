@@ -211,19 +211,19 @@ export default function GlossaryTermDetailPage() {
   };
 
   // 取消编辑
-  const handleCancel = async () => {
-    const confirmed = await confirm({
+  const handleCancel = () => {
+    confirm({
       title: "确认取消",
       description: "确定要取消编辑吗？未保存的更改将丢失。",
-      variant: "default"
-    });
-    if (confirmed) {
-      if (mode === "edit") {
-        router.push(`/metadata/glossary/${termId}`);
-      } else {
-        router.push('/metadata/glossary');
+      variant: "default",
+      onConfirm: () => {
+        if (mode === "edit") {
+          router.push(`/metadata/glossary/${termId}`);
+        } else {
+          router.push('/metadata/glossary');
+        }
       }
-    }
+    });
   };
 
   // 返回列表

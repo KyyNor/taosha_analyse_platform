@@ -173,19 +173,19 @@ export default function DataThemeDetailPage() {
   };
 
   // 取消编辑
-  const handleCancel = async () => {
-    const confirmed = await confirm({
+  const handleCancel = () => {
+    confirm({
       title: "确认取消",
       description: "确定要取消编辑吗？未保存的更改将丢失。",
-      variant: "default"
-    });
-    if (confirmed) {
-      if (mode === "edit") {
-        router.push(`/metadata/themes/${themeId}`);
-      } else {
-        router.push('/metadata/themes');
+      variant: "default",
+      onConfirm: () => {
+        if (mode === "edit") {
+          router.push(`/metadata/themes/${themeId}`);
+        } else {
+          router.push('/metadata/themes');
+        }
       }
-    }
+    });
   };
 
   // 返回列表
@@ -208,22 +208,22 @@ export default function DataThemeDetailPage() {
   };
 
   // 从主题移除表
-  const handleRemoveTable = async (tableId: number) => {
-    const confirmed = await confirm({
+  const handleRemoveTable = (tableId: number) => {
+    confirm({
       title: "确认移除",
       description: "确定要移除这个表吗？",
-      variant: "destructive"
+      variant: "destructive",
+      onConfirm: async () => {
+        try {
+          await removeTableFromTheme(Number(themeId), tableId);
+          toast.success('表已从主题移除');
+          loadThemeTables(); // 重新加载表列表
+        } catch (error) {
+          console.error('Failed to remove table from theme:', error);
+          toast.error('移除表失败');
+        }
+      }
     });
-    if (!confirmed) return;
-
-    try {
-      await removeTableFromTheme(Number(themeId), tableId);
-      toast.success('表已从主题移除');
-      loadThemeTables(); // 重新加载表列表
-    } catch (error) {
-      console.error('Failed to remove table from theme:', error);
-      toast.error('移除表失败');
-    }
   };
 
   // 过滤可选择的表（排除已经关联的表）

@@ -79,15 +79,15 @@ export default function NewRelationConfigPage() {
     }
   };
 
-  const handleCancel = async () => {
-    const confirmed = await confirm({
+  const handleCancel = () => {
+    confirm({
       title: "确认取消",
       description: "确定要取消创建关系配置吗？",
-      variant: "default"
+      variant: "default",
+      onConfirm: () => {
+        router.push('/metadata/relations');
+      }
     });
-    if (confirmed) {
-      router.push('/metadata/relations');
-    }
   };
 
   const handleBack = () => {

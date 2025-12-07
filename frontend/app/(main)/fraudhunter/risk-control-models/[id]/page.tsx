@@ -207,18 +207,19 @@ export default function RiskControlModelDetailPage() {
   };
 
   // 取消编辑
-  const handleCancel = async () => {
+  const handleCancel = () => {
     if (hasChanges) {
-      const confirmed = await confirm({
+      confirm({
         title: "确认取消",
         description: "确定要取消吗？未保存的更改将丢失",
-        variant: "default"
+        variant: "default",
+        onConfirm: () => {
+          router.push(`/fraudhunter/risk-control-models/${modelId}`);
+        }
       });
-      if (!confirmed) {
-        return;
-      }
+    } else {
+      router.push(`/fraudhunter/risk-control-models/${modelId}`);
     }
-    router.push(`/fraudhunter/risk-control-models/${modelId}`);
   };
 
   // 进入编辑模式
@@ -245,22 +246,22 @@ export default function RiskControlModelDetailPage() {
   };
 
   // 归档
-  const handleArchive = async () => {
-    const confirmed = await confirm({
+  const handleArchive = () => {
+    confirm({
       title: "确认归档",
       description: "确定要归档此模型吗？",
-      variant: "destructive"
+      variant: "destructive",
+      onConfirm: async () => {
+        try {
+          await riskControlModelService.archive(modelId);
+          toast.success("归档成功");
+          await loadData();
+        } catch (error: any) {
+          console.error("Failed to archive risk control model:", error);
+          toast.error(error.response?.data?.detail || "归档失败");
+        }
+      }
     });
-    if (!confirmed) return;
-
-    try {
-      await riskControlModelService.archive(modelId);
-      toast.success("归档成功");
-      await loadData();
-    } catch (error: any) {
-      console.error("Failed to archive risk control model:", error);
-      toast.error(error.response?.data?.detail || "归档失败");
-    }
   };
 
   if (loading) {

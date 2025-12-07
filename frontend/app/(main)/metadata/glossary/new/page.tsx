@@ -180,15 +180,15 @@ export default function NewGlossaryTermPage() {
     }
   };
 
-  const handleCancel = async () => {
-    const confirmed = await confirm({
+  const handleCancel = () => {
+    confirm({
       title: "确认取消",
       description: "确定要取消创建术语吗？",
-      variant: "default"
+      variant: "default",
+      onConfirm: () => {
+        router.push('/metadata/glossary');
+      }
     });
-    if (confirmed) {
-      router.push('/metadata/glossary');
-    }
   };
 
   const handleBack = () => {

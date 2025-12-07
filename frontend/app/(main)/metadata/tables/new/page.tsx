@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { createTable } from "@/lib/services/metadataService";
 import { ArrowLeft, Save, X, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface NewTable {
   name: string;
@@ -20,6 +21,7 @@ interface NewTable {
 
 export default function NewTablePage() {
   const router = useRouter();
+  const { confirm, DialogComponent } = useConfirmDialog();
 
   const [tableData, setTableData] = useState<NewTable>({
     name: '',
@@ -79,9 +81,12 @@ export default function NewTablePage() {
   };
 
   const handleCancel = () => {
-    if (confirm('确定要取消创建表吗？')) {
-      router.push('/metadata/tables');
-    }
+    confirm({
+      title: '确认取消',
+      description: '确定要取消创建表吗？',
+      variant: 'default',
+      onConfirm: () => router.push('/metadata/tables')
+    });
   };
 
   const handleBack = () => {
@@ -89,7 +94,9 @@ export default function NewTablePage() {
   };
 
   return (
-    <div className="container mx-auto py-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <>
+      <DialogComponent />
+      <div className="container mx-auto py-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* 页面头部 */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
@@ -188,6 +195,7 @@ export default function NewTablePage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+  </>
   );
 }

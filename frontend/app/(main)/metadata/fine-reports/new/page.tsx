@@ -98,15 +98,15 @@ export default function NewFineReportPage() {
     }
   };
 
-  const handleCancel = async () => {
-    const confirmed = await confirm({
+  const handleCancel = () => {
+    confirm({
       title: "确认取消",
       description: "确定要取消创建报表吗？",
-      variant: "default"
+      variant: "default",
+      onConfirm: () => {
+        router.push('/metadata/fine-reports');
+      }
     });
-    if (confirmed) {
-      router.push('/metadata/fine-reports');
-    }
   };
 
   const handleBack = () => {

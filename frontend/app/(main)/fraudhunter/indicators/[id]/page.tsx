@@ -140,18 +140,19 @@ export default function IndicatorDetailPage() {
   };
 
   // 取消编辑
-  const handleCancel = async () => {
+  const handleCancel = () => {
     if (hasChanges) {
-      const confirmed = await confirm({
+      confirm({
         title: "确认取消",
         description: "确定要取消吗？未保存的更改将丢失",
-        variant: "default"
+        variant: "default",
+        onConfirm: () => {
+          router.push(`/fraudhunter/indicators/${indicatorId}`);
+        }
       });
-      if (!confirmed) {
-        return;
-      }
+    } else {
+      router.push(`/fraudhunter/indicators/${indicatorId}`);
     }
-    router.push(`/fraudhunter/indicators/${indicatorId}`);
   };
 
   // 进入编辑模式
@@ -173,22 +174,22 @@ export default function IndicatorDetailPage() {
   };
 
   // 归档
-  const handleArchive = async () => {
-    const confirmed = await confirm({
+  const handleArchive = () => {
+    confirm({
       title: "确认归档",
       description: "确定要归档此指标吗？",
-      variant: "destructive"
+      variant: "destructive",
+      onConfirm: async () => {
+        try {
+          await indicatorService.archive(indicatorId);
+          toast.success("归档成功");
+          await loadData();
+        } catch (error: any) {
+          console.error("Failed to archive indicator:", error);
+          toast.error(error.response?.data?.detail || "归档失败");
+        }
+      }
     });
-    if (!confirmed) return;
-
-    try {
-      await indicatorService.archive(indicatorId);
-      toast.success("归档成功");
-      await loadData();
-    } catch (error: any) {
-      console.error("Failed to archive indicator:", error);
-      toast.error(error.response?.data?.detail || "归档失败");
-    }
   };
 
   if (loading) {

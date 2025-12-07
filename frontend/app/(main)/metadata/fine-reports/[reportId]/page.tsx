@@ -106,24 +106,22 @@ export default function FineReportDetailPage() {
     }
   };
 
-  const handleDelete = async () => {
-    const confirmed = await confirm({
+  const handleDelete = () => {
+    confirm({
       title: "确认删除",
       description: `确定要删除报表"${report?.report_name}"吗？`,
-      variant: "destructive"
+      variant: "destructive",
+      onConfirm: async () => {
+        try {
+          await deleteFineReport(reportId);
+          toast.success('报表删除成功');
+          router.push('/metadata/fine-reports');
+        } catch (error) {
+          console.error('Failed to delete report:', error);
+          toast.error('删除失败，请重试');
+        }
+      }
     });
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      await deleteFineReport(reportId);
-      toast.success('报表删除成功');
-      router.push('/metadata/fine-reports');
-    } catch (error) {
-      console.error('Failed to delete report:', error);
-      toast.error('删除失败，请重试');
-    }
   };
 
   const handleBack = () => {

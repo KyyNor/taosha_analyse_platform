@@ -137,15 +137,15 @@ export default function NewDataThemePage() {
     }
   };
 
-  const handleCancel = async () => {
-    const confirmed = await confirm({
+  const handleCancel = () => {
+    confirm({
       title: "确认取消",
       description: "确定要取消创建数据主题吗？",
-      variant: "default"
+      variant: "default",
+      onConfirm: () => {
+        router.push('/metadata/themes');
+      }
     });
-    if (confirmed) {
-      router.push('/metadata/themes');
-    }
   };
 
   const handleBack = () => {

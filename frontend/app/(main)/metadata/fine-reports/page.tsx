@@ -4,8 +4,10 @@ import { MetadataTable } from "@/components/ui/MetadataTable";
 import { getFineReports, deleteFineReport, type FineReport } from "@/lib/services/metadataService";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function FineReportsPage() {
+  const { confirm, DialogComponent } = useConfirmDialog();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<FineReport[]>([]);
   const [filters, setFilters] = useState<{
@@ -60,19 +62,22 @@ export default function FineReportsPage() {
     router.push(`/metadata/fine-reports/${item.id}?mode=edit`);
   };
 
-  const handleDelete = async (item: FineReport) => {
-    if (!confirm(`确定要删除报表"${item.report_name}"吗？`)) {
-      return;
-    }
-
-    try {
-      await deleteFineReport(item.id);
-      toast.success("删除报表成功");
-      load();
-    } catch (error) {
-      console.error("删除报表失败:", error);
-      toast.error("删除报表失败");
-    }
+  const handleDelete = (item: FineReport) => {
+    confirm({
+      title: "确认删除",
+      description: `确定要删除报表"${item.report_name}"吗？`,
+      variant: "destructive",
+      onConfirm: async () => {
+        try {
+          await deleteFineReport(item.id);
+          toast.success("删除报表成功");
+          load();
+        } catch (error) {
+          console.error("删除报表失败:", error);
+          toast.error("删除报表失败");
+        }
+      }
+    });
   };
 
   const handleAdd = () => {
@@ -136,6 +141,7 @@ export default function FineReportsPage() {
         searchPlaceholder="搜索报表名称或描述..."
         emptyText="暂无FineReport报表数据"
       />
+      <DialogComponent />
     </div>
   );
 }

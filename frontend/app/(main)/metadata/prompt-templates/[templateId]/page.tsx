@@ -206,19 +206,19 @@ export default function PromptTemplateDetailPage() {
   };
 
   // 取消编辑
-  const handleCancel = async () => {
-    const confirmed = await confirm({
+  const handleCancel = () => {
+    confirm({
       title: "确认取消",
       description: "确定要取消编辑吗？未保存的更改将丢失。",
-      variant: "default"
-    });
-    if (confirmed) {
-      if (mode === "edit") {
-        router.push(`/metadata/prompt-templates/${templateId}`);
-      } else {
-        router.push('/metadata/prompt-templates');
+      variant: "default",
+      onConfirm: () => {
+        if (mode === "edit") {
+          router.push(`/metadata/prompt-templates/${templateId}`);
+        } else {
+          router.push('/metadata/prompt-templates');
+        }
       }
-    }
+    });
   };
 
   // 返回列表

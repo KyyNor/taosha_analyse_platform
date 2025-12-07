@@ -75,21 +75,21 @@ export default function TaskDetailPage() {
   }, [progress?.status]);
 
   // 取消任务
-  const handleCancel = async () => {
-    const confirmed = await confirm({
+  const handleCancel = () => {
+    confirm({
       title: "确认取消任务",
       description: `确定要取消任务 ${taskId} 吗？`,
-      variant: "destructive"
+      variant: "destructive",
+      onConfirm: async () => {
+        try {
+          await taskService.cancel(taskId);
+          await loadProgress();
+        } catch (error: any) {
+          console.error("取消任务失败:", error);
+          toast.error(error.message || "取消任务失败");
+        }
+      }
     });
-    if (!confirmed) return;
-
-    try {
-      await taskService.cancel(taskId);
-      await loadProgress();
-    } catch (error: any) {
-      console.error("Failed to cancel task:", error);
-      toast.error(error.response?.data?.detail || "取消任务失败");
-    }
   };
 
   // 状态Badge渲染

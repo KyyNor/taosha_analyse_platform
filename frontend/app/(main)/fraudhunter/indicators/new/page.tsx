@@ -115,15 +115,15 @@ export default function NewIndicatorPage() {
   };
 
   // 取消处理
-  const handleCancel = async () => {
-    const confirmed = await confirm({
+  const handleCancel = () => {
+    confirm({
       title: "确认取消",
       description: "确定要取消吗？未保存的更改将丢失",
-      variant: "default"
+      variant: "default",
+      onConfirm: () => {
+        router.push("/fraudhunter/indicators");
+      }
     });
-    if (confirmed) {
-      router.push("/fraudhunter/indicators");
-    }
   };
 
   // 字段更新处理

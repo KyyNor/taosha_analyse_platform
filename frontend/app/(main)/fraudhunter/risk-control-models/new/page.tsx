@@ -201,7 +201,7 @@ export default function NewRiskControlModelPage() {
     try {
       const submitData = {
         ...formData,
-        object_type: objectType
+        object_type: objectType as ObjectType
       };
       const result = await riskControlModelService.create(submitData);
       toast.success("预警管控模型创建成功");
