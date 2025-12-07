@@ -51,6 +51,7 @@ class DolphinSchedulerService:
         try:
             workflow_code = None
 
+            # 尝试清理历史工作流
             if indicator_task.ds_task_code:
                 self.offline_ds_workflow(indicator_task.ds_task_code, indicator_task.task_code)
                 self.delete_ds_workflow(indicator_task.ds_task_code)
@@ -67,31 +68,56 @@ class DolphinSchedulerService:
                 # [start task_declare]
 
                 # 依赖表检查
-                # todo
-                check_shell1 = Shell(name="check_shell", command="echo hello pydolphinscheduler")
-                check_shell2 = Shell(name="check_shell", command="echo hello pydolphinscheduler")
-                check_shell_group = [check_shell2, check_shell1]
+                check_shell_group = []
+                for table in indicator_task.dependent_tables.split(","):
+                    temp_shell = Shell(
+                        name=f"check_table_{table}",
+                        command=f"echo {table}"
+                    )
+                    check_shell_group.append(temp_shell)
 
                 # 指标SQL执行
-                # indicator_task_sql = Sql(
-                #     name="indicator_task_sql",
-                #     sql="select 1",
-                #     datasource_name="ssxxz"
-                # )
-                indicator_task_sql = Shell(name="indicator_task_sql", command="echo hello pydolphinscheduler")
+                indicator_task_sql = Sql(
+                    name="indicator_task_sql",
+                    sql=f"""with temp_data as (
+                                 {indicator_task.logic_content}
+                            )
+                            insert 
+                            overwrite
+                            table
+                            hxb_dh_data_dwm.taosha_indicator_details
+                            select 
+                            '' as indicator_id,
+                            '{indicator_task.object_type}' as object_type,
+                            '' as indicator_value,
+                            '${date}' as etl_date
+                            from temp_data
+                            """,
+                    datasource_name=settings.dolphinscheduler_task_sql_task_datasource_name,
+                    sql_type="NOT_SELECT"
+                )
 
                 # 任务结束回调
                 task_callback = Http(
-                    name='task_callback',
-                    url="http://127.0.0.1"
+                    name='task_finish_callback',
+                    url=settings.dolphinscheduler_callback_url,
+                    method="POST",
+                    http_params=[
+                        { "prop": "Content-Type", "httpParametersType": "header", "value": "application/json" },
+                        { "prop": "indicator_task_id", "httpParametersType": "body", "value": f"{indicator_task.id}" },
+                        { "prop": "indicator_version", "httpParametersType": "body", "value": f"{indicator_task.current_version}" },
+                        { "prop": "etl_date", "httpParametersType": "body", "value": "${date}" }
+                    ]
                 )
 
                 # [end task_declare]
 
                 # [start task_relation_declare]
-                
                 # 配置依赖关系
-                check_shell_group >> indicator_task_sql >> task_callback
+                if len(check_shell_group) > 0:
+                    check_shell_group >> indicator_task_sql >> task_callback
+                else:
+                    indicator_task_sql >> task_callback
                 # [end task_relation_declare]
 
                 workflow_code = workflow.submit()

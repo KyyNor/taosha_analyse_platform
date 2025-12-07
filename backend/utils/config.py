@@ -186,6 +186,7 @@ class ConfigManager:
             dolphinscheduler_gateway_api_token: str = self._config_data.get('dolphinscheduler', {}).get('gateway', {}).get('api_token', 'default')
             dolphinscheduler_project_name: str = self._config_data.get('dolphinscheduler', {}).get('project_name', '淘沙分析平台')
             dolphinscheduler_project_code: str = self._config_data.get('dolphinscheduler', {}).get('project_code', '1')
+            dolphinscheduler_callback_url: str = self._config_data.get('dolphinscheduler', {}).get('callback_url', 'http://127.0.0.1:50020/api/taosha/v1/fraudhunter/wide-table/indicator-runs/callback')
             dolphinscheduler_workflow_default_timezone: str = self._config_data.get('dolphinscheduler', {}).get('workflow', {}).get('default_timezone', 'Asia/Shanghai')
             dolphinscheduler_workflow_timeout: int = self._config_data.get('dolphinscheduler', {}).get('workflow', {}).get('timeout', 60)
             dolphinscheduler_schedule_cron_expression: str = self._config_data.get('dolphinscheduler', {}).get('schedule', {}).get('cron_expression', '0 0 2 * * ?')
@@ -196,6 +197,8 @@ class ConfigManager:
             dolphinscheduler_task_sql_task_timeout: int = self._config_data.get('dolphinscheduler', {}).get('task', {}).get('sql_task', {}).get('timeout', 60)
             dolphinscheduler_task_sql_task_fail_retry_times: int = self._config_data.get('dolphinscheduler', {}).get('task', {}).get('sql_task', {}).get('fail_retry_times', 288)
             dolphinscheduler_task_sql_task_fail_retry_interval: int = self._config_data.get('dolphinscheduler', {}).get('task', {}).get('sql_task', {}).get('fail_retry_interval', 5)
+            dolphinscheduler_task_sql_task_datasource_name: str = self._config_data.get('dolphinscheduler', {}).get('task', {}).get('sql_task', {}).get('datasource_name', 'spark_test')
+
 
             # FraudHunter配置
             fraudhunter_wide_table_storage_path: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('storage_path', './wide_tables')
