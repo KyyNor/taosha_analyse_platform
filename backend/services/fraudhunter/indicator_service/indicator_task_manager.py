@@ -106,7 +106,8 @@ class IndicatorTaskManager:
         page: int = 1,
         page_size: int = 20,
         status: Optional[str] = None,
-        task_code: Optional[str] = None
+        task_code: Optional[str] = None,
+        object_type: Optional[str] = None
     ) -> tuple[List[FraudHunterIndicatorTask], int]:
         """获取指标任务列表
 
@@ -115,6 +116,7 @@ class IndicatorTaskManager:
             page_size: 每页数量
             status: 状态筛选
             task_code: 编码筛选（模糊匹配）
+            object_type: 对象类型筛选
 
         Returns:
             (指标任务列表, 总数)
@@ -128,6 +130,10 @@ class IndicatorTaskManager:
         # 编码筛选（模糊匹配）
         if task_code:
             query = query.filter(FraudHunterIndicatorTask.task_code.like(f"%{task_code}%"))
+
+        # 对象类型筛选
+        if object_type:
+            query = query.filter(FraudHunterIndicatorTask.object_type == object_type)
 
         # 总数
         total = query.count()
@@ -164,6 +170,18 @@ class IndicatorTaskManager:
         # 只有draft状态才允许更新逻辑内容
         if db_task.status != 'draft' and task_data.logic_content:
             raise ValueError("只有草稿状态的指标任务才允许修改逻辑内容")
+
+        # 如果更新 object_type，需要验证关联指标
+        if task_data.object_type and task_data.object_type != db_task.object_type:
+            # 检查是否有关联指标
+            if db_task.indicators:
+                # 验证所有关联指标的 object_type 是否与新值一致
+                mismatched = [ind for ind in db_task.indicators
+                              if ind.object_type != task_data.object_type]
+                if mismatched:
+                    raise ValueError(
+                        f"无法更新 object_type: 任务已关联 {len(mismatched)} 个不同 object_type 的指标"
+                    )
 
         # 更新字段
         update_data = task_data.model_dump(exclude_unset=True)
@@ -233,12 +251,11 @@ class IndicatorTaskManager:
         try:
             from services.fraudhunter.wide_table_service.version_manager import WideTableVersionManager
 
-            # 获取该任务关联的指标，并从中获取object_type
-            if db_task.indicators:
-                object_type = db_task.indicators[0].object_type
-                version_manager = WideTableVersionManager(self.db)
-                version_manager.create_new_version(object_type, created_by=updated_by)
-                logger.info(f"已触发object_type={object_type}的宽表版本变更检查")
+            # 直接使用任务的 object_type
+            object_type = db_task.object_type
+            version_manager = WideTableVersionManager(self.db)
+            version_manager.create_new_version(object_type, created_by=updated_by)
+            logger.info(f"已触发object_type={object_type}的宽表版本变更检查")
         except Exception as e:
             logger.error(f"触发宽表版本变更检查失败: {e}", exc_info=True)
             # 不影响主流程，继续返回
@@ -354,7 +371,9 @@ class IndicatorTaskManager:
             description=task.description,
             logic_type=task.logic_type,
             logic_content=task.logic_content,
+            realtime_logic_content=task.realtime_logic_content,
             source_tables=task.source_tables,
+            object_type=task.object_type,
             change_type=change_type,
             change_description=change_description,
             created_by=created_by

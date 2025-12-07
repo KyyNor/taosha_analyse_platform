@@ -59,7 +59,8 @@ export default function BatchNewIndicatorPage() {
     description: "",
     logic_content: "",
     realtime_logic_content: "",
-    source_tables: ""
+    source_tables: "",
+    object_type: "dep_acct_no"
   });
 
   // 步骤3：预执行验证
@@ -228,8 +229,13 @@ export default function BatchNewIndicatorPage() {
     setIsValidating(true);
     try {
       const indicatorIds = createdIndicators.map(ind => ind.id);
+      // 确保 taskData 包含正确的 object_type
+      const taskDataWithObjectType = {
+        ...taskData,
+        object_type: objectType
+      };
       const result: TaskPreExecuteResponse = await indicatorService.validateTaskBeforeCreate(
-        taskData,
+        taskDataWithObjectType,
         indicatorIds,
         etlDate || undefined
       );
@@ -262,7 +268,12 @@ export default function BatchNewIndicatorPage() {
     setIsCreating(true);
     try {
       const indicatorIds = createdIndicators.map(ind => ind.id);
-      const result = await indicatorService.createTaskWithIndicators(taskData, indicatorIds);
+      // 确保 taskData 包含正确的 object_type
+      const taskDataWithObjectType = {
+        ...taskData,
+        object_type: objectType
+      };
+      const result = await indicatorService.createTaskWithIndicators(taskDataWithObjectType, indicatorIds);
 
       setFinalResult(result);
       setCurrentStep(4); // 修改为第4步

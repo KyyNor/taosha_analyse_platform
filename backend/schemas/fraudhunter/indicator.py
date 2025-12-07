@@ -19,6 +19,14 @@ class IndicatorTaskBase(BaseModel):
     logic_content: str = Field(..., min_length=1, description="SQL内容或代码")
     realtime_logic_content: str = Field(..., description="实时指标SQL")
     source_tables: Optional[str] = Field(None, description="依赖的源表列表，逗号分隔")
+    object_type: str = Field(..., description="对象类型：cust_no/dep_acct_no/loan_acct_no")
+
+    @field_validator('object_type')
+    @classmethod
+    def validate_object_type(cls, v):
+        if v not in ['cust_no', 'dep_acct_no', 'loan_acct_no']:
+            raise ValueError('object_type必须是cust_no、dep_acct_no或loan_acct_no')
+        return v
 
 
 class IndicatorTaskCreate(IndicatorTaskBase):
@@ -32,6 +40,7 @@ class IndicatorTaskUpdate(BaseModel):
     description: Optional[str] = None
     logic_content: Optional[str] = Field(None, min_length=1)
     source_tables: Optional[str] = None
+    object_type: Optional[str] = None
 
 
 class IndicatorTaskResponse(IndicatorTaskBase):

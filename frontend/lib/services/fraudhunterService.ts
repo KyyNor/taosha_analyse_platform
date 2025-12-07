@@ -13,6 +13,7 @@ export interface IndicatorTask {
   logic_content: string;
   realtime_logic_content?: string;
   source_tables?: string;
+  object_type: string;
   current_version: number;
   latest_version: number;
   status: string;
@@ -30,6 +31,7 @@ export interface IndicatorTaskCreate {
   logic_content: string;
   realtime_logic_content?: string;
   source_tables?: string;
+  object_type: string;
 }
 
 export interface IndicatorTaskUpdate {
@@ -37,6 +39,7 @@ export interface IndicatorTaskUpdate {
   description?: string;
   logic_content?: string;
   source_tables?: string;
+  object_type?: string;
 }
 
 export interface IndicatorTaskUpdateResponse {
@@ -255,6 +258,7 @@ export const indicatorTaskService = {
     page_size?: number;
     status?: string;
     task_code?: string;
+    object_type?: string;
   }): Promise<IndicatorTaskListResponse> {
     const response = await api.get(`${BASE_PATH}/indicator-tasks`, { params });
     return response.data;

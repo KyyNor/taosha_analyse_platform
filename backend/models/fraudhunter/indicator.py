@@ -29,6 +29,9 @@ class FraudHunterIndicatorTask(Base):
     # 数据源配置
     source_tables = Column(String(512), comment='依赖的源表列表，逗号分隔')
 
+    # 对象类型
+    object_type = Column(String(32), nullable=False, default='cust_no', comment='对象类型：cust_no/dep_acct_no/loan_acct_no')
+
     # DS任务信息
     ds_task_name = Column(String(512), comment='DS任务名称')
     ds_task_code = Column(String(512), comment='DS任务编号')
@@ -54,6 +57,7 @@ class FraudHunterIndicatorTask(Base):
     __table_args__ = (
         Index('idx_fh_task_code', 'task_code'),
         Index('idx_fh_task_status', 'status'),
+        Index('idx_fh_task_object_type', 'object_type'),
     )
 
     def __repr__(self):
@@ -77,6 +81,7 @@ class FraudHunterIndicatorTaskHistory(Base):
     logic_content = Column(Text, comment='SQL内容')
     realtime_logic_content = Column(Text, comment='实时指标SQL内容或代码')
     source_tables = Column(String(512), comment='源表列表')
+    object_type = Column(String(32), comment='对象类型')
 
     # 变更信息
     change_type = Column(String(16), nullable=False, comment='变更类型：create/update/publish/archive')
