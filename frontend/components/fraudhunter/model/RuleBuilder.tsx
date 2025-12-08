@@ -458,12 +458,12 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
 
   return (
     <div className="space-y-6">
-      {/* 规则构建器头部 */}
+      {/* 规则列表 */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>规则构建器</span>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between">
+            <span>规则条件</span>
+            <div className="flex gap-2">
               {/* 逻辑操作符选择 */}
               <Select value={rule.logic} onValueChange={(v: 'AND' | 'OR') => updateLogic(v)}>
                 <SelectTrigger className="w-[100px]">
@@ -494,17 +494,7 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
                 <Code className="h-4 w-4 mr-1" />
                 SQL
               </Button>
-            </div>
-          </CardTitle>
-        </CardHeader>
-      </Card>
 
-      {/* 规则列表 */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <span>规则条件</span>
-            <div className="flex gap-2">
               <Button onClick={() => handleAddCondition([])} disabled={readOnly} variant="outline" size="sm">
                 <Plus className="h-4 w-4 mr-1" />
                 条件

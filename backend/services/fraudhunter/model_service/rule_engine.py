@@ -733,12 +733,17 @@ class RuleEngine:
 
     # ==================== SQL生成 ====================
 
-    def _value_expression_to_sql(self, value_expr: ValueExpression) -> str:
+    def _value_expression_to_sql(
+        self,
+        value_expr: ValueExpression,
+        indicator_alias_mapping: Optional[Dict[str, str]] = None
+    ) -> str:
         """
         将值表达式转换为 Spark SQL
 
         Args:
             value_expr: 值表达式
+            indicator_alias_mapping: 指标别名映射 {indicator_code: table_alias}
 
         Returns:
             str: SQL 字符串
@@ -749,11 +754,19 @@ class RuleEngine:
 
         # 指标引用
         elif isinstance(value_expr, IndicatorReference):
-            return value_expr.indicator
+            indicator = value_expr.indicator
+            if indicator_alias_mapping and indicator in indicator_alias_mapping:
+                alias = indicator_alias_mapping[indicator]
+                return f"{alias}.{indicator}"
+            return indicator
 
         # 时间函数
         elif isinstance(value_expr, TimeFunction):
             ind = value_expr.indicator
+            # 添加表别名
+            if indicator_alias_mapping and ind in indicator_alias_mapping:
+                alias = indicator_alias_mapping[ind]
+                ind = f"{alias}.{ind}"
             offset = value_expr.offset
 
             # 根据函数调整符号
@@ -775,8 +788,13 @@ class RuleEngine:
 
         # 数学函数
         elif isinstance(value_expr, MathFunction):
+            ind = value_expr.indicator
+            # 添加表别名
+            if indicator_alias_mapping and ind in indicator_alias_mapping:
+                alias = indicator_alias_mapping[ind]
+                ind = f"{alias}.{ind}"
             if value_expr.function == "abs":
-                return f"ABS({value_expr.indicator})"
+                return f"ABS({ind})"
 
         return "NULL"
 
@@ -792,13 +810,27 @@ class RuleEngine:
         else:
             return str(value)
 
-    def generate_sql_expression(self, rule_config: RuleConfig) -> str:
+    def generate_sql_expression(
+        self,
+        rule_config: RuleConfig,
+        indicator_alias_mapping: Optional[Dict[str, str]] = None
+    ) -> str:
         """
         将规则配置转换为SQL WHERE子句表达式（支持所有操作符和值表达式）
         用于在Spark SQL中直接应用规则
 
+        Args:
+            rule_config: 规则配置
+            indicator_alias_mapping: 指标别名映射 {indicator_code: table_alias}
+                - None: 不添加表别名（默认，返回纯WHERE条件）
+                - Dict: 根据映射添加表别名，如:
+                    - 存款实时指标: {'i_xxx_realtime': 'dep_acct_realtime_indicator'}
+                    - 存款离线指标: {'i_xxx_offline': 'dep_acct_offline_indicator'}
+                    - 客户指标: {'cust_xxx': 'cust_offline_indicator'}
+
         Returns:
             str: SQL表达式，如 "(i_login_cnt_7d > 10 AND (i_device_change_cnt >= 3 OR i_user_status IN ('suspended', 'banned')))"
+                 或带别名 "(dep_acct_realtime_indicator.i_xxx > 10 AND cust_offline_indicator.cust_yyy = 'A')"
         """
 
         def condition_to_sql(condition: ConditionRule) -> str:
@@ -807,14 +839,20 @@ class RuleEngine:
             operator = condition.operator
             value_expr = condition.value
 
+            # 处理左侧指标（包含表别名）
+            if indicator_alias_mapping and indicator in indicator_alias_mapping:
+                alias = indicator_alias_mapping[indicator]
+                left_sql = f"{alias}.{indicator}"
+            else:
+                left_sql = indicator
+
             # 处理左元素函数
-            left_sql = indicator
             if condition.left_function == 'abs':
-                left_sql = f"ABS({indicator})"
+                left_sql = f"ABS({left_sql})"
 
             # 基础比较操作符
             if operator in ['>', '>=', '<', '<=', '=', '!=']:
-                right_sql = self._value_expression_to_sql(value_expr)
+                right_sql = self._value_expression_to_sql(value_expr, indicator_alias_mapping)
                 return f"{left_sql} {operator} {right_sql}"
 
             # 集合操作（只支持常量值）
@@ -878,6 +916,50 @@ class RuleEngine:
         )
 
         return f"({group_to_sql(root_group)})"
+
+    def build_indicator_alias_mapping(
+        self,
+        rule_config: RuleConfig,
+        use_alias: bool = False
+    ) -> Optional[Dict[str, str]]:
+        """
+        构建指标别名映射
+
+        根据指标编码自动判断所属表：
+        - 包含 'realtime' 的为存款实时指标 -> dep_acct_realtime_indicator
+        - 以 'cust_' 或 'i_cust_' 开头的为客户指标 -> cust_offline_indicator
+        - 其他为存款离线指标 -> dep_acct_offline_indicator
+
+        Args:
+            rule_config: 规则配置
+            use_alias: 是否使用别名
+                - False: 返回 None（默认，不添加表别名）
+                - True: 返回指标别名映射
+
+        Returns:
+            指标别名映射字典，或 None
+        """
+        if not use_alias:
+            return None
+
+        indicators = self._extract_indicators(rule_config)
+        mapping = {}
+
+        for indicator in indicators:
+            indicator_lower = indicator.lower()
+
+            # 判断指标类型
+            if 'realtime' in indicator_lower:
+                # 存款实时指标
+                mapping[indicator] = 'dep_acct_realtime_indicator'
+            elif indicator_lower.startswith('cust_') or indicator_lower.startswith('i_cust_'):
+                # 客户指标
+                mapping[indicator] = 'cust_offline_indicator'
+            else:
+                # 存款离线指标（默认）
+                mapping[indicator] = 'dep_acct_offline_indicator'
+
+        return mapping
 
     # ==================== 辅助方法 ====================
 

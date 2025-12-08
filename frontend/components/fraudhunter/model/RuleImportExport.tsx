@@ -258,21 +258,6 @@ export function RuleImportExport({ currentRule, onImport, onExport }: RuleImport
           </CardContent>
         </Card>
       )}
-
-      {/* 格式说明 */}
-      <Card className="bg-muted/50">
-        <CardContent className="pt-4">
-          <div className="flex items-start gap-2 text-xs text-muted-foreground">
-            <FileJson className="h-3 w-3 mt-0.5 flex-shrink-0" />
-            <div>
-              <div className="font-medium">JSON格式说明</div>
-              <div className="mt-1">
-                导出的JSON格式与数据库存储格式一致，包含logic、rules两个必填字段。
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

@@ -19,6 +19,7 @@ from models.fraudhunter.wide_table import (
 )
 from models.fraudhunter.dry_run_task import FraudHunterDryRunExecution
 from schemas.fraudhunter.rule import RuleConfig, ConditionRule, GroupRule, Rule
+from services.fraudhunter.model_service.rule_engine import RuleEngine
 from utils.logger import logger
 
 
@@ -92,40 +93,6 @@ class ModelExecutor:
 
         return snapshot.parquet_file_path
 
-    def _extract_indicators_from_rule_config(self, rule_config: Dict) -> Dict[str, str]:
-        """从规则配置中提取指标及其时效性
-        
-        根据指标编码判断时效性：
-        - 包含 'realtime' 的为实时指标
-        - 包含 'offline' 的为离线指标
-        - 默认为离线指标
-        
-        Args:
-            rule_config: 规则配置字典
-            
-        Returns:
-            指标字典 {indicator_code: 'realtime' | 'offline'}
-        """
-        indicators = {}
-
-        def extract_from_rule(rule: Dict):
-            if rule.get('type') == 'condition':
-                indicator = rule.get('indicator', '')
-                if indicator:
-                    # 根据指标编码判断时效性
-                    if 'realtime' in indicator.lower():
-                        indicators[indicator] = 'realtime'
-                    else:
-                        indicators[indicator] = 'offline'
-            elif rule.get('type') == 'group':
-                for sub_rule in rule.get('rules', []):
-                    extract_from_rule(sub_rule)
-
-        for rule in rule_config.get('rules', []):
-            extract_from_rule(rule)
-
-        return indicators
-
     def _generate_backtest_sql(
         self,
         model: FraudHunterModelDefinition,
@@ -151,25 +118,31 @@ class ModelExecutor:
         Returns:
             回测SQL语句
         """
-        rule_config = model.rule_config
+        rule_config_dict = model.rule_config
         
-        # 提取指标及其时效性
-        indicators = self._extract_indicators_from_rule_config(rule_config)
+        # 将 Dict 转换为 RuleConfig 模型
+        rule_config = RuleConfig(**rule_config_dict)
+        
+        # 使用 RuleEngine 构建指标别名映射并生成 WHERE 子句
+        rule_engine = RuleEngine(db=None)  # 不需要数据库会话
+        indicator_alias_mapping = rule_engine.build_indicator_alias_mapping(
+            rule_config,
+            use_alias=True
+        )
         
         # 生成SELECT子句
-        select_fields = [f"realtime_indicator.target_id"]
+        select_fields = [f"dep_acct_realtime_indicator.target_id"]
         select_fields.append(f"etl_date")
         
-        for indicator, timeliness in indicators.items():
-            if timeliness == 'realtime':
-                select_fields.append(f"realtime_indicator.{indicator} as realtime_{indicator}")
-            else:
-                select_fields.append(f"offline_indicator.{indicator} as offline_{indicator}")
+        # 根据别名映射添加字段
+        if indicator_alias_mapping:
+            for indicator, alias in indicator_alias_mapping.items():
+                select_fields.append(f"{alias}.{indicator}")
         
         select_clause = ",\n    ".join(select_fields)
         
-        # 生成WHERE子句，替换表别名
-        where_clause = self._generate_where_clause_with_alias(rule_config, indicators)
+        # 生成WHERE子句，使用 RuleEngine
+        where_clause = rule_engine.generate_sql_expression(rule_config, indicator_alias_mapping)
         
         # 生成完整SQL
         sql = f"""-- 模型历史回测SQL
@@ -179,114 +152,19 @@ class ModelExecutor:
 SELECT
     {select_clause}
 FROM
-    read_parquet('{dep_acct_realtime_parquet_path}') as realtime_indicator
+    read_parquet('{dep_acct_realtime_parquet_path}') as dep_acct_realtime_indicator
 LEFT JOIN
-    read_parquet('{dep_acct_offline_parquet_path}') as offline_indicator
+    read_parquet('{dep_acct_offline_parquet_path}') as dep_acct_offline_indicator
 ON
-    realtime_indicator.target_id = offline_indicator.target_id
+    dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id
 LEFT JOIN 
     read_parquet('{cust_offline_parquet_path}') as cust_offline_indicator
 ON
-    realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id
+    dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id
 WHERE
     {where_clause}
 """
         return sql
-
-    def _generate_where_clause_with_alias(
-        self,
-        rule_config: Dict,
-        indicators: Dict[str, str]
-    ) -> str:
-        """生成带表别名的WHERE子句
-        
-        根据指标的时效性，使用对应的表别名
-        
-        Args:
-            rule_config: 规则配置
-            indicators: 指标时效性映射
-            
-        Returns:
-            WHERE子句
-        """
-        def condition_to_sql(condition: Dict) -> str:
-            """将条件转换为SQL"""
-            indicator = condition.get('indicator', '')
-            operator = condition.get('operator', '=')
-            value = condition.get('value', {})
-            
-            # 确定表别名
-            timeliness = indicators.get(indicator, 'offline')
-            table_alias = 'realtime_indicator' if timeliness == 'realtime' else 'offline_indicator'
-            qualified_indicator = f"{table_alias}.{indicator}"
-            
-            # 处理值
-            if isinstance(value, dict):
-                # 值表达式
-                value_type = value.get('type', 'constant')
-                if value_type == 'constant':
-                    actual_value = value.get('value')
-                elif value_type == 'indicator':
-                    ref_indicator = value.get('indicator', '')
-                    ref_timeliness = indicators.get(ref_indicator, 'offline')
-                    ref_alias = 'realtime_indicator' if ref_timeliness == 'realtime' else 'offline_indicator'
-                    actual_value = f"{ref_alias}.{ref_indicator}"
-                    return f"{qualified_indicator} {operator} {actual_value}"
-                else:
-                    actual_value = value.get('value')
-            else:
-                actual_value = value
-            
-            # 格式化值
-            if operator in ['in', 'not in']:
-                if isinstance(actual_value, list):
-                    formatted_values = ', '.join([
-                        f"'{v}'" if isinstance(v, str) else str(v)
-                        for v in actual_value
-                    ])
-                    op_sql = 'IN' if operator == 'in' else 'NOT IN'
-                    return f"{qualified_indicator} {op_sql} ({formatted_values})"
-            elif operator in ['regexp', 'not regexp']:
-                pattern = actual_value if isinstance(actual_value, str) else '|'.join(actual_value)
-                op_sql = 'REGEXP' if operator == 'regexp' else 'NOT REGEXP'
-                return f"{qualified_indicator} {op_sql} '{pattern}'"
-            else:
-                # 基础比较操作符
-                if isinstance(actual_value, str):
-                    return f"{qualified_indicator} {operator} '{actual_value}'"
-                elif isinstance(actual_value, bool):
-                    return f"{qualified_indicator} {operator} {'TRUE' if actual_value else 'FALSE'}"
-                else:
-                    return f"{qualified_indicator} {operator} {actual_value}"
-            
-            return "1=1"
-
-        def group_to_sql(group: Dict) -> str:
-            """将规则组转换为SQL"""
-            rules = group.get('rules', [])
-            logic = group.get('logic', 'AND')
-            
-            if not rules:
-                return "1=1"
-            
-            sub_expressions = []
-            for rule in rules:
-                if rule.get('type') == 'condition':
-                    sub_expressions.append(condition_to_sql(rule))
-                elif rule.get('type') == 'group':
-                    sub_expressions.append(f"({group_to_sql(rule)})")
-            
-            logic_op = ' AND ' if logic == 'AND' else ' OR '
-            return logic_op.join(sub_expressions)
-
-        # 构建根表达式
-        root_group = {
-            'type': 'group',
-            'logic': rule_config.get('logic', 'AND'),
-            'rules': rule_config.get('rules', [])
-        }
-        
-        return f"({group_to_sql(root_group)})"
 
     async def execute_backtest(
         self,

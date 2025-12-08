@@ -24,13 +24,6 @@ class RiskControlModelBase(BaseModel):
     alert_message_target: Optional[str] = Field(None, max_length=256, description="告警消息目标")
     is_acct_control: bool = Field(False, description="是否账户控制")
 
-    @field_validator('object_type')
-    @classmethod
-    def validate_object_type(cls, v):
-        if v not in ['cust_no', 'dep_acct_no', 'loan_acct_no']:
-            raise ValueError('object_type必须是cust_no、dep_acct_no或loan_acct_no')
-        return v
-
 
 class RiskControlModelCreate(RiskControlModelBase):
     """创建预警管控模型请求模型"""
@@ -41,18 +34,10 @@ class RiskControlModelUpdate(BaseModel):
     """更新预警管控模型请求模型"""
     model_name: Optional[str] = Field(None, min_length=1, max_length=128, description="模型名称")
     description: Optional[str] = Field(None, description="模型描述")
-    object_type: Optional[str] = Field(None, description="对象类型")
     rule_config: Optional[RuleConfig] = Field(None, description="规则配置")
     is_send_alert_message: Optional[bool] = Field(None, description="是否发送告警消息")
     alert_message_target: Optional[str] = Field(None, max_length=256, description="告警消息目标")
     is_acct_control: Optional[bool] = Field(None, description="是否账户控制")
-
-    @field_validator('object_type')
-    @classmethod
-    def validate_object_type(cls, v):
-        if v is not None and v not in ['cust_no', 'dep_acct_no', 'loan_acct_no']:
-            raise ValueError('object_type必须是cust_no、dep_acct_no或loan_acct_no')
-        return v
 
 
 class RiskControlModelResponse(RiskControlModelBase):
