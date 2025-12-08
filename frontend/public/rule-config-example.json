@@ -55,11 +55,5 @@
         "value": ["Android", "iOS"]
       }
     }
-  ],
-  "output": {
-    "risk_level": "high",
-    "risk_score": 85,
-    "action": "review",
-    "description": "高风险用户，需要人工审核"
-  }
+  ]
 }

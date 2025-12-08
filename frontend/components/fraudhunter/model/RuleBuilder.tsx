@@ -145,13 +145,7 @@ const createDefaultRule = (indicatorCode?: string): RuleConfig => ({
       value: { type: 'constant', value: 0 },
       left_function: undefined
     }
-  ],
-  output: {
-    risk_level: 'medium',
-    risk_score: 50,
-    action: 'review',
-    description: ''
-  }
+  ]
 })
 
 // 递归规则组渲染器

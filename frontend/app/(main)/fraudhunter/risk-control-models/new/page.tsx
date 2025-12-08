@@ -38,12 +38,7 @@ export default function NewRiskControlModelPage() {
     object_type: "cust_no",
     rule_config: {
       logic: "AND",
-      rules: [],
-      output: {
-        risk_level: "medium",
-        risk_score: 50,
-        action: "review"
-      }
+      rules: []
     },
     is_send_alert_message: false,
     alert_message_target: "",

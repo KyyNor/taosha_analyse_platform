@@ -115,18 +115,6 @@ export interface GroupRule {
  */
 export type Rule = ConditionRule | GroupRule
 
-// ==================== 输出配置 ====================
-
-/**
- * 规则命中后的输出配置
- */
-export interface RuleOutput {
-  risk_level: 'low' | 'medium' | 'high' | 'critical'
-  risk_score: number          // 0-100
-  action?: 'block' | 'review' | 'alert' | 'pass'
-  description?: string
-}
-
 // ==================== 完整规则配置 ====================
 
 /**
@@ -135,7 +123,6 @@ export interface RuleOutput {
 export interface RuleConfig {
   logic: LogicOperator
   rules: Rule[]
-  output: RuleOutput
 }
 
 // ==================== 辅助类型 ====================
@@ -414,6 +401,7 @@ export function isNumericType(dataType?: IndicatorDataType): boolean {
 export function isDateType(dataType?: IndicatorDataType): boolean {
   return dataType === 'date'
 }
+
 
 /**
  * 判断两个数据类型是否兼容

@@ -60,7 +60,6 @@ async def validate_rule_config(
     参数:
     - logic: 根逻辑操作符（AND/OR）
     - rules: 规则列表（支持嵌套）
-    - output: 输出配置
 
     返回:
     - valid: 是否验证通过
@@ -187,7 +186,6 @@ async def evaluate_rule_runtime(
     返回:
     - is_hit: 规则是否命中
     - indicator_values: 输入的指标值
-    - output: 规则命中时的输出配置（未命中时为None）
 
     示例请求:
     ```json
@@ -207,12 +205,7 @@ async def evaluate_rule_runtime(
             "operator": "in",
             "value": ["suspended", "banned"]
           }
-        ],
-        "output": {
-          "risk_level": "high",
-          "risk_score": 85,
-          "action": "review"
-        }
+        ]
       },
       "indicator_values": {
         "i_login_cnt_7d": 15,
@@ -245,8 +238,7 @@ async def evaluate_rule_runtime(
 
         return RuleEvaluationResult(
             is_hit=is_hit,
-            indicator_values=indicator_values,
-            output=rule_config.output.model_dump() if is_hit else None
+            indicator_values=indicator_values
         )
 
     except HTTPException:

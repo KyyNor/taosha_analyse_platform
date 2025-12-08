@@ -342,15 +342,9 @@ class RiskControlModelManager:
         # 调用RuleEngine生成WHERE子句
         where_clause = self.rule_engine.generate_sql_expression(rule_config)
 
-        # 获取输出配置
-        output = rule_config.output
-
         # 构建完整SQL
         sql = f"""SELECT
-    {object_type},
-    '{output.risk_level}' as risk_level,
-    {output.risk_score} as risk_score,
-    '{output.action}' as action,
+    {object_type}
     etl_date
 FROM
     dw.indicator_table

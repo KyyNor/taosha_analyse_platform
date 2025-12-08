@@ -84,20 +84,6 @@ export function RuleImportExport({ currentRule, onImport, onExport }: RuleImport
       return { valid: false, error: 'rules字段必须是数组' }
     }
 
-    if (!data.output || typeof data.output !== 'object') {
-      return { valid: false, error: '缺少output配置' }
-    }
-
-    // 验证output字段
-    const output = data.output
-    if (!output.risk_level || !['low', 'medium', 'high', 'critical'].includes(output.risk_level)) {
-      return { valid: false, error: 'output.risk_level必须为low/medium/high/critical之一' }
-    }
-
-    if (typeof output.risk_score !== 'number' || output.risk_score < 0 || output.risk_score > 100) {
-      return { valid: false, error: 'output.risk_score必须是0-100之间的数字' }
-    }
-
     // 递归验证规则
     const validateRules = (rules: any[]): { valid: boolean; error?: string } => {
       for (const rule of rules) {
@@ -281,7 +267,7 @@ export function RuleImportExport({ currentRule, onImport, onExport }: RuleImport
             <div>
               <div className="font-medium">JSON格式说明</div>
               <div className="mt-1">
-                导出的JSON格式与数据库存储格式一致，包含logic、rules和output三个主要字段。
+                导出的JSON格式与数据库存储格式一致，包含logic、rules两个必填字段。
               </div>
             </div>
           </div>

@@ -280,41 +280,6 @@ Rule = Union[ConditionRule, GroupRule]
 # 更新前向引用（Pydantic递归模型）
 GroupRule.model_rebuild()
 
-# ==================== 输出配置 ====================
-
-class RuleOutput(BaseModel):
-    """规则命中后的输出配置"""
-
-    risk_level: Literal["low", "medium", "high", "critical"] = Field(
-        ...,
-        description="风险等级"
-    )
-    risk_score: int = Field(
-        ...,
-        ge=0,
-        le=100,
-        description="风险分数，范围0-100"
-    )
-    action: Optional[Literal["block", "review", "alert", "pass"]] = Field(
-        None,
-        description="处理动作：拦截/审核/告警/放行"
-    )
-    description: Optional[str] = Field(
-        None,
-        description="输出描述"
-    )
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "risk_level": "high",
-                "risk_score": 85,
-                "action": "review",
-                "description": "高风险登录行为，需人工审核"
-            }
-        }
-
-
 # ==================== 完整规则配置 ====================
 
 class RuleConfig(BaseModel):
@@ -322,7 +287,6 @@ class RuleConfig(BaseModel):
 
     logic: LogicOperator = Field(..., description="根逻辑操作符")
     rules: List[Rule] = Field(..., description="根规则列表")
-    output: RuleOutput = Field(..., description="输出配置")
 
     @field_validator('rules')
     @classmethod
@@ -361,12 +325,7 @@ class RuleConfig(BaseModel):
                             }
                         ]
                     }
-                ],
-                "output": {
-                    "risk_level": "high",
-                    "risk_score": 85,
-                    "action": "review"
-                }
+                ]
             }
         }
 
@@ -435,7 +394,6 @@ class RuleEvaluationResult(BaseModel):
 
     is_hit: bool = Field(..., description="规则是否命中")
     indicator_values: dict = Field(..., description="输入的指标值")
-    output: Optional[dict] = Field(None, description="规则命中时的输出配置")
 
     class Config:
         json_schema_extra = {
@@ -445,12 +403,6 @@ class RuleEvaluationResult(BaseModel):
                     "i_login_cnt_7d": 15,
                     "i_device_change_cnt": 5,
                     "i_user_status": "suspended"
-                },
-                "output": {
-                    "risk_level": "high",
-                    "risk_score": 85,
-                    "action": "review",
-                    "description": "高风险登录行为，需人工审核"
                 }
             }
         }

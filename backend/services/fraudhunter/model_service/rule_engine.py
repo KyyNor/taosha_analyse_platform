@@ -123,10 +123,6 @@ class RuleEngine:
             self._validate_operator_compatibility(rule_config, result)
             logger.info(3)
 
-            # 5. 验证输出配置
-            self._validate_output_config(rule_config.output, result)
-            logger.info(4)
-
             # 6. 检查规则深度
             max_depth = self._get_max_depth(rule_config)
             if max_depth > 3:
@@ -900,9 +896,4 @@ class RuleEngine:
             'indicator_count': len(indicators),
             'indicators': list(indicators),
             'root_logic': rule_config.logic,
-            'output': {
-                'risk_level': rule_config.output.risk_level,
-                'risk_score': rule_config.output.risk_score,
-                'action': rule_config.output.action
-            }
         }
