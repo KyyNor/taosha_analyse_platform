@@ -31,8 +31,7 @@ import {
   isCompatibleType,
   getInputType,
   isMultiValueOperator,
-  isRegexpOperator,
-  isDateType
+  isRegexpOperator
 } from '@/types/fraudhunter/rule'
 
 interface ConditionRuleEditorProps {
@@ -107,7 +106,7 @@ export function ConditionRuleEditor({
         newValue = {
           type: 'time_function',
           function: 'date_add',
-          indicator: indicators.find(ind => isDateType(ind.data_type))?.indicator_code || '',
+          indicator: indicators.find(ind => ind.data_type === 'date')?.indicator_code || '',
           offset: 7,
           unit: 'days' as const
         }
@@ -150,24 +149,6 @@ export function ConditionRuleEditor({
             />
           )
         } else {
-          // 布尔类型使用下拉选择
-          if (currentIndicator?.data_type === 'bool' || currentIndicator?.data_type === 'boolean') {
-            return (
-              <Select
-                value={String(rule.value.value)}
-                onValueChange={(value) => updateValue({ ...rule.value, value: value === 'true' })}
-              >
-                <SelectTrigger className="w-[150px] h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">是</SelectItem>
-                  <SelectItem value="false">否</SelectItem>
-                </SelectContent>
-              </Select>
-            )
-          }
-
           // 其他类型使用普通输入框
           return (
             <Input
@@ -209,7 +190,6 @@ export function ConditionRuleEditor({
         )
 
       case 'time_function':
-        const timeFunctionIndicators = indicators.filter(ind => isDateType(ind.data_type))
         return (
           <div className="flex items-center gap-1 flex-wrap">
             <Select
@@ -230,23 +210,18 @@ export function ConditionRuleEditor({
             <Select
               value={rule.value.indicator}
               onValueChange={(value) => updateValue({ ...rule.value, indicator: value })}
-              disabled={timeFunctionIndicators.length === 0}
             >
               <SelectTrigger className="w-[150px] h-8">
                 <SelectValue placeholder="时间指标" />
               </SelectTrigger>
               <SelectContent>
-                {timeFunctionIndicators.length === 0 ? (
-                  <SelectItem value="" disabled>
-                    暂无日期类型指标
-                  </SelectItem>
-                ) : (
-                  timeFunctionIndicators.map(ind => (
+                {indicators
+                  .filter(ind => ind.data_type === 'date')
+                  .map(ind => (
                     <SelectItem key={ind.indicator_code} value={ind.indicator_code}>
                       {ind.indicator_name}
                     </SelectItem>
-                  ))
-                )}
+                  ))}
               </SelectContent>
             </Select>
 

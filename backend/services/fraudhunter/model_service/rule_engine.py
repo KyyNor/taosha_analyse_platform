@@ -312,7 +312,7 @@ class RuleEngine:
 
         验证规则：
         - IndicatorReference: 左右指标类型必须匹配
-        - TimeFunction: 左侧和参数都必须是 text 类型
+        - TimeFunction: 左侧和参数都必须是 date 类型
         - MathFunction: 左侧和参数都必须是 numeric 类型
         """
 
@@ -345,11 +345,11 @@ class RuleEngine:
                         f"vs {value_expr.indicator}({right_ind.data_type})"
                     )
 
-            # 时间函数：验证左侧和参数都是 text
+            # 时间函数：验证左侧和参数都是 date
             elif isinstance(value_expr, TimeFunction):
-                if left_type != 'text':
+                if left_type != 'date':
                     result.errors.append(
-                        f"{path}: 时间比较要求左侧为text类型，实际为{left_type}"
+                        f"{path}: 时间比较要求左侧为date类型，实际为{left_type}"
                     )
 
                 param_ind = self._get_indicator_cached(value_expr.indicator)
@@ -357,9 +357,9 @@ class RuleEngine:
                     result.errors.append(
                         f"{path}: 时间函数参数指标 {value_expr.indicator} 不存在"
                     )
-                elif param_ind.data_type != 'text':
+                elif param_ind.data_type != 'date':
                     result.errors.append(
-                        f"{path}: 时间函数参数必须为text类型，实际为{param_ind.data_type}"
+                        f"{path}: 时间函数参数必须为date类型，实际为{param_ind.data_type}"
                     )
 
             # 数学函数：验证左侧和参数都是 numeric
