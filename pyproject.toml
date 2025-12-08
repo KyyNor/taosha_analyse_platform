@@ -32,7 +32,7 @@ dependencies = [
     "pandas>=2.3.2",
     "playwright==1.49.0",
     "plotly>=6.3.0",
-    "pyarrow==20.0.0",
+    "pyarrow>=20.0.0",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.1",
     "pymysql>=1.1.2",
