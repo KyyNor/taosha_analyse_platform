@@ -1,4 +1,6 @@
 const nextConfig = {
+  basePath: '/taosha',
+  assetPrefix: '/taosha',
   reactStrictMode: true,
   async rewrites() {
     return [
