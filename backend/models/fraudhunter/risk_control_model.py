@@ -32,7 +32,6 @@ class FraudHunterModelDefinition(Base):
 
     # 关联指标
     indicator_codes = Column(Text, comment='使用的指标编码列表，JSON数组')
-    object_type = Column(String(32), comment='对象类型：cust_no/dep_acct_no/loan_acct_no')
 
     # 版本管理
     current_version = Column(Integer, default=1, comment='当前发布版本')

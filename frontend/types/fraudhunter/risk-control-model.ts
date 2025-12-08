@@ -5,11 +5,6 @@
 import { RuleConfig } from './rule'
 
 /**
- * 对象类型
- */
-export type ObjectType = 'cust_no' | 'dep_acct_no' | 'loan_acct_no'
-
-/**
  * 模型状态
  */
 export type ModelStatus = 'draft' | 'testing' | 'online' | 'offline' | 'archived'
@@ -22,7 +17,6 @@ export interface RiskControlModel {
   model_code: string
   model_name: string
   description?: string
-  object_type: ObjectType
 
   // 规则配置
   rule_config: RuleConfig
@@ -60,7 +54,6 @@ export interface RiskControlModelCreate {
   model_code: string
   model_name: string
   description?: string
-  object_type: ObjectType
   rule_config: RuleConfig
   is_send_alert_message?: boolean
   alert_message_target?: string
@@ -73,7 +66,6 @@ export interface RiskControlModelCreate {
 export interface RiskControlModelUpdate {
   model_name?: string
   description?: string
-  object_type?: ObjectType
   rule_config?: RuleConfig
   is_send_alert_message?: boolean
   alert_message_target?: string
@@ -101,15 +93,6 @@ export interface RiskControlModelPublishRequest {
 // ==================== 辅助类型和常量 ====================
 
 /**
- * 对象类型标签映射
- */
-export const OBJECT_TYPE_LABELS: Record<ObjectType, string> = {
-  'cust_no': '客户号',
-  'dep_acct_no': '存款账号',
-  'loan_acct_no': '贷款账号'
-}
-
-/**
  * 模型状态标签映射
  */
 export const MODEL_STATUS_LABELS: Record<ModelStatus, string> = {
@@ -131,12 +114,6 @@ export const MODEL_STATUS_VARIANTS: Record<ModelStatus, 'default' | 'secondary' 
   'archived': 'outline'
 }
 
-/**
- * 获取对象类型标签
- */
-export function getObjectTypeLabel(objectType: ObjectType): string {
-  return OBJECT_TYPE_LABELS[objectType] || objectType
-}
 
 /**
  * 获取模型状态标签

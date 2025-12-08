@@ -35,7 +35,6 @@ export default function NewRiskControlModelPage() {
     model_code: "",
     model_name: "",
     description: "",
-    object_type: "cust_no",
     rule_config: {
       logic: "AND",
       rules: []
@@ -83,35 +82,6 @@ export default function NewRiskControlModelPage() {
     return codes;
   };
 
-  // 推断object_type从规则中使用的指标
-  const inferObjectType = (): { objectType: string | null, error: string | null } => {
-    const indicatorCodes = extractIndicatorCodes(formData.rule_config.rules);
-    if (indicatorCodes.length === 0) {
-      return { objectType: null, error: "至少需要配置一条规则" };
-    }
-
-    const objectTypes = new Set<string>();
-    for (const code of indicatorCodes) {
-      const indicator = indicators.find(ind => ind.indicator_code === code);
-      if (indicator?.object_type) {
-        objectTypes.add(indicator.object_type);
-      }
-    }
-
-    if (objectTypes.size === 0) {
-      return { objectType: null, error: "无法推断对象类型，请确保规则中的指标已配置对象类型" };
-    }
-
-    if (objectTypes.size > 1) {
-      return {
-        objectType: null,
-        error: `规则中的指标对象类型不一致：${Array.from(objectTypes).join(', ')}，请确保所有指标属于同一对象类型`
-      };
-    }
-
-    return { objectType: Array.from(objectTypes)[0], error: null };
-  };
-
   // 表单验证
   const validateForm = () => {
     const errors: string[] = [];
@@ -132,12 +102,6 @@ export default function NewRiskControlModelPage() {
       errors.push("至少需要配置一条规则");
     }
 
-    // 验证对象类型一致性
-    const { error } = inferObjectType();
-    if (error) {
-      errors.push(error);
-    }
-
     if (formData.is_send_alert_message && !formData.alert_message_target?.trim()) {
       errors.push("开启告警消息时，告警目标不能为空");
     }
@@ -153,18 +117,10 @@ export default function NewRiskControlModelPage() {
       return;
     }
 
-    // 推断并设置 object_type
-    const { objectType } = inferObjectType();
-    if (!objectType) {
-      toast.error("无法推断对象类型，请检查规则配置");
-      return;
-    }
-
     setSaving(true);
     try {
       const submitData = {
-        ...formData,
-        object_type: objectType as ObjectType
+        ...formData
       };
       const result = await riskControlModelService.create(submitData);
       toast.success("预警管控模型创建成功");

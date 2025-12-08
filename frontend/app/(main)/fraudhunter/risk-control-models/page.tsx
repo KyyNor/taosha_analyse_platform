@@ -25,11 +25,9 @@ import { Label } from "@/components/ui/label";
 import { riskControlModelService } from "@/lib/services/fraudhunterService";
 import type {
   RiskControlModel,
-  ObjectType,
   ModelStatus
 } from "@/types/fraudhunter/risk-control-model";
 import {
-  getObjectTypeLabel,
   getModelStatusLabel,
   getModelStatusVariant
 } from "@/types/fraudhunter/risk-control-model";
@@ -43,7 +41,6 @@ export default function RiskControlModelsPage() {
 
   // 筛选状态
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [objectTypeFilter, setObjectTypeFilter] = useState<string>("all");
   const [codeFilter, setCodeFilter] = useState<string>("");
 
   // 历史回测对话框状态
@@ -59,7 +56,6 @@ export default function RiskControlModelsPage() {
     try {
       const params: any = {};
       if (statusFilter !== "all") params.status = statusFilter;
-      if (objectTypeFilter !== "all") params.object_type = objectTypeFilter;
       if (codeFilter) params.model_code = codeFilter;
 
       const response = await riskControlModelService.list(params);
@@ -73,23 +69,13 @@ export default function RiskControlModelsPage() {
 
   useEffect(() => {
     load();
-  }, [statusFilter, objectTypeFilter, codeFilter]);
+  }, [statusFilter, codeFilter]);
 
   // 表格列配置
   const columns = [
     { key: "id", label: "ID", type: "number" as const },
     { key: "model_code", label: "模型编码", type: "text" as const },
     { key: "model_name", label: "模型名称", type: "text" as const },
-    {
-      key: "object_type",
-      label: "对象类型",
-      type: "text" as const,
-      render: (value: ObjectType) => (
-        <Badge variant="outline">
-          {getObjectTypeLabel(value)}
-        </Badge>
-      )
-    },
     {
       key: "status",
       label: "状态",
@@ -307,18 +293,6 @@ export default function RiskControlModelsPage() {
             <SelectItem value="online">已上线</SelectItem>
             <SelectItem value="offline">已下线</SelectItem>
             <SelectItem value="archived">已归档</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={objectTypeFilter} onValueChange={setObjectTypeFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="对象类型筛选" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部类型</SelectItem>
-            <SelectItem value="cust_no">客户号</SelectItem>
-            <SelectItem value="dep_acct_no">存款账号</SelectItem>
-            <SelectItem value="loan_acct_no">贷款账号</SelectItem>
           </SelectContent>
         </Select>
 

@@ -68,28 +68,6 @@ export default function RiskControlModelDetailPage() {
     change_description: ""
   });
 
-  // 加载指标
-  const loadIndicators = async (objectType: ObjectType) => {
-    try {
-      const response = await indicatorService.list({
-        object_type: objectType,
-        status: "online",
-        page_size: 1000
-      });
-      // 转换为规则引擎需要的格式
-      const transformedIndicators: Indicator[] = (response.items || []).map(item => ({
-        indicator_code: item.indicator_code,
-        indicator_name: item.indicator_name,
-        data_type: item.data_type,
-        enum_values: item.enum_values ? item.enum_values.split(',').map(v => v.trim()) : undefined,
-        description: item.description
-      }));
-      setIndicators(transformedIndicators);
-    } catch (error) {
-      console.error("Failed to load indicators:", error);
-    }
-  };
-
   // 加载数据
   const loadData = async () => {
     setLoading(true);
@@ -97,9 +75,6 @@ export default function RiskControlModelDetailPage() {
       const result = await riskControlModelService.get(modelId);
       setData(result);
       setOriginalData(JSON.parse(JSON.stringify(result)));
-
-      // 加载对应的指标
-      await loadIndicators(result.object_type as ObjectType);
 
       // 设置SQL预览
       if (result.offline_model_sql) {
@@ -117,6 +92,27 @@ export default function RiskControlModelDetailPage() {
   };
 
   useEffect(() => {
+    // 加载指标
+    const loadIndicators = async () => {
+      try {
+        const response = await indicatorService.list({
+          status: "online",
+          query_type: "all"
+        });
+        // 转换为规则引擎需要的格式
+        const transformedIndicators: Indicator[] = (response.items || []).map(item => ({
+          indicator_code: item.indicator_code,
+          indicator_name: item.indicator_name,
+          data_type: item.data_type,
+          enum_values: item.enum_values ? item.enum_values.split(',').map(v => v.trim()) : undefined,
+          description: item.description
+        }));
+        setIndicators(transformedIndicators);
+      } catch (error) {
+        console.error("Failed to load indicators:", error);
+      }
+    };
+    loadIndicators();
     loadData();
   }, [modelId]);
 
@@ -182,7 +178,6 @@ export default function RiskControlModelDetailPage() {
       const updateData: RiskControlModelUpdate = {
         model_name: data.model_name,
         description: data.description,
-        object_type: data.object_type as ObjectType,
         rule_config: data.rule_config,
         is_send_alert_message: data.is_send_alert_message,
         alert_message_target: data.alert_message_target,
@@ -378,30 +373,6 @@ export default function RiskControlModelDetailPage() {
               )}
             </div>
 
-            <div>
-              <Label>对象类型</Label>
-              {isEditMode ? (
-                <Select
-                  value={data.object_type}
-                  onValueChange={(value: ObjectType) => {
-                    updateField("object_type", value);
-                    loadIndicators(value);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cust_no">客户号</SelectItem>
-                    <SelectItem value="dep_acct_no">存款账号</SelectItem>
-                    <SelectItem value="loan_acct_no">贷款账号</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input value={getObjectTypeLabel(data.object_type as ObjectType)} disabled />
-              )}
-            </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>当前版本</Label>
@@ -420,9 +391,6 @@ export default function RiskControlModelDetailPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>规则配置</CardTitle>
-              <Badge variant="outline">
-                对象类型: {getObjectTypeLabel(data.object_type as ObjectType)}
-              </Badge>
             </div>
           </CardHeader>
           <CardContent>

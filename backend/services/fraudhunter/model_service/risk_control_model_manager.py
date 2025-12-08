@@ -67,7 +67,7 @@ class RiskControlModelManager:
             raise ValueError(f"规则配置验证失败: {', '.join(validation_result.errors)}")
 
         # 生成offline_model_sql
-        offline_sql = self.generate_offline_sql(model_data.rule_config, model_data.object_type)
+        offline_sql = ""
 
         # 提取indicator_codes
         indicator_codes = validation_result.extracted_indicators
@@ -129,7 +129,6 @@ class RiskControlModelManager:
         page: int = 1,
         page_size: int = 20,
         status: Optional[str] = None,
-        object_type: Optional[str] = None,
         model_code: Optional[str] = None
     ) -> tuple[List[FraudHunterModelDefinition], int]:
         """获取预警管控模型列表
@@ -138,7 +137,6 @@ class RiskControlModelManager:
             page: 页码
             page_size: 每页数量
             status: 状态筛选
-            object_type: 对象类型筛选
             model_code: 编码筛选（模糊匹配）
 
         Returns:
@@ -149,10 +147,6 @@ class RiskControlModelManager:
         # 状态筛选
         if status:
             query = query.filter(FraudHunterModelDefinition.status == status)
-
-        # 对象类型筛选
-        if object_type:
-            query = query.filter(FraudHunterModelDefinition.object_type == object_type)
 
         # 编码筛选（模糊匹配）
         if model_code:
@@ -200,11 +194,8 @@ class RiskControlModelManager:
             if not validation_result.valid:
                 raise ValueError(f"规则配置验证失败: {', '.join(validation_result.errors)}")
 
-            # 获取object_type（可能更新，也可能保持原值）
-            object_type = model_data.object_type if model_data.object_type else db_model.object_type
-
             # 重新生成SQL
-            update_data['offline_model_sql'] = self.generate_offline_sql(model_data.rule_config, object_type)
+            update_data['offline_model_sql'] = ""
             update_data['realtime_model_sql'] = ""
 
             # 重新提取indicator_codes
@@ -329,53 +320,6 @@ class RiskControlModelManager:
         self.db.commit()
 
         logger.info(f"删除预警管控模型成功: {model_code}")
-
-    # ==================== SQL生成 ====================
-
-    def generate_offline_sql(
-        self,
-        rule_config: RuleConfig,
-        object_type: str
-    ) -> str:
-        """生成离线模型SQL
-
-        Args:
-            rule_config: 规则配置
-            object_type: 对象类型
-
-        Returns:
-            完整的Spark SQL语句
-        """
-        # 调用RuleEngine生成WHERE子句
-        where_clause = self.rule_engine.generate_sql_expression(rule_config)
-
-        # 构建完整SQL
-        sql = f"""SELECT
-    {object_type}
-    etl_date
-FROM
-    dw.indicator_table
-WHERE
-    {where_clause}
-    AND etl_date = '${{etl_date}}'"""
-
-        return sql
-
-    def generate_realtime_sql(
-        self,
-        rule_config: RuleConfig,
-        object_type: str
-    ) -> str:
-        """生成实时模型SQL（当前版本返回空字符串）
-
-        Args:
-            rule_config: 规则配置
-            object_type: 对象类型
-
-        Returns:
-            空字符串（未来实现Flink SQL）
-        """
-        return ""
 
     # ==================== 版本历史 ====================
 

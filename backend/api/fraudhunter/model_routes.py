@@ -292,7 +292,6 @@ async def create_risk_control_model(
     - model_code: 模型编码（唯一）
     - model_name: 模型名称
     - description: 模型描述
-    - object_type: 对象类型（cust_no/dep_acct_no/loan_acct_no）
     - rule_config: 规则配置JSON
     - is_send_alert_message: 是否发送告警消息
     - alert_message_target: 告警消息目标
@@ -322,7 +321,6 @@ async def list_risk_control_models(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     status: Optional[str] = Query(None, description="状态筛选"),
-    object_type: Optional[str] = Query(None, description="对象类型筛选"),
     model_code: Optional[str] = Query(None, description="模型编码筛选（模糊匹配）"),
     db: Session = Depends(get_db)
 ):
@@ -333,7 +331,6 @@ async def list_risk_control_models(
     - page: 页码（默认1）
     - page_size: 每页数量（默认20，最大100）
     - status: 状态筛选（draft/testing/online/offline/archived）
-    - object_type: 对象类型筛选（cust_no/dep_acct_no/loan_acct_no）
     - model_code: 模型编码筛选（模糊匹配）
 
     返回:
@@ -348,7 +345,6 @@ async def list_risk_control_models(
             page=page,
             page_size=page_size,
             status=status,
-            object_type=object_type,
             model_code=model_code
         )
 
