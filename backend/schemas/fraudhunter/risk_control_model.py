@@ -12,7 +12,7 @@ from .rule import RuleConfig
 
 class RiskControlModelBase(BaseModel):
     """预警管控模型基础模型"""
-    model_code: str = Field(..., min_length=1, max_length=64, description="模型编码")
+    model_code: Optional[str] = Field(None, max_length=64, description="模型编码（可选，不提供则自动生成）")
     model_name: str = Field(..., min_length=1, max_length=128, description="模型名称")
     description: Optional[str] = Field(None, description="模型描述")
     object_type: str = Field(..., description="对象类型：cust_no/dep_acct_no/loan_acct_no")

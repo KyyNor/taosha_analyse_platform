@@ -143,3 +143,35 @@ class SequenceManager:
         code = f"i_{object_type}_{indicator_type}_{seq:05d}"
         logger.debug(f"生成指标编码: {code}")
         return code
+
+    def generate_model_code(self) -> str:
+        """生成预警管控模型编码
+
+        Args:
+            object_type: 对象类型
+                - cust_no: 客户号
+                - dep_acct_no: 存款账号
+                - loan_acct_no: 贷款账号
+
+        Returns:
+            格式：risk_model_00001
+            - 前缀包含对象类型
+            - 序号：5位数字，补零
+            - 按分类独立计数
+
+        Examples:
+            >>> generate_model_code()
+            'risk_model_00001'
+
+        Raises:
+            ValueError: 当对象类型不合法时
+        """
+
+        # 生成计数器类型标识
+        counter_type = f"risk_model"
+        seq = self.get_next_sequence(counter_type)
+
+        # 生成编码
+        code = f"risk_model_{seq:05d}"
+        logger.debug(f"生成模型编码: {code}")
+        return code

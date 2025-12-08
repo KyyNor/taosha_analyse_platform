@@ -17,6 +17,7 @@ from schemas.fraudhunter.rule import RuleConfig
 from .rule_engine import RuleEngine
 from .model_executor import model_executor
 from services.fraudhunter.dry_run_task_service import dry_run_task_manager
+from services.fraudhunter.sequence_service import SequenceManager
 from utils.logger import logger
 
 
@@ -26,6 +27,7 @@ class RiskControlModelManager:
     def __init__(self, db: Session):
         self.db = db
         self.rule_engine = RuleEngine(db)
+        self.sequence_manager = SequenceManager(db)
 
     # ==================== CRUD操作 ====================
 
@@ -46,13 +48,18 @@ class RiskControlModelManager:
         Raises:
             ValueError: 如果model_code已存在或rule_config验证失败
         """
-        # 验证编码唯一性
-        existing = self.db.query(FraudHunterModelDefinition).filter(
-            FraudHunterModelDefinition.model_code == model_data.model_code
-        ).first()
+        # 如果未提供编码，自动生成
+        if not model_data.model_code:
+            model_data.model_code = self.sequence_manager.generate_model_code()
+            logger.info(f"自动生成模型编码: {model_data.model_code}")
+        else:
+            # 如果提供了编码，验证唯一性
+            existing = self.db.query(FraudHunterModelDefinition).filter(
+                FraudHunterModelDefinition.model_code == model_data.model_code
+            ).first()
 
-        if existing:
-            raise ValueError(f"模型编码已存在: {model_data.model_code}")
+            if existing:
+                raise ValueError(f"模型编码已存在: {model_data.model_code}")
 
         # 验证rule_config
         validation_result = self.rule_engine.validate_rule_config(model_data.rule_config)
