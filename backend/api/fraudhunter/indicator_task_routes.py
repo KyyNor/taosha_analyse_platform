@@ -353,6 +353,19 @@ async def publish_to_dolphinscheduler(
         db.commit()
         db.refresh(indicator_task)
 
+        # 触发宽表版本变更检查
+        try:
+            from services.fraudhunter.wide_table_service.version_manager import WideTableVersionManager
+            
+            # 使用任务的object_type触发版本创建
+            object_type = indicator_task.object_type
+            version_manager = WideTableVersionManager(db)
+            version_manager.create_new_version(object_type, created_by="system")
+            logger.info(f"已触发object_type={object_type}的宽表版本变更检查")
+        except Exception as e:
+            logger.error(f"触发宽表版本变更检查失败: {e}", exc_info=True)
+            # 不影响主流程，继续返回
+
         logger.info(f"指标任务 {task_id} 已成功上线到 DolphinScheduler")
 
         return PublishToDSResponse(
