@@ -204,9 +204,13 @@ class ConfigManager:
             # FraudHunter配置
             fraudhunter_wide_table_storage_path: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('storage_path', './wide_tables')
             fraudhunter_wide_table_sync_check_interval: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('sync_check_interval', 300)
+            fraudhunter_wide_table_sync_lookback_days: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('sync_lookback_days', 30)
+            fraudhunter_wide_table_sync_scheduler_interval: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('sync_scheduler_interval', 600)
+            fraudhunter_wide_table_source_table: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('source_table', 'hxb_dh_data_dwm.taosha_indicator_details')
             fraudhunter_wide_table_duckdb_config_memory_limit: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb_config', {}).get('memory_limit', '4GB')
             fraudhunter_wide_table_duckdb_config_threads: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb_config', {}).get('threads', 4)
             fraudhunter_scheduler_realtime_interval: int = self._config_data.get('fraudhunter', {}).get('scheduler', {}).get('realtime_interval', 300)
+            fraudhunter_scheduler_offline_interval: int = self._config_data.get('fraudhunter', {}).get('scheduler', {}).get('offline_interval', 600)
 
             class Config:
                 env_prefix = self._config_data.get('env_prefix', 'TAOSHA_')

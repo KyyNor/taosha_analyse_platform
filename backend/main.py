@@ -164,6 +164,37 @@ async def _initialize_system_services():
             else:
                 logger.error(f"FineReport报表同步失败: {fine_report_sync_result.get('error', 'Unknown error')}")
 
+        # 启动统一调度服务（在启动锁保护下，确保单进程）
+        try:
+            from services.scheduler import scheduler_service
+            from services.scheduler.jobs import (
+                sync_all_wide_tables_job,
+                generate_realtime_wide_table_job
+            )
+
+            # 注册离线宽表同步任务
+            scheduler_service.add_interval_job(
+                func=sync_all_wide_tables_job,
+                seconds=settings.fraudhunter_scheduler_offline_interval,
+                job_id='offline_wide_table_sync',
+                job_name='离线指标宽表同步'
+            )
+
+            # 注册实时指标生成任务
+            scheduler_service.add_interval_job(
+                func=generate_realtime_wide_table_job,
+                seconds=settings.fraudhunter_scheduler_realtime_interval,
+                job_id='realtime_indicator_generation',
+                job_name='实时指标宽表生成'
+            )
+
+            # 启动调度器
+            scheduler_service.start()
+            logger.info("统一调度服务已启动（仅此worker执行）")
+        except Exception as e:
+            logger.error(f"统一调度服务启动失败: {e}", exc_info=True)
+            # 不影响系统服务初始化
+
         logger.info("=== 系统服务初始化完成 ===")
 
     except Exception as e:
@@ -220,15 +251,6 @@ async def lifespan(app: FastAPI):
         # 这些服务在多worker环境下只需要运行一次
         await _initialize_system_services()
 
-        # 启动实时指标调度器
-        try:
-            from services.fraudhunter.wide_table_service.realtime_scheduler import realtime_scheduler
-            realtime_scheduler.start()
-            logger.info("实时指标调度器已启动")
-        except Exception as e:
-            logger.error(f"实时指标调度器启动失败: {e}", exc_info=True)
-            # 不影响主应用启动
-
         from services.agents.agent_service import agent_service
         async with agent_service.lifespan():
             logger.info("=== 淘沙分析平台启动成功 ===")
@@ -241,13 +263,13 @@ async def lifespan(app: FastAPI):
     # 关闭时的清理
     logger.info("=== 淘沙分析平台关闭中 ===")
     try:
-        # 关闭实时指标调度器
+        # 关闭统一调度服务
         try:
-            from services.fraudhunter.wide_table_service.realtime_scheduler import realtime_scheduler
-            realtime_scheduler.shutdown()
-            logger.info("实时指标调度器已关闭")
+            from services.scheduler import scheduler_service
+            scheduler_service.shutdown()
+            logger.info("统一调度服务已关闭")
         except Exception as e:
-            logger.error(f"实时指标调度器关闭失败: {e}", exc_info=True)
+            logger.error(f"统一调度服务关闭失败: {e}", exc_info=True)
 
         # 清理异步 Playwright 浏览器（每个worker都需要清理）
         logger.info("清理异步 Playwright 浏览器...")
