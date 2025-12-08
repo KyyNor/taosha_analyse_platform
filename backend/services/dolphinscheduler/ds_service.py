@@ -8,8 +8,8 @@ from typing import Optional, Dict, Any
 from loguru import logger
 from pydolphinscheduler.tasks.shell import Shell
 from pydolphinscheduler.tasks.sql import Sql
-from pydolphinscheduler.tasks.http import Http
 from pydolphinscheduler.core.process_definition import ProcessDefinition
+from pydolphinscheduler import configuration
 
 from utils.config import settings
 
@@ -28,10 +28,10 @@ class DolphinSchedulerService:
         """初始化 pydolphinscheduler 配置"""
         try:
             # 设置 DS 连接配置
-            os.environ["PYDS_JAVA_GATEWAY_ADDRESS"] = settings.dolphinscheduler_gateway_host
-            os.environ["PYDS_JAVA_GATEWAY_PORT"] = str(settings.dolphinscheduler_gateway_api_port)
-            os.environ["PYDS_USER_NAME"] = settings.dolphinscheduler_gateway_user
-            os.environ["PYDS_USER_PASSWORD"] = settings.dolphinscheduler_gateway_password
+            configuration.JAVA_GATEWAY_ADDRESS = settings.dolphinscheduler_gateway_host
+            configuration.PYDS_JAVA_GATEWAY_PORT = str(settings.dolphinscheduler_gateway_api_port)
+            configuration.PYDS_USER_NAME = settings.dolphinscheduler_gateway_user
+            configuration.PYDS_USER_PASSWORD = settings.dolphinscheduler_gateway_password
 
             logger.info(f"DolphinScheduler 配置初始化成功")
 
@@ -70,24 +70,29 @@ class DolphinSchedulerService:
                 self.offline_ds_workflow(indicator_task.ds_task_code, indicator_task.task_code)
                 self.delete_ds_workflow(indicator_task.ds_task_code)
 
+            logger.info(settings.dolphinscheduler_workflow_params)
+
             # 提交工作流
             with ProcessDefinition(
-                name=f"{indicator_task.task_code}",
+                name=f"{indicator_task.task_code}_{indicator_task.task_name}",
                 schedule=settings.dolphinscheduler_schedule_cron_expression,
                 start_time="2025-01-01",
-                tenant="tenant_exists",
+                tenant="default",
                 project=settings.dolphinscheduler_project_name,
                 user=settings.dolphinscheduler_gateway_user,
-                param=settings.dolphinscheduler_workflow_params
+                param=settings.dolphinscheduler_workflow_params,
             ) as workflow:
                 # [start task_declare]
 
                 # 依赖表检查
                 check_shell_group = []
-                for table in indicator_task.dependent_tables.split(","):
+                for table in indicator_task.source_tables.split(","):
                     temp_shell = Shell(
                         name=f"check_table_{table}",
-                        command=f"sh /home/bdspk/hxb_dh/datafactory_scripts/project/hadoop_operations/sh/table_check/check-hive-table.sh {table} ${{date}} ${{hive.host}} ${{hive.port}} ${{hive.user}} ${{hive.passwd}}"
+                        command=f"sh /home/bdspk/hxb_dh/datafactory_scripts/project/hadoop_operations/sh/table_check/check-hive-table.sh {table} ${{date}} ${{hive.host}} ${{hive.port}} ${{hive.user}} ${{hive.passwd}}",
+                        environment_name="bdspk",
+                        fail_retry_times=settings.dolphinscheduler_task_table_check_fail_retry_times,
+                        fail_retry_interval=settings.dolphinscheduler_task_table_check_fail_retry_interval,
                     )
                     check_shell_group.append(temp_shell)
 
@@ -99,8 +104,8 @@ class DolphinSchedulerService:
                         target_id,
                         {indicator_code} as indicator_value,
                         '{indicator_task.object_type}' as object_type,
-                        '{indicator_code}' as indicator_id,
-                        '${{date}}' as etl_date
+                        etl_date as etl_date,
+                        '{indicator_code}' as indicator_id
                     FROM temp_data
                     """.strip())
 
@@ -113,24 +118,23 @@ class DolphinSchedulerService:
                                  {indicator_task.logic_content}
                             )
                             INSERT OVERWRITE TABLE
-                            hxb_dh_data_dwm.taosha_indicator_details
+                            hxb_dh_data_dwm.dwm_taosha_indicator_details
                             {unpivot_sql}
                             """,
                     datasource_name=settings.dolphinscheduler_task_sql_task_datasource_name,
-                    sql_type="NOT_SELECT"
+                    sql_type="1",  # NOT_SELECT 非查询
+                    environment_name="bdspk",
+                    fail_retry_times=settings.dolphinscheduler_task_sql_task_fail_retry_times,
+                    fail_retry_interval=settings.dolphinscheduler_task_sql_task_fail_retry_interval,
                 )
 
                 # 任务结束回调
-                task_callback = Http(
+                task_callback = Shell(
                     name='task_finish_callback',
-                    url=settings.dolphinscheduler_callback_url,
-                    method="POST",
-                    http_params=[
-                        { "prop": "Content-Type", "httpParametersType": "header", "value": "application/json" },
-                        { "prop": "indicator_task_id", "httpParametersType": "body", "value": f"{indicator_task.id}" },
-                        { "prop": "indicator_version", "httpParametersType": "body", "value": f"{indicator_task.current_version}" },
-                        { "prop": "etl_date", "httpParametersType": "body", "value": "${date}" }
-                    ]
+                    command=f"""curl -X POST http://125.1.129.158:50020/api/taosha/v1/fraudhunter/wide-table/indicator-runs/callback -H 'Content-Type: application/json' -d '{{"indicator_task_id":{indicator_task.id},"indicator_version":{indicator_task.current_version},"etl_date":"${{date}}"}}'""",
+                    environment_name="bdspk",
+                    fail_retry_times=settings.dolphinscheduler_task_sql_task_fail_retry_times,
+                    fail_retry_interval=settings.dolphinscheduler_task_sql_task_fail_retry_interval,
                 )
 
                 # [end task_declare]

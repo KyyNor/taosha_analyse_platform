@@ -402,9 +402,9 @@ async def rerun_indicator_task(
 
         # 1. 验证指标任务是否存在
         manager = IndicatorTaskManager(db)
-        task = manager.get_indicator_task(task_id)
+        indicator_task = manager.get_indicator_task(task_id)
 
-        if not task:
+        if not indicator_task:
             raise HTTPException(status_code=404, detail=f"指标任务不存在: {task_id}")
 
         # 4. 处理结束日期（默认为今天）

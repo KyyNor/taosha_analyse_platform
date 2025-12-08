@@ -31,15 +31,17 @@ class IndicatorExecutor:
         Returns:
             替换后的SQL语句
         """
+
+        # todo 需要页面配置
         if etl_date is None:
             # 默认使用昨天
-            etl_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+            etl_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
 
         # 替换 ${date} 变量
         replaced_sql = sql.replace('${date}', etl_date)
 
         logger.info(f"日期变量替换: {etl_date}")
-        return replaced_sql
+        return replaced_sql, etl_date
 
     def _validate_output_fields(self, sample_result: List[Dict[str, Any]], indicator_ids: List[int], db: Session) -> Dict[str, Any]:
         """验证输出字段是否符合要求
@@ -144,7 +146,10 @@ class IndicatorExecutor:
 
         if not execution:
             raise ValueError(f"执行记录不存在: {execution_id}")
-
+        
+        # 替换SQL中的日期变量
+        processed_sql, etl_date = self._replace_date_variables(task.logic_content, etl_date)
+        
         # 更新执行详情
         execution.etl_date = datetime.strptime(etl_date, '%Y-%m-%d').date()
         execution.version = version
@@ -157,9 +162,6 @@ class IndicatorExecutor:
         db.flush()
 
         try:
-            # 替换SQL中的日期变量
-            processed_sql = self._replace_date_variables(task.logic_content, etl_date)
-
             # 获取关联的指标编码（用于生成模拟数据和字段验证）
             indicator_codes = None
             if validate_fields and indicator_ids:
@@ -168,7 +170,7 @@ class IndicatorExecutor:
                 ).all()
                 indicator_codes = [ind.indicator_code for ind in indicators]
 
-            # 模拟SQL执行（实际应该调用Spark JDBC连接执行）
+            # 调用Spark JDBC连接执行
             result = await self._spark_execution(
                 processed_sql,
                 etl_date,
@@ -339,13 +341,10 @@ ETL日期: {etl_date}
             Returns:
                 验证结果
             """
-            if etl_date is None:
-                etl_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-
             logger.info(f"开始验证任务逻辑，关联 {len(indicator_ids)} 个指标")
 
             # 替换SQL中的日期变量
-            processed_sql = self._replace_date_variables(task_data.logic_content, etl_date)
+            processed_sql, etl_date = self._replace_date_variables(task_data.logic_content, etl_date)
 
             # 获取关联的指标编码
             indicators = db.query(FraudHunterIndicatorDefinition).filter(
@@ -382,30 +381,6 @@ ETL日期: {etl_date}
                 'etl_date_used': etl_date,
                 'indicator_codes': indicator_codes
             }
-
-    async def execute_production(
-        self,
-        db: Session,
-        execution_id: str,
-        task_id: int,
-        etl_date: str
-    ) -> Dict[str, Any]:
-        """执行指标任务生产任务（预留）
-
-        实际生产环境中执行完整的指标计算
-        此方法目前不实现，预留给后续集成DolphinScheduler时使用
-
-        Args:
-            db: 数据库会话
-            execution_id: 执行ID
-            task_id: 指标任务ID
-            etl_date: ETL日期
-
-        Returns:
-            执行结果摘要
-        """
-        raise NotImplementedError("生产任务执行需要集成DolphinScheduler，暂未实现")
-
 
 # 全局指标执行器实例
 indicator_executor = IndicatorExecutor()

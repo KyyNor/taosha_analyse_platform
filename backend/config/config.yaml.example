@@ -236,13 +236,13 @@ dolphinscheduler:
   task:
     table_check:
       timeout: 30
-      fail_retry_times: 3
-      fail_retry_interval: 1
-    sql_task:
-      timeout: 60
       fail_retry_times: 288
       fail_retry_interval: 5
-      datasource_name: spark_test
+    sql_task:
+      timeout: 60
+      fail_retry_times: 5
+      fail_retry_interval: 5
+      datasource_name: spark-testdb
 
 # FraudHunter 宽表版本管理配置
 fraudhunter:
@@ -255,6 +255,11 @@ fraudhunter:
     duckdb_config:
       memory_limit: "10GB"  # 内存限制
       threads: 4  # 线程数
+
+    # 离线宽表同步配置
+    sync_lookback_days: 30  # 回溯扫描天数
+    sync_scheduler_interval: 600  # 离线同步调度间隔(秒) - 10分钟
+    source_table: "hxb_dh_data_dwm.dwm_taosha_indicator_details"
 
   # 调度器配置
   scheduler:
