@@ -103,20 +103,6 @@ export default function IndicatorDetailPage() {
   const handleSave = async () => {
     if (!data || !hasChanges) return;
 
-    // 验证枚举值
-    if (data.data_type === "enum" && data.enum_values) {
-      try {
-        const parsed = JSON.parse(data.enum_values);
-        if (!Array.isArray(parsed)) {
-          toast.error("枚举值必须是JSON数组格式");
-          return;
-        }
-      } catch (e) {
-        toast.error("枚举值必须是有效的JSON格式");
-        return;
-      }
-    }
-
     setSaving(true);
     try {
       const updateData: IndicatorUpdate = {
@@ -371,9 +357,6 @@ export default function IndicatorDetailPage() {
                 value={data.data_type}
                 onValueChange={(value) => {
                   updateField("data_type", value);
-                  if (value !== "enum") {
-                    updateField("enum_values", "");
-                  }
                 }}
               >
                 <SelectTrigger id="data-type">
@@ -381,9 +364,8 @@ export default function IndicatorDetailPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="numeric">数值</SelectItem>
-                  <SelectItem value="enum">枚举</SelectItem>
                   <SelectItem value="text">文本</SelectItem>
-                  <SelectItem value="boolean">布尔</SelectItem>
+                  <SelectItem value="date">日期</SelectItem>
                 </SelectContent>
               </Select>
             ) : (
@@ -395,33 +377,11 @@ export default function IndicatorDetailPage() {
                   bool: "布尔",
                   date: "日期",
                   text: "文本",
-                  numeric: "数值",
-                  enum: "枚举",
-                  boolean: "布尔"
+                  numeric: "数值"
                 }[data.data_type] || data.data_type}
               </div>
             )}
           </div>
-
-          {data.data_type === "enum" && (
-            <div>
-              <Label htmlFor="enum-values">枚举值</Label>
-              {isEditMode ? (
-                <Textarea
-                  id="enum-values"
-                  value={data.enum_values || ""}
-                  onChange={(e) => updateField("enum_values", e.target.value)}
-                  rows={4}
-                  className="font-mono text-sm"
-                  placeholder='["value1", "value2", "value3"]'
-                />
-              ) : (
-                <div className="mt-1 p-3 bg-muted rounded font-mono text-sm whitespace-pre-wrap">
-                  {data.enum_values || "未设置"}
-                </div>
-              )}
-            </div>
-          )}
         </CardContent>
       </Card>
 

@@ -120,8 +120,8 @@ class FraudHunterIndicatorDefinition(Base):
     description = Column(Text, comment='指标描述')
 
     # 数据类型
-    data_type = Column(String(16), nullable=False, comment='数据类型：numeric/enum/text/boolean')
-    enum_values = Column(Text, comment='枚举值（当data_type=enum时，JSON数组格式）')
+    data_type = Column(String(16), nullable=False, comment='数据类型：numeric/text/date')
+    enum_values = Column(Text, comment='枚举值（保留字段，暂不使用）')
 
     # 指标任务关联
     indicator_task_id = Column(Integer, ForeignKey('fraudhunter_indicator_task.id'), nullable=True, comment='指标任务ID')

@@ -44,8 +44,7 @@ export default function BatchNewIndicatorPage() {
     {
       indicator_name: "",
       description: "",
-      data_type: "numeric",
-      enum_values: ""
+      data_type: "numeric"
     }
   ]);
 
@@ -81,8 +80,7 @@ export default function BatchNewIndicatorPage() {
       {
         indicator_name: "",
         description: "",
-        data_type: "numeric",
-        enum_values: ""
+        data_type: "numeric"
       }
     ]);
   };
@@ -115,9 +113,6 @@ export default function BatchNewIndicatorPage() {
     indicators.forEach((indicator, idx) => {
       if (!indicator.indicator_name?.trim()) {
         errors.push(`第${idx + 1}个指标：名称不能为空`);
-      }
-      if (indicator.data_type === "enum" && !indicator.enum_values?.trim()) {
-        errors.push(`第${idx + 1}个指标：枚举类型必须提供枚举值`);
       }
     });
 
@@ -439,9 +434,6 @@ export default function BatchNewIndicatorPage() {
                         value={indicator.data_type}
                         onValueChange={(v) => {
                           updateIndicator(idx, "data_type", v);
-                          if (v !== "enum") {
-                            updateIndicator(idx, "enum_values", "");
-                          }
                         }}
                       >
                         <SelectTrigger>
@@ -449,25 +441,11 @@ export default function BatchNewIndicatorPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="numeric">数值</SelectItem>
-                          <SelectItem value="enum">枚举</SelectItem>
                           <SelectItem value="text">文本</SelectItem>
-                          <SelectItem value="boolean">布尔</SelectItem>
+                          <SelectItem value="date">日期</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-
-                    {indicator.data_type === "enum" && (
-                      <div className="col-span-2">
-                        <Label>枚举值 *</Label>
-                        <Textarea
-                          value={indicator.enum_values}
-                          onChange={(e) => updateIndicator(idx, "enum_values", e.target.value)}
-                          placeholder='["low", "medium", "high"]'
-                          rows={2}
-                          className="font-mono text-sm"
-                        />
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}

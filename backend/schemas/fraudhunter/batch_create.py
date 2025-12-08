@@ -14,26 +14,14 @@ class IndicatorBatchCreateItem(BaseModel):
     """批量创建中的单个指标"""
     indicator_name: str = Field(..., min_length=1, max_length=128, description="指标名称")
     description: Optional[str] = Field(None, description="指标描述")
-    data_type: str = Field(..., description="数据类型：numeric/enum/text/boolean")
-    enum_values: Optional[str] = Field(None, description="枚举值（JSON数组格式）")
+    data_type: str = Field(..., description="数据类型：numeric/text/date")
+    enum_values: Optional[str] = Field(None, description="枚举值（保留字段，暂不使用）")
 
     @field_validator('data_type')
     @classmethod
     def validate_data_type(cls, v):
-        if v not in ['numeric', 'enum', 'text', 'boolean']:
-            raise ValueError('data_type必须是numeric、enum、text或boolean')
-        return v
-
-    @field_validator('enum_values')
-    @classmethod
-    def validate_enum_values(cls, v, info):
-        if v is not None and info.data.get('data_type') == 'enum':
-            try:
-                values = json.loads(v)
-                if not isinstance(values, list):
-                    raise ValueError('enum_values必须是JSON数组格式')
-            except json.JSONDecodeError:
-                raise ValueError('enum_values必须是有效的JSON数组')
+        if v not in ['numeric', 'text', 'date']:
+            raise ValueError('data_type必须是numeric、text或date')
         return v
 
 

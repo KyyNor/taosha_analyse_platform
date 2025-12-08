@@ -29,7 +29,7 @@ export type RuleType = 'condition' | 'group'
 /**
  * 指标数据类型
  */
-export type IndicatorDataType = 'int' | 'float' | 'string' | 'bool' | 'date' | 'text' | 'numeric' | 'enum' | 'boolean'
+export type IndicatorDataType = 'int' | 'float' | 'string' | 'bool' | 'date' | 'text' | 'numeric'
 
 /**
  * 时间单位
@@ -207,8 +207,6 @@ export const ALLOWED_OPERATORS: Record<IndicatorDataType, ComparisonOperator[]> 
   date: ['>', '>=', '<', '<=', '=', '!='],
   text: ['=', '!=', 'in', 'not in', 'regexp', 'not regexp'],
   numeric: ['>', '>=', '<', '<=', '=', '!=', 'in', 'not in'],
-  enum: ['=', '!=', 'in', 'not in'],
-  boolean: ['=', '!='],
 }
 
 // ==================== 辅助函数 ====================
@@ -255,12 +253,16 @@ export function getAllowedOperatorsForType(dataType?: IndicatorDataType): Compar
  */
 export function getDefaultValue(dataType?: IndicatorDataType): string | number | boolean {
   switch (dataType) {
-    case 'boolean':
+    case 'bool':
       return false
     case 'numeric':
+    case 'int':
+    case 'float':
       return 0
-    case 'enum':
+    case 'date':
+      return ''
     case 'text':
+    case 'string':
     default:
       return ''
   }
@@ -443,7 +445,6 @@ export function getInputType(dataType?: IndicatorDataType): string {
     case 'numeric':
       return 'number'
     case 'bool':
-    case 'boolean':
       return 'checkbox'
     case 'date':
       return 'date'

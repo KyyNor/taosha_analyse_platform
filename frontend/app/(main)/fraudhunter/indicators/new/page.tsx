@@ -31,7 +31,6 @@ export default function NewIndicatorPage() {
     object_type: "dep_acct_no",
     description: "",
     data_type: "numeric",
-    enum_values: "",
     indicator_task_id: 0
   });
 
@@ -68,21 +67,6 @@ export default function NewIndicatorPage() {
 
     if (!formData.data_type) {
       errors.push("请选择数据类型");
-    }
-
-    if (formData.data_type === "enum" && !formData.enum_values?.trim()) {
-      errors.push("枚举类型必须提供枚举值");
-    }
-
-    if (formData.data_type === "enum" && formData.enum_values) {
-      try {
-        const parsed = JSON.parse(formData.enum_values);
-        if (!Array.isArray(parsed)) {
-          errors.push("枚举值必须是JSON数组格式，如：[\"value1\", \"value2\"]");
-        }
-      } catch (e) {
-        errors.push("枚举值必须是有效的JSON数组格式");
-      }
     }
 
     if (!formData.indicator_task_id || formData.indicator_task_id === 0) {
@@ -262,10 +246,6 @@ export default function NewIndicatorPage() {
               value={formData.data_type}
               onValueChange={(value) => {
                 updateField("data_type", value);
-                // 非枚举类型时清空枚举值
-                if (value !== "enum") {
-                  updateField("enum_values", "");
-                }
               }}
             >
               <SelectTrigger id="data-type">
@@ -273,32 +253,14 @@ export default function NewIndicatorPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="numeric">数值</SelectItem>
-                <SelectItem value="enum">枚举</SelectItem>
                 <SelectItem value="text">文本</SelectItem>
-                <SelectItem value="boolean">布尔</SelectItem>
+                <SelectItem value="date">日期</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-sm text-muted-foreground mt-1">
               指标值的数据类型
             </p>
           </div>
-
-          {formData.data_type === "enum" && (
-            <div>
-              <Label htmlFor="enum-values">枚举值 *</Label>
-              <Textarea
-                id="enum-values"
-                value={formData.enum_values}
-                onChange={(e) => updateField("enum_values", e.target.value)}
-                placeholder='["low", "medium", "high"]'
-                rows={4}
-                className="font-mono text-sm"
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                JSON数组格式，如：["value1", "value2", "value3"]
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
       <DialogComponent />

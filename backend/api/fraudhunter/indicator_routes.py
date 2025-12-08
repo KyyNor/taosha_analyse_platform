@@ -39,7 +39,7 @@ async def create_indicator(
     - indicator_code: 指标编码
     - indicator_name: 指标名称
     - indicator_type: 指标类型（offline/realtime）
-    - data_type: 数据类型（numeric/enum/text/boolean）
+    - data_type: 数据类型（numeric/text/date）
     - indicator_task_id: 关联的指标组ID
     """
     try:
