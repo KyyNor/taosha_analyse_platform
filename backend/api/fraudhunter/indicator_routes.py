@@ -114,7 +114,7 @@ async def validate_task_before_create(
         验证结果，包含字段验证详情和样本数据
     """
     try:
-        from services.fraudhunter.task_service import indicator_executor
+        from services.fraudhunter.dry_run_task_service import indicator_executor
 
         # 执行预验证
         validation_result = await indicator_executor.validate_task_logic(

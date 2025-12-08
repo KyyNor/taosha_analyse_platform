@@ -189,7 +189,7 @@ class ConfigManager:
             dolphinscheduler_callback_url: str = self._config_data.get('dolphinscheduler', {}).get('callback_url', 'http://127.0.0.1:50020/api/taosha/v1/fraudhunter/wide-table/indicator-runs/callback')
             dolphinscheduler_workflow_default_timezone: str = self._config_data.get('dolphinscheduler', {}).get('workflow', {}).get('default_timezone', 'Asia/Shanghai')
             dolphinscheduler_workflow_timeout: int = self._config_data.get('dolphinscheduler', {}).get('workflow', {}).get('timeout', 60)
-            dolphinscheduler_workflow_params: dict = self._config_data.get('dolphinscheduler', {}).get('workflow', {}).get('params', 60)
+            dolphinscheduler_workflow_params: dict = self._config_data.get('dolphinscheduler', {}).get('workflow', {}).get('params', {})
             dolphinscheduler_schedule_cron_expression: str = self._config_data.get('dolphinscheduler', {}).get('schedule', {}).get('cron_expression', '0 0 2 * * ?')
             dolphinscheduler_schedule_online_schedule: bool = self._config_data.get('dolphinscheduler', {}).get('schedule', {}).get('online_schedule', True)
             dolphinscheduler_task_table_check_timeout: int = self._config_data.get('dolphinscheduler', {}).get('task', {}).get('table_check', {}).get('timeout', 30)

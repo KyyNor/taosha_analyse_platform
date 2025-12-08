@@ -12,7 +12,7 @@ from models.db_base import get_db_session
 from utils.logger import logger
 
 
-class TaskManager:
+class DryRunTaskManager:
     """异步任务管理器"""
 
     def __init__(self):
@@ -302,4 +302,4 @@ class TaskManager:
 
 
 # 全局任务管理器实例
-task_manager = TaskManager()
+dry_run_task_manager = DryRunTaskManager()

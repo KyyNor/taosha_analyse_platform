@@ -212,7 +212,7 @@ dolphinscheduler:
 
   # 项目配置
   project_name: "淘沙分析平台"
-  project_code: 19917269065440
+  project_code: "19917269065440"
   callback_url: "http://127.0.0.1:50020/api/taosha/v1/fraudhunter/wide-table/indicator-runs/callback"
   
 

@@ -23,7 +23,7 @@ from services.fraudhunter.indicator_service import (
     IndicatorTaskManager,
     SQLValidator
 )
-from services.fraudhunter.task_service import task_manager, indicator_executor
+from services.fraudhunter.dry_run_task_service import dry_run_task_manager, indicator_executor
 from utils.logger import logger
 
 
@@ -210,7 +210,7 @@ async def dry_run_indicator_task(
             raise HTTPException(status_code=404, detail=f"指标任务不存在: {task_id}")
 
         # 提交异步任务
-        execution_id = await task_manager.submit_task(
+        execution_id = await dry_run_task_manager.submit_task(
             db=db,
             task_type='indicator',
             task_id=task_id,

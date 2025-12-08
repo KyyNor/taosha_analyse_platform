@@ -12,7 +12,7 @@ from schemas.fraudhunter.task import (
     TaskExecutionListResponse,
     TaskExecutionItem,
 )
-from services.fraudhunter.task_service import task_manager
+from services.fraudhunter.dry_run_task_service import dry_run_task_manager
 from utils.logger import logger
 
 
@@ -36,7 +36,7 @@ async def get_task_progress(
     - estimated_remaining_seconds: 预计剩余时间（秒）
     """
     try:
-        progress = task_manager.get_task_progress(db, task_id)
+        progress = dry_run_task_manager.get_task_progress(db, task_id)
         return progress
 
     except ValueError as e:
@@ -64,7 +64,7 @@ async def get_task_result(
     - result: 执行结果数据
     """
     try:
-        result = task_manager.get_task_result(db, task_id)
+        result = dry_run_task_manager.get_task_result(db, task_id)
         return result
 
     except ValueError as e:
@@ -88,7 +88,7 @@ async def cancel_task(
     - success: 是否成功取消
     """
     try:
-        success = await task_manager.cancel_task(db, task_id)
+        success = await dry_run_task_manager.cancel_task(db, task_id)
 
         if success:
             return {'message': f'任务 {task_id} 已取消', 'success': True}
@@ -125,7 +125,7 @@ async def list_task_executions(
     - items: 任务执行记录列表
     """
     try:
-        items, total = task_manager.list_task_executions(
+        items, total = dry_run_task_manager.list_task_executions(
             db=db,
             task_type=task_type,
             task_id=task_id,
