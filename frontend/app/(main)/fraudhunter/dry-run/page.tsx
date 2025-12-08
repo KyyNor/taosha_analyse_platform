@@ -79,6 +79,13 @@ export default function TasksPage() {
     };
   }, [data]);
 
+  // 任务类型标签映射
+  const taskTypeLabels: Record<string, string> = {
+    indicator_task: "指标任务试运行",
+    indicator: "指标试运行",
+    model_backtest: "模型历史回测"
+  };
+
   // 表格列配置
   const columns = [
     { key: "id", label: "ID", type: "number" as const },
@@ -89,7 +96,7 @@ export default function TasksPage() {
       type: "text" as const,
       render: (value: string) => (
         <Badge variant="outline">
-          {value === "indicator_task" ? "指标任务" : value === "indicator" ? "指标" : value}
+          {taskTypeLabels[value] || value}
         </Badge>
       )
     },
@@ -148,6 +155,7 @@ export default function TasksPage() {
             <SelectItem value="all">全部类型</SelectItem>
             <SelectItem value="indicator_task">指标任务试运行</SelectItem>
             <SelectItem value="indicator">指标试运行</SelectItem>
+            <SelectItem value="model_backtest">模型历史回测</SelectItem>
           </SelectContent>
         </Select>
 

@@ -1,9 +1,9 @@
 """
 FraudHunter模型管理API路由
 
-版本: v2.0.0 (支持高级操作符)
+版本: v2.1.0 (支持高级操作符和历史回测)
 
-提供规则验证、SQL预览、运行时评估和预警管控模型CRUD的API端点
+提供规则验证、SQL预览、运行时评估、历史回测和预警管控模型CRUD的API端点
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -22,7 +22,11 @@ from schemas.fraudhunter.risk_control_model import (
     RiskControlModelUpdate,
     RiskControlModelResponse,
     RiskControlModelListResponse,
-    RiskControlModelPublishRequest
+    RiskControlModelPublishRequest,
+    ModelBacktestRequest,
+    ModelBacktestResponse,
+    ModelOnlineRequest,
+    ModelOnlineResponse
 )
 from services.fraudhunter.model_service.rule_engine import RuleEngine
 from services.fraudhunter.model_service import RiskControlModelManager
@@ -529,3 +533,109 @@ async def archive_risk_control_model(
     except Exception as e:
         logger.error(f"归档预警管控模型失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"归档预警管控模型失败: {str(e)}")
+
+
+# ==================== 模型执行端点 ====================
+
+@risk_control_model_router.post(
+    "/{model_id}/backtest",
+    response_model=ModelBacktestResponse,
+    summary="提交模型历史回测任务"
+)
+async def submit_model_backtest(
+    model_id: int,
+    backtest_data: ModelBacktestRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    提交模型历史回测任务
+
+    根据指定的日期范围，对每天执行模型回测。回测SQL会联接当天的宽表（实时指标）
+    和前一天的宽表（离线指标）进行模型条件匹配。
+
+    任务提交后后台异步执行，可通过试运行任务列表查看进度。
+
+    参数:
+    - model_id: 模型ID
+    - start_date: 开始日期 (YYYY-MM-DD)
+    - end_date: 结束日期 (YYYY-MM-DD)
+
+    返回:
+    - success: 提交是否成功
+    - message: 提示消息
+    - execution_id: 任务执行ID（可用于查询进度）
+
+    注意:
+    - 如果某天的宽表文件不存在，该日期会被跳过并产生警告
+    - 目前只支持 dep_acct_no 对象类型的宽表
+    """
+    try:
+        manager = RiskControlModelManager(db)
+
+        execution_id = await manager.submit_backtest_task(
+            model_id=model_id,
+            start_date=backtest_data.start_date,
+            end_date=backtest_data.end_date,
+            created_by="system"
+        )
+
+        return ModelBacktestResponse(
+            success=True,
+            message=f"历史回测任务已提交，日期范围: {backtest_data.start_date} 至 {backtest_data.end_date}",
+            execution_id=execution_id
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"提交模型历史回测任务失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"提交模型历史回测任务失败: {str(e)}")
+
+
+@risk_control_model_router.post(
+    "/{model_id}/online",
+    response_model=ModelOnlineResponse,
+    summary="模型上线执行（预留）"
+)
+async def execute_model_online(
+    model_id: int,
+    online_data: ModelOnlineRequest = None,
+    db: Session = Depends(get_db)
+):
+    """
+    将模型部署到生产环境执行（功能待实现）
+
+    此功能将在后续版本中完善，包括：
+    - 验证模型状态（必须是online状态）
+    - 生成生产环境SQL
+    - 部署到DolphinScheduler
+    - 配置定时任务
+
+    参数:
+    - model_id: 模型ID
+    - schedule_cron: 调度CRON表达式（可选）
+    - description: 上线说明（可选）
+
+    返回:
+    - success: 上线是否成功
+    - message: 提示消息
+    - workflow_code: DolphinScheduler工作流编码
+    """
+    try:
+        manager = RiskControlModelManager(db)
+        manager.execute_online(model_id, updated_by="system")
+
+        # 如果execute_online没有抛出NotImplementedError，返回成功
+        return ModelOnlineResponse(
+            success=True,
+            message="模型上线成功",
+            workflow_code=None
+        )
+
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"模型上线执行失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"模型上线执行失败: {str(e)}")

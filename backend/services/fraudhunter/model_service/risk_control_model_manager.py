@@ -2,7 +2,7 @@
 预警管控模型定义管理服务
 """
 
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Dict, Any
 from sqlalchemy.orm import Session
 import json
 from models.fraudhunter.risk_control_model import (
@@ -15,6 +15,8 @@ from schemas.fraudhunter.risk_control_model import (
 )
 from schemas.fraudhunter.rule import RuleConfig
 from .rule_engine import RuleEngine
+from .model_executor import model_executor
+from services.fraudhunter.dry_run_task_service import dry_run_task_manager
 from utils.logger import logger
 
 
@@ -433,3 +435,83 @@ WHERE
         items = query.order_by(FraudHunterModelHistory.created_at.desc()).offset(offset).limit(page_size).all()
 
         return items, total
+
+    # ==================== 模型执行 ====================
+
+    async def submit_backtest_task(
+        self,
+        model_id: int,
+        start_date: str,
+        end_date: str,
+        created_by: str
+    ) -> str:
+        """提交模型历史回测任务
+
+        Args:
+            model_id: 模型ID
+            start_date: 开始日期 (YYYY-MM-DD)
+            end_date: 结束日期 (YYYY-MM-DD)
+            created_by: 创建人
+
+        Returns:
+            execution_id: 任务执行ID
+
+        Raises:
+            ValueError: 如果模型不存在
+        """
+        # 验证模型存在
+        model = self.get_risk_control_model(model_id)
+        if not model:
+            raise ValueError(f"预警管控模型不存在: {model_id}")
+
+        logger.info(f"提交模型历史回测任务: {model.model_code}, 日期范围: {start_date} 至 {end_date}")
+
+        # 提交异步任务
+        execution_id = await dry_run_task_manager.submit_task(
+            db=self.db,
+            task_type='model_backtest',
+            task_id=model_id,
+            task_func=model_executor.execute_backtest,
+            created_by=created_by,
+            start_date=start_date,
+            end_date=end_date
+        )
+
+        logger.info(f"模型历史回测任务已提交: {execution_id}")
+        return execution_id
+
+    def execute_online(
+        self,
+        model_id: int,
+        updated_by: str
+    ) -> Dict[str, Any]:
+        """模型上线执行（占位方法，后续完善）
+
+        将模型部署到生产环境执行
+
+        Args:
+            model_id: 模型ID
+            updated_by: 操作人
+
+        Returns:
+            执行结果
+
+        Raises:
+            ValueError: 如果模型不存在
+            NotImplementedError: 功能待实现
+        """
+        # 验证模型存在
+        model = self.get_risk_control_model(model_id)
+        if not model:
+            raise ValueError(f"预警管控模型不存在: {model_id}")
+
+        # TODO: 实现模型上线逻辑
+        # 1. 验证模型状态（必须是online状态）
+        # 2. 生成生产环境SQL
+        # 3. 部署到DolphinScheduler
+        # 4. 配置定时任务
+        # 5. 更新模型执行状态
+
+        logger.info(f"模型上线执行（待实现）: {model.model_code}")
+
+        raise NotImplementedError("模型上线功能尚未实现，后续版本将完善此功能")

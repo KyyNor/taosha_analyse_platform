@@ -98,3 +98,62 @@ class RiskControlModelPublishRequest(BaseModel):
     """预警管控模型发布请求模型"""
     version: int = Field(..., ge=1, description="要发布的版本号")
     change_description: Optional[str] = Field(None, description="变更说明")
+
+
+# ==================== 历史回测相关 ====================
+
+class ModelBacktestRequest(BaseModel):
+    """模型历史回测请求模型"""
+    start_date: str = Field(..., description="开始日期 (YYYY-MM-DD)")
+    end_date: str = Field(..., description="结束日期 (YYYY-MM-DD)")
+
+    @field_validator('start_date', 'end_date')
+    @classmethod
+    def validate_date_format(cls, v):
+        """验证日期格式"""
+        try:
+            datetime.strptime(v, '%Y-%m-%d')
+        except ValueError:
+            raise ValueError('日期格式必须是 YYYY-MM-DD')
+        return v
+
+
+class ModelBacktestResponse(BaseModel):
+    """模型历史回测响应模型"""
+    success: bool = Field(..., description="提交是否成功")
+    message: str = Field(..., description="提示消息")
+    execution_id: Optional[str] = Field(None, description="任务执行ID")
+
+
+class ModelBacktestDayResult(BaseModel):
+    """模型历史回测单日结果"""
+    date: str = Field(..., description="日期")
+    status: str = Field(..., description="状态: pending/success/skipped/failed")
+    message: str = Field(..., description="消息")
+    rows_matched: int = Field(default=0, description="命中记录数")
+
+
+class ModelBacktestResult(BaseModel):
+    """模型历史回测完整结果"""
+    total_days: int = Field(..., description="总天数")
+    success_days: int = Field(..., description="成功天数")
+    skipped_days: int = Field(..., description="跳过天数")
+    failed_days: int = Field(..., description="失败天数")
+    total_rows_matched: int = Field(default=0, description="总命中记录数")
+    daily_results: List[ModelBacktestDayResult] = Field(default_factory=list, description="每日结果")
+    warnings: List[str] = Field(default_factory=list, description="警告信息")
+
+
+# ==================== 模型上线相关 ====================
+
+class ModelOnlineRequest(BaseModel):
+    """模型上线请求模型（预留）"""
+    schedule_cron: Optional[str] = Field(None, description="调度CRON表达式")
+    description: Optional[str] = Field(None, description="上线说明")
+
+
+class ModelOnlineResponse(BaseModel):
+    """模型上线响应模型（预留）"""
+    success: bool = Field(..., description="上线是否成功")
+    message: str = Field(..., description="提示消息")
+    workflow_code: Optional[str] = Field(None, description="DolphinScheduler工作流编码")

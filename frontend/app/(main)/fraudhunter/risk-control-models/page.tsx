@@ -12,6 +12,16 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { riskControlModelService } from "@/lib/services/fraudhunterService";
 import type {
   RiskControlModel,
@@ -35,6 +45,13 @@ export default function RiskControlModelsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [objectTypeFilter, setObjectTypeFilter] = useState<string>("all");
   const [codeFilter, setCodeFilter] = useState<string>("");
+
+  // 历史回测对话框状态
+  const [backtestDialogOpen, setBacktestDialogOpen] = useState(false);
+  const [backtestModel, setBacktestModel] = useState<RiskControlModel | null>(null);
+  const [backtestStartDate, setBacktestStartDate] = useState<string>("");
+  const [backtestEndDate, setBacktestEndDate] = useState<string>("");
+  const [backtestLoading, setBacktestLoading] = useState(false);
 
   // 加载预警管控模型列表
   const load = async () => {
@@ -181,9 +198,72 @@ export default function RiskControlModelsPage() {
     });
   };
 
+  // 打开历史回测对话框
+  const handleOpenBacktestDialog = (item: RiskControlModel) => {
+    setBacktestModel(item);
+    // 默认日期：过去7天
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 7);
+    setBacktestStartDate(startDate.toISOString().split('T')[0]);
+    setBacktestEndDate(endDate.toISOString().split('T')[0]);
+    setBacktestDialogOpen(true);
+  };
+
+  // 提交历史回测任务
+  const handleSubmitBacktest = async () => {
+    if (!backtestModel) return;
+    
+    if (!backtestStartDate || !backtestEndDate) {
+      toast.error("请选择开始日期和结束日期");
+      return;
+    }
+
+    if (new Date(backtestStartDate) > new Date(backtestEndDate)) {
+      toast.error("开始日期不能晚于结束日期");
+      return;
+    }
+
+    setBacktestLoading(true);
+    try {
+      const response = await riskControlModelService.backtest(backtestModel.id, {
+        start_date: backtestStartDate,
+        end_date: backtestEndDate
+      });
+
+      if (response.success) {
+        toast.success(response.message);
+        setBacktestDialogOpen(false);
+        // 提示用户可以在试运行任务页面查看进度
+        toast.info("可在「试运行任务」页面查看任务进度", {
+          action: {
+            label: "前往查看",
+            onClick: () => router.push("/fraudhunter/dry-run")
+          }
+        });
+      } else {
+        toast.error(response.message || "提交失败");
+      }
+    } catch (error: any) {
+      console.error("Failed to submit backtest:", error);
+      toast.error(error.response?.data?.detail || "提交历史回测任务失败");
+    } finally {
+      setBacktestLoading(false);
+    }
+  };
+
   // 自定义操作按钮
   const customActions = (item: RiskControlModel) => (
     <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => handleOpenBacktestDialog(item)}
+        disabled={item.status === "archived"}
+        title="历史回测"
+      >
+        回测
+      </Button>
       <Button
         variant="ghost"
         size="sm"
@@ -262,6 +342,64 @@ export default function RiskControlModelsPage() {
         onAdd={handleAdd}
         customActions={customActions}
       />
+
+      {/* 历史回测对话框 */}
+      <Dialog open={backtestDialogOpen} onOpenChange={setBacktestDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>模型历史回测</DialogTitle>
+            <DialogDescription>
+              {backtestModel && (
+                <>
+                  对模型 <strong>{backtestModel.model_name}</strong> ({backtestModel.model_code}) 进行历史回测。
+                  回测任务将在后台执行，可在「试运行任务」页面查看进度。
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="startDate" className="text-right">
+                开始日期
+              </Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={backtestStartDate}
+                onChange={(e) => setBacktestStartDate(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="endDate" className="text-right">
+                结束日期
+              </Label>
+              <Input
+                id="endDate"
+                type="date"
+                value={backtestEndDate}
+                onChange={(e) => setBacktestEndDate(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBacktestDialogOpen(false)}
+              disabled={backtestLoading}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleSubmitBacktest}
+              disabled={backtestLoading}
+            >
+              {backtestLoading ? "提交中..." : "提交回测任务"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
     </>
   );

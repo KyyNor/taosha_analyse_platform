@@ -13,6 +13,30 @@ import type {
 
 const BASE_PATH = '/fraudhunter/risk-control-models'
 
+// ==================== 历史回测相关类型 ====================
+
+export interface ModelBacktestRequest {
+  start_date: string
+  end_date: string
+}
+
+export interface ModelBacktestResponse {
+  success: boolean
+  message: string
+  execution_id?: string
+}
+
+export interface ModelOnlineRequest {
+  schedule_cron?: string
+  description?: string
+}
+
+export interface ModelOnlineResponse {
+  success: boolean
+  message: string
+  workflow_code?: string
+}
+
 // ==================== 列表查询参数 ====================
 
 export interface ListRiskControlModelsParams {
@@ -103,6 +127,30 @@ export const riskControlModelService = {
    */
   async archive(modelId: number): Promise<RiskControlModel> {
     const response = await api.post<RiskControlModel>(`${BASE_PATH}/${modelId}/archive`)
+    return response.data
+  },
+
+  /**
+   * 提交模型历史回测任务
+   *
+   * @param modelId 模型ID
+   * @param data 回测参数（开始日期、结束日期）
+   * @returns 回测任务提交结果
+   */
+  async backtest(modelId: number, data: ModelBacktestRequest): Promise<ModelBacktestResponse> {
+    const response = await api.post<ModelBacktestResponse>(`${BASE_PATH}/${modelId}/backtest`, data)
+    return response.data
+  },
+
+  /**
+   * 模型上线执行（预留功能）
+   *
+   * @param modelId 模型ID
+   * @param data 上线参数
+   * @returns 上线结果
+   */
+  async online(modelId: number, data?: ModelOnlineRequest): Promise<ModelOnlineResponse> {
+    const response = await api.post<ModelOnlineResponse>(`${BASE_PATH}/${modelId}/online`, data || {})
     return response.data
   }
 }
