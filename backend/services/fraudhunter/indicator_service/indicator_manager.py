@@ -128,7 +128,8 @@ class IndicatorManager:
         indicator_type: Optional[str] = None,
         object_type: Optional[str] = None,
         indicator_task_id: Optional[int] = None,
-        indicator_code: Optional[str] = None
+        indicator_code: Optional[str] = None,
+        query_type: Optional[str] = 'page',
     ) -> tuple[List[FraudHunterIndicatorDefinition], int]:
         """获取指标列表
 
@@ -170,8 +171,11 @@ class IndicatorManager:
         total = query.count()
 
         # 分页
-        offset = (page - 1) * page_size
-        items = query.order_by(FraudHunterIndicatorDefinition.created_at.desc()).offset(offset).limit(page_size).all()
+        if query_type != 'all':
+            offset = (page - 1) * page_size
+            items = query.order_by(FraudHunterIndicatorDefinition.created_at.desc()).offset(offset).limit(page_size).all()
+        else:
+            items = query.all()
 
         return items, total
 

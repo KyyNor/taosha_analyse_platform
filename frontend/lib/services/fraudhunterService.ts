@@ -328,6 +328,7 @@ export const indicatorService = {
     indicator_type?: string;
     object_type?: string;
     indicator_task_id?: number;
+    query_type?: string;
   }): Promise<IndicatorListResponse> {
     const response = await api.get(`${BASE_PATH}/indicators`, { params });
     return response.data;

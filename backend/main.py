@@ -175,7 +175,7 @@ async def _initialize_system_services():
             # 注册离线宽表同步任务
             scheduler_service.add_interval_job(
                 func=sync_all_wide_tables_job,
-                seconds=settings.fraudhunter_scheduler_offline_interval,
+                seconds=settings.scheduler_offline_wide_table_sync,
                 job_id='offline_wide_table_sync',
                 job_name='离线指标宽表同步'
             )
@@ -183,8 +183,8 @@ async def _initialize_system_services():
             # 注册实时指标生成任务
             scheduler_service.add_interval_job(
                 func=generate_realtime_wide_table_job,
-                seconds=settings.fraudhunter_scheduler_realtime_interval,
-                job_id='realtime_indicator_generation',
+                seconds=settings.scheduler_model_runner_interval,
+                job_id='generate_realtime_wide_table_job',
                 job_name='实时指标宽表生成'
             )
 

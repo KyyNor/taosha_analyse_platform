@@ -63,7 +63,7 @@ export default function NewRiskControlModelPage() {
       try {
         const response = await indicatorService.list({
           status: "online",
-          page_size: 1000
+          query_type: "all"
         });
         // 转换为规则引擎需要的格式，包含object_type
         const transformedIndicators: Indicator[] = (response.items || []).map(item => ({

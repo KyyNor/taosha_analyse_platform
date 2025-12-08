@@ -214,6 +214,7 @@ async def list_indicators(
     object_type: Optional[str] = Query(None, description="对象类型筛选"),
     indicator_task_id: Optional[int] = Query(None, description="指标组ID筛选"),
     indicator_code: Optional[str] = Query(None, description="编码筛选（模糊匹配）"),
+    query_type: Optional[str] = Query('page', description="查询类型 all为全量查询"),
     db: Session = Depends(get_db)
 ):
     """获取指标列表
@@ -229,7 +230,8 @@ async def list_indicators(
             indicator_type=indicator_type,
             object_type=object_type,
             indicator_task_id=indicator_task_id,
-            indicator_code=indicator_code
+            indicator_code=indicator_code,
+            query_type=query_type
         )
 
         return {

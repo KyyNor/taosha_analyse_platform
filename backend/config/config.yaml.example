@@ -249,7 +249,6 @@ fraudhunter:
   # 宽表配置
   wide_table:
     storage_path: "./database/wide_tables"  # Parquet文件存储路径
-    sync_check_interval: 300  # 秒，检查是否可以同步的间隔
 
     # DuckDB配置
     duckdb_config:
@@ -261,6 +260,7 @@ fraudhunter:
     sync_scheduler_interval: 600  # 离线同步调度间隔(秒) - 10分钟
     source_table: "hxb_dh_data_dwm.dwm_taosha_indicator_details"
 
-  # 调度器配置
-  scheduler:
-    realtime_interval: 300  # 秒，实时指标生成间隔（5分钟）
+# 调度器配置
+scheduler:
+  offline_wide_table_sync: 60 # 秒，检查是否可以同步的间隔
+  model_runner_interval: 300  # 秒，实时指标生成间隔（5分钟）
