@@ -12,6 +12,7 @@ from models.fraudhunter.wide_table import (
     FraudHunterIndicatorRunProgress
 )
 from utils.logger import logger
+from utils.config import settings
 
 
 class WideTableSyncService:
@@ -19,11 +20,11 @@ class WideTableSyncService:
 
     def __init__(self, db: Session):
         self.db = db
-        # TODO: 从config中读取配置
-        # self.storage_path = Path(config.get("fraudhunter", {}).get("wide_table", {}).get("storage_path", "/data/wide_tables"))
-        # self.duckdb_config = config.get("fraudhunter", {}).get("wide_table", {}).get("duckdb_config", {})
-        self.storage_path = Path("/data/wide_tables")  # 临时硬编码
-        self.duckdb_config = {"memory_limit": "4GB", "threads": 4}  # 临时硬编码
+        self.storage_path = Path(settings.fraudhunter_wide_table_storage_path)  # 临时硬编码
+        self.duckdb_config = {
+            "memory_limit": settings.fraudhunter_wide_table_duckdb_config_memory_limit,
+            "threads": settings.fraudhunter_wide_table_duckdb_config_threads
+        }
 
     def sync_wide_table(
         self,

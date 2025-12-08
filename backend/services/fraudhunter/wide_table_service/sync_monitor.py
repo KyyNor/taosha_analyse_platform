@@ -77,14 +77,12 @@ class WideTableSyncMonitor:
                 etl_date
             )
 
-            # 由于sync_wide_table暂未实现，这里暂时不提升版本状态
-            # if snapshot and snapshot.status == 'ready':
-            #     # 4. 提升版本状态
-            #     current_version = self.version_manager.promote_target_to_current(target_version)
-            #     logger.info(f"{wide_table_name}版本 {current_version.version_hash[:16]}... 已成功同步并提升为current")
-            #     return current_version
+            if snapshot and snapshot.status == 'ready':
+                # 4. 提升版本状态
+                current_version = self.version_manager.promote_target_to_current(target_version)
+                logger.info(f"{wide_table_name}版本 {current_version.version_hash[:16]}... 已成功同步并提升为current")
+                return current_version
 
-            logger.info(f"宽表同步逻辑暂未实现，跳过版本状态提升")
             return None
 
         except Exception as e:

@@ -248,12 +248,12 @@ dolphinscheduler:
 fraudhunter:
   # 宽表配置
   wide_table:
-    storage_path: "./wide_tables"  # Parquet文件存储路径
+    storage_path: "./database/wide_tables"  # Parquet文件存储路径
     sync_check_interval: 300  # 秒，检查是否可以同步的间隔
 
     # DuckDB配置
     duckdb_config:
-      memory_limit: "4GB"  # 内存限制
+      memory_limit: "10GB"  # 内存限制
       threads: 4  # 线程数
 
   # 调度器配置
