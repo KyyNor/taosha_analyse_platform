@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { indicatorTaskService } from "@/lib/services/fraudhunterService";
 import type { IndicatorTaskCreate } from "@/lib/services/fraudhunterService";
@@ -22,7 +29,8 @@ export default function NewIndicatorTaskPage() {
     description: "",
     logic_content: "",
     realtime_logic_content: "",
-    source_tables: ""
+    source_tables: "",
+    object_type: "dep_acct_no"
   });
 
   // 表单验证
@@ -37,6 +45,10 @@ export default function NewIndicatorTaskPage() {
 
     if (!formData.logic_content?.trim()) {
       errors.push("SQL内容不能为空");
+    }
+
+    if (!formData.object_type) {
+      errors.push("对象类型不能为空");
     }
 
     return errors;
@@ -149,6 +161,26 @@ export default function NewIndicatorTaskPage() {
               placeholder="描述指标任务的用途和业务含义"
               rows={3}
             />
+          </div>
+
+          <div>
+            <Label htmlFor="object-type">对象类型 *</Label>
+            <Select
+              value={formData.object_type}
+              onValueChange={(value) => updateField("object_type", value)}
+            >
+              <SelectTrigger id="object-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cust_no">客户号</SelectItem>
+                <SelectItem value="dep_acct_no">存款账号</SelectItem>
+                <SelectItem value="loan_acct_no">贷款账号</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground mt-1">
+              选择指标任务关联的对象类型
+            </p>
           </div>
         </CardContent>
       </Card>

@@ -89,6 +89,7 @@ async def list_indicator_tasks(
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     status: Optional[str] = Query(None, description="状态筛选"),
     task_code: Optional[str] = Query(None, description="编码筛选（模糊匹配）"),
+    object_type: Optional[str] = Query(None, description="对象类型筛选"),
     db: Session = Depends(get_db)
 ):
     """获取指标任务列表
@@ -101,7 +102,8 @@ async def list_indicator_tasks(
             page=page,
             page_size=page_size,
             status=status,
-            task_code=task_code
+            task_code=task_code,
+            object_type=object_type
         )
 
         return {
@@ -336,7 +338,7 @@ async def publish_to_dolphinscheduler(
 
         # 3. 初始化 DS 服务
         ds_service = DolphinSchedulerService()
-        result = ds_service.submit_indicator_task_workflow(indicator_task)
+        result = ds_service.submit_indicator_task_workflow(indicator_task, db)
 
         # 6. 更新数据库中的 DS 任务信息和状态
         indicator_task.ds_task_name = result.get("workflow_name")

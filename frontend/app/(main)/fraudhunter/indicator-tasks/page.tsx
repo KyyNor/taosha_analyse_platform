@@ -57,6 +57,19 @@ export default function IndicatorTasksPage() {
     { key: "task_code", label: "指标任务编码", type: "text" as const },
     { key: "task_name", label: "指标任务名称", type: "text" as const },
     {
+      key: "object_type",
+      label: "对象类型",
+      type: "text" as const,
+      render: (value: string) => {
+        const labels: Record<string, string> = {
+          cust_no: "客户号",
+          dep_acct_no: "存款账号",
+          loan_acct_no: "贷款账号"
+        };
+        return <span>{labels[value] || value}</span>;
+      }
+    },
+    {
       key: "status",
       label: "状态",
       type: "text" as const,

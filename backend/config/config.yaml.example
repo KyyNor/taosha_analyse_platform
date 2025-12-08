@@ -213,6 +213,7 @@ dolphinscheduler:
   # 项目配置
   project_name: "淘沙分析平台"
   project_code: 19917269065440
+  callback_url: "http://127.0.0.1:50020/api/taosha/v1/fraudhunter/wide-table/indicator-runs/callback"
   
 
   # 工作流配置
@@ -235,6 +236,7 @@ dolphinscheduler:
       timeout: 60
       fail_retry_times: 288
       fail_retry_interval: 5
+      datasource_name: spark_test
 
 # FraudHunter 宽表版本管理配置
 fraudhunter:

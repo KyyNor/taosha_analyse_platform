@@ -297,6 +297,18 @@ export default function IndicatorTaskDetailPage() {
             )}
           </div>
 
+          <div>
+            <Label>对象类型</Label>
+            <div className="mt-1 p-2 bg-muted rounded">
+              {data.object_type === "cust_no" && "客户号"}
+              {data.object_type === "dep_acct_no" && "存款账号"}
+              {data.object_type === "loan_acct_no" && "贷款账号"}
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              对象类型创建后不可修改
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>当前版本</Label>
