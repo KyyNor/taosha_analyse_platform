@@ -97,9 +97,9 @@ class DolphinSchedulerService:
                     unpivot_unions.append(f"""
                     SELECT
                         target_id,
-                        '{indicator_code}' as indicator_id,
                         {indicator_code} as indicator_value,
                         '{indicator_task.object_type}' as object_type,
+                        '{indicator_code}' as indicator_id,
                         '${{date}}' as etl_date
                     FROM temp_data
                     """.strip())

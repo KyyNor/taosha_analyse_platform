@@ -1,16 +1,17 @@
 """
-指标执行器（模拟Spark SQL执行 - Dry Run专用）
+指标执行器（Spark SQL执行 - 支持真实Spark连接）
 """
 
 import asyncio
 import re
 from typing import Dict, Any, List, Optional
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from sqlalchemy.orm import Session
 from models.fraudhunter.indicator import FraudHunterIndicatorTask, FraudHunterIndicatorDefinition
 from models.fraudhunter.dry_run_task import FraudHunterDryRunExecution
 from schemas.fraudhunter.indicator import IndicatorTaskCreate
 from utils.logger import logger
+from utils.spark_utils import spark_utils
 
 
 class IndicatorExecutor:
@@ -168,7 +169,7 @@ class IndicatorExecutor:
                 indicator_codes = [ind.indicator_code for ind in indicators]
 
             # 模拟SQL执行（实际应该调用Spark JDBC连接执行）
-            result = await self._mock_spark_execution(
+            result = await self._spark_execution(
                 processed_sql,
                 etl_date,
                 sample_size,
@@ -212,86 +213,109 @@ class IndicatorExecutor:
             logger.error(f"指标任务试运行失败: {task.task_code}, 错误: {str(e)}")
             raise
 
-    async def _mock_spark_execution(
+    async def _spark_execution(
         self,
         sql: str,
         etl_date: str,
         sample_size: int,
         indicator_codes: Optional[List[str]] = None
     ) -> Dict[str, Any]:
-        """模拟Spark SQL执行
-
-        实际环境中应该替换为：
-        1. 连接Spark ThriftServer (JDBC)
-        2. 执行SQL
-        3. 获取结果
+        """执行Spark SQL查询（真实连接）
 
         Args:
             sql: SQL语句
             etl_date: ETL日期
-            sample_size: 样本大小
-            indicator_codes: 指标编码列表（用于生成对应字段）
+            sample_size: 样本大小（用于LIMIT限制返回记录数）
+            indicator_codes: 指标编码列表（可选，不影响实际执行）
 
         Returns:
             执行结果
         """
-        # 模拟执行延迟
-        await asyncio.sleep(2)
+        start_time = datetime.now(timezone.utc)
+        logger.info(f"开始执行Spark SQL查询，ETL日期: {etl_date}，样本大小: {sample_size}")
 
-        # 模拟生成数据，包含必需的字段
-        sample_result = []
-        for i in range(min(sample_size, 10)):  # 只返回最多10条样本
-            row = {
-                'target_id': f'CUST{str(i+1).zfill(8)}',  # 必需字段：target_id
-                'etl_date': etl_date,  # 必需字段：etl_date
-            }
-
-            # 为每个指标编码生成对应的字段
-            if indicator_codes:
-                for indicator_code in indicator_codes:
-                    # 生成随机指标值
-                    import random
-                    if indicator_code.endswith('_cnt'):  # 计数类指标
-                        row[indicator_code] = str(random.randint(0, 100))
-                    elif indicator_code.endswith('_amt'):  # 金额类指标
-                        row[indicator_code] = f"{random.uniform(0, 10000):.2f}"
-                    elif indicator_code.endswith('_flag'):  # 标志类指标
-                        row[indicator_code] = random.choice(['Y', 'N'])
-                    elif indicator_code.endswith('_ratio'):  # 比率类指标
-                        row[indicator_code] = f"{random.uniform(0, 1):.4f}"
-                    else:  # 其他类型指标
-                        row[indicator_code] = str(random.randint(1, 10))
+        try:
+            # 添加LIMIT子句限制返回记录数
+            # 如果SQL中已经包含LIMIT，则不重复添加
+            if 'limit' not in sql.lower():
+                # 简单处理：在SQL末尾添加LIMIT（更复杂的情况可能需要SQL解析）
+                limited_sql = f"{sql.rstrip(';')} LIMIT {sample_size}"
             else:
-                # 如果没有提供指标编码，使用示例字段
-                row['i_dep_acct_no_offline_00005'] = str((i % 5) + 1)
-                row['i_dep_acct_no_offline_00006'] = str((i % 3) + 1)
+                limited_sql = sql
+                logger.warning(f"SQL中已包含LIMIT子句，将不再添加样本大小限制")
 
-            sample_result.append(row)
+            logger.debug(f"执行的SQL语句: {limited_sql}")
 
-        log_content = f"""
-[模拟Spark执行日志]
-执行时间: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}
+            # 使用异步执行避免阻塞事件循环
+            loop = asyncio.get_event_loop()
+            sample_result = await loop.run_in_executor(
+                None,
+                spark_utils.query_sql,
+                limited_sql
+            )
+
+            # 计算执行时间
+            end_time = datetime.now(timezone.utc)
+            duration_seconds = (end_time - start_time).total_seconds()
+
+            # 统计实际返回的记录数
+            rows_output = len(sample_result)
+
+            # 生成执行日志
+            log_content = f"""
+[Spark执行日志]
+执行时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}
+完成时间: {end_time.strftime('%Y-%m-%d %H:%M:%S')}
+执行耗时: {duration_seconds:.2f} 秒
 ETL日期: {etl_date}
 样本大小: {sample_size}
 
-SQL语句:
-{sql}
+执行的SQL语句:
+{limited_sql}
 
 执行结果:
-- 读取源表记录数: {sample_size * 10}
-- 处理记录数: {sample_size}
-- 输出记录数: {sample_size}
-
-注意：这是模拟执行结果，实际生产环境将连接Spark ThriftServer执行真实SQL。
+- 输出记录数: {rows_output}
+- 执行状态: 成功
 """
 
-        return {
-            'rows_processed': sample_size,
-            'rows_output': sample_size,
-            'duration_seconds': 2,
-            'sample_result': sample_result,
-            'log_content': log_content
-        }
+            logger.info(f"Spark SQL查询完成，返回 {rows_output} 条记录，耗时 {duration_seconds:.2f} 秒")
+
+            return {
+                'rows_processed': rows_output,  # 实际处理的行数
+                'rows_output': rows_output,      # 输出的行数
+                'duration_seconds': duration_seconds,
+                'sample_result': sample_result,  # list[dict] 格式
+                'log_content': log_content
+            }
+
+        except Exception as e:
+            # 计算执行时间（即使失败）
+            end_time = datetime.now(timezone.utc)
+            duration_seconds = (end_time - start_time).total_seconds()
+
+            # 记录错误日志
+            error_message = str(e)
+            logger.error(f"Spark SQL查询执行失败: {error_message}")
+
+            log_content = f"""
+[Spark执行日志 - 失败]
+执行时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}
+失败时间: {end_time.strftime('%Y-%m-%d %H:%M:%S')}
+执行耗时: {duration_seconds:.2f} 秒
+ETL日期: {etl_date}
+样本大小: {sample_size}
+
+执行的SQL语句:
+{sql}
+
+错误信息:
+{error_message}
+
+执行状态: 失败
+"""
+
+            # 重新抛出异常，让上层处理
+            raise RuntimeError(f"Spark SQL执行失败: {error_message}") from e
 
     async def validate_task_logic(
             self,
@@ -336,7 +360,7 @@ SQL语句:
             indicator_codes = [ind.indicator_code for ind in indicators]
 
             # 模拟SQL执行
-            result = await self._mock_spark_execution(
+            result = await self._spark_execution(
                 processed_sql,
                 etl_date,
                 sample_size,
