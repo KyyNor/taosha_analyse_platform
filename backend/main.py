@@ -231,10 +231,13 @@ async def lifespan(app: FastAPI):
 
     try:
         # 初始化异步 Playwright 浏览器（每个worker都需要）
-        logger.info("初始化异步 Playwright 浏览器...")
-        from services.agents.fine_report_tools import get_async_browser_context
-        await get_async_browser_context()  # 初始化异步浏览器并建立登录会话
-        logger.info("异步 Playwright 浏览器初始化完成")
+        if not settings.fine_report_disable_browser_init:
+            logger.info("初始化异步 Playwright 浏览器...")
+            from services.agents.fine_report_tools import get_async_browser_context
+            await get_async_browser_context()  # 初始化异步浏览器并建立登录会话
+            logger.info("异步 Playwright 浏览器初始化完成")
+        else:
+            logger.info("浏览器初始化已禁用，跳过异步 Playwright 浏览器初始化")
 
         # 初始化查询引擎服务（每个worker都需要）
         query_engine = get_query_engine()
@@ -272,10 +275,13 @@ async def lifespan(app: FastAPI):
             logger.error(f"统一调度服务关闭失败: {e}", exc_info=True)
 
         # 清理异步 Playwright 浏览器（每个worker都需要清理）
-        logger.info("清理异步 Playwright 浏览器...")
-        from services.agents.fine_report_tools import cleanup_async_browser
-        await cleanup_async_browser()
-        logger.info("异步 Playwright 浏览器已清理")
+        if not settings.fine_report_disable_browser_init:
+            logger.info("清理异步 Playwright 浏览器...")
+            from services.agents.fine_report_tools import cleanup_async_browser
+            await cleanup_async_browser()
+            logger.info("异步 Playwright 浏览器已清理")
+        else:
+            logger.info("浏览器初始化已禁用，跳过异步 Playwright 浏览器清理")
 
         # 关闭查询引擎连接（每个worker都需要关闭）
         query_engine = get_query_engine()

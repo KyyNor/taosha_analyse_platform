@@ -145,7 +145,7 @@ export default function TaskDetailPage() {
         <div className="flex items-center gap-4">
           <Button
             variant="outline"
-            onClick={() => router.push("/fraudhunter/tasks")}
+            onClick={() => router.push("/fraudhunter/dry-run")}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             返回

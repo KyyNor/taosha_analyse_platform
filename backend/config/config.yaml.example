@@ -159,6 +159,7 @@ fine_report:
     download_path: "./downloads/fine_report"  # 下载目录
     screenshot_path: "./downloads/screenshot"  # 下载目录
   download_timeout: 60000  # 下载超时（毫秒）
+  disable_browser_init: false  # 是否禁用浏览器初始化（用于不需要浏览器功能的环境）
 
 # FineReport报表同步配置
 fine_report_sync:

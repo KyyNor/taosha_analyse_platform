@@ -156,6 +156,7 @@ class ConfigManager:
             fine_report_browser_download_path: str = self._config_data.get('fine_report', {}).get('browser', {}).get('download_path', './downloads/fine_report')
             fine_report_browser_screenshot_path: str = self._config_data.get('fine_report', {}).get('browser', {}).get('screenshot_path', './downloads/screenshot')
             fine_report_download_timeout: int = self._config_data.get('fine_report', {}).get('download_timeout', 60000)
+            fine_report_disable_browser_init: bool = self._config_data.get('fine_report', {}).get('disable_browser_init', False)
 
             # FineReport报表同步配置
             fine_report_sync_enabled: bool = self._config_data.get('fine_report_sync', {}).get('enabled', False)
