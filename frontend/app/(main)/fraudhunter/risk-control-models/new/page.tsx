@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileCode, AlertCircle } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,26 +16,19 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { riskControlModelService } from "@/lib/services/fraudhunterService";
 import { indicatorService } from "@/lib/services/fraudhunterService";
-import { modelService } from "@/lib/services/fraudhunter/modelService";
 import type { RiskControlModelCreate, ObjectType } from "@/types/fraudhunter/risk-control-model";
 import type { RuleConfig, Indicator } from "@/types/fraudhunter/rule";
 import { RuleBuilder } from "@/components/fraudhunter/model/RuleBuilder";
 import { RuleImportExport } from "@/components/fraudhunter/model/RuleImportExport";
-import { getObjectTypeLabel } from "@/types/fraudhunter/risk-control-model";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function NewRiskControlModelPage() {
   const router = useRouter();
   const { confirm, DialogComponent } = useConfirmDialog();
   const [saving, setSaving] = useState(false);
-  const [generatingSQL, setGeneratingSQL] = useState(false);
   const [indicators, setIndicators] = useState<Indicator[]>([]);
-  const [sqlPreview, setSqlPreview] = useState<string>("");
-  const [showSQLPreview, setShowSQLPreview] = useState(false);
 
   // 表单数据
   const [formData, setFormData] = useState<RiskControlModelCreate>({
@@ -157,31 +150,6 @@ export default function NewRiskControlModelPage() {
     return errors;
   };
 
-  // 生成SQL预览
-  const handleGenerateSQL = async () => {
-    if (!formData.rule_config || formData.rule_config.rules.length === 0) {
-      toast.error("请先配置规则");
-      return;
-    }
-
-    setGeneratingSQL(true);
-    try {
-      const result = await modelService.previewSQL(formData.rule_config);
-      setSqlPreview(result.sql_expression);
-      setShowSQLPreview(true);
-    } catch (error: any) {
-      console.error("Failed to generate SQL:", error);
-      const detail = error.response?.data?.detail;
-      if (detail?.errors) {
-        toast.error("SQL生成失败: " + detail.errors.join(", "));
-      } else {
-        toast.error(detail?.message || "SQL生成失败");
-      }
-    } finally {
-      setGeneratingSQL(false);
-    }
-  };
-
   // 保存处理
   const handleSave = async () => {
     const errors = validateForm();
@@ -240,9 +208,6 @@ export default function NewRiskControlModelPage() {
   // 规则变化处理
   const handleRuleChange = (newRule: RuleConfig) => {
     updateField("rule_config", newRule);
-    // 清空SQL预览
-    setShowSQLPreview(false);
-    setSqlPreview("");
   };
 
   return (
@@ -334,37 +299,6 @@ export default function NewRiskControlModelPage() {
               initialRule={formData.rule_config}
               onChange={handleRuleChange}
             />
-          </CardContent>
-        </Card>
-
-        {/* SQL预览 */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>SQL预览</CardTitle>
-              <Button
-                variant="outline"
-                onClick={handleGenerateSQL}
-                disabled={generatingSQL || formData.rule_config.rules.length === 0}
-              >
-                <FileCode className="h-4 w-4 mr-2" />
-                {generatingSQL ? "生成中..." : "生成SQL"}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {showSQLPreview && sqlPreview ? (
-              <pre className="bg-muted p-4 rounded-md overflow-x-auto text-sm">
-                {sqlPreview}
-              </pre>
-            ) : (
-              <Alert className="border-dashed">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-center">
-                  点击"生成SQL"按钮预览离线模型SQL
-                </AlertDescription>
-              </Alert>
-            )}
           </CardContent>
         </Card>
 

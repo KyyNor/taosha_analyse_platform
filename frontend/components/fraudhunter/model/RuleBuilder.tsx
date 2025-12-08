@@ -12,7 +12,7 @@
  * - 规则验证和SQL生成预览
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -134,6 +134,25 @@ function addRuleAtPath(rules: Rule[], path: RulePath, newRule: Rule): Rule[] {
     })
   }
 }
+
+const createDefaultRule = (indicatorCode?: string): RuleConfig => ({
+  logic: 'AND',
+  rules: [
+    {
+      type: 'condition',
+      indicator: indicatorCode || '',
+      operator: '>',
+      value: { type: 'constant', value: 0 },
+      left_function: undefined
+    }
+  ],
+  output: {
+    risk_level: 'medium',
+    risk_score: 50,
+    action: 'review',
+    description: ''
+  }
+})
 
 // 递归规则组渲染器
 interface RuleGroupRendererProps {
@@ -327,33 +346,31 @@ function RuleGroupRenderer({
 }
 
 export function RuleBuilder({ indicators, initialRule, onChange, readOnly = false }: RuleBuilderProps) {
-  const [rule, setRule] = useState<RuleConfig>(initialRule || {
-    logic: 'AND',
-    rules: [
-      {
-        type: 'condition',
-        indicator: indicators[0]?.indicator_code || '',
-        operator: '>',
-        value: { type: 'constant', value: 0 },
-        left_function: undefined
-      }
-    ],
-    output: {
-      risk_level: 'medium',
-      risk_score: 50,
-      action: 'review',
-      description: ''
+  const [rule, setRule] = useState<RuleConfig>(() =>
+    initialRule || createDefaultRule(indicators[0]?.indicator_code)
+  )
+
+  const setRuleAndNotify = useCallback((
+    updater: RuleConfig | ((prev: RuleConfig) => RuleConfig)
+  ) => {
+    setRule(prev => {
+      const next = typeof updater === 'function'
+        ? (updater as (prev: RuleConfig) => RuleConfig)(prev)
+        : updater
+      onChange?.(next)
+      return next
+    })
+  }, [onChange])
+
+  useEffect(() => {
+    if (initialRule) {
+      setRule(initialRule)
     }
-  })
+  }, [initialRule])
 
   const [validation, setValidation] = useState<any>(null)
   const [sqlPreview, setSqlPreview] = useState<any>(null)
   const [loading, setLoading] = useState(false)
-
-  const updateRule = useCallback((newRule: RuleConfig) => {
-    setRule(newRule)
-    onChange?.(newRule)
-  }, [onChange])
 
   // 添加条件规则（支持嵌套路径）
   const handleAddCondition = useCallback((path: RulePath) => {
@@ -365,11 +382,11 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
       left_function: undefined
     }
 
-    setRule(prevRule => ({
+    setRuleAndNotify(prevRule => ({
       ...prevRule,
       rules: addRuleAtPath(prevRule.rules, path, newCondition)
     }))
-  }, [indicators])
+  }, [indicators, setRuleAndNotify])
 
   // 添加规则组（支持嵌套路径）
   const handleAddGroup = useCallback((path: RulePath) => {
@@ -387,32 +404,32 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
       ]
     }
 
-    setRule(prevRule => ({
+    setRuleAndNotify(prevRule => ({
       ...prevRule,
       rules: addRuleAtPath(prevRule.rules, path, newGroup)
     }))
-  }, [indicators])
+  }, [indicators, setRuleAndNotify])
 
   // 删除规则（支持嵌套路径）
   const handleRemove = useCallback((path: RulePath) => {
-    setRule(prevRule => ({
+    setRuleAndNotify(prevRule => ({
       ...prevRule,
       rules: removeRuleAtPath(prevRule.rules, path)
     }))
-  }, [])
+  }, [setRuleAndNotify])
 
   // 更新规则（支持嵌套路径）
   const handleUpdate = useCallback((path: RulePath, updatedRule: Rule) => {
-    setRule(prevRule => ({
+    setRuleAndNotify(prevRule => ({
       ...prevRule,
       rules: updateRuleAtPath(prevRule.rules, path, () => updatedRule)
     }))
-  }, [])
+  }, [setRuleAndNotify])
 
   // 更新主逻辑操作符
   const updateLogic = useCallback((newLogic: 'AND' | 'OR') => {
-    updateRule({ ...rule, logic: newLogic })
-  }, [rule, updateRule])
+    setRuleAndNotify(prev => ({ ...prev, logic: newLogic }))
+  }, [setRuleAndNotify])
 
   // 验证规则
   const validateRule = useCallback(async () => {
