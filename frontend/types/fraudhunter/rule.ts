@@ -417,7 +417,7 @@ export function isCompatibleType(type1?: IndicatorDataType, type2?: IndicatorDat
   if (numericTypes.includes(type1) && numericTypes.includes(type2)) return true
 
   // 字符串类型兼容
-  const stringTypes: IndicatorDataType[] = ['string', 'text', 'enum']
+  const stringTypes: IndicatorDataType[] = ['string', 'text', 'date']
   if (stringTypes.includes(type1) && stringTypes.includes(type2)) return true
 
   return false

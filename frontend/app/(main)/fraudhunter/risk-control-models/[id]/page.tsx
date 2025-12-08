@@ -31,13 +31,11 @@ import { modelService } from "@/lib/services/fraudhunter/modelService";
 import type {
   RiskControlModel,
   RiskControlModelUpdate,
-  ObjectType,
   RiskControlModelPublishRequest
 } from "@/types/fraudhunter/risk-control-model";
 import type { RuleConfig, Indicator } from "@/types/fraudhunter/rule";
 import { RuleBuilder } from "@/components/fraudhunter/model/RuleBuilder";
 import {
-  getObjectTypeLabel,
   getModelStatusLabel,
   getModelStatusVariant
 } from "@/types/fraudhunter/risk-control-model";

@@ -18,7 +18,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { riskControlModelService } from "@/lib/services/fraudhunterService";
 import { indicatorService } from "@/lib/services/fraudhunterService";
-import type { RiskControlModelCreate, ObjectType } from "@/types/fraudhunter/risk-control-model";
+import type { RiskControlModelCreate } from "@/types/fraudhunter/risk-control-model";
 import type { RuleConfig, Indicator } from "@/types/fraudhunter/rule";
 import { RuleBuilder } from "@/components/fraudhunter/model/RuleBuilder";
 import { RuleImportExport } from "@/components/fraudhunter/model/RuleImportExport";

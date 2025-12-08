@@ -129,20 +129,23 @@ class ModelExecutor:
     def _generate_backtest_sql(
         self,
         model: FraudHunterModelDefinition,
-        realtime_parquet_path: str,
-        offline_parquet_path: str,
+        dep_acct_realtime_parquet_path: str,
+        dep_acct_offline_parquet_path: str,
+        cust_offline_parquet_path: str,
         etl_date: date
     ) -> str:
         """生成历史回测SQL
         
         SQL结构：
-        - 实时指标使用当天的宽表（realtime_dep_acct_no_indicator）
-        - 离线指标使用前一天的宽表（offline_dep_acct_no_indicator）
+        - 实时指标使用当天的存款宽表（dep_acct_no_realtime_indicator）
+        - 离线指标使用前一天的存款宽表（dep_acct_no_offline_indicator）
+        - 离线指标使用前一天的存款宽表（dep_acct_no_offline_indicator）
         
         Args:
             model: 模型定义
-            realtime_parquet_path: 实时（当天）宽表parquet路径
-            offline_parquet_path: 离线（前一天）宽表parquet路径
+            dep_acct_realtime_parquet_path: 实时（当天）存款宽表parquet路径
+            dep_acct_offline_parquet_path: 离线（前一天）存款宽表parquet路径
+            cust_offline_parquet_path: 离线（前一天）客户宽表parquet路径
             etl_date: 执行日期
             
         Returns:
@@ -168,9 +171,6 @@ class ModelExecutor:
         # 生成WHERE子句，替换表别名
         where_clause = self._generate_where_clause_with_alias(rule_config, indicators)
         
-        # 获取输出配置
-        output = rule_config.get('output', {})
-        
         # 生成完整SQL
         sql = f"""-- 模型历史回测SQL
 -- 模型: {model.model_code} ({model.model_name})
@@ -179,11 +179,15 @@ class ModelExecutor:
 SELECT
     {select_clause}
 FROM
-    read_parquet('{realtime_parquet_path}') as realtime_indicator
+    read_parquet('{dep_acct_realtime_parquet_path}') as realtime_indicator
 LEFT JOIN
-    read_parquet('{offline_parquet_path}') as offline_indicator
+    read_parquet('{dep_acct_offline_parquet_path}') as offline_indicator
 ON
     realtime_indicator.target_id = offline_indicator.target_id
+LEFT JOIN 
+    read_parquet('{cust_offline_parquet_path}') as cust_offline_indicator
+ON
+    realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id
 WHERE
     {where_clause}
 """
@@ -325,7 +329,8 @@ WHERE
         end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
 
         # 获取宽表名称（目前只支持dep_acct_no）
-        wide_table_name = self._get_wide_table_name(model.object_type)
+        dep_acct_wide_table_name = self._get_wide_table_name('dep_acct_no')
+        cust_wide_table_name = self._get_wide_table_name('cust_no')
 
         logger.info(f"开始执行模型历史回测: {model.model_code}, 日期范围: {start_date} 至 {end_date}")
 
@@ -335,7 +340,7 @@ WHERE
             'model_code': model.model_code,
             'start_date': start_date,
             'end_date': end_date,
-            'wide_table_name': wide_table_name
+            'wide_table_name': dep_acct_wide_table_name
         }
         db.flush()
 
@@ -365,12 +370,13 @@ WHERE
 
             try:
                 # 获取当天的parquet路径（实时指标）
-                realtime_parquet = self._get_parquet_path(db, wide_table_name, current_date)
+                dep_acct_realtime_parquet = self._get_parquet_path(db, dep_acct_wide_table_name, current_date)
                 
                 # 获取前一天的parquet路径（离线指标）
-                offline_parquet = self._get_parquet_path(db, wide_table_name, previous_date)
+                dep_acct_offline_parquet = self._get_parquet_path(db, dep_acct_wide_table_name, previous_date)
+                cust_offline_parquet = self._get_parquet_path(db, cust_wide_table_name, previous_date)
 
-                if not realtime_parquet:
+                if not dep_acct_realtime_parquet:
                     warning_msg = f"日期 {current_date} 的宽表文件不存在，跳过"
                     logger.warning(warning_msg)
                     results['warnings'].append(warning_msg)
@@ -381,7 +387,7 @@ WHERE
                     current_date += timedelta(days=1)
                     continue
 
-                if not offline_parquet:
+                if not dep_acct_offline_parquet or not cust_offline_parquet:
                     warning_msg = f"日期 {previous_date} 的宽表文件不存在（用于离线指标），跳过 {current_date}"
                     logger.warning(warning_msg)
                     results['warnings'].append(warning_msg)
@@ -395,8 +401,9 @@ WHERE
                 # 生成SQL
                 sql = self._generate_backtest_sql(
                     model,
-                    realtime_parquet,
-                    offline_parquet,
+                    dep_acct_realtime_parquet,
+                    dep_acct_offline_parquet,
+                    cust_offline_parquet,
                     current_date
                 )
 
