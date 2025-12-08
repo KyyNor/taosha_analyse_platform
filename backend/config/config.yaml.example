@@ -220,6 +220,12 @@ dolphinscheduler:
   workflow:
     default_timezone: "Asia/Shanghai"
     timeout: 60
+    params:
+      date: "$[yyyy-MM-dd-1]"
+      hive.user: "bdspk"
+      hive.passwd: "Nybdspk@123"
+      hive.host: "bigdata01"
+      hive.port: "10000"
 
   # 定时调度配置
   schedule:

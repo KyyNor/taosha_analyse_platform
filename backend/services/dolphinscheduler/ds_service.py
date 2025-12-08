@@ -77,7 +77,8 @@ class DolphinSchedulerService:
                 start_time="2025-01-01",
                 tenant="tenant_exists",
                 project=settings.dolphinscheduler_project_name,
-                user=settings.dolphinscheduler_gateway_user
+                user=settings.dolphinscheduler_gateway_user,
+                param=settings.dolphinscheduler_workflow_params
             ) as workflow:
                 # [start task_declare]
 
@@ -86,7 +87,7 @@ class DolphinSchedulerService:
                 for table in indicator_task.dependent_tables.split(","):
                     temp_shell = Shell(
                         name=f"check_table_{table}",
-                        command=f"echo {table}"
+                        command=f"sh /home/bdspk/hxb_dh/datafactory_scripts/project/hadoop_operations/sh/table_check/check-hive-table.sh {table} ${{date}} ${{hive.host}} ${{hive.port}} ${{hive.user}} ${{hive.passwd}}"
                     )
                     check_shell_group.append(temp_shell)
 
@@ -235,7 +236,7 @@ class DolphinSchedulerService:
 
             # 调用DolphinScheduler API
             response = requests.post(
-                url=f"http://127.0.0.1:12345/dolphinscheduler/projects/{settings.dolphinscheduler_project_code}/executors/start-process-instance",
+                url=f"http://{settings.dolphinscheduler_gateway_host}:12345/dolphinscheduler/projects/{settings.dolphinscheduler_project_code}/executors/start-process-instance",
                 data=params,
                 headers={
                     "Content-Type": "application/x-www-form-urlencoded",
