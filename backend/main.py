@@ -240,7 +240,6 @@ async def _initialize_system_services():
             # 启动调度器
             scheduler_service.start()
 
-            await sync_all_wide_tables_job()
             logger.info("统一调度服务已启动（仅此worker执行）")
         except Exception as e:
             logger.error(f"统一调度服务启动失败: {e}", exc_info=True)

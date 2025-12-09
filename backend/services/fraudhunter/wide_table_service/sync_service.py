@@ -246,8 +246,15 @@ class WideTableSyncService:
                 )
             ).first()
 
-            if not target_version:
-                logger.warning(f"{wide_table_name} 没有target版本，跳过同步")
+            current_version = db.query(FraudHunterWideTableVersion).filter(
+                and_(
+                    FraudHunterWideTableVersion.wide_table_name == wide_table_name,
+                    FraudHunterWideTableVersion.status == 'current'
+                )
+            ).first()
+
+            if not target_version and not current_version:
+                logger.warning(f"{wide_table_name} 没有target和current版本，跳过同步")
                 return {
                     "wide_table_name": wide_table_name,
                     "total_dates": 0,
@@ -258,9 +265,14 @@ class WideTableSyncService:
                 }
             
             # 提取需要的数据，避免session关闭后无法访问
-            target_version_id = target_version.id
-            version_hash = target_version.version_hash
-            indicator_metadata = target_version.indicator_metadata
+            if target_version:
+                target_version_id = target_version.id
+                version_hash = target_version.version_hash
+                indicator_metadata = target_version.indicator_metadata
+            else:
+                target_version_id = current_version.id
+                version_hash = current_version.version_hash
+                indicator_metadata = current_version.indicator_metadata
 
         # 2. 计算ETL日期范围 (今天往前lookback_days天)
         today = date.today()
