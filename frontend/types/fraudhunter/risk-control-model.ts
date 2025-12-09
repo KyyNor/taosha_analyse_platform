@@ -51,7 +51,7 @@ export interface RiskControlModel {
  * 创建预警管控模型请求
  */
 export interface RiskControlModelCreate {
-  model_code: string
+  model_code?: string  // 可选，后端会自动生成
   model_name: string
   description?: string
   rule_config: RuleConfig

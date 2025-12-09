@@ -8,13 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { riskControlModelService } from "@/lib/services/fraudhunterService";
 import { indicatorService } from "@/lib/services/fraudhunterService";
@@ -32,7 +25,6 @@ export default function NewRiskControlModelPage() {
 
   // 表单数据
   const [formData, setFormData] = useState<RiskControlModelCreate>({
-    model_code: "",
     model_name: "",
     description: "",
     rule_config: {
@@ -85,12 +77,6 @@ export default function NewRiskControlModelPage() {
   // 表单验证
   const validateForm = () => {
     const errors: string[] = [];
-
-    if (!formData.model_code?.trim()) {
-      errors.push("模型编码不能为空");
-    } else if (formData.model_code.length > 64) {
-      errors.push("模型编码不能超过64个字符");
-    }
 
     if (!formData.model_name?.trim()) {
       errors.push("模型名称不能为空");
@@ -192,20 +178,6 @@ export default function NewRiskControlModelPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="model-code">模型编码 *</Label>
-              <Input
-                id="model-code"
-                value={formData.model_code}
-                onChange={(e) => updateField("model_code", e.target.value)}
-                placeholder="如: risk_model_001"
-                maxLength={64}
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                唯一标识，1-64个字符
-              </p>
-            </div>
-
-            <div>
               <Label htmlFor="model-name">模型名称 *</Label>
               <Input
                 id="model-name"
@@ -215,7 +187,7 @@ export default function NewRiskControlModelPage() {
                 maxLength={128}
               />
               <p className="text-sm text-muted-foreground mt-1">
-                显示名称，1-128个字符
+                显示名称，1-128个字符（模型编码将自动生成）
               </p>
             </div>
 
