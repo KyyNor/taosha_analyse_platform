@@ -21,3 +21,15 @@ uvicorn main:app --workers=2 --port 50020
 cd frontend
 npm run build
 npm run start
+
+
+
+使用pyspark前提：
+1、新建bdspk用户，bigdata组
+2、拷贝spark目录（/home/bdins/spark-3.1.3-bin-hadoop3.2）到执行脚本的机器（给bdspk权限）
+3、添加环境变量到 ~/.bashrc
+export SPARK_HOME=/data/spark-3.1.3-bin-hadoop3.2
+export HADOOP_CONF_DIR=$SPARK_HOME/conf
+export HIVE_CONF_DIR=$SPARK_HOME/conf
+export PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-*.zip:$PYTHONPATH
+4、拷贝jdk8到 ~/jdk8 目录

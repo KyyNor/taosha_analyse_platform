@@ -15,7 +15,7 @@ from retry import retry
 import jaydebeapi
 
 from .logger import logger
-
+from utils.config import settings
 
 class SparkUtils:
     """Spark工具类 - 支持JDBC查询"""
@@ -172,19 +172,18 @@ class PySparkService:
         
         try:
             from pyspark.sql import SparkSession
-            from utils.config import settings
             
             # 如果强制重新初始化，先停止现有的SparkSession
             if force and self._spark is not None:
                 self.shutdown()
             
             # 获取配置
-            app_name = getattr(settings, 'pyspark_app_name', 'TaoShaAnalyticsPlatform')
-            master = getattr(settings, 'pyspark_master', 'local[*]')
-            executor_memory = getattr(settings, 'pyspark_executor_memory', '4g')
-            executor_cores = getattr(settings, 'pyspark_executor_cores', 2)
-            driver_memory = getattr(settings, 'pyspark_driver_memory', '2g')
-            extra_configs = getattr(settings, 'pyspark_extra_configs', {})
+            app_name = settings.pyspark_app_name
+            master = settings.pyspark_master
+            executor_memory = settings.pyspark_executor_memory
+            executor_cores = settings.pyspark_executor_cores
+            driver_memory = settings.pyspark_driver_memory
+            extra_configs = settings.pyspark_extra_configs
             
             logger.info(f"正在初始化PySpark: master={master}, "
                        f"executor_memory={executor_memory}, executor_cores={executor_cores}")
@@ -196,6 +195,7 @@ class PySparkService:
                 .config("spark.executor.memory", executor_memory) \
                 .config("spark.executor.cores", str(executor_cores)) \
                 .config("spark.driver.memory", driver_memory) \
+                .config("spark.submit.deployMode", "client") \
                 .config("spark.sql.adaptive.enabled", "true") \
                 .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
                 .enableHiveSupport()
@@ -207,6 +207,8 @@ class PySparkService:
             
             # 创建SparkSession
             self._spark = builder.getOrCreate()
+            self._spark.conf.set("hive.exec.dynamic.partition.mode", 'nonstrict')
+            self._spark.conf.set("spark.port.maxRetries", 200)
             self._initialized = True
             
             logger.info(f"PySpark初始化成功: {self._spark.sparkContext.applicationId}")
