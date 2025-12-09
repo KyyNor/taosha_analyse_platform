@@ -12,6 +12,7 @@ from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
+from models.db_base import get_db_session
 from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
 from models.fraudhunter.wide_table import (
     FraudHunterWideTableVersion,
@@ -123,26 +124,26 @@ class ModelExecutor:
         # 将 Dict 转换为 RuleConfig 模型
         rule_config = RuleConfig(**rule_config_dict)
         
-        # 使用 RuleEngine 构建指标别名映射并生成 WHERE 子句
-        rule_engine = RuleEngine(db=None)  # 不需要数据库会话
-        indicator_alias_mapping = rule_engine.build_indicator_alias_mapping(
-            rule_config,
-            use_alias=True
-        )
-        
-        # 生成SELECT子句
-        select_fields = [f"dep_acct_realtime_indicator.target_id"]
-        select_fields.append(f"etl_date")
-        
-        # 根据别名映射添加字段
-        if indicator_alias_mapping:
-            for indicator, alias in indicator_alias_mapping.items():
-                select_fields.append(f"{alias}.{indicator}")
-        
-        select_clause = ",\n    ".join(select_fields)
-        
-        # 生成WHERE子句，使用 RuleEngine
-        where_clause = rule_engine.generate_sql_expression(rule_config, indicator_alias_mapping)
+        with get_db_session() as db:
+            # 使用 RuleEngine 构建指标别名映射并生成 WHERE 子句
+            rule_engine = RuleEngine(db=db) 
+            indicator_alias_mapping = rule_engine.build_indicator_alias_mapping(
+                rule_config,
+                use_alias=True
+            )
+            
+            # 生成SELECT子句
+            select_fields = [f"dep_acct_realtime_indicator.target_id"]
+            
+            # 根据别名映射添加字段
+            if indicator_alias_mapping:
+                for indicator, alias in indicator_alias_mapping.items():
+                    select_fields.append(f"{alias}.{indicator}")
+            
+            select_clause = ",\n    ".join(select_fields)
+            
+            # 生成WHERE子句，使用 RuleEngine
+            where_clause = rule_engine.generate_sql_expression(rule_config, indicator_alias_mapping)
         
         # 生成完整SQL
         sql = f"""-- 模型历史回测SQL
@@ -285,6 +286,8 @@ WHERE
                     cust_offline_parquet,
                     current_date
                 )
+                
+                logger.info(f"模型sql已生成：{sql[:200]} ..................................... {sql[-200:]}")
 
                 results['generated_sqls'].append({
                     'date': current_date.strftime('%Y-%m-%d'),
