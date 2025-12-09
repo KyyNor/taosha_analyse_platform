@@ -167,10 +167,6 @@ class IndicatorTaskManager:
         if not db_task:
             raise ValueError(f"指标任务不存在: {task_id}")
 
-        # 只有draft状态才允许更新逻辑内容
-        if db_task.status != 'draft' and task_data.logic_content:
-            raise ValueError("只有草稿状态的指标任务才允许修改逻辑内容")
-
         # 如果更新 object_type，需要验证关联指标
         if task_data.object_type and task_data.object_type != db_task.object_type:
             # 检查是否有关联指标

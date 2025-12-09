@@ -319,7 +319,6 @@ async def publish_to_dolphinscheduler(
     """
     try:
         from services.dolphinscheduler import DolphinSchedulerService
-        from models.fraudhunter.indicator import FraudHunterIndicatorTask
 
         # 1. 验证指标任务是否存在
         manager = IndicatorTaskManager(db)
@@ -346,6 +345,8 @@ async def publish_to_dolphinscheduler(
         # 如果上线成功，将任务状态更新为 online
         if result.get("success", False):
             indicator_task.status = "online"
+            # 上线时将当前版本设置为最新版本
+            indicator_task.current_version = indicator_task.latest_version
             # 同时更新关联的指标状态为 online
             for indicator in indicators:
                 indicator.status = "online"
@@ -410,7 +411,6 @@ async def rerun_indicator_task(
     """
     try:
         from services.dolphinscheduler import DolphinSchedulerService
-        from models.fraudhunter.indicator import FraudHunterIndicatorTask
         from datetime import datetime
 
         # 1. 验证指标任务是否存在

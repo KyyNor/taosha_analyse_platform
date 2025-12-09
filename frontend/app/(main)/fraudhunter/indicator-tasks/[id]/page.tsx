@@ -92,18 +92,13 @@ export default function IndicatorTaskDetailPage() {
   const handleSave = async () => {
     if (!data || !hasChanges) return;
 
-    // 验证
-    if (data.status !== "draft" && data.logic_content !== originalData?.logic_content) {
-      toast.error("只有草稿状态的指标任务才允许修改SQL内容");
-      return;
-    }
-
     setSaving(true);
     try {
       const updateData: IndicatorTaskUpdate = {
         task_name: data.task_name,
         description: data.description,
         logic_content: data.logic_content,
+        realtime_logic_content: data.realtime_logic_content,
         source_tables: data.source_tables
       };
 
@@ -349,36 +344,35 @@ export default function IndicatorTaskDetailPage() {
         <CardContent className="space-y-4">
           <div>
             <Label htmlFor="logic-content">离线指标SQL</Label>
-            {isEditMode && data.status === "draft" ? (
-              <Textarea
-                id="logic-content"
-                value={data.logic_content}
-                onChange={(e) => updateField("logic_content", e.target.value)}
-                rows={15}
-                className="font-mono text-sm"
-              />
+            {isEditMode ? (
+              <>
+                <Textarea
+                  id="logic-content"
+                  value={data.logic_content}
+                  onChange={(e) => updateField("logic_content", e.target.value)}
+                  rows={15}
+                  className="font-mono text-sm"
+                />
+              </>
             ) : (
               <div className="mt-1 p-3 bg-muted rounded font-mono text-sm whitespace-pre-wrap">
                 {data.logic_content}
               </div>
             )}
-            {isEditMode && data.status !== "draft" && (
-              <p className="text-sm text-destructive mt-1">
-                只有草稿状态才允许修改SQL内容
-              </p>
-            )}
           </div>
 
           <div>
             <Label htmlFor="realtime-logic-content">实时指标SQL</Label>
-            {isEditMode && data.status === "draft" ? (
-              <Textarea
-                id="realtime-logic-content"
-                value={data.realtime_logic_content || ""}
-                onChange={(e) => updateField("realtime_logic_content", e.target.value)}
-                rows={15}
-                className="font-mono text-sm"
-              />
+            {isEditMode ? (
+              <>
+                <Textarea
+                  id="realtime-logic-content"
+                  value={data.realtime_logic_content || ""}
+                  onChange={(e) => updateField("realtime_logic_content", e.target.value)}
+                  rows={15}
+                  className="font-mono text-sm"
+                />
+              </>
             ) : (
               <div className="mt-1 p-3 bg-muted rounded font-mono text-sm whitespace-pre-wrap">
                 {data.realtime_logic_content || "未配置"}

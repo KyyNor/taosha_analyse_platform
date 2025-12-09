@@ -39,6 +39,7 @@ class IndicatorTaskUpdate(BaseModel):
     task_name: Optional[str] = Field(None, min_length=1, max_length=128)
     description: Optional[str] = None
     logic_content: Optional[str] = Field(None, min_length=1)
+    realtime_logic_content: Optional[str] = None
     source_tables: Optional[str] = None
     object_type: Optional[str] = None
 

@@ -38,6 +38,7 @@ export interface IndicatorTaskUpdate {
   task_name?: string;
   description?: string;
   logic_content?: string;
+  realtime_logic_content?: string;
   source_tables?: string;
   object_type?: string;
 }
