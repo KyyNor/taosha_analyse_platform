@@ -65,7 +65,7 @@ class WideTableSyncMonitor:
             )
             return None
 
-        # 3. 触发同步任务（暂未实现具体逻辑）
+        # 3. 触发同步任务
         try:
             logger.info(
                 f"开始同步{wide_table_name}版本 {target_version.version_hash[:16]}... "
