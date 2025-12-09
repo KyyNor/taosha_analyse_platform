@@ -110,12 +110,12 @@ async def indicator_run_progress_callback(
                 version_manager = WideTableVersionManager(db)
                 wide_table_name = version_manager._get_wide_table_name(object_type)
 
-                # 触发同步检查
-                sync_monitor = WideTableSyncMonitor(db)
+                # 触发同步检查（WideTableSyncMonitor不再需要db参数）
+                sync_monitor = WideTableSyncMonitor()
                 synced_version = sync_monitor.check_and_sync_if_ready(wide_table_name, etl_date)
 
                 if synced_version:
-                    logger.info(f"版本同步已触发: {synced_version.version_hash[:16]}...")
+                    logger.info(f"版本同步已触发: {synced_version.get('version_hash', '')[:16]}...")
                     version_sync_triggered = True
         except Exception as e:
             logger.error(f"触发版本同步检查时发生错误: {e}", exc_info=True)
@@ -269,15 +269,15 @@ async def trigger_sync(
         # 解析ETL日期
         etl_date_obj = datetime.strptime(etl_date, '%Y-%m-%d').date()
 
-        # 触发同步检查
-        sync_monitor = WideTableSyncMonitor(db)
+        # 触发同步检查（WideTableSyncMonitor不再需要db参数）
+        sync_monitor = WideTableSyncMonitor()
         synced_version = sync_monitor.check_and_sync_if_ready(wide_table_name, etl_date_obj)
 
         if synced_version:
             return {
                 "success": True,
                 "message": f"同步成功",
-                "version_hash": synced_version.version_hash
+                "version_hash": synced_version.get('version_hash', '')
             }
         else:
             return {

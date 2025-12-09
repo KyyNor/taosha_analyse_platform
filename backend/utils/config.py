@@ -86,6 +86,15 @@ class ConfigManager:
             query_engine_spark_password: str = self._config_data.get('query_engine', {}).get('spark', {}).get('password', '')
             query_engine_jdbc_driver_jar_list: list[str] = self._config_data.get('query_engine', {}).get('jdbc_driver_jar', [])
 
+            # PySpark 配置
+            pyspark_enabled: bool = self._config_data.get('pyspark', {}).get('enabled', False)
+            pyspark_app_name: str = self._config_data.get('pyspark', {}).get('app_name', 'TaoShaAnalyticsPlatform')
+            pyspark_master: str = self._config_data.get('pyspark', {}).get('master', 'local[*]')
+            pyspark_executor_memory: str = self._config_data.get('pyspark', {}).get('executor_memory', '4g')
+            pyspark_executor_cores: int = self._config_data.get('pyspark', {}).get('executor_cores', 2)
+            pyspark_driver_memory: str = self._config_data.get('pyspark', {}).get('driver_memory', '2g')
+            pyspark_extra_configs: dict = self._config_data.get('pyspark', {}).get('extra_configs', {})
+
             
             # OpenAI配置
             openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY") or self._config_data.get('openai', {}).get('api_key')

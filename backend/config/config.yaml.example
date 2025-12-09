@@ -22,6 +22,21 @@ query_engine:
     - /data/taosha/taosha_analyse_platform/backend/jars/hive-jdbc-1.2.2-standalone.jar
     - /data/taosha/taosha_analyse_platform/backend/jars/trino-jdbc-407.jar
 
+# PySpark 配置 (用于直接提交Spark任务)
+pyspark:
+  enabled: false  # 是否启用PySpark模式（启用后宽表同步将使用PySpark而非JDBC）
+  app_name: "taosha"  # Spark Application名称
+  master: "yarn"  # Spark Master地址，spark://host:port
+  executor_memory: "4g"  # Executor内存
+  executor_cores: 2  # 每个Executor的核心数
+  driver_memory: "2g"  # Driver内存
+  # 额外的Spark配置（可选）
+  extra_configs:
+    spark.dynamicAllocation.enabled: "true"
+    spark.dynamicAllocation.minExecutors: "1"
+    spark.dynamicAllocation.maxExecutors: "10"
+    spark.shuffle.service.enabled: "true"
+
 # 业务数据配置
 taosha_db:
   db_type: "sqlite"  # sqlite 或 mysql
