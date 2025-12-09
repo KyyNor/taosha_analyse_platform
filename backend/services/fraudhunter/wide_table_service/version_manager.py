@@ -46,14 +46,14 @@ class WideTableVersionManager:
         self,
         online_indicators: List[FraudHunterIndicatorDefinition]
     ) -> Tuple[str, Dict[int, Dict]]:
-        """生成版本号hash（完整64位SHA256）
+        """生成版本号hash SHA256 取前8位
 
         Args:
             online_indicators: 所有在线的离线指标列表（同一个object_type）
 
         Returns:
             (version_hash, indicator_metadata)
-            - version_hash: SHA256 hash值（完整64位）
+            - version_hash: SHA256 hash值 取前8位
             - indicator_metadata: {indicator_id: {version, indicator_code, indicator_name, indicator_task_id}}
         """
         if not online_indicators:
@@ -81,6 +81,7 @@ class WideTableVersionManager:
 
         # 3. 生成完整64位SHA256 hash
         version_hash = hashlib.sha256(version_string.encode('utf-8')).hexdigest()
+        version_hash = version_hash[:8]
 
         logger.info(
             f"生成版本号: {version_hash[:16]}..., "

@@ -33,8 +33,8 @@ pyspark:
   # 额外的Spark配置（可选）
   extra_configs:
     spark.dynamicAllocation.enabled: "true"
-    spark.dynamicAllocation.minExecutors: "1"
-    spark.dynamicAllocation.maxExecutors: "10"
+    spark.dynamicAllocation.minExecutors: "5"
+    spark.dynamicAllocation.maxExecutors: "30"
     spark.shuffle.service.enabled: "true"
 
 # 业务数据配置
@@ -264,7 +264,7 @@ dolphinscheduler:
 fraudhunter:
   # 宽表配置
   wide_table:
-    storage_path: "./database/wide_tables"  # Parquet文件存储路径
+    storage_path: "/data/taosha/wide_tables"  # Parquet文件存储路径
 
     # DuckDB配置
     duckdb_config:

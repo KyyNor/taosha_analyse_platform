@@ -15,7 +15,7 @@ chmod a+x embeddings_model/local-ai-v3.7.0-linux-amd64
 # 启动后端
 source .venv/bin/activate
 cd backend
-uvicorn main:app --workers=2 --port 50020
+uvicorn main:app --workers=2 --port 50020 --host 0.0.0.0
 
 # 启动前端
 cd frontend
@@ -33,3 +33,4 @@ export HADOOP_CONF_DIR=$SPARK_HOME/conf
 export HIVE_CONF_DIR=$SPARK_HOME/conf
 export PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-*.zip:$PYTHONPATH
 4、拷贝jdk8到 ~/jdk8 目录
+注意：本机的hostname不能有下划线

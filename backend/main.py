@@ -13,7 +13,6 @@ from utils.logger import logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from utils.config import settings
 from api.nlquey_routes import router as nlquey_router
@@ -240,6 +239,8 @@ async def _initialize_system_services():
 
             # 启动调度器
             scheduler_service.start()
+
+            await sync_all_wide_tables_job()
             logger.info("统一调度服务已启动（仅此worker执行）")
         except Exception as e:
             logger.error(f"统一调度服务启动失败: {e}", exc_info=True)
@@ -389,19 +390,6 @@ async def api_root():
         "version": settings.app_version,
         "api_prefix": api_prefix
     }
-
-# 配置前端静态文件（SPA 支持）
-frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
-if frontend_dist.exists():
-    app.mount(
-        "/",
-        StaticFiles(directory=str(frontend_dist), html=True),
-        name="frontend"
-    )
-    logger.info(f"前端静态文件已挂载: {frontend_dist}")
-else:
-    logger.warning(f"前端静态文件目录不存在: {frontend_dist}")
-    logger.warning("请先运行: cd frontend && npm run build")
 
 # 全局异常处理
 @app.exception_handler(Exception)

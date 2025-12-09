@@ -238,8 +238,7 @@ class PySparkService:
         self,
         sql: str,
         output_path: Union[str, Path],
-        mode: str = 'overwrite',
-        partition_by: Optional[List[str]] = None
+        mode: str = 'overwrite'
     ) -> Tuple[int, int, int]:
         """
         执行SQL并将结果保存为Parquet文件
@@ -267,34 +266,17 @@ class PySparkService:
             
             # 确保输出目录存在
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # 保存为Parquet（合并为单文件）
-            # 使用coalesce(1)确保输出单个文件
-            writer = df.coalesce(1).write.mode(mode)
-            
-            if partition_by:
-                writer = writer.partitionBy(*partition_by)
-            
-            # 保存到临时目录
-            temp_output = output_path.parent / f".temp_{output_path.stem}"
-            writer.parquet(str(temp_output))
-            
-            # 找到生成的parquet文件并移动到目标位置
-            parquet_files = list(temp_output.glob("*.parquet"))
-            if parquet_files:
-                # 移动第一个parquet文件到目标位置
-                import shutil
-                if output_path.exists():
-                    output_path.unlink()
-                shutil.move(str(parquet_files[0]), str(output_path))
-                
-                # 清理临时目录
-                shutil.rmtree(str(temp_output), ignore_errors=True)
-            else:
-                raise RuntimeError(f"未找到生成的Parquet文件: {temp_output}")
+
+            pandas_df = df.toPandas()
+            pandas_df.to_parquet(
+                output_path,
+                engine='pyarrow',           # 使用pyarrow引擎
+                compression='snappy',       # 压缩算法
+                index=False,               # 不保存索引
+            )
             
             # 获取行数（需要重新读取或在保存前计算）
-            row_count = df.count()
+            row_count = len(pandas_df)
             
             # 获取文件大小
             file_size = output_path.stat().st_size if output_path.exists() else 0

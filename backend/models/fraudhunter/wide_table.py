@@ -93,7 +93,7 @@ class FraudHunterWideTableVersion(Base):
         String(64),
         unique=True,
         nullable=False,
-        comment='版本号(SHA256 hash完整64位)'
+        comment='版本号(SHA256 hash取前8位)'
     )
 
     # 参与指标元数据（JSON格式）
