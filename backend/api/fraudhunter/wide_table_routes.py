@@ -18,8 +18,7 @@ from models.fraudhunter.wide_table import (
     FraudHunterWideTableVersion,
     FraudHunterWideTableSnapshot
 )
-from models.fraudhunter.indicator import FraudHunterIndicatorTask, FraudHunterIndicatorDefinition
-from services.fraudhunter.wide_table_service.sync_monitor import WideTableSyncMonitor
+from models.fraudhunter.indicator import FraudHunterIndicatorTask
 from utils.logger import logger
 
 
@@ -92,40 +91,19 @@ async def indicator_run_progress_callback(
         db.commit()
         db.refresh(progress)
 
-        # 4. 触发版本同步检查（查询该指标的object_type）
-        version_sync_triggered = False
-
-        try:
-            # 获取该指标任务关联的指标，并从中获取object_type
-            indicators = db.query(FraudHunterIndicatorDefinition).filter(
-                FraudHunterIndicatorDefinition.indicator_task_id == callback_data.indicator_task_id
-            ).all()
-
-            if indicators:
-                # 获取第一个指标的object_type（同一任务的指标应该有相同的object_type）
-                object_type = indicators[0].object_type
-
-                # 根据object_type获取wide_table_name
-                from services.fraudhunter.wide_table_service.version_manager import WideTableVersionManager
-                version_manager = WideTableVersionManager(db)
-                wide_table_name = version_manager._get_wide_table_name(object_type)
-
-                # 触发同步检查（WideTableSyncMonitor不再需要db参数）
-                sync_monitor = WideTableSyncMonitor()
-                synced_version = sync_monitor.check_and_sync_if_ready(wide_table_name, etl_date)
-
-                if synced_version:
-                    logger.info(f"版本同步已触发: {synced_version.get('version_hash', '')[:16]}...")
-                    version_sync_triggered = True
-        except Exception as e:
-            logger.error(f"触发版本同步检查时发生错误: {e}", exc_info=True)
-            # 不影响主流程，继续返回成功
+        # 4. 记录完成（同步由定时任务处理，不在此触发）
+        logger.info(
+            f"指标运行进度已更新: "
+            f"task_id={callback_data.indicator_task_id}, "
+            f"etl_date={etl_date}, "
+            f"version={callback_data.indicator_version}"
+        )
 
         return IndicatorRunProgressResponse(
             success=True,
             message="运行进度已更新",
             progress_id=progress.id,
-            version_sync_triggered=version_sync_triggered
+            version_sync_triggered=False  # 不再通过回调触发同步
         )
 
     except HTTPException:

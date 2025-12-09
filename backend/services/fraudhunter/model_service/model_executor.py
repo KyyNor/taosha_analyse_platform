@@ -230,7 +230,8 @@ WHERE
             'failed_days': 0,
             'daily_results': [],
             'warnings': [],
-            'generated_sqls': []
+            'generated_sqls': [],
+            'matched_records': []  # 新增：存储所有命中记录
         }
 
         # 按日执行
@@ -290,7 +291,7 @@ WHERE
                     'sql': sql
                 })
 
-                # 模拟SQL执行（实际应该调用Spark/DuckDB执行）
+                # 执行SQL（使用DuckDB执行）
                 with duckdb.connect(":memory:") as duckdb_con:
                     execute_result = duckdb_con.execute(sql).df()
 
@@ -298,6 +299,11 @@ WHERE
                 day_result['message'] = '执行成功'
                 day_result['rows_matched'] = len(execute_result)
                 results['success_days'] += 1
+
+                # 收集命中记录到结果集
+                if len(execute_result) > 0:
+                    records = execute_result.to_dict('records')
+                    results['matched_records'].extend(records)
 
                 logger.info(f"日期 {current_date} 回测完成，命中 {day_result['rows_matched']} 条记录")
 
@@ -321,8 +327,7 @@ WHERE
         total_matched = sum(r.get('rows_matched', 0) for r in results['daily_results'])
         results['total_rows_matched'] = total_matched
 
-        log_content = f"""
-[模型历史回测执行日志]
+        log_content = f"""[模型历史回测执行日志]
 模型: {model.model_code} ({model.model_name})
 执行时间: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}
 日期范围: {start_date} 至 {end_date}
@@ -334,15 +339,39 @@ WHERE
 - 失败天数: {results['failed_days']}
 - 总命中记录数: {total_matched}
 
+每日执行详情:
+{self._format_daily_results(results['daily_results'])}
+
 警告信息:
 {chr(10).join(results['warnings']) if results['warnings'] else '无'}
 """
         execution.log_content = log_content
+        results['log_content'] = log_content  # 将日志内容也加入返回结果
         db.commit()
 
         logger.info(f"模型历史回测完成: {model.model_code}, 成功 {results['success_days']}/{results['total_days']} 天")
 
         return results
+
+    def _format_daily_results(self, daily_results: List[Dict[str, Any]]) -> str:
+        """格式化每日执行结果为日志文本
+        
+        Args:
+            daily_results: 每日执行结果列表
+            
+        Returns:
+            格式化的文本
+        """
+        lines = []
+        for dr in daily_results:
+            status_emoji = {
+                'success': '✓',
+                'skipped': '⊘',
+                'failed': '✗',
+                'pending': '○'
+            }.get(dr['status'], '?')
+            lines.append(f"  {status_emoji} {dr['date']}: {dr['message']} (命中: {dr['rows_matched']})")
+        return chr(10).join(lines) if lines else '无'
 
 
 # 全局模型执行器实例
