@@ -733,6 +733,35 @@ class RuleEngine:
 
     # ==================== SQL生成 ====================
 
+    def _get_indicator_sql_with_cast(
+        self,
+        indicator_code: str,
+        indicator_alias_mapping: Optional[Dict[str, str]] = None
+    ) -> str:
+        """
+        获取指标的SQL表达式，数值型指标自动添加CAST转换
+
+        Args:
+            indicator_code: 指标编码
+            indicator_alias_mapping: 指标别名映射
+
+        Returns:
+            str: SQL表达式，数值型指标会包含CAST转换
+        """
+        # 构建基础指标SQL
+        if indicator_alias_mapping and indicator_code in indicator_alias_mapping:
+            alias = indicator_alias_mapping[indicator_code]
+            base_sql = f"{alias}.{indicator_code}"
+        else:
+            base_sql = indicator_code
+
+        # 获取指标数据类型
+        indicator = self._get_indicator_cached(indicator_code)
+        if indicator and indicator.data_type == 'numeric':
+            return f"CAST({base_sql} AS DOUBLE)"
+
+        return base_sql
+
     def _value_expression_to_sql(
         self,
         value_expr: ValueExpression,
@@ -755,46 +784,50 @@ class RuleEngine:
         # 指标引用
         elif isinstance(value_expr, IndicatorReference):
             indicator = value_expr.indicator
-            if indicator_alias_mapping and indicator in indicator_alias_mapping:
-                alias = indicator_alias_mapping[indicator]
-                return f"{alias}.{indicator}"
-            return indicator
+            return self._get_indicator_sql_with_cast(indicator, indicator_alias_mapping)
 
         # 时间函数
         elif isinstance(value_expr, TimeFunction):
             ind = value_expr.indicator
-            # 添加表别名
+            # 获取带CAST的指标SQL（时间函数不需要CAST，但为了代码一致性使用基础SQL）
             if indicator_alias_mapping and ind in indicator_alias_mapping:
                 alias = indicator_alias_mapping[ind]
-                ind = f"{alias}.{ind}"
+                ind_sql = f"{alias}.{ind}"
+            else:
+                ind_sql = ind
+
             offset = value_expr.offset
 
             # 根据函数调整符号
             if value_expr.function == "date_sub":
                 offset = -offset
 
-            # 根据单位选择 SQL 函数
+            # 使用 INTERVAL 语法
             if value_expr.unit == "days":
                 if offset >= 0:
-                    return f"DATE_ADD({ind}, {offset})"
+                    return f"({ind_sql} + INTERVAL {offset} DAY)"
                 else:
-                    return f"DATE_SUB({ind}, {-offset})"
+                    return f"({ind_sql} - INTERVAL {-offset} DAY)"
 
             elif value_expr.unit == "months":
-                return f"ADD_MONTHS({ind}, {offset})"
+                if offset >= 0:
+                    return f"({ind_sql} + INTERVAL {offset} MONTH)"
+                else:
+                    return f"({ind_sql} - INTERVAL {-offset} MONTH)"
 
             elif value_expr.unit == "years":
-                return f"ADD_MONTHS({ind}, {offset * 12})"
+                if offset >= 0:
+                    return f"({ind_sql} + INTERVAL {offset} YEAR)"
+                else:
+                    return f"({ind_sql} - INTERVAL {-offset} YEAR)"
 
         # 数学函数
         elif isinstance(value_expr, MathFunction):
             ind = value_expr.indicator
-            # 添加表别名
-            if indicator_alias_mapping and ind in indicator_alias_mapping:
-                alias = indicator_alias_mapping[ind]
-                ind = f"{alias}.{ind}"
+            # 获取带CAST的指标SQL
+            ind_sql = self._get_indicator_sql_with_cast(ind, indicator_alias_mapping)
             if value_expr.function == "abs":
-                return f"ABS({ind})"
+                return f"ABS({ind_sql})"
 
         return "NULL"
 
@@ -839,12 +872,8 @@ class RuleEngine:
             operator = condition.operator
             value_expr = condition.value
 
-            # 处理左侧指标（包含表别名）
-            if indicator_alias_mapping and indicator in indicator_alias_mapping:
-                alias = indicator_alias_mapping[indicator]
-                left_sql = f"{alias}.{indicator}"
-            else:
-                left_sql = indicator
+            # 处理左侧指标（使用带CAST的SQL生成）
+            left_sql = self._get_indicator_sql_with_cast(indicator, indicator_alias_mapping)
 
             # 处理左元素函数
             if condition.left_function == 'abs':
