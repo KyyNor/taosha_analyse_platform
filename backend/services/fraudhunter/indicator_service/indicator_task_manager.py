@@ -190,6 +190,13 @@ class IndicatorTaskManager:
         # 创建版本历史
         self._create_version_history(db_task, 'update', '更新配置', updated_by)
 
+        # 同步更新关联指标的 latest_version
+        if db_task.indicators:
+            for indicator in db_task.indicators:
+                indicator.latest_version += 1
+                indicator.updated_by = updated_by
+            logger.info(f"同步更新 {len(db_task.indicators)} 个关联指标的 latest_version")
+
         self.db.commit()
         self.db.refresh(db_task)
 

@@ -347,9 +347,11 @@ async def publish_to_dolphinscheduler(
             indicator_task.status = "online"
             # 上线时将当前版本设置为最新版本
             indicator_task.current_version = indicator_task.latest_version
-            # 同时更新关联的指标状态为 online
+            # 同时更新关联的指标状态为 online，并更新 current_version
             for indicator in indicators:
                 indicator.status = "online"
+                indicator.current_version = indicator.latest_version
+            logger.info(f"已同步更新 {len(indicators)} 个指标的状态和 current_version")
         logger.info(indicator_task)
         db.commit()
         db.refresh(indicator_task)
