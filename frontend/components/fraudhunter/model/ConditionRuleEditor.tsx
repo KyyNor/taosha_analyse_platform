@@ -106,7 +106,6 @@ export function ConditionRuleEditor({
       case 'time_function':
         newValue = {
           type: 'time_function',
-          function: 'date_add',
           indicator: indicators.find(ind => ind.data_type === 'date')?.indicator_code || '',
           offset: 7,
           unit: 'days' as const
@@ -193,18 +192,6 @@ export function ConditionRuleEditor({
       case 'time_function':
         return (
           <div className="flex items-center gap-1 flex-wrap">
-            <Select
-              value={rule.value.function}
-              onValueChange={(value) => updateValue({ ...rule.value, function: value as 'date_add' | 'date_sub' })}
-            >
-              <SelectTrigger className="w-[100px] h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="date_add">date_add</SelectItem>
-                <SelectItem value="date_sub">date_sub</SelectItem>
-              </SelectContent>
-            </Select>
 
             <span className="text-sm text-muted-foreground">(</span>
 

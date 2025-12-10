@@ -516,8 +516,6 @@ class RuleEngine:
 
             # 计算偏移
             offset = value_expr.offset
-            if value_expr.function == "date_sub":
-                offset = -offset
 
             # 应用偏移
             try:
@@ -821,10 +819,6 @@ class RuleEngine:
                 ind_sql = ind
 
             offset = value_expr.offset
-
-            # 根据函数调整符号
-            if value_expr.function == "date_sub":
-                offset = -offset
 
             # 使用 INTERVAL 语法
             if value_expr.unit == "days":

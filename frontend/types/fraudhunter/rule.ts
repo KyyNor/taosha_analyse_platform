@@ -64,7 +64,6 @@ export interface IndicatorReference {
  */
 export interface TimeFunction {
   type: 'time_function'
-  function: 'date_add' | 'date_sub'
   indicator: string
   offset: number
   unit: TimeUnit
@@ -322,7 +321,6 @@ export function createDefaultIndicatorReference(): IndicatorReference {
 export function createDefaultTimeFunction(): TimeFunction {
   return {
     type: 'time_function',
-    function: 'date_add',
     indicator: '',
     offset: 7,
     unit: 'days'
@@ -338,50 +336,6 @@ export function createDefaultMathFunction(): MathFunction {
     function: 'abs',
     indicator: ''
   }
-}
-
-/**
- * 将值表达式转换为可读字符串（用于预览）
- */
-export function valueExpressionToString(expr: ValueExpression): string {
-  switch (expr.type) {
-    case 'constant':
-      if (Array.isArray(expr.value)) {
-        return `[${expr.value.join(', ')}]`
-      }
-      return String(expr.value)
-
-    case 'indicator':
-      return expr.indicator
-
-    case 'time_function':
-      return `${expr.function}(${expr.indicator}, ${expr.offset}, '${expr.unit}')`
-
-    case 'math_function':
-      return `${expr.function}(${expr.indicator})`
-
-    default:
-      return ''
-  }
-}
-
-/**
- * 生成条件规则的完整表达式字符串（包含左元素函数）
- */
-export function conditionRuleToString(rule: ConditionRule, indicators: Indicator[]): string {
-  const indicator = indicators.find(ind => ind.indicator_code === rule.indicator)
-  const indicatorName = indicator?.indicator_name || rule.indicator
-
-  // 构建左元素表达式
-  let leftExpression = indicatorName
-  if (rule.left_function === 'abs') {
-    leftExpression = `abs(${indicatorName})`
-  }
-
-  // 构建右元素表达式
-  const rightExpression = valueExpressionToString(rule.value)
-
-  return `${leftExpression} ${rule.operator} ${rightExpression}`
 }
 
 /**

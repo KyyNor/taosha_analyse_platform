@@ -77,10 +77,6 @@ class TimeFunction(BaseModel):
     """时间函数表达式"""
 
     type: Literal["time_function"]
-    function: Literal["date_add", "date_sub"] = Field(
-        ...,
-        description="时间函数：date_add 或 date_sub"
-    )
     indicator: str = Field(
         ...,
         pattern=r'^[a-zA-Z_][a-zA-Z0-9_]*$',
@@ -102,14 +98,12 @@ class TimeFunction(BaseModel):
             "examples": [
                 {
                     "type": "time_function",
-                    "function": "date_add",
                     "indicator": "etl_date",
                     "offset": 7,
                     "unit": "days"
                 },
                 {
                     "type": "time_function",
-                    "function": "date_sub",
                     "indicator": "etl_date",
                     "offset": 3,
                     "unit": "months"
@@ -226,7 +220,6 @@ class ConditionRule(BaseModel):
                     "operator": ">",
                     "value": {
                         "type": "time_function",
-                        "function": "date_sub",
                         "indicator": "etl_date",
                         "offset": 90,
                         "unit": "days"

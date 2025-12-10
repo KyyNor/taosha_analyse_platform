@@ -38,7 +38,6 @@
           "operator": ">",
           "value": {
             "type": "time_function",
-            "function": "date_sub",
             "indicator": "i_etl_date",
             "offset": 7,
             "unit": "days"
