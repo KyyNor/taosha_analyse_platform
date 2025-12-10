@@ -12,6 +12,7 @@ from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
+from models.db_base import get_db_session
 from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
 from models.fraudhunter.wide_table import (
     FraudHunterWideTableVersion,
@@ -290,6 +291,8 @@ WHERE
                     cust_offline_parquet,
                     current_date
                 )
+                
+                logger.info(f"模型sql已生成：{sql[:200]} ..................................... {sql[-200:]}")
 
                 results['generated_sqls'].append({
                     'date': current_date.strftime('%Y-%m-%d'),
