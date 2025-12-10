@@ -35,6 +35,7 @@ import type {
 } from "@/types/fraudhunter/risk-control-model";
 import type { RuleConfig, Indicator } from "@/types/fraudhunter/rule";
 import { RuleBuilder } from "@/components/fraudhunter/model/RuleBuilder";
+import { RuleImportExport } from "@/components/fraudhunter/model/RuleImportExport";
 import {
   getModelStatusLabel,
   getModelStatusVariant
@@ -392,7 +393,14 @@ export default function RiskControlModelDetailPage() {
               <CardTitle>规则配置</CardTitle>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* 导入导出 - 仅在编辑模式下显示 */}
+            {isEditMode && (
+              <RuleImportExport
+                currentRule={data.rule_config}
+                onImport={handleRuleChange}
+              />
+            )}
             <RuleBuilder
               indicators={indicators}
               initialRule={data.rule_config}
