@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle, SkipForward } from "lucide-react";
+import { Download, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle, SkipForward, RefreshCw, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +27,22 @@ interface DailyResult {
   rows_matched: number;
 }
 
+// 版本降级信息
+interface MismatchedIndicator {
+  indicator_code: string;
+  indicator_name: string;
+  message: string;
+}
+
+interface VersionFallback {
+  wide_table_name: string;
+  etl_date: string;
+  expected_version: string;
+  actual_version: string;
+  fallback_reason: 'indicator_not_in_current' | 'indicator_version_upgraded' | 'current_not_exist';
+  mismatched_indicators: MismatchedIndicator[];
+}
+
 interface ModelBacktestResultData {
   total_days: number;
   success_days: number;
@@ -37,6 +53,7 @@ interface ModelBacktestResultData {
   warnings: string[];
   matched_records: Record<string, any>[];
   log_content?: string;
+  version_fallbacks?: VersionFallback[];
 }
 
 interface ModelBacktestTemplateProps {
@@ -91,6 +108,129 @@ function StatusIcon({ status }: { status: string }) {
     default:
       return null;
   }
+}
+
+// 获取降级原因的中文描述
+function getFallbackReasonText(reason: string): { text: string; color: string } {
+  switch (reason) {
+    case 'indicator_not_in_current':
+      return { text: '指标仅在target版本存在', color: 'text-blue-600' };
+    case 'indicator_version_upgraded':
+      return { text: '指标版本已升级', color: 'text-orange-600' };
+    case 'current_not_exist':
+      return { text: 'current版本不存在', color: 'text-yellow-600' };
+    default:
+      return { text: reason, color: 'text-gray-600' };
+  }
+}
+
+// 版本降级信息卡片组件
+function VersionFallbackCard({ fallbacks }: { fallbacks: VersionFallback[] }) {
+  const [isExpanded, setIsExpanded] = useState(true);
+  
+  if (!fallbacks || fallbacks.length === 0) return null;
+
+  // 按宽表分组统计
+  const groupedByTable = fallbacks.reduce((acc, fb) => {
+    if (!acc[fb.wide_table_name]) {
+      acc[fb.wide_table_name] = [];
+    }
+    acc[fb.wide_table_name].push(fb);
+    return acc;
+  }, {} as Record<string, VersionFallback[]>);
+
+  return (
+    <Card className="border-blue-200 bg-blue-50/50">
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-blue-100/50">
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-blue-700">
+                <RefreshCw className="h-5 w-5" />
+                宽表版本降级提示
+                <Badge variant="secondary" className="ml-2">
+                  {fallbacks.length} 次降级
+                </Badge>
+              </div>
+              {isExpanded ? (
+                <ChevronUp className="h-5 w-5 text-blue-600" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-blue-600" />
+              )}
+            </CardTitle>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-blue-600 flex items-start gap-2 mb-4">
+              <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>
+                部分日期的宽表数据因指标变更使用了target版本（正在同步中）而非current版本。
+                这可能是因为指标新上线或指标版本已升级。
+              </span>
+            </div>
+            
+            {Object.entries(groupedByTable).map(([tableName, tableFallbacks]) => (
+              <div key={tableName} className="border border-blue-200 rounded-lg p-4 bg-white">
+                <h4 className="font-medium text-blue-800 mb-3 flex items-center gap-2">
+                  <span className="px-2 py-0.5 bg-blue-100 rounded text-sm">{tableName}</span>
+                  <span className="text-sm text-muted-foreground">
+                    ({tableFallbacks.length} 个日期受影响)
+                  </span>
+                </h4>
+                
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[120px]">日期</TableHead>
+                      <TableHead className="w-[180px]">降级原因</TableHead>
+                      <TableHead>影响指标</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tableFallbacks.map((fb, idx) => {
+                      const reasonInfo = getFallbackReasonText(fb.fallback_reason);
+                      return (
+                        <TableRow key={idx}>
+                          <TableCell className="font-mono">{fb.etl_date}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={reasonInfo.color}>
+                              {reasonInfo.text}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {fb.mismatched_indicators && fb.mismatched_indicators.length > 0 ? (
+                              <div className="space-y-1">
+                                {fb.mismatched_indicators.map((ind, indIdx) => (
+                                  <div key={indIdx} className="text-sm">
+                                    <span className="font-medium">{ind.indicator_name}</span>
+                                    <span className="text-muted-foreground ml-1">
+                                      ({ind.indicator_code})
+                                    </span>
+                                    {ind.message && (
+                                      <span className="text-muted-foreground ml-2 text-xs">
+                                        - {ind.message}
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            ))}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  );
 }
 
 export function ModelBacktestTemplate({ result, taskId }: ModelBacktestTemplateProps) {
@@ -185,6 +325,11 @@ export function ModelBacktestTemplate({ result, taskId }: ModelBacktestTemplateP
           </Table>
         </CardContent>
       </Card>
+
+      {/* 版本降级信息 */}
+      {result.version_fallbacks && result.version_fallbacks.length > 0 && (
+        <VersionFallbackCard fallbacks={result.version_fallbacks} />
+      )}
 
       {/* 警告信息 */}
       {result.warnings && result.warnings.length > 0 && (
