@@ -2,16 +2,21 @@
 FraudHunter宽表版本管理API路由
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func, distinct
 from datetime import datetime, date
-from typing import List
+from typing import List, Optional
 from models.db_base import get_db
 from schemas.fraudhunter.wide_table import (
     IndicatorRunProgressCallback,
     IndicatorRunProgressResponse,
     WideTableVersionInfo,
-    WideTableSnapshotInfo
+    WideTableSnapshotInfo,
+    WideTableVersionDetailInfo,
+    WideTableVersionProgressInfo,
+    WideTableVersionListResponse,
+    IndicatorProgressInfo
 )
 from models.fraudhunter.wide_table import (
     FraudHunterIndicatorRunProgress,
@@ -115,14 +120,14 @@ async def indicator_run_progress_callback(
 
 @router.get(
     "/versions",
-    response_model=List[WideTableVersionInfo],
-    summary="查询版本列表"
+    response_model=WideTableVersionListResponse,
+    summary="查询版本列表（分页）"
 )
 async def list_versions(
-    wide_table_name: str = None,
-    status: str = None,
-    skip: int = 0,
-    limit: int = 100,
+    wide_table_name: Optional[str] = Query(None, description="宽表名称过滤"),
+    status: Optional[str] = Query(None, description="状态过滤（current/target/history/skipped）"),
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     db: Session = Depends(get_db)
 ):
     """查询宽表版本列表
@@ -130,11 +135,11 @@ async def list_versions(
     Args:
         wide_table_name: 宽表名称过滤（可选）
         status: 状态过滤（current/target/history/skipped）（可选）
-        skip: 跳过记录数
-        limit: 返回记录数
+        page: 页码（从1开始）
+        page_size: 每页数量
 
     Returns:
-        版本列表
+        分页版本列表
     """
     query = db.query(FraudHunterWideTableVersion)
 
@@ -144,29 +149,42 @@ async def list_versions(
     if status:
         query = query.filter(FraudHunterWideTableVersion.status == status)
 
+    # 计算总数
+    total = query.count()
+
+    # 分页查询
+    skip = (page - 1) * page_size
     versions = query.order_by(
         FraudHunterWideTableVersion.created_at.desc()
-    ).offset(skip).limit(limit).all()
+    ).offset(skip).limit(page_size).all()
 
-    return versions
+    return WideTableVersionListResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        items=versions
+    )
 
 
 @router.get(
     "/versions/{version_hash}",
-    response_model=WideTableVersionInfo,
-    summary="查询版本详情"
+    response_model=WideTableVersionDetailInfo,
+    summary="查询版本详情（含指标清单和执行进度）"
 )
 async def get_version(
     version_hash: str,
     db: Session = Depends(get_db)
 ):
-    """查询指定版本的详细信息
+    """查询指定版本的详细信息，包含：
+    - 版本基本信息
+    - 参与指标清单（从indicator_metadata解析）
+    - 已完成执行的ETL日期列表
 
     Args:
         version_hash: 版本号
 
     Returns:
-        版本详情
+        版本详情（含指标和进度）
     """
     version = db.query(FraudHunterWideTableVersion).filter(
         FraudHunterWideTableVersion.version_hash == version_hash
@@ -175,7 +193,152 @@ async def get_version(
     if not version:
         raise HTTPException(status_code=404, detail=f"版本不存在: {version_hash}")
 
-    return version
+    # 解析indicator_metadata，构建指标清单
+    indicators = []
+    indicator_metadata = version.indicator_metadata or {}
+
+    for indicator_id_str, meta in indicator_metadata.items():
+        indicators.append(IndicatorProgressInfo(
+            indicator_id=int(indicator_id_str),
+            indicator_code=meta.get('indicator_code', ''),
+            indicator_name=meta.get('indicator_name', ''),
+            indicator_type=meta.get('indicator_type', 'offline'),
+            indicator_version=meta.get('version', 1),
+            indicator_task_id=meta.get('indicator_task_id')
+        ))
+
+    # 查询快照数量
+    snapshot_count = db.query(func.count(FraudHunterWideTableSnapshot.id)).filter(
+        FraudHunterWideTableSnapshot.version_hash == version_hash,
+        FraudHunterWideTableSnapshot.status == 'ready'
+    ).scalar() or 0
+
+    # 查询已完成执行的ETL日期列表
+    # 根据indicator_metadata中的indicator_task_id找到所有相关的运行进度
+    completed_dates = []
+
+    if indicator_metadata:
+        # 获取所有关联的indicator_task_id列表
+        task_ids = [
+            meta.get('indicator_task_id')
+            for meta in indicator_metadata.values()
+            if meta.get('indicator_task_id')
+        ]
+
+        if task_ids:
+            # 查询所有任务都完成的ETL日期
+            # 首先获取每个日期对应的已完成任务数量
+            date_progress = db.query(
+                FraudHunterIndicatorRunProgress.etl_date,
+                func.count(distinct(FraudHunterIndicatorRunProgress.indicator_task_id)).label('completed_count')
+            ).filter(
+                FraudHunterIndicatorRunProgress.indicator_task_id.in_(task_ids)
+            ).group_by(
+                FraudHunterIndicatorRunProgress.etl_date
+            ).all()
+
+            # 筛选出所有任务都完成的日期
+            total_task_count = len(set(task_ids))
+            for etl_date, completed_count in date_progress:
+                if completed_count >= total_task_count:
+                    completed_dates.append(etl_date.strftime('%Y-%m-%d'))
+
+            # 按日期降序排列
+            completed_dates.sort(reverse=True)
+
+    return WideTableVersionDetailInfo(
+        id=version.id,
+        wide_table_name=version.wide_table_name,
+        version_hash=version.version_hash,
+        indicator_metadata=version.indicator_metadata,
+        status=version.status,
+        target_at=version.target_at,
+        current_at=version.current_at,
+        history_at=version.history_at,
+        skipped_at=version.skipped_at,
+        created_by=version.created_by,
+        created_at=version.created_at,
+        updated_at=version.updated_at,
+        indicators=indicators,
+        snapshot_count=snapshot_count,
+        completed_dates=completed_dates
+    )
+
+
+@router.get(
+    "/versions/{version_hash}/progress",
+    response_model=WideTableVersionProgressInfo,
+    summary="查询版本执行进度"
+)
+async def get_version_progress(
+    version_hash: str,
+    limit: int = Query(30, ge=1, le=100, description="返回最近N天的进度"),
+    db: Session = Depends(get_db)
+):
+    """查询指定版本的执行进度详情
+
+    Args:
+        version_hash: 版本号
+        limit: 返回最近N天的进度记录
+
+    Returns:
+        执行进度信息
+    """
+    version = db.query(FraudHunterWideTableVersion).filter(
+        FraudHunterWideTableVersion.version_hash == version_hash
+    ).first()
+
+    if not version:
+        raise HTTPException(status_code=404, detail=f"版本不存在: {version_hash}")
+
+    indicator_metadata = version.indicator_metadata or {}
+
+    # 获取所有关联的indicator_task_id
+    task_ids = [
+        meta.get('indicator_task_id')
+        for meta in indicator_metadata.values()
+        if meta.get('indicator_task_id')
+    ]
+
+    completed_dates = []
+    recent_progress = []
+
+    if task_ids:
+        total_task_count = len(set(task_ids))
+
+        # 查询每个日期的完成情况
+        date_progress_query = db.query(
+            FraudHunterIndicatorRunProgress.etl_date,
+            func.count(distinct(FraudHunterIndicatorRunProgress.indicator_task_id)).label('completed_count'),
+            func.max(FraudHunterIndicatorRunProgress.finish_time).label('last_finish_time')
+        ).filter(
+            FraudHunterIndicatorRunProgress.indicator_task_id.in_(task_ids)
+        ).group_by(
+            FraudHunterIndicatorRunProgress.etl_date
+        ).order_by(
+            FraudHunterIndicatorRunProgress.etl_date.desc()
+        ).limit(limit).all()
+
+        for etl_date, completed_count, last_finish_time in date_progress_query:
+            is_complete = completed_count >= total_task_count
+            if is_complete:
+                completed_dates.append(etl_date.strftime('%Y-%m-%d'))
+
+            recent_progress.append({
+                'etl_date': etl_date.strftime('%Y-%m-%d'),
+                'completed_count': completed_count,
+                'total_count': total_task_count,
+                'is_complete': is_complete,
+                'last_finish_time': last_finish_time.isoformat() if last_finish_time else None
+            })
+
+    return WideTableVersionProgressInfo(
+        version_hash=version_hash,
+        wide_table_name=version.wide_table_name,
+        total_indicators=len(indicator_metadata),
+        completed_dates=completed_dates,
+        recent_progress=recent_progress
+    )
 
 
 @router.get(

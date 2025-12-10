@@ -396,6 +396,121 @@ export const indicatorService = {
   },
 };
 
+// ============ 宽表版本相关类型定义 ============
+export interface WideTableVersion {
+  id: number;
+  wide_table_name: string;
+  version_hash: string;
+  indicator_metadata: Record<string, {
+    version: number;
+    indicator_code: string;
+    indicator_name: string;
+    indicator_type: string;
+    object_type: string;
+    indicator_task_id: number;
+  }>;
+  status: string;
+  target_at?: string;
+  current_at?: string;
+  history_at?: string;
+  skipped_at?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IndicatorProgressInfo {
+  indicator_id: number;
+  indicator_code: string;
+  indicator_name: string;
+  indicator_type: string;
+  indicator_version: number;
+  indicator_task_id?: number;
+}
+
+export interface WideTableVersionDetail extends WideTableVersion {
+  indicators: IndicatorProgressInfo[];
+  snapshot_count: number;
+  completed_dates: string[];
+}
+
+export interface WideTableVersionProgress {
+  version_hash: string;
+  wide_table_name: string;
+  total_indicators: number;
+  completed_dates: string[];
+  recent_progress: Array<{
+    etl_date: string;
+    completed_count: number;
+    total_count: number;
+    is_complete: boolean;
+    last_finish_time?: string;
+  }>;
+}
+
+export interface WideTableVersionListResponse {
+  total: number;
+  page: number;
+  page_size: number;
+  items: WideTableVersion[];
+}
+
+export interface WideTableSnapshot {
+  id: number;
+  wide_table_name: string;
+  etl_date: string;
+  version_hash?: string;
+  parquet_file_path: string;
+  file_size_bytes?: number;
+  row_count?: number;
+  column_count?: number;
+  status: string;
+  generation_time?: string;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============ 宽表版本API ============
+export const wideTableVersionService = {
+  // 获取版本列表
+  async list(params?: {
+    page?: number;
+    page_size?: number;
+    wide_table_name?: string;
+    status?: string;
+  }): Promise<WideTableVersionListResponse> {
+    const response = await api.get(`${BASE_PATH}/wide-table/versions`, { params });
+    return response.data;
+  },
+
+  // 获取版本详情（含指标清单和执行进度）
+  async getDetail(versionHash: string): Promise<WideTableVersionDetail> {
+    const response = await api.get(`${BASE_PATH}/wide-table/versions/${versionHash}`);
+    return response.data;
+  },
+
+  // 获取版本执行进度
+  async getProgress(versionHash: string, limit?: number): Promise<WideTableVersionProgress> {
+    const response = await api.get(`${BASE_PATH}/wide-table/versions/${versionHash}/progress`, {
+      params: { limit }
+    });
+    return response.data;
+  },
+
+  // 获取快照列表
+  async listSnapshots(params?: {
+    wide_table_name?: string;
+    etl_date?: string;
+    status?: string;
+    skip?: number;
+    limit?: number;
+  }): Promise<WideTableSnapshot[]> {
+    const response = await api.get(`${BASE_PATH}/wide-table/snapshots`, { params });
+    return response.data;
+  },
+};
+
 // ============ 任务API ============
 export const taskService = {
   // 获取任务执行列表
@@ -435,4 +550,5 @@ export default {
   indicatorTask: indicatorTaskService,
   indicator: indicatorService,
   task: taskService,
+  wideTableVersion: wideTableVersionService,
 };
