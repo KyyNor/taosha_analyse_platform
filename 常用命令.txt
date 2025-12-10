@@ -2,6 +2,7 @@ export bak_path=taosha_analyse_platform_bak20251209v1
 mv ../$bak_path/.venv .
 mv ../$bak_path/backend/config/config.yaml backend/config/
 mv ../$bak_path/frontend/node_modules frontend/
+mv ../$bak_path/frontend/.env frontend/
 mv ../$bak_path/embeddings_model/local-ai-v3.7.0-linux-amd64 embeddings_model/
 mv ../$bak_path/embeddings_model/backends embeddings_model/
 mv ../$bak_path/embeddings_model/configuration embeddings_model/

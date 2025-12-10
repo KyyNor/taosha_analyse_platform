@@ -134,15 +134,15 @@ class ModelExecutor:
         )
         
         # 生成SELECT子句
-        select_fields = [f"dep_acct_realtime_indicator.target_id"]
-        select_fields.append(f"etl_date")
+        select_fields = [f'dep_acct_realtime_indicator.target_id as "账号"']
+        select_fields.append(f'dep_acct_realtime_indicator.etl_date as "实时数据日期"')
         
         # 根据别名映射添加字段，使用中文别名（实时指标带[实时]前缀）
         if indicator_alias_mapping:
             for indicator, alias in indicator_alias_mapping.items():
                 # 获取指标的中文显示名称（实时指标带[实时]前缀）
                 display_name = rule_engine._get_indicator_display_name(indicator)
-                select_fields.append(f"{alias}.{indicator} AS `{display_name}`")
+                select_fields.append(f'{alias}.{indicator} AS "{display_name}"')
         
         select_clause = ",\n    ".join(select_fields)
         

@@ -137,7 +137,7 @@ async def preview_rule_sql(
             )
 
         # 生成SQL表达式
-        sql_expression = rule_engine.generate_sql_expression(rule_config)
+        sql_expression = rule_engine.generate_sql_expression(rule_config, use_display_name=True)
 
         # 获取规则摘要
         summary = rule_engine.get_rule_summary(rule_config)
