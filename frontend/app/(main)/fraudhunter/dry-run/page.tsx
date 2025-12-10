@@ -20,6 +20,11 @@ export default function TasksPage() {
   const [data, setData] = useState<TaskExecution[]>([]);
   const autoRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+
   // 筛选状态
   const [taskTypeFilter, setTaskTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -29,13 +34,17 @@ export default function TasksPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const params: any = {};
+      const params: any = {
+        page: currentPage,
+        page_size: pageSize,
+      };
       if (taskTypeFilter !== "all") params.task_type = taskTypeFilter;
       if (statusFilter !== "all") params.status = statusFilter;
       if (taskIdFilter.trim()) params.task_id = Number(taskIdFilter);
 
       const response = await taskService.list(params);
       setData(response.items || []);
+      setTotal(response.total || 0);
     } catch (error) {
       console.error("Failed to load tasks:", error);
     } finally {
@@ -53,7 +62,17 @@ export default function TasksPage() {
   // 初始加载
   useEffect(() => {
     load();
+  }, [taskTypeFilter, statusFilter, taskIdFilter, currentPage]);
+
+  // 筛选条件变化时重置到第一页
+  useEffect(() => {
+    setCurrentPage(1);
   }, [taskTypeFilter, statusFilter, taskIdFilter]);
+
+  // 分页处理
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   // 自动刷新机制
   useEffect(() => {
@@ -190,6 +209,12 @@ export default function TasksPage() {
         onView={handleView}
         searchPlaceholder="搜索执行ID..."
         emptyText="暂无任务数据"
+        pagination={{
+          pageSize,
+          currentPage,
+          total,
+          onPageChange: handlePageChange,
+        }}
       />
     </div>
   );

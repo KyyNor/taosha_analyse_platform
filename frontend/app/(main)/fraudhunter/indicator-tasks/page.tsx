@@ -24,6 +24,11 @@ export default function IndicatorTasksPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<IndicatorTask[]>([]);
 
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+
   // 上线对话框状态
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<IndicatorTask | null>(null);
@@ -38,8 +43,12 @@ export default function IndicatorTasksPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const response = await indicatorTaskService.list({});
+      const response = await indicatorTaskService.list({
+        page: currentPage,
+        page_size: pageSize,
+      });
       setData(response.items || []);
+      setTotal(response.total || 0);
     } catch (error) {
       console.error("Failed to load indicator tasks:", error);
     } finally {
@@ -49,7 +58,12 @@ export default function IndicatorTasksPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [currentPage]);
+
+  // 分页处理
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   // 表格列配置
   const columns = [
@@ -201,6 +215,12 @@ export default function IndicatorTasksPage() {
         onDelete={handleDelete}
         searchPlaceholder="搜索指标任务编码或名称..."
         emptyText="暂无指标任务数据"
+        pagination={{
+          pageSize,
+          currentPage,
+          total,
+          onPageChange: handlePageChange,
+        }}
         customActions={(item: IndicatorTask) => (
           <div className="flex gap-2">
             <Button

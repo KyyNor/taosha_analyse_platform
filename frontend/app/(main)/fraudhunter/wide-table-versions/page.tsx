@@ -47,6 +47,16 @@ export default function WideTableVersionsPage() {
     load();
   }, [statusFilter, tableNameFilter, page]);
 
+  // 筛选条件变化时重置到第一页
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, tableNameFilter]);
+
+  // 分页处理
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+  };
+
   // 表格列配置
   const columns = [
     { key: "id", label: "ID", type: "number" as const },
@@ -168,30 +178,13 @@ export default function WideTableVersionsPage() {
         onView={handleView}
         searchPlaceholder="搜索版本号..."
         emptyText="暂无宽表版本数据"
+        pagination={{
+          pageSize,
+          currentPage: page,
+          total,
+          onPageChange: handlePageChange,
+        }}
       />
-
-      {/* 分页信息 */}
-      {total > pageSize && (
-        <div className="flex justify-between items-center mt-4 text-sm text-muted-foreground">
-          <span>共 {total} 条记录，当前第 {page} 页</span>
-          <div className="flex gap-2">
-            <button
-              className="px-3 py-1 border rounded disabled:opacity-50"
-              disabled={page === 1}
-              onClick={() => setPage(p => p - 1)}
-            >
-              上一页
-            </button>
-            <button
-              className="px-3 py-1 border rounded disabled:opacity-50"
-              disabled={page * pageSize >= total}
-              onClick={() => setPage(p => p + 1)}
-            >
-              下一页
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

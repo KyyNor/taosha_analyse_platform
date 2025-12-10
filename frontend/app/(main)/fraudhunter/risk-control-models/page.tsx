@@ -39,6 +39,11 @@ export default function RiskControlModelsPage() {
   const [data, setData] = useState<RiskControlModel[]>([]);
   const { confirm, DialogComponent } = useConfirmDialog();
 
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+
   // 筛选状态
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [codeFilter, setCodeFilter] = useState<string>("");
@@ -54,12 +59,16 @@ export default function RiskControlModelsPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const params: any = {};
+      const params: any = {
+        page: currentPage,
+        page_size: pageSize,
+      };
       if (statusFilter !== "all") params.status = statusFilter;
       if (codeFilter) params.model_code = codeFilter;
 
       const response = await riskControlModelService.list(params);
       setData(response.items || []);
+      setTotal(response.total || 0);
     } catch (error) {
       console.error("Failed to load risk control models:", error);
     } finally {
@@ -69,7 +78,17 @@ export default function RiskControlModelsPage() {
 
   useEffect(() => {
     load();
+  }, [statusFilter, codeFilter, currentPage]);
+
+  // 筛选条件变化时重置到第一页
+  useEffect(() => {
+    setCurrentPage(1);
   }, [statusFilter, codeFilter]);
+
+  // 分页处理
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   // 表格列配置
   const columns = [
@@ -314,7 +333,14 @@ export default function RiskControlModelsPage() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onAdd={handleAdd}
+        onRefresh={load}
         customActions={customActions}
+        pagination={{
+          pageSize,
+          currentPage,
+          total,
+          onPageChange: handlePageChange,
+        }}
       />
 
       {/* 历史回测对话框 */}
