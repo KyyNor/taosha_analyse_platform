@@ -28,6 +28,11 @@ export default function IndicatorsPage() {
   const [objectTypeFilter, setObjectTypeFilter] = useState<string>("all");
   const [taskFilter, setTaskFilter] = useState<string>("all");
 
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+
   // 加载指标任务列表用于筛选
   const loadIndicatorTasks = async () => {
     try {
@@ -42,7 +47,10 @@ export default function IndicatorsPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const params: any = {};
+      const params: any = {
+        page: currentPage,
+        page_size: pageSize,
+      };
       if (statusFilter !== "all") params.status = statusFilter;
       if (typeFilter !== "all") params.indicator_type = typeFilter;
       if (objectTypeFilter !== "all") params.object_type = objectTypeFilter;
@@ -50,6 +58,7 @@ export default function IndicatorsPage() {
 
       const response = await indicatorService.list(params);
       setData(response.items || []);
+      setTotal(response.total || 0);
     } catch (error) {
       console.error("Failed to load indicators:", error);
     } finally {
@@ -63,7 +72,17 @@ export default function IndicatorsPage() {
 
   useEffect(() => {
     load();
+  }, [statusFilter, typeFilter, objectTypeFilter, taskFilter, currentPage]);
+
+  // 筛选条件变化时重置到第一页
+  useEffect(() => {
+    setCurrentPage(1);
   }, [statusFilter, typeFilter, objectTypeFilter, taskFilter]);
+
+  // 分页处理
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   // 表格列配置
   const columns = [
@@ -236,6 +255,12 @@ export default function IndicatorsPage() {
         onDelete={handleDelete}
         searchPlaceholder="搜索指标编码或名称..."
         emptyText="暂无指标数据"
+        pagination={{
+          pageSize,
+          currentPage,
+          total,
+          onPageChange: handlePageChange,
+        }}
       />
     </div>
   );

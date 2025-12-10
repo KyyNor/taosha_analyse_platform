@@ -418,6 +418,7 @@ class RiskControlModelManager:
             task_id=model_id,
             task_func=model_executor.execute_backtest,
             created_by=created_by,
+            task_name=model.model_name,
             start_date=start_date,
             end_date=end_date
         )

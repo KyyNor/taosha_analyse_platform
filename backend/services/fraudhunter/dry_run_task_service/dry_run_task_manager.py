@@ -25,23 +25,31 @@ class DryRunTaskManager:
         task_id: int,
         task_func: Callable,
         created_by: str,
+        task_name: Optional[str] = None,
         **kwargs
     ) -> str:
         """提交异步任务
 
         Args:
             db: 数据库会话
-            task_type: 任务类型（indicator/model）
+            task_type: 任务类型（indicator/model_backtest等）
             task_id: 任务关联ID
             task_func: 任务执行函数
             created_by: 创建人
+            task_name: 任务名称（用于模型回测等场景生成可读性更好的execution_id）
             **kwargs: 传递给任务函数的参数
 
         Returns:
             execution_id: 任务执行ID
         """
         # 生成任务ID
-        execution_id = f"task_{uuid.uuid4()}"
+        if task_type == 'model_backtest' and task_name:
+            # 模型回测使用 task_{模型名称}_{时间戳} 格式
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+            execution_id = f"task_{task_name}_{timestamp}"
+        else:
+            # 其他类型使用 UUID 格式
+            execution_id = f"task_{uuid.uuid4()}"
 
         # 创建任务记录
         task_execution = FraudHunterDryRunExecution(
