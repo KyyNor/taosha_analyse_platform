@@ -641,6 +641,41 @@ class GlossaryService:
         """获取所有术语"""
         return self.get_glossary().get("terms", [])
 
+    def get_terms_paginated(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
+        """分页获取术语列表"""
+        try:
+            result = self.repo.get_paginated(page=page, page_size=page_size)
+
+            # 转换术语列表格式
+            terms_list = []
+            for term in result['items']:
+                try:
+                    content_data = json.loads(term.content) if term.content else {}
+                except json.JSONDecodeError:
+                    content_data = {}
+                    logger.warning(f"术语 {term.name} 的 content 字段不是有效的 JSON 格式")
+
+                terms_list.append({
+                    "id": term.id,
+                    "name": term.name,
+                    "type": term.type,
+                    "content": content_data,
+                    "creator": term.creator or "",
+                    "is_basic": term.is_basic or False,
+                    "created_at": term.created_at,
+                    "updated_at": term.updated_at
+                })
+
+            return {
+                'items': terms_list,
+                'total': result['total'],
+                'page': result['page'],
+                'page_size': result['page_size']
+            }
+        except Exception as e:
+            logger.error(f"分页获取术语失败: {e}")
+            return {'items': [], 'total': 0, 'page': page, 'page_size': page_size}
+
     def get_term_by_id(self, term_id: int) -> Optional[Dict[str, Any]]:
         """根据ID获取术语"""
         try:

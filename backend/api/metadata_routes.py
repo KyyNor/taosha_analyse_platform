@@ -218,12 +218,16 @@ async def delete_column_metadata(column_id: int, db: Session = Depends(get_db)):
 
 # 术语表管理
 @router.get("/glossary/terms")
-async def get_all_terms(db: Session = Depends(get_db)):
-    """获取所有术语"""
+async def get_all_terms(
+    page: int = 1,
+    page_size: int = 20,
+    db: Session = Depends(get_db)
+):
+    """获取术语列表（支持分页）"""
     try:
         glossary_service = get_glossary_service(db)
-        terms = glossary_service.get_terms()
-        return {"success": True, "data": terms}
+        result = glossary_service.get_terms_paginated(page=page, page_size=page_size)
+        return {"success": True, **result}
     except Exception as e:
         logger.error(f"获取术语失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

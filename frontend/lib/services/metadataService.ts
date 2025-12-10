@@ -63,8 +63,8 @@ export async function deleteRelation(configId: number) {
 }
 
 // 术语表管理
-export async function getGlossary() {
-  const res = await api.get("/metadata/glossary/terms");
+export async function getGlossary(params?: { page?: number; page_size?: number }) {
+  const res = await api.get("/metadata/glossary/terms", { params });
   return res.data;
 }
 
