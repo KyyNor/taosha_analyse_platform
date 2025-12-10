@@ -45,6 +45,24 @@ class RuleEngine:
 
     # ==================== 辅助方法 ====================
 
+    def _get_indicator_display_name(self, indicator_code: str) -> str:
+        """
+        获取指标的显示名称（中文，实时指标带[实时]前缀）
+
+        Args:
+            indicator_code: 指标编码
+
+        Returns:
+            str: 显示名称，如 "[实时]登录次数" 或 "客户年龄"
+        """
+        indicator = self._get_indicator_cached(indicator_code)
+        if indicator:
+            name = indicator.indicator_name
+            if indicator.indicator_type == 'realtime':
+                return f"[实时]{name}"
+            return name
+        return indicator_code  # 找不到指标时返回编码
+
     def _get_indicator_cached(self, indicator_code: str) -> Optional[FraudHunterIndicatorDefinition]:
         """
         带缓存的指标查询（性能优化）
@@ -765,7 +783,8 @@ class RuleEngine:
     def _value_expression_to_sql(
         self,
         value_expr: ValueExpression,
-        indicator_alias_mapping: Optional[Dict[str, str]] = None
+        indicator_alias_mapping: Optional[Dict[str, str]] = None,
+        use_display_name: bool = False
     ) -> str:
         """
         将值表达式转换为 Spark SQL
@@ -773,6 +792,7 @@ class RuleEngine:
         Args:
             value_expr: 值表达式
             indicator_alias_mapping: 指标别名映射 {indicator_code: table_alias}
+            use_display_name: 是否使用中文显示名称（用于SQL预览）
 
         Returns:
             str: SQL 字符串
@@ -784,13 +804,17 @@ class RuleEngine:
         # 指标引用
         elif isinstance(value_expr, IndicatorReference):
             indicator = value_expr.indicator
+            if use_display_name:
+                return self._get_indicator_display_name(indicator)
             return self._get_indicator_sql_with_cast(indicator, indicator_alias_mapping)
 
         # 时间函数
         elif isinstance(value_expr, TimeFunction):
             ind = value_expr.indicator
-            # 获取带CAST的指标SQL（时间函数不需要CAST，但为了代码一致性使用基础SQL）
-            if indicator_alias_mapping and ind in indicator_alias_mapping:
+            # 获取指标SQL或显示名称
+            if use_display_name:
+                ind_sql = self._get_indicator_display_name(ind)
+            elif indicator_alias_mapping and ind in indicator_alias_mapping:
                 alias = indicator_alias_mapping[ind]
                 ind_sql = f"{alias}.{ind}"
             else:
@@ -824,8 +848,11 @@ class RuleEngine:
         # 数学函数
         elif isinstance(value_expr, MathFunction):
             ind = value_expr.indicator
-            # 获取带CAST的指标SQL
-            ind_sql = self._get_indicator_sql_with_cast(ind, indicator_alias_mapping)
+            # 获取指标SQL或显示名称
+            if use_display_name:
+                ind_sql = self._get_indicator_display_name(ind)
+            else:
+                ind_sql = self._get_indicator_sql_with_cast(ind, indicator_alias_mapping)
             if value_expr.function == "abs":
                 return f"ABS({ind_sql})"
 
@@ -846,7 +873,8 @@ class RuleEngine:
     def generate_sql_expression(
         self,
         rule_config: RuleConfig,
-        indicator_alias_mapping: Optional[Dict[str, str]] = None
+        indicator_alias_mapping: Optional[Dict[str, str]] = None,
+        use_display_name: bool = False
     ) -> str:
         """
         将规则配置转换为SQL WHERE子句表达式（支持所有操作符和值表达式）
@@ -860,9 +888,10 @@ class RuleEngine:
                     - 存款实时指标: {'i_xxx_realtime': 'dep_acct_realtime_indicator'}
                     - 存款离线指标: {'i_xxx_offline': 'dep_acct_offline_indicator'}
                     - 客户指标: {'cust_xxx': 'cust_offline_indicator'}
+            use_display_name: 是否使用中文显示名称（实时指标带[实时]前缀）
 
         Returns:
-            str: SQL表达式，如 "(i_login_cnt_7d > 10 AND (i_device_change_cnt >= 3 OR i_user_status IN ('suspended', 'banned')))"
+            str: SQL表达式，如 "(登录次数 > 10 AND ([实时]设备变更次数 >= 3 OR 用户状态 IN ('suspended', 'banned')))"
                  或带别名 "(dep_acct_realtime_indicator.i_xxx > 10 AND cust_offline_indicator.cust_yyy = 'A')"
         """
 
@@ -872,8 +901,11 @@ class RuleEngine:
             operator = condition.operator
             value_expr = condition.value
 
-            # 处理左侧指标（使用带CAST的SQL生成）
-            left_sql = self._get_indicator_sql_with_cast(indicator, indicator_alias_mapping)
+            # 处理左侧指标（使用中文显示名称或带CAST的SQL生成）
+            if use_display_name:
+                left_sql = self._get_indicator_display_name(indicator)
+            else:
+                left_sql = self._get_indicator_sql_with_cast(indicator, indicator_alias_mapping)
 
             # 处理左元素函数
             if condition.left_function == 'abs':
@@ -881,7 +913,7 @@ class RuleEngine:
 
             # 基础比较操作符
             if operator in ['>', '>=', '<', '<=', '=', '!=']:
-                right_sql = self._value_expression_to_sql(value_expr, indicator_alias_mapping)
+                right_sql = self._value_expression_to_sql(value_expr, indicator_alias_mapping, use_display_name)
                 return f"{left_sql} {operator} {right_sql}"
 
             # 集合操作（只支持常量值）

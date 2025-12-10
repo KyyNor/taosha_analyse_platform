@@ -97,11 +97,12 @@ export default function RiskControlModelDetailPage() {
           status: "online",
           query_type: "all"
         });
-        // 转换为规则引擎需要的格式
+        // 转换为规则引擎需要的格式，包含indicator_type
         const transformedIndicators: Indicator[] = (response.items || []).map(item => ({
           indicator_code: item.indicator_code,
           indicator_name: item.indicator_name,
           data_type: item.data_type,
+          indicator_type: item.indicator_type as 'offline' | 'realtime' | undefined,
           enum_values: item.enum_values ? item.enum_values.split(',').map(v => v.trim()) : undefined,
           description: item.description
         }));

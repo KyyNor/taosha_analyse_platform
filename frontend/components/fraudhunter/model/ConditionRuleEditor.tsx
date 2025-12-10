@@ -31,7 +31,8 @@ import {
   isCompatibleType,
   getInputType,
   isMultiValueOperator,
-  isRegexpOperator
+  isRegexpOperator,
+  getIndicatorDisplayName
 } from '@/types/fraudhunter/rule'
 
 interface ConditionRuleEditorProps {
@@ -174,7 +175,7 @@ export function ConditionRuleEditor({
             value={rule.value.indicator}
             onValueChange={(value) => updateValue({ ...rule.value, indicator: value })}
           >
-            <SelectTrigger className="w-[150px] h-8">
+            <SelectTrigger className="w-[180px] h-8">
               <SelectValue placeholder="选择指标" />
             </SelectTrigger>
             <SelectContent>
@@ -182,7 +183,7 @@ export function ConditionRuleEditor({
                 .filter(ind => isCompatibleType(currentIndicator?.data_type, ind.data_type))
                 .map(ind => (
                   <SelectItem key={ind.indicator_code} value={ind.indicator_code}>
-                    {ind.indicator_name}
+                    {getIndicatorDisplayName(ind)}
                   </SelectItem>
                 ))}
             </SelectContent>
@@ -211,7 +212,7 @@ export function ConditionRuleEditor({
               value={rule.value.indicator}
               onValueChange={(value) => updateValue({ ...rule.value, indicator: value })}
             >
-              <SelectTrigger className="w-[150px] h-8">
+              <SelectTrigger className="w-[180px] h-8">
                 <SelectValue placeholder="时间指标" />
               </SelectTrigger>
               <SelectContent>
@@ -219,7 +220,7 @@ export function ConditionRuleEditor({
                   .filter(ind => ind.data_type === 'date')
                   .map(ind => (
                     <SelectItem key={ind.indicator_code} value={ind.indicator_code}>
-                      {ind.indicator_name}
+                      {getIndicatorDisplayName(ind)}
                     </SelectItem>
                   ))}
               </SelectContent>
@@ -257,7 +258,7 @@ export function ConditionRuleEditor({
               value={rule.value.indicator}
               onValueChange={(value) => updateValue({ ...rule.value, indicator: value })}
             >
-              <SelectTrigger className="w-[150px] h-8">
+              <SelectTrigger className="w-[180px] h-8">
                 <SelectValue placeholder="数值指标" />
               </SelectTrigger>
               <SelectContent>
@@ -265,7 +266,7 @@ export function ConditionRuleEditor({
                   .filter(ind => isNumericType(ind.data_type))
                   .map(ind => (
                     <SelectItem key={ind.indicator_code} value={ind.indicator_code}>
-                      {ind.indicator_name}
+                      {getIndicatorDisplayName(ind)}
                     </SelectItem>
                   ))}
               </SelectContent>
@@ -304,14 +305,14 @@ export function ConditionRuleEditor({
         {/* 左元素：指标 + 可选函数 */}
         <div className="flex items-center gap-1 flex-shrink-0">
           <Select value={rule.indicator} onValueChange={handleIndicatorChange}>
-            <SelectTrigger className="w-[180px] h-8">
+            <SelectTrigger className="w-[200px] h-8">
               <SelectValue placeholder="选择指标" />
             </SelectTrigger>
             <SelectContent>
               {indicators.map((ind) => (
                 <SelectItem key={ind.indicator_code} value={ind.indicator_code}>
                   <div className="flex items-center justify-between w-full">
-                    <span>{ind.indicator_name}</span>
+                    <span>{getIndicatorDisplayName(ind)}</span>
                     <span className="text-xs text-muted-foreground ml-2">
                       ({ind.data_type})
                     </span>

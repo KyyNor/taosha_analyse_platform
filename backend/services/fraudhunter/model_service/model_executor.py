@@ -95,6 +95,7 @@ class ModelExecutor:
 
     def _generate_backtest_sql(
         self,
+        db: Session,
         model: FraudHunterModelDefinition,
         dep_acct_realtime_parquet_path: str,
         dep_acct_offline_parquet_path: str,
@@ -106,9 +107,10 @@ class ModelExecutor:
         SQL结构：
         - 实时指标使用当天的存款宽表（dep_acct_no_realtime_indicator）
         - 离线指标使用前一天的存款宽表（dep_acct_no_offline_indicator）
-        - 离线指标使用前一天的存款宽表（dep_acct_no_offline_indicator）
+        - 客户离线指标使用前一天的客户宽表（cust_offline_indicator）
         
         Args:
+            db: 数据库会话
             model: 模型定义
             dep_acct_realtime_parquet_path: 实时（当天）存款宽表parquet路径
             dep_acct_offline_parquet_path: 离线（前一天）存款宽表parquet路径
@@ -124,7 +126,7 @@ class ModelExecutor:
         rule_config = RuleConfig(**rule_config_dict)
         
         # 使用 RuleEngine 构建指标别名映射并生成 WHERE 子句
-        rule_engine = RuleEngine(db=None)  # 不需要数据库会话
+        rule_engine = RuleEngine(db=db)  # 传入数据库会话以获取指标中文名
         indicator_alias_mapping = rule_engine.build_indicator_alias_mapping(
             rule_config,
             use_alias=True
@@ -134,10 +136,12 @@ class ModelExecutor:
         select_fields = [f"dep_acct_realtime_indicator.target_id"]
         select_fields.append(f"etl_date")
         
-        # 根据别名映射添加字段
+        # 根据别名映射添加字段，使用中文别名（实时指标带[实时]前缀）
         if indicator_alias_mapping:
             for indicator, alias in indicator_alias_mapping.items():
-                select_fields.append(f"{alias}.{indicator}")
+                # 获取指标的中文显示名称（实时指标带[实时]前缀）
+                display_name = rule_engine._get_indicator_display_name(indicator)
+                select_fields.append(f"{alias}.{indicator} AS `{display_name}`")
         
         select_clause = ",\n    ".join(select_fields)
         
@@ -279,6 +283,7 @@ WHERE
 
                 # 生成SQL
                 sql = self._generate_backtest_sql(
+                    db,
                     model,
                     dep_acct_realtime_parquet,
                     dep_acct_offline_parquet,

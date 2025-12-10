@@ -134,9 +134,20 @@ export interface Indicator {
   indicator_code: string
   indicator_name: string
   data_type: IndicatorDataType
+  indicator_type?: 'offline' | 'realtime'  // 指标类型：离线/实时
   object_type?: string        // 对象类型：cust_no/dep_acct_no/loan_acct_no
   enum_values?: string[]      // 枚举类型的可选值
   description?: string
+}
+
+/**
+ * 获取指标的显示名称（实时指标带[实时]前缀）
+ */
+export function getIndicatorDisplayName(indicator: Indicator): string {
+  if (indicator.indicator_type === 'realtime') {
+    return `[实时]${indicator.indicator_name}`
+  }
+  return indicator.indicator_name
 }
 
 /**
