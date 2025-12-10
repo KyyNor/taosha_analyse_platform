@@ -5,6 +5,7 @@
 特点：
 - 使用 asyncio.to_thread 在线程池中执行同步操作，不阻塞其他异步任务
 - WideTableSyncService 不再持有长期的数据库连接，每次操作独立获取session
+- sync_multi_dates 内部已包含版本切换逻辑，无需额外调用
 """
 
 import asyncio
@@ -15,13 +16,23 @@ from utils.logger import logger
 def _sync_wide_table(wide_table_name: str, lookback_days: int) -> Dict:
     """
     同步单个宽表（同步函数，在线程池中执行）
+    
+    注意：sync_multi_dates 内部已包含版本切换检查逻辑，
+    当 target 快照数量 >= current 快照数量 * 0.5 时会自动提升版本
 
     Args:
         wide_table_name: 宽表名称
         lookback_days: 回溯天数
 
     Returns:
-        同步结果字典
+        同步结果字典，包含：
+        - wide_table_name: 宽表名称
+        - total_dates: 总日期数
+        - synced: 成功同步数
+        - skipped: 跳过数
+        - failed: 失败数
+        - version_promoted: 是否提升了版本
+        - new_current_version: 新的current版本hash（如果提升了）
     """
     from services.fraudhunter.wide_table_service.sync_service import WideTableSyncService
 
@@ -31,18 +42,25 @@ def _sync_wide_table(wide_table_name: str, lookback_days: int) -> Dict:
         # 创建服务实例（不需要传入db session）
         sync_service = WideTableSyncService()
 
-        # 执行同步
+        # 执行同步（内部已包含版本切换逻辑）
         result = sync_service.sync_multi_dates(
             wide_table_name=wide_table_name,
             lookback_days=lookback_days
         )
 
-        logger.info(
+        # 日志输出
+        log_msg = (
             f"[线程] {wide_table_name} 同步完成: "
             f"成功{result['synced']}, "
             f"跳过{result['skipped']}, "
             f"失败{result['failed']}"
         )
+        
+        # 如果版本被提升，追加日志
+        if result.get('version_promoted'):
+            log_msg += f", 版本已切换: {result.get('new_current_version')}"
+        
+        logger.info(log_msg)
 
         return result
 
@@ -57,80 +75,9 @@ def _sync_wide_table(wide_table_name: str, lookback_days: int) -> Dict:
             "synced": 0,
             "skipped": 0,
             "failed": 1,
-            "error": str(e)
+            "error": str(e),
+            "version_promoted": False
         }
-
-
-def _check_and_promote_version(wide_table_name: str) -> Dict:
-    """
-    检查并提升target版本（在线程池中执行）
-
-    Args:
-        wide_table_name: 宽表名称
-
-    Returns:
-        提升结果字典 {
-            "promoted": bool,
-            "version_hash": str (if promoted),
-            "synced_count": int (if promoted),
-            "reason": str (if not promoted)
-        }
-    """
-    from models.db_base import get_db_session
-    from models.fraudhunter.wide_table import (
-        FraudHunterWideTableVersion,
-        FraudHunterWideTableSnapshot
-    )
-    from services.fraudhunter.wide_table_service.version_manager import WideTableVersionManager
-    from sqlalchemy import and_
-
-    try:
-        with get_db_session() as db:
-            version_manager = WideTableVersionManager(db)
-
-            # 1. 获取target版本
-            target_version = db.query(FraudHunterWideTableVersion).filter(
-                and_(
-                    FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-                    FraudHunterWideTableVersion.status == 'target'
-                )
-            ).first()
-
-            if not target_version:
-                logger.debug(f"{wide_table_name} 无target版本")
-                return {"promoted": False, "reason": "无target版本"}
-
-            # 2. 检查是否有至少1天的ready快照
-            snapshot_count = db.query(FraudHunterWideTableSnapshot).filter(
-                and_(
-                    FraudHunterWideTableSnapshot.version_hash == target_version.version_hash,
-                    FraudHunterWideTableSnapshot.status == 'ready'
-                )
-            ).count()
-
-            if snapshot_count == 0:
-                logger.debug(f"{wide_table_name} target版本无ready快照")
-                return {"promoted": False, "reason": "无ready快照"}
-
-            # 3. 提升版本
-            logger.info(
-                f"{wide_table_name} target版本有{snapshot_count}天数据，触发提升"
-            )
-
-            promoted_version = version_manager.promote_target_to_current(target_version)
-
-            return {
-                "promoted": True,
-                "version_hash": promoted_version.version_hash,
-                "synced_count": snapshot_count
-            }
-
-    except Exception as e:
-        logger.error(
-            f"版本提升失败: {wide_table_name}, {e}",
-            exc_info=True
-        )
-        return {"promoted": False, "reason": str(e)}
 
 
 async def sync_all_wide_tables_job():
@@ -144,6 +91,7 @@ async def sync_all_wide_tables_job():
     - 使用 asyncio.to_thread 将同步阻塞操作放到线程池执行
     - 不阻塞事件循环，允许其他异步任务正常运行
     - 各宽表的同步可以并行执行（可选）
+    - sync_multi_dates 内部已包含版本切换逻辑，无需额外调用
 
     注意: 此函数由全局调度器调用，无需额外的文件锁
     启动锁机制已确保单进程执行
@@ -166,6 +114,7 @@ async def sync_all_wide_tables_job():
         total_synced = 0
         total_skipped = 0
         total_failed = 0
+        promoted_versions = []
 
         # 顺序执行每个宽表的同步（在线程池中）
         # 注意：这里选择顺序执行而非并行，避免Spark资源竞争
@@ -173,6 +122,7 @@ async def sync_all_wide_tables_job():
             try:
                 # 使用 asyncio.to_thread 在线程池中执行同步操作
                 # 这样不会阻塞事件循环
+                # sync_multi_dates 内部已包含版本切换检查和执行
                 result = await asyncio.to_thread(
                     _sync_wide_table,
                     wide_table_name,
@@ -182,6 +132,13 @@ async def sync_all_wide_tables_job():
                 total_synced += result.get('synced', 0)
                 total_skipped += result.get('skipped', 0)
                 total_failed += result.get('failed', 0)
+                
+                # 记录版本切换信息
+                if result.get('version_promoted'):
+                    promoted_versions.append({
+                        'wide_table_name': wide_table_name,
+                        'new_version': result.get('new_current_version')
+                    })
 
             except Exception as e:
                 logger.error(
@@ -190,34 +147,20 @@ async def sync_all_wide_tables_job():
                 )
                 total_failed += 1
 
-        logger.info(
+        # 汇总日志
+        summary_msg = (
             f"=== 离线宽表定时同步完成 === "
             f"总计: 成功{total_synced}, 跳过{total_skipped}, 失败{total_failed}"
         )
-
-        # 同步完成后，检查是否可以提升版本
-        logger.info("=== 开始检查版本提升条件 ===")
-
-        for wide_table_name in wide_table_names:
-            try:
-                promotion_result = await asyncio.to_thread(
-                    _check_and_promote_version,
-                    wide_table_name
+        
+        if promoted_versions:
+            summary_msg += f", 版本切换: {len(promoted_versions)}个"
+            for pv in promoted_versions:
+                logger.info(
+                    f"  ✓ {pv['wide_table_name']} 版本已切换至 {pv['new_version']}"
                 )
-
-                if promotion_result and promotion_result.get('promoted'):
-                    logger.info(
-                        f"{wide_table_name} 版本已提升: "
-                        f"{promotion_result['version_hash'][:8]}... "
-                        f"({promotion_result['synced_count']}天数据)"
-                    )
-            except Exception as e:
-                logger.error(
-                    f"{wide_table_name} 版本提升检查失败: {e}",
-                    exc_info=True
-                )
-
-        logger.info("=== 版本提升检查完成 ===")
+        
+        logger.info(summary_msg)
 
     except Exception as e:
         logger.error(f"离线宽表同步调度异常: {e}", exc_info=True)

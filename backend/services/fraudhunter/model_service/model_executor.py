@@ -23,8 +23,7 @@ from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
 from models.fraudhunter.indicator import FraudHunterIndicatorDefinition
 from models.fraudhunter.wide_table import (
     FraudHunterWideTableVersion,
-    FraudHunterWideTableSnapshot,
-    FraudHunterVersionFallbackLog
+    FraudHunterWideTableSnapshot
 )
 from models.fraudhunter.dry_run_task import FraudHunterDryRunExecution
 from schemas.fraudhunter.rule import RuleConfig, ConditionRule, GroupRule, Rule
@@ -319,51 +318,41 @@ class ModelExecutor:
         
         return "因以下指标变动切换到target版本:\n" + "\n".join(reasons)
 
-    def _log_version_fallback(
+    def _collect_fallback_info(
         self,
-        db: Session,
-        execution_id: str,
-        model_code: str,
         wide_table_name: str,
         etl_date: date,
         selection_result: VersionSelectionResult,
-        expected_version: str
+        expected_version: str,
+        fallback_logs: List[Dict]
     ):
-        """记录版本降级日志
+        """收集版本降级信息到列表（供后续汇总到result_summary）
         
         Args:
-            db: 数据库会话
-            execution_id: 执行ID
-            model_code: 模型编码
             wide_table_name: 宽表名称
             etl_date: ETL日期
             selection_result: 版本选择结果
             expected_version: 期望的版本（current）
+            fallback_logs: 降级日志列表（用于收集）
         """
         if not selection_result.is_fallback:
             return
         
-        try:
-            log_entry = FraudHunterVersionFallbackLog(
-                execution_id=execution_id,
-                model_code=model_code,
-                wide_table_name=wide_table_name,
-                etl_date=etl_date,
-                expected_version=expected_version,
-                actual_version=selection_result.version_hash,
-                fallback_reason=selection_result.fallback_reason or 'unknown',
-                fallback_indicators=selection_result.mismatched_indicators
-            )
-            db.add(log_entry)
-            db.flush()
-            
-            logger.info(
-                f"[版本降级日志] 模型={model_code}, 日期={etl_date}, "
-                f"原因={selection_result.fallback_reason}, "
-                f"影响指标={[i['indicator_code'] for i in selection_result.mismatched_indicators]}"
-            )
-        except Exception as e:
-            logger.error(f"记录版本降级日志失败: {e}")
+        fallback_logs.append({
+            'wide_table_name': wide_table_name,
+            'etl_date': str(etl_date),
+            'expected_version': expected_version[:8] if expected_version else '',
+            'actual_version': selection_result.version_hash[:8] if selection_result.version_hash else '',
+            'fallback_reason': selection_result.fallback_reason or 'unknown',
+            'mismatched_indicators': selection_result.mismatched_indicators,
+            'message': selection_result.message
+        })
+        
+        logger.info(
+            f"[版本降级] 宽表={wide_table_name}, 日期={etl_date}, "
+            f"原因={selection_result.fallback_reason}, "
+            f"影响指标={[i['indicator_code'] for i in selection_result.mismatched_indicators]}"
+        )
 
     def _extract_indicator_codes_from_model(self, model: FraudHunterModelDefinition) -> List[str]:
         """从模型定义中提取使用的指标编码列表
@@ -529,7 +518,8 @@ WHERE
             'daily_results': [],
             'warnings': [],
             'generated_sqls': [],
-            'matched_records': []  # 新增：存储所有命中记录
+            'matched_records': [],  # 存储所有命中记录
+            'version_fallbacks': []  # 存储版本降级信息
         }
 
         # 提取模型使用的指标编码
@@ -568,27 +558,27 @@ WHERE
                     db, cust_wide_table_name, previous_date, model_indicator_codes
                 )
                 
-                # 记录降级日志
+                # 收集降级信息
                 if dep_acct_realtime_result.is_fallback:
-                    self._log_version_fallback(
-                        db, execution_id, model.model_code, dep_acct_wide_table_name,
-                        current_date, dep_acct_realtime_result,
-                        current_dep_version.version_hash if current_dep_version else ''
+                    self._collect_fallback_info(
+                        dep_acct_wide_table_name, current_date, dep_acct_realtime_result,
+                        current_dep_version.version_hash if current_dep_version else '',
+                        results['version_fallbacks']
                     )
                     day_result['version_fallback'] = dep_acct_realtime_result.get_fallback_summary()
                 
                 if dep_acct_offline_result.is_fallback:
-                    self._log_version_fallback(
-                        db, execution_id, model.model_code, dep_acct_wide_table_name,
-                        previous_date, dep_acct_offline_result,
-                        current_dep_version.version_hash if current_dep_version else ''
+                    self._collect_fallback_info(
+                        dep_acct_wide_table_name, previous_date, dep_acct_offline_result,
+                        current_dep_version.version_hash if current_dep_version else '',
+                        results['version_fallbacks']
                     )
                 
                 if cust_offline_result.is_fallback:
-                    self._log_version_fallback(
-                        db, execution_id, model.model_code, cust_wide_table_name,
-                        previous_date, cust_offline_result,
-                        current_cust_version.version_hash if current_cust_version else ''
+                    self._collect_fallback_info(
+                        cust_wide_table_name, previous_date, cust_offline_result,
+                        current_cust_version.version_hash if current_cust_version else '',
+                        results['version_fallbacks']
                     )
                 
                 dep_acct_realtime_parquet = dep_acct_realtime_result.parquet_path
@@ -690,6 +680,18 @@ WHERE
 """
         execution.log_content = log_content
         results['log_content'] = log_content  # 将日志内容也加入返回结果
+        
+        # 将降级信息和完整结果保存到 result_summary
+        execution.result_summary = {
+            'total_days': results['total_days'],
+            'success_days': results['success_days'],
+            'skipped_days': results['skipped_days'],
+            'failed_days': results['failed_days'],
+            'total_rows_matched': total_matched,
+            'version_fallbacks': results['version_fallbacks'],  # 降级信息
+            'warnings': results['warnings']
+        }
+        
         db.commit()
 
         logger.info(f"模型历史回测完成: {model.model_code}, 成功 {results['success_days']}/{results['total_days']} 天")
