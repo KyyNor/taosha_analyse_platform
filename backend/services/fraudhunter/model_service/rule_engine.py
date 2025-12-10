@@ -957,9 +957,9 @@ class RuleEngine:
                     pattern = str(value_expr.value).replace("'", "''")
 
                 if operator == 'regexp':
-                    return f"{left_sql} REGEXP '{pattern}'"
+                    return f"regexp_matches({left_sql}, '{pattern}')"
                 else:
-                    return f"{left_sql} NOT REGEXP '{pattern}')"
+                    return f"not regexp_matches({left_sql}, '{pattern}')"
 
             return "1=1"
 

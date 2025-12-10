@@ -223,7 +223,7 @@ class FraudHunterWideTableSnapshot(Base):
     # 索引
     __table_args__ = (
         # 复合唯一索引: 同一宽表同一日期只能有一条记录
-        Index('uk_fh_ws_table_date', 'wide_table_name', 'etl_date', unique=True),
+        Index('uk_fh_ws_table_date', 'wide_table_name', 'version_hash', 'etl_date', unique=True),
         Index('idx_fh_ws_table_name', 'wide_table_name'),
         Index('idx_fh_ws_etl_date', 'etl_date'),
         Index('idx_fh_ws_version_hash', 'version_hash'),

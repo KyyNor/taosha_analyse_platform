@@ -24,7 +24,7 @@ class IndicatorTaskBase(BaseModel):
     @field_validator('object_type')
     @classmethod
     def validate_object_type(cls, v):
-        if v not in ['cust_no', 'dep_acct_no', 'loan_acct_no']:
+        if v not in ['cust_no', 'dep_acct_no', 'loan_acct_no', 'built-in']:
             raise ValueError('object_type必须是cust_no、dep_acct_no或loan_acct_no')
         return v
 
@@ -83,14 +83,14 @@ class IndicatorBase(BaseModel):
     @field_validator('indicator_type')
     @classmethod
     def validate_indicator_type(cls, v):
-        if v not in ['offline', 'realtime']:
+        if v not in ['offline', 'realtime', 'built-in']:
             raise ValueError('indicator_type必须是offline或realtime')
         return v
 
     @field_validator('object_type')
     @classmethod
     def validate_object_type(cls, v):
-        if v not in ['cust_no', 'dep_acct_no', 'loan_acct_no']:
+        if v not in ['cust_no', 'dep_acct_no', 'loan_acct_no', 'built-in']:
             raise ValueError('object_type必须是cust_no、dep_acct_no或loan_acct_no')
         return v
 
