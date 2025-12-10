@@ -809,14 +809,29 @@ class RuleEngine:
         # 时间函数
         elif isinstance(value_expr, TimeFunction):
             ind = value_expr.indicator
-            # 获取指标SQL或显示名称
-            if use_display_name:
-                ind_sql = self._get_indicator_display_name(ind)
-            elif indicator_alias_mapping and ind in indicator_alias_mapping:
-                alias = indicator_alias_mapping[ind]
-                ind_sql = f"{alias}.{ind}"
+            
+            # 处理特殊的系统时间变量
+            if ind == '__T0__':
+                # T日: 实时宽表的etl_date
+                if use_display_name:
+                    ind_sql = "T日(实时数据日期)"
+                else:
+                    ind_sql = "dep_acct_realtime_indicator.etl_date"
+            elif ind == '__T-1__':
+                # T-1日: 离线宽表的etl_date
+                if use_display_name:
+                    ind_sql = "T-1日(离线数据日期)"
+                else:
+                    ind_sql = "dep_acct_offline_indicator.etl_date"
             else:
-                ind_sql = ind
+                # 普通日期指标
+                if use_display_name:
+                    ind_sql = self._get_indicator_display_name(ind)
+                elif indicator_alias_mapping and ind in indicator_alias_mapping:
+                    alias = indicator_alias_mapping[ind]
+                    ind_sql = f"{alias}.{ind}"
+                else:
+                    ind_sql = ind
 
             offset = value_expr.offset
 

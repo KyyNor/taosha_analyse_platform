@@ -383,7 +383,8 @@ class WideTableSyncService:
         sql = f"""
 SELECT
     target_id,
-    {select_columns}
+    {select_columns},
+    '{etl_date_str}' as etl_date
 FROM (
     SELECT
         target_id,

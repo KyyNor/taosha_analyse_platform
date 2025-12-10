@@ -190,6 +190,14 @@ export function ConditionRuleEditor({
         )
 
       case 'time_function':
+        // 特殊时间变量的显示名称
+        const getTimeIndicatorDisplayValue = (indicator: string) => {
+          if (indicator === '__T0__') return 'T日 (实时数据日期)'
+          if (indicator === '__T-1__') return 'T-1日 (离线数据日期)'
+          const ind = indicators.find(i => i.indicator_code === indicator)
+          return ind ? getIndicatorDisplayName(ind) : indicator
+        }
+
         return (
           <div className="flex items-center gap-1 flex-wrap">
 
@@ -200,16 +208,33 @@ export function ConditionRuleEditor({
               onValueChange={(value) => updateValue({ ...rule.value, indicator: value })}
             >
               <SelectTrigger className="w-[180px] h-8">
-                <SelectValue placeholder="时间指标" />
+                <SelectValue placeholder="时间指标">
+                  {rule.value.indicator && getTimeIndicatorDisplayValue(rule.value.indicator)}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {indicators
-                  .filter(ind => ind.data_type === 'date')
-                  .map(ind => (
-                    <SelectItem key={ind.indicator_code} value={ind.indicator_code}>
-                      {getIndicatorDisplayName(ind)}
-                    </SelectItem>
-                  ))}
+                {/* 系统内置时间变量 */}
+                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                  系统日期
+                </div>
+                <SelectItem value="__T0__">T日 (实时数据日期)</SelectItem>
+                <SelectItem value="__T-1__">T-1日 (离线数据日期)</SelectItem>
+                
+                {/* 日期类型指标 */}
+                {indicators.filter(ind => ind.data_type === 'date').length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1">
+                      日期指标
+                    </div>
+                    {indicators
+                      .filter(ind => ind.data_type === 'date')
+                      .map(ind => (
+                        <SelectItem key={ind.indicator_code} value={ind.indicator_code}>
+                          {getIndicatorDisplayName(ind)}
+                        </SelectItem>
+                      ))}
+                  </>
+                )}
               </SelectContent>
             </Select>
 
