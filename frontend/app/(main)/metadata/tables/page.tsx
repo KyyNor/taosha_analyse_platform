@@ -9,11 +9,21 @@ export default function Page() {
   const [data, setData] = useState<any[]>([]);
   const router = useRouter();
 
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+
   const load = async () => {
     setLoading(true);
     try {
-      const res = await getTables({ fields: false }); // 优化查询，不返回字段信息
-      setData(Array.isArray(res?.data) ? res.data : res);
+      const res = await getTables({
+        fields: false,
+        page: currentPage,
+        page_size: pageSize
+      }); // 优化查询，不返回字段信息
+      setData(res?.items || []);
+      setTotal(res?.total || 0);
     } finally {
       setLoading(false);
     }
@@ -21,7 +31,12 @@ export default function Page() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [currentPage]);
+
+  // 分页处理
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   // 表格列配置
   const columns = [
@@ -64,6 +79,12 @@ export default function Page() {
         onEdit={handleEdit}
         searchPlaceholder="搜索表名或描述..."
         emptyText="暂无数据表数据"
+        pagination={{
+          pageSize,
+          currentPage,
+          total,
+          onPageChange: handlePageChange,
+        }}
       />
     </div>
   );

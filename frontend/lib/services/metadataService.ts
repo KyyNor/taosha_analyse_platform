@@ -1,7 +1,7 @@
 import api from "../api";
 
 // 数据表管理
-export async function getTables(params?: { fields?: boolean; table_name?: string; isAvailable?: boolean }) {
+export async function getTables(params?: { page?: number; page_size?: number; fields?: boolean; table_name?: string; isAvailable?: boolean }) {
   const res = await api.get("/metadata/tables", { params });
   return res.data;
 }
@@ -37,8 +37,8 @@ export async function batchUpdateTableAndColumns(tableId: number, data: { table:
 }
 
 // 关系配置管理
-export async function getRelations() {
-  const res = await api.get("/metadata/relation-configs");
+export async function getRelations(params?: { page?: number; page_size?: number }) {
+  const res = await api.get("/metadata/relation-configs", { params });
   return res.data;
 }
 
@@ -89,7 +89,7 @@ export async function deleteGlossaryTerm(termId: number) {
 }
 
 // 数据主题管理
-export async function getThemes(params?: { theme_type?: string }) {
+export async function getThemes(params?: { page?: number; page_size?: number; theme_type?: string }) {
   const res = await api.get("/metadata/themes", { params });
   return res.data;
 }
@@ -130,8 +130,8 @@ export async function removeTableFromTheme(themeId: number, tableId: number) {
 }
 
 // 提示词模板管理
-export async function getPromptTemplates() {
-  const res = await api.get("/metadata/prompt-templates");
+export async function getPromptTemplates(params?: { page?: number; page_size?: number }) {
+  const res = await api.get("/metadata/prompt-templates", { params });
   return res.data;
 }
 
@@ -173,6 +173,8 @@ export interface FineReport {
 }
 
 export interface FineReportFilters {
+  page?: number;
+  page_size?: number;
   is_available?: number;
   report_type?: string;
   department_id?: number;

@@ -25,22 +25,26 @@ router = APIRouter(prefix="/metadata")
 # 表元数据管理
 @router.get("/tables")
 async def get_all_table_metadata(
+        page: int = 1,
+        page_size: int = 20,
         isAvailable: Optional[str] = None,
-        fields: Optional[bool] = True,  # 新增参数，默认返回字段
-        table_name: Optional[str] = None,  # 新增参数，支持表名搜索
+        fields: Optional[bool] = False,  # 默认不返回字段信息以提升性能
+        table_name: Optional[str] = None,
         db: Session = Depends(get_db)
 ):
-    """获取所有表元数据"""
+    """获取所有表元数据（支持分页）"""
     try:
         metadata_service = get_metadata_service(db)
 
-        tables = metadata_service.get_tables(
+        result = metadata_service.get_tables_paginated(
+            page=page,
+            page_size=page_size,
             is_available=isAvailable,
             include_fields=fields,
             table_name_filter=table_name
         )
 
-        return {"success": True, "data": tables}
+        return {"success": True, **result}
     except Exception as e:
         logger.error(f"获取表元数据失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -382,12 +386,16 @@ async def get_relation_config_by_id(config_id: int, db: Session = Depends(get_db
 
 
 @router.get("/relation-configs")
-async def get_all_relation_configs(db: Session = Depends(get_db)):
-    """获取所有关联字段配置"""
+async def get_all_relation_configs(
+    page: int = 1,
+    page_size: int = 20,
+    db: Session = Depends(get_db)
+):
+    """获取所有关联字段配置（支持分页）"""
     try:
         relation_service = get_relation_field_config_service(db)
-        configs = relation_service.get_all_relation_configs()
-        return {"success": True, "data": configs}
+        result = relation_service.get_relation_configs_paginated(page=page, page_size=page_size)
+        return {"success": True, **result}
     except Exception as e:
         logger.error(f"获取关联字段配置失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -470,12 +478,16 @@ async def get_prompt_template_by_id(template_id: int, db: Session = Depends(get_
 
 
 @router.get("/prompt-templates")
-async def get_all_prompt_templates(db: Session = Depends(get_db)):
-    """获取所有提示词模板"""
+async def get_all_prompt_templates(
+    page: int = 1,
+    page_size: int = 20,
+    db: Session = Depends(get_db)
+):
+    """获取所有提示词模板（支持分页）"""
     try:
         template_service = get_prompt_template_service(db)
-        templates = template_service.get_templates()
-        return {"success": True, "data": templates}
+        result = template_service.get_templates_paginated(page=page, page_size=page_size)
+        return {"success": True, **result}
     except Exception as e:
         logger.error(f"获取提示词模板失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -536,14 +548,18 @@ async def delete_prompt_template(template_id: int, db: Session = Depends(get_db)
 
 # 数据主题管理
 @router.get("/themes")
-async def get_all_themes(theme_type: Optional[str] = None, 
-                         db: Session = Depends(get_db)):
-    """获取所有数据主题"""
+async def get_all_themes(
+    page: int = 1,
+    page_size: int = 20,
+    theme_type: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """获取所有数据主题（支持分页）"""
     try:
         # todo 只返回非公共表
         theme_service = get_data_theme_service(db)
-        themes = theme_service.get_all_themes()
-        return {"success": True, "data": themes}
+        result = theme_service.get_themes_paginated(page=page, page_size=page_size)
+        return {"success": True, **result}
     except Exception as e:
         logger.error(f"获取数据主题失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -680,22 +696,26 @@ async def get_designer_urls():
 
 @router.get("/fine-reports")
 async def get_all_fine_reports(
+    page: int = 1,
+    page_size: int = 20,
     is_available: Optional[int] = None,
     report_type: Optional[str] = None,
     department_id: Optional[int] = None,
     keyword: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    """获取所有FineReport报表（支持多条件过滤）"""
+    """获取所有FineReport报表（支持多条件过滤和分页）"""
     try:
         report_service = get_fine_report_service(db)
-        reports = report_service.get_all_reports(
+        result = report_service.get_reports_paginated(
+            page=page,
+            page_size=page_size,
             is_available=is_available,
             report_type=report_type,
             department_id=department_id,
             keyword=keyword
         )
-        return {"success": True, "data": reports}
+        return {"success": True, **result}
     except Exception as e:
         logger.error(f"获取FineReport报表列表失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

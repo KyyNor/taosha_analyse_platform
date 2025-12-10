@@ -86,6 +86,77 @@ class MetadataService:
             table_name_filter=table_name_filter
         ).get("tables", [])
 
+    def get_tables_paginated(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        is_available: Optional[str] = None,
+        include_fields: Optional[bool] = True,
+        table_name_filter: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """分页获取表信息列表"""
+        try:
+            # 构建过滤条件
+            filters = {}
+            if is_available is not None:
+                filters['is_available'] = is_available
+            if table_name_filter is not None:
+                filters['name'] = table_name_filter
+
+            result = self.table_repo.get_paginated(page=page, page_size=page_size, **filters)
+
+            tables_list = []
+            for table in result['items']:
+                # 在访问属性之前先获取所有需要的值，避免会话问题
+                table_id = table.id
+                table_name = table.name
+                table_comment = table.comment or ""
+                table_is_available = int(table.is_available or 0)
+                table_created_at = table.created_at
+                table_updated_at = table.updated_at
+                table_remark = table.remark or ""
+
+                # 获取列信息（如果需要）
+                columns_list = []
+                if include_fields and hasattr(table, 'columns') and table.columns:
+                    for column in table.columns:
+                        if column is not None:
+                            column_dict = {
+                                "id": column.id,
+                                "name": column.name,
+                                "type": column.type,
+                                "comment": column.comment or "",
+                                "remark": column.remark or "",
+                                "is_available": int(column.is_available or 0),
+                                "business_type": column.business_type or "",
+                                "relation_config_id": column.relation_config_id or ""
+                            }
+                            columns_list.append(column_dict)
+
+                # 转换为字典格式
+                table_dict = {
+                    "id": table_id,
+                    "name": table_name,
+                    "comment": table_comment,
+                    "remark": table_remark,
+                    "is_available": table_is_available,
+                    "created_at": table_created_at,
+                    "updated_at": table_updated_at,
+                    "columns": columns_list
+                }
+
+                tables_list.append(table_dict)
+
+            return {
+                'items': tables_list,
+                'total': result['total'],
+                'page': result['page'],
+                'page_size': result['page_size']
+            }
+        except Exception as e:
+            logger.error(f"分页获取表信息失败: {e}")
+            return {'items': [], 'total': 0, 'page': page, 'page_size': page_size}
+
     def get_table_by_id(self, table_id: int) -> Optional[Dict[str, Any]]:
         """根据ID获取单个表信息（不包含字段列表）"""
         try:
@@ -533,6 +604,33 @@ class RelationFieldConfigService:
             logger.error(f"获取关联字段配置失败: {e}")
             return []
 
+    def get_relation_configs_paginated(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
+        """分页获取关联字段配置列表"""
+        try:
+            result = self.repo.get_paginated(page=page, page_size=page_size)
+
+            configs_list = []
+            for config in result['items']:
+                configs_list.append({
+                    "id": config.id,
+                    "relation_id": f"{config.relation_family}|{config.relation_subfamily}",  # 拼接的关联ID，用于前端显示
+                    "relation_family": config.relation_family,
+                    "relation_subfamily": config.relation_subfamily,
+                    "relation_desc": config.relation_desc or "",
+                    "created_at": config.created_at.isoformat() if config.created_at else None,
+                    "updated_at": config.updated_at.isoformat() if config.updated_at else None
+                })
+
+            return {
+                'items': configs_list,
+                'total': result['total'],
+                'page': result['page'],
+                'page_size': result['page_size']
+            }
+        except Exception as e:
+            logger.error(f"分页获取关联字段配置失败: {e}")
+            return {'items': [], 'total': 0, 'page': page, 'page_size': page_size}
+
     def add_relation_config(self, family: str, subfamily: str, desc: str = "") -> Optional[Dict[str, Any]]:
         """添加关联字段配置"""
         try:
@@ -860,6 +958,39 @@ class PromptTemplateService:
         """获取提示词模板数据（直接从数据库查询）"""
         return self._build_templates_dict()
 
+    def get_templates_paginated(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
+        """分页获取提示词模板列表"""
+        try:
+            result = self.repo.get_paginated(page=page, page_size=page_size)
+
+            templates_list = []
+            for template in result['items']:
+                # 解析 JSON fields
+                try:
+                    fields_data = json.loads(template.fields) if template.fields else []
+                except json.JSONDecodeError:
+                    fields_data = []
+                    logger.warning(f"提示词模板 {template.name} 的 fields 字段不是有效的 JSON 格式")
+
+                templates_list.append({
+                    "id": template.id,
+                    "name": template.name,
+                    "fields": fields_data,
+                    "template": template.template or "",
+                    "created_at": template.created_at,
+                    "updated_at": template.updated_at
+                })
+
+            return {
+                'items': templates_list,
+                'total': result['total'],
+                'page': result['page'],
+                'page_size': result['page_size']
+            }
+        except Exception as e:
+            logger.error(f"分页获取提示词模板失败: {e}")
+            return {'items': [], 'total': 0, 'page': page, 'page_size': page_size}
+
     def get_template_by_id(self, template_id: int) -> Optional[Dict[str, Any]]:
         """根据ID获取提示词模板"""
         for template in self.get_templates():
@@ -999,6 +1130,33 @@ class DataThemeService:
         except Exception as e:
             logger.error(f"获取数据主题失败: {e}")
             return []
+
+    def get_themes_paginated(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
+        """分页获取数据主题列表"""
+        try:
+            result = self.theme_repo.get_paginated(page=page, page_size=page_size)
+
+            themes_list = []
+            for theme in result['items']:
+                themes_list.append({
+                    "id": theme.id,
+                    "theme_name": theme.theme_name,
+                    "theme_description": theme.theme_description or "",
+                    "theme_type": theme.theme_type,
+                    "department": theme.department or "",
+                    "created_at": theme.created_at,
+                    "updated_at": theme.updated_at
+                })
+
+            return {
+                'items': themes_list,
+                'total': result['total'],
+                'page': result['page'],
+                'page_size': result['page_size']
+            }
+        except Exception as e:
+            logger.error(f"分页获取数据主题失败: {e}")
+            return {'items': [], 'total': 0, 'page': page, 'page_size': page_size}
 
     def get_theme_by_id(self, theme_id: int) -> Optional[Dict[str, Any]]:
         """根据ID获取数据主题"""

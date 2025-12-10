@@ -46,6 +46,57 @@ class FineReportService:
             logger.error(f"获取报表列表失败: {e}")
             return []
 
+    def get_reports_paginated(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        is_available: Optional[int] = None,
+        report_type: Optional[str] = None,
+        department_id: Optional[int] = None,
+        keyword: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        分页获取报表列表（支持多条件过滤）
+
+        Args:
+            page: 页码
+            page_size: 每页大小
+            is_available: 可用状态过滤 (0=可用, 1=不可用)
+            report_type: 报表类型过滤 ('summary' or 'detail')
+            department_id: 部门ID过滤
+            keyword: 搜索关键词
+
+        Returns:
+            分页结果字典
+        """
+        try:
+            # 构建过滤条件
+            filters = {}
+            if is_available is not None:
+                filters['is_available'] = is_available
+            if report_type is not None:
+                filters['report_type'] = report_type
+            if department_id is not None:
+                filters['department_id'] = department_id
+            if keyword is not None:
+                filters['keyword'] = keyword
+
+            result = self.repo.get_paginated(page=page, page_size=page_size, **filters)
+
+            reports_list = []
+            for report in result['items']:
+                reports_list.append(self._report_to_dict(report))
+
+            return {
+                'items': reports_list,
+                'total': result['total'],
+                'page': result['page'],
+                'page_size': result['page_size']
+            }
+        except Exception as e:
+            logger.error(f"分页获取报表失败: {e}")
+            return {'items': [], 'total': 0, 'page': page, 'page_size': page_size}
+
     def get_report_by_id(self, report_id: int) -> Optional[Dict[str, Any]]:
         """
         根据ID获取报表详情

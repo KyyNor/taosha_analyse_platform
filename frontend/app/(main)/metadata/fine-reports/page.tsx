@@ -18,11 +18,21 @@ export default function FineReportsPage() {
   }>({});
   const router = useRouter();
 
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+
   const load = async () => {
     setLoading(true);
     try {
-      const res = await getFineReports(filters);
-      setData(Array.isArray(res?.data) ? res.data : res);
+      const res = await getFineReports({
+        ...filters,
+        page: currentPage,
+        page_size: pageSize
+      });
+      setData(res?.items || []);
+      setTotal(res?.total || 0);
     } catch (error) {
       console.error("加载FineReport报表失败:", error);
       toast.error("加载报表失败");
@@ -33,7 +43,17 @@ export default function FineReportsPage() {
 
   useEffect(() => {
     load();
+  }, [filters, currentPage]);
+
+  // 筛选条件变化时重置到第一页
+  useEffect(() => {
+    setCurrentPage(1);
   }, [filters]);
+
+  // 分页处理
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   // 表格列配置
   const columns = [
@@ -140,6 +160,12 @@ export default function FineReportsPage() {
         onDelete={handleDelete}
         searchPlaceholder="搜索报表名称或描述..."
         emptyText="暂无FineReport报表数据"
+        pagination={{
+          pageSize,
+          currentPage,
+          total,
+          onPageChange: handlePageChange,
+        }}
       />
       <DialogComponent />
     </div>
