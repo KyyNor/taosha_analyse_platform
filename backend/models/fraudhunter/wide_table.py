@@ -4,8 +4,8 @@ FraudHunter宽表版本管理相关模型
 
 from sqlalchemy import Column, Integer, String, Text, DateTime, Date, BigInteger, Index, ForeignKey, JSON
 from sqlalchemy.orm import relationship, Mapped, mapped_column
-from datetime import datetime
-from typing import Optional, Dict
+from datetime import datetime, date
+from typing import Optional, Dict, List
 from models.db_base import Base
 
 
@@ -196,7 +196,7 @@ class FraudHunterWideTableSnapshot(Base):
         String(16),
         default='generating',
         nullable=False,
-        comment='状态: generating/ready/failed'
+        comment='状态: generating/ready/failed/deleted'
     )
 
     # 生成时间
@@ -238,4 +238,56 @@ class FraudHunterWideTableSnapshot(Base):
             f"table='{self.wide_table_name}', "
             f"etl_date={self.etl_date}, "
             f"status='{self.status}')>"
+        )
+
+
+class FraudHunterVersionFallbackLog(Base):
+    """版本降级日志表
+    
+    记录模型执行时因指标版本不匹配而降级使用target版本的情况
+    """
+    __tablename__ = "fraudhunter_version_fallback_log"
+
+    # 主键
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, comment='主键ID')
+
+    # 执行上下文
+    execution_id: Mapped[str] = mapped_column(String(64), nullable=False, comment='执行ID')
+    model_code: Mapped[str] = mapped_column(String(64), nullable=False, comment='模型编码')
+    wide_table_name: Mapped[str] = mapped_column(String(128), nullable=False, comment='宽表名称')
+    etl_date: Mapped[date] = mapped_column(Date, nullable=False, comment='ETL日期')
+
+    # 版本信息
+    expected_version: Mapped[str] = mapped_column(String(64), nullable=False, comment='期望版本(current)')
+    actual_version: Mapped[str] = mapped_column(String(64), nullable=False, comment='实际使用版本(target)')
+
+    # 降级原因
+    fallback_reason: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        comment='降级原因类型: indicator_not_in_current/indicator_version_upgraded/current_not_exist'
+    )
+    fallback_indicators: Mapped[Optional[Dict]] = mapped_column(
+        JSON,
+        comment='触发降级的指标详情 [{indicator_code, indicator_name, reason, message}]'
+    )
+
+    # 审计字段
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, comment='创建时间')
+
+    # 索引
+    __table_args__ = (
+        Index('idx_fh_fallback_execution_id', 'execution_id'),
+        Index('idx_fh_fallback_model_code', 'model_code'),
+        Index('idx_fh_fallback_etl_date', 'etl_date'),
+        Index('idx_fh_fallback_created_at', 'created_at'),
+    )
+
+    def __repr__(self):
+        return (
+            f"<FraudHunterVersionFallbackLog("
+            f"id={self.id}, "
+            f"model='{self.model_code}', "
+            f"etl_date={self.etl_date}, "
+            f"reason='{self.fallback_reason}')>"
         )

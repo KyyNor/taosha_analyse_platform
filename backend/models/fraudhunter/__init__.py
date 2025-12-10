@@ -20,6 +20,7 @@ from .wide_table import (
     FraudHunterIndicatorRunProgress,
     FraudHunterWideTableVersion,
     FraudHunterWideTableSnapshot,
+    FraudHunterVersionFallbackLog,
 )
 
 __all__ = [
@@ -34,4 +35,5 @@ __all__ = [
     'FraudHunterIndicatorRunProgress',
     'FraudHunterWideTableVersion',
     'FraudHunterWideTableSnapshot',
+    'FraudHunterVersionFallbackLog',
 ]

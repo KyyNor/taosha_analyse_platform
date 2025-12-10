@@ -3,16 +3,19 @@
 """
 
 import hashlib
+from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from datetime import datetime, date
 from models.fraudhunter.indicator import FraudHunterIndicatorDefinition
 from models.fraudhunter.wide_table import (
     FraudHunterWideTableVersion,
+    FraudHunterWideTableSnapshot,
     FraudHunterIndicatorRunProgress
 )
 from utils.logger import logger
+from utils.config import settings
 
 
 class WideTableVersionManager:
@@ -320,14 +323,16 @@ class WideTableVersionManager:
 
     def promote_target_to_current(
         self,
-        target_version: FraudHunterWideTableVersion
+        target_version: FraudHunterWideTableVersion,
+        cleanup_history: bool = True
     ) -> FraudHunterWideTableVersion:
         """将target版本提升为current
 
-        同时将旧的current版本标记为history
+        同时将旧的current版本标记为history，并清理历史文件
 
         Args:
             target_version: 目标版本对象
+            cleanup_history: 是否清理历史版本文件（默认True）
 
         Returns:
             更新后的版本对象
@@ -346,14 +351,186 @@ class WideTableVersionManager:
         if old_current:
             old_current.status = 'history'
             old_current.history_at = datetime.utcnow()
-            logger.info(f"将版本 {old_current.version_hash[:16]}... 标记为history")
+            logger.info(f"将版本 {old_current.version_hash[:8]} 标记为history")
 
         # 2. 提升target为current
         target_version.status = 'current'
         target_version.current_at = datetime.utcnow()
 
+        self.db.flush()
+
+        # 3. 清理历史版本的文件和记录
+        if cleanup_history and old_current:
+            deleted_count = self.cleanup_history_version(old_current)
+            logger.info(f"清理历史版本完成，删除 {deleted_count} 个文件")
+
         self.db.commit()
         self.db.refresh(target_version)
 
-        logger.info(f"版本 {target_version.version_hash[:16]}... 已提升为current")
+        logger.info(f"版本 {target_version.version_hash[:8]} 已提升为current")
         return target_version
+
+    def check_and_promote_target(
+        self,
+        wide_table_name: str,
+        promote_threshold: float = 0.5
+    ) -> Optional[FraudHunterWideTableVersion]:
+        """检查并执行target→current版本切换
+        
+        切换条件: target快照数量 >= current快照数量 * threshold
+        首次创建时（无current版本），target有1个快照即可提升
+        
+        Args:
+            wide_table_name: 宽表名称
+            promote_threshold: 切换阈值（默认0.5，即50%）
+            
+        Returns:
+            切换后的current版本，如果未切换返回None
+        """
+        # 1. 获取current和target版本
+        current_version = self.db.query(FraudHunterWideTableVersion).filter(
+            and_(
+                FraudHunterWideTableVersion.wide_table_name == wide_table_name,
+                FraudHunterWideTableVersion.status == 'current'
+            )
+        ).first()
+
+        target_version = self.db.query(FraudHunterWideTableVersion).filter(
+            and_(
+                FraudHunterWideTableVersion.wide_table_name == wide_table_name,
+                FraudHunterWideTableVersion.status == 'target'
+            )
+        ).first()
+
+        if not target_version:
+            logger.debug(f"{wide_table_name} 没有target版本，无需切换")
+            return None
+
+        # 2. 统计快照数量
+        target_snapshot_count = self.db.query(func.count(FraudHunterWideTableSnapshot.id)).filter(
+            and_(
+                FraudHunterWideTableSnapshot.version_hash == target_version.version_hash,
+                FraudHunterWideTableSnapshot.status == 'ready'
+            )
+        ).scalar() or 0
+
+        current_snapshot_count = 0
+        if current_version:
+            current_snapshot_count = self.db.query(func.count(FraudHunterWideTableSnapshot.id)).filter(
+                and_(
+                    FraudHunterWideTableSnapshot.version_hash == current_version.version_hash,
+                    FraudHunterWideTableSnapshot.status == 'ready'
+                )
+            ).scalar() or 0
+
+        # 3. 检查切换条件
+        # 如果没有current版本，只要target有一个快照就可以提升
+        if current_version:
+            threshold = current_snapshot_count * promote_threshold
+        else:
+            threshold = 1
+
+        if target_snapshot_count < threshold:
+            logger.info(
+                f"{wide_table_name} 未满足切换条件: "
+                f"target快照={target_snapshot_count}, current快照={current_snapshot_count}, "
+                f"需要>={threshold:.0f}"
+            )
+            return None
+
+        # 4. 执行版本切换
+        logger.info(
+            f"开始版本切换: {wide_table_name}, "
+            f"target({target_version.version_hash[:8]}) -> current, "
+            f"快照数量: {target_snapshot_count}/{current_snapshot_count}"
+        )
+
+        return self.promote_target_to_current(target_version, cleanup_history=True)
+
+    def cleanup_history_version(
+        self,
+        history_version: FraudHunterWideTableVersion
+    ) -> int:
+        """清理history版本的文件和记录
+        
+        删除物理文件并更新snapshot状态为deleted
+        
+        Args:
+            history_version: 历史版本对象
+            
+        Returns:
+            删除的文件数量
+        """
+        # 1. 获取该版本的所有快照
+        snapshots = self.db.query(FraudHunterWideTableSnapshot).filter(
+            and_(
+                FraudHunterWideTableSnapshot.version_hash == history_version.version_hash,
+                FraudHunterWideTableSnapshot.status.in_(['ready', 'generating', 'failed'])
+            )
+        ).all()
+
+        deleted_count = 0
+
+        for snapshot in snapshots:
+            # 2. 删除物理文件
+            if snapshot.parquet_file_path:
+                try:
+                    file_path = Path(snapshot.parquet_file_path)
+                    if file_path.exists():
+                        file_path.unlink()
+                        deleted_count += 1
+                        logger.info(f"删除历史版本文件: {file_path.name}")
+                except Exception as e:
+                    logger.error(f"删除文件失败 {snapshot.parquet_file_path}: {e}")
+
+            # 3. 更新快照状态为deleted
+            snapshot.status = 'deleted'
+
+        logger.info(
+            f"清理版本 {history_version.version_hash[:8]} 完成, "
+            f"删除 {deleted_count} 个文件, 更新 {len(snapshots)} 条快照记录"
+        )
+
+        return deleted_count
+
+    def get_version_by_status(
+        self,
+        wide_table_name: str,
+        status: str
+    ) -> Optional[FraudHunterWideTableVersion]:
+        """根据状态获取宽表版本
+        
+        Args:
+            wide_table_name: 宽表名称
+            status: 版本状态（current/target/history）
+            
+        Returns:
+            版本对象或None
+        """
+        return self.db.query(FraudHunterWideTableVersion).filter(
+            and_(
+                FraudHunterWideTableVersion.wide_table_name == wide_table_name,
+                FraudHunterWideTableVersion.status == status
+            )
+        ).first()
+
+    def get_snapshot_count(
+        self,
+        version_hash: str,
+        status: str = 'ready'
+    ) -> int:
+        """获取指定版本的快照数量
+        
+        Args:
+            version_hash: 版本hash
+            status: 快照状态（默认ready）
+            
+        Returns:
+            快照数量
+        """
+        return self.db.query(func.count(FraudHunterWideTableSnapshot.id)).filter(
+            and_(
+                FraudHunterWideTableSnapshot.version_hash == version_hash,
+                FraudHunterWideTableSnapshot.status == status
+            )
+        ).scalar() or 0

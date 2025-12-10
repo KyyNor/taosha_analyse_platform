@@ -332,7 +332,9 @@ class WideTableSyncService:
             "synced": synced_count,
             "skipped": skipped_count,
             "failed": failed_count,
-            "details": details
+            "details": details,
+            "version_promoted": False,
+            "new_current_version": None
         }
 
         logger.info(
@@ -340,6 +342,24 @@ class WideTableSyncService:
             f"总计{len(etl_dates)}天, 成功{synced_count}, "
             f"跳过{skipped_count}, 失败{failed_count}"
         )
+
+        # 4. 检查并执行版本切换
+        if synced_count > 0:
+            try:
+                with get_db_session() as db:
+                    version_manager = WideTableVersionManager(db)
+                    promoted_version = version_manager.check_and_promote_target(wide_table_name)
+                    
+                    if promoted_version:
+                        result['version_promoted'] = True
+                        result['new_current_version'] = promoted_version.version_hash[:8]
+                        logger.info(
+                            f"{wide_table_name} 版本已自动切换: "
+                            f"{promoted_version.version_hash[:8]} 成为新的current版本"
+                        )
+            except Exception as e:
+                logger.error(f"检查版本切换时出错: {e}", exc_info=True)
+                result['version_promote_error'] = str(e)
 
         return result
 
