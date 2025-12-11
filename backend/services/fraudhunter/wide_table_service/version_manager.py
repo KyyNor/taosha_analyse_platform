@@ -8,7 +8,7 @@ from typing import List, Dict, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from datetime import datetime, date
-from models.fraudhunter.indicator import FraudHunterIndicatorDefinition
+from models.fraudhunter.indicator import FraudHunterIndicatorDefinition, FraudHunterIndicatorTask
 from models.fraudhunter.wide_table import (
     FraudHunterWideTableVersion,
     FraudHunterWideTableSnapshot,
@@ -70,9 +70,12 @@ class WideTableVersionManager:
         indicator_metadata = {}
 
         for indicator in sorted_indicators:
+            indicator_task = self.db.query(FraudHunterIndicatorTask).filter(
+                FraudHunterIndicatorTask.id == indicator.indicator_task_id
+            ).first()
             parts.append(f"{indicator.id}_{indicator.current_version}")
             indicator_metadata[indicator.id] = {
-                "version": indicator.current_version,
+                "version": indicator_task.current_version,
                 "indicator_code": indicator.indicator_code,
                 "indicator_name": indicator.indicator_name,
                 "indicator_type": indicator.indicator_type,

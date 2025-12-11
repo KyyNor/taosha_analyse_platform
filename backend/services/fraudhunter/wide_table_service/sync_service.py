@@ -418,11 +418,8 @@ class WideTableSyncService:
         # 使用PySpark执行查询
         spark_df = pyspark_service.execute_sql(sql)
 
-        # 转换为pandas DataFrame
-        pandas_df = spark_df.toPandas()
-
-        logger.info(f"查询完成，返回 {len(pandas_df)} 行，{len(pandas_df.columns)} 列")
-        return pandas_df
+        logger.info(f"查询完成，返回 {len(spark_df)} 行")
+        return spark_df
 
     def _query_with_jdbc(self, sql: str) -> pd.DataFrame:
         """使用JDBC执行查询并返回DataFrame
@@ -440,15 +437,8 @@ class WideTableSyncService:
         # 执行查询
         results = spark_utils.query_sql(sql, return_type='dict')
 
-        if not results:
-            logger.warning("查询返回空结果")
-            return pd.DataFrame()
-
-        # 转换为DataFrame
-        df = pd.DataFrame(results)
-
-        logger.info(f"查询完成，返回 {len(df)} 行，{len(df.columns)} 列")
-        return df
+        logger.info(f"查询完成，返回 {len(results)} 行")
+        return results
 
     def _build_pivot_sql(
         self,
