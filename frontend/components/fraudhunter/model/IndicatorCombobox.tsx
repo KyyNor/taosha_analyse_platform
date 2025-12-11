@@ -9,7 +9,7 @@
  * - 支持键盘导航
  */
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Check, ChevronsUpDown, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -53,6 +53,8 @@ export function IndicatorCombobox({
 }: IndicatorComboboxProps) {
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const selectedItemRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // 筛选指标列表
   const filteredIndicators = filterFn
@@ -72,6 +74,27 @@ export function IndicatorCombobox({
   const selectedIndicator = indicators.find(
     ind => ind.indicator_code === value
   )
+
+  // 当下拉框打开时，滚动到选中的项
+  useEffect(() => {
+    if (open && selectedItemRef.current && scrollContainerRef.current) {
+      // 延迟滚动，确保DOM已渲染
+      setTimeout(() => {
+        if (selectedItemRef.current && scrollContainerRef.current) {
+          const container = scrollContainerRef.current
+          const item = selectedItemRef.current
+
+          // 计算需要滚动的位置，使选中项位于容器中间
+          const containerHeight = container.clientHeight
+          const itemTop = item.offsetTop
+          const itemHeight = item.clientHeight
+          const scrollTop = itemTop - (containerHeight / 2) + (itemHeight / 2)
+
+          container.scrollTop = Math.max(0, scrollTop)
+        }
+      }, 0)
+    }
+  }, [open])
 
   // 获取指标类型的颜色
   const getIndicatorTypeVariant = (type?: string) => {
@@ -148,11 +171,12 @@ export function IndicatorCombobox({
             />
           </div>
           <CommandEmpty>未找到匹配的指标</CommandEmpty>
-          <CommandGroup className="max-h-[300px] overflow-y-auto">
+          <CommandGroup ref={scrollContainerRef} className="max-h-[300px] overflow-y-auto">
             {searchedIndicators.map((indicator) => (
               <CommandItem
                 key={indicator.indicator_code}
                 value={indicator.indicator_code}
+                ref={value === indicator.indicator_code ? selectedItemRef : null}
                 onSelect={() => {
                   onChange(indicator.indicator_code)
                   setOpen(false)
