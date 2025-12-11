@@ -9,14 +9,13 @@
  * - 支持键盘导航
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { Check, ChevronsUpDown, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
 } from '@/components/ui/command'
 import {
@@ -24,6 +23,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import type { Indicator } from '@/types/fraudhunter/rule'
@@ -93,34 +98,44 @@ export function IndicatorCombobox({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className={cn("justify-between h-8", className)}
-        >
-          {selectedIndicator ? (
-            <div className="flex items-center gap-2 flex-1 overflow-hidden">
-              <span className="truncate">
-                {getIndicatorDisplayName(selectedIndicator)}
-              </span>
-              {selectedIndicator.indicator_type && (
-                <Badge
-                  variant={getIndicatorTypeVariant(selectedIndicator.indicator_type)}
-                  className="text-xs flex-shrink-0"
-                >
-                  {getIndicatorTypeLabel(selectedIndicator.indicator_type)}
-                </Badge>
-              )}
-            </div>
-          ) : (
-            <span className="text-muted-foreground">{placeholder}</span>
+    <TooltipProvider>
+      <Popover open={open} onOpenChange={setOpen}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={open}
+                className={cn("justify-between h-8", className)}
+              >
+                {selectedIndicator ? (
+                  <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
+                    <span className="truncate">
+                      {getIndicatorDisplayName(selectedIndicator)}
+                    </span>
+                    {selectedIndicator.indicator_type && (
+                      <Badge
+                        variant={getIndicatorTypeVariant(selectedIndicator.indicator_type)}
+                        className="text-[10px] px-1 py-0 h-4 flex-shrink-0"
+                      >
+                        {getIndicatorTypeLabel(selectedIndicator.indicator_type)}
+                      </Badge>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">{placeholder}</span>
+                )}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          {selectedIndicator && (
+            <TooltipContent>
+              <p>{selectedIndicator.indicator_name}</p>
+            </TooltipContent>
           )}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
+        </Tooltip>
       <PopoverContent className="w-[400px] p-0" align="start">
         <Command shouldFilter={false}>
           <div className="flex items-center border-b px-3">
@@ -162,7 +177,7 @@ export function IndicatorCombobox({
                       {indicator.indicator_type && (
                         <Badge
                           variant={getIndicatorTypeVariant(indicator.indicator_type)}
-                          className="text-xs flex-shrink-0"
+                          className="text-[10px] px-1 py-0 h-4 flex-shrink-0"
                         >
                           {getIndicatorTypeLabel(indicator.indicator_type)}
                         </Badge>
@@ -187,5 +202,6 @@ export function IndicatorCombobox({
         </Command>
       </PopoverContent>
     </Popover>
+    </TooltipProvider>
   )
 }

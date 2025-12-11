@@ -176,7 +176,7 @@ export function ConditionRuleEditor({
             value={rule.value.indicator}
             onChange={(value) => updateValue({ ...rule.value, indicator: value })}
             placeholder="选择指标"
-            className="w-[180px]"
+            className="w-[220px]"
             filterFn={(ind) => isCompatibleType(currentIndicator?.data_type, ind.data_type)}
           />
         )
@@ -263,7 +263,7 @@ export function ConditionRuleEditor({
               value={rule.value.indicator}
               onChange={(value) => updateValue({ ...rule.value, indicator: value })}
               placeholder="数值指标"
-              className="w-[180px]"
+              className="w-[220px]"
               filterFn={(ind) => isNumericType(ind.data_type)}
             />
             <span className="text-sm text-muted-foreground">)</span>
@@ -304,7 +304,7 @@ export function ConditionRuleEditor({
             value={rule.indicator}
             onChange={handleIndicatorChange}
             placeholder="选择指标"
-            className="w-[200px]"
+            className="w-[250px]"
           />
 
           {/* 函数选择（仅数值类型显示） */}
