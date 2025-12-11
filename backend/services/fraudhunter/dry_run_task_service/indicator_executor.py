@@ -1,5 +1,6 @@
 """
 指标执行器（Spark SQL执行 - 支持真实Spark连接）
+修复MySQL连接超时问题
 """
 
 import asyncio
@@ -12,13 +13,13 @@ from models.fraudhunter.dry_run_task import FraudHunterDryRunExecution
 from schemas.fraudhunter.indicator import IndicatorTaskCreate
 from utils.logger import logger
 from utils.spark_utils import spark_utils
+from models.db_base import SessionLocal
 
 
 class IndicatorExecutor:
     """指标执行器
 
-    由于实际Spark环境尚未集成，此处提供模拟执行功能
-    支持变量替换和字段验证
+    修复MySQL连接超时问题
     """
 
     def _replace_date_variables(self, sql: str, etl_date: Optional[str] = None) -> str:
@@ -181,8 +182,9 @@ class IndicatorExecutor:
             # 字段验证（如果启用）
             validation_result = None
             if validate_fields and indicator_ids:
-                validation_result = self._validate_output_fields(
-                    result['sample_result'], indicator_ids, db
+                # 重新获取数据库会话以避免连接超时
+                validation_result = self._validate_output_fields_with_fresh_db(
+                    result['sample_result'], indicator_ids
                 )
 
                 # 如果验证失败，记录错误但仍然返回结果
@@ -214,6 +216,23 @@ class IndicatorExecutor:
 
             logger.error(f"指标任务试运行失败: {task.task_code}, 错误: {str(e)}")
             raise
+
+    def _validate_output_fields_with_fresh_db(self, sample_result: List[Dict[str, Any]], indicator_ids: List[int]) -> Dict[str, Any]:
+        """使用新的数据库会话来验证输出字段（避免连接超时）
+
+        Args:
+            sample_result: 样本结果数据
+            indicator_ids: 关联的指标ID列表
+
+        Returns:
+            验证结果
+        """
+        # 创建新的数据库会话
+        fresh_db = SessionLocal()
+        try:
+            return self._validate_output_fields(sample_result, indicator_ids, fresh_db)
+        finally:
+            fresh_db.close()
 
     async def _spark_execution(
         self,
@@ -330,6 +349,7 @@ ETL日期: {etl_date}
             """验证任务逻辑（不需要创建任务）
 
             在创建任务前验证SQL逻辑和字段输出
+            修复MySQL连接超时问题
 
             Args:
                 db: 数据库会话
@@ -346,19 +366,10 @@ ETL日期: {etl_date}
             # 替换SQL中的日期变量
             processed_sql, etl_date = self._replace_date_variables(task_data.logic_content, etl_date)
 
-            # 获取关联的指标编码
-            indicators = db.query(FraudHunterIndicatorDefinition).filter(
-                FraudHunterIndicatorDefinition.id.in_(indicator_ids)
-            ).all()
+            # 先获取需要的指标编码（避免长时间操作后连接失效）
+            indicator_codes = self._get_indicator_codes_with_fresh_db(indicator_ids)
 
-            if len(indicators) != len(indicator_ids):
-                found_ids = [ind.id for ind in indicators]
-                missing_ids = set(indicator_ids) - set(found_ids)
-                raise ValueError(f"指标不存在: {missing_ids}")
-
-            indicator_codes = [ind.indicator_code for ind in indicators]
-
-            # 模拟SQL执行
+            # 执行Spark SQL（可能耗时较长）
             result = await self._spark_execution(
                 processed_sql,
                 etl_date,
@@ -366,9 +377,9 @@ ETL日期: {etl_date}
                 indicator_codes
             )
 
-            # 字段验证
-            validation_result = self._validate_output_fields(
-                result['sample_result'], indicator_ids, db
+            # 字段验证（使用新的数据库会话）
+            validation_result = self._validate_output_fields_with_fresh_db(
+                result['sample_result'], indicator_ids
             )
 
             return {
@@ -381,6 +392,31 @@ ETL日期: {etl_date}
                 'etl_date_used': etl_date,
                 'indicator_codes': indicator_codes
             }
+
+    def _get_indicator_codes_with_fresh_db(self, indicator_ids: List[int]) -> List[str]:
+        """使用新的数据库会话获取指标编码
+
+        Args:
+            indicator_ids: 指标ID列表
+
+        Returns:
+            指标编码列表
+        """
+        fresh_db = SessionLocal()
+        try:
+            indicators = fresh_db.query(FraudHunterIndicatorDefinition).filter(
+                FraudHunterIndicatorDefinition.id.in_(indicator_ids)
+            ).all()
+
+            if len(indicators) != len(indicator_ids):
+                found_ids = [ind.id for ind in indicators]
+                missing_ids = set(indicator_ids) - set(found_ids)
+                raise ValueError(f"指标不存在: {missing_ids}")
+
+            return [ind.indicator_code for ind in indicators]
+        finally:
+            fresh_db.close()
+
 
 # 全局指标执行器实例
 indicator_executor = IndicatorExecutor()

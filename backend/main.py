@@ -36,6 +36,9 @@ from services.metadata_service.metadata_sync_service import MetadataSyncService
 from services.metadata_service.fine_report_sync_service import FineReportSyncService
 # from services.agents.fine_report_tools import get_browser, _cleanup_browser  # 已改为异步版本
 
+# 全局变量：实时数据消费者实例
+_realtime_consumer = None
+
 
 def _acquire_startup_lock():
     """获取启动锁，确保在多worker环境下只有一个进程执行初始化
@@ -123,6 +126,18 @@ def _release_startup_lock():
             logger.info("锁文件不存在，无需释放")
     except Exception as e:
         logger.error(f"释放启动锁时出错: {e}")
+
+
+async def _run_realtime_consumer(consumer):
+    """运行实时数据消费者（后台任务）
+
+    Args:
+        consumer: RealtimeDataConsumer实例
+    """
+    try:
+        await consumer.start()
+    except Exception as e:
+        logger.error(f"实时数据消费服务运行异常: {e}", exc_info=True)
 
 
 async def _initialize_pyspark():
@@ -213,6 +228,25 @@ async def _initialize_system_services():
             else:
                 logger.error(f"FineReport报表同步失败: {fine_report_sync_result.get('error', 'Unknown error')}")
 
+        # 启动实时数据服务（如果配置启用）
+        # 注意：在启动锁保护内启动，确保只有一个worker执行
+        if settings.fraudhunter_realtime_data_enabled:
+            try:
+                from services.fraudhunter.realtime_data_service import RealtimeDataConsumer
+
+                # 全局保存consumer引用（用于关闭时停止）
+                global _realtime_consumer
+                _realtime_consumer = RealtimeDataConsumer()
+
+                # 创建后台任务
+                asyncio.create_task(_run_realtime_consumer(_realtime_consumer))
+
+                logger.info("实时数据消费服务已启动")
+
+            except Exception as e:
+                # 启动异常不影响其他功能，只记录错误
+                logger.error(f"实时数据消费服务启动失败: {e}", exc_info=True)
+
         # 启动统一调度服务（在启动锁保护下，确保单进程）
         try:
             from services.scheduler import scheduler_service
@@ -236,6 +270,16 @@ async def _initialize_system_services():
                 job_id='generate_realtime_wide_table_job',
                 job_name='实时指标宽表生成'
             )
+
+            # 添加实时数据清理任务
+            if settings.fraudhunter_realtime_data_enabled:
+                from services.scheduler.jobs.realtime_data_cleanup_job import cleanup_realtime_data
+                scheduler_service.add_cron_job(
+                    func=cleanup_realtime_data,
+                    cron='0 2 * * *',  # 每日凌晨2点
+                    job_id='realtime_data_cleanup',
+                    job_name='实时数据清理'
+                )
 
             # 启动调度器
             scheduler_service.start()
@@ -323,6 +367,14 @@ async def lifespan(app: FastAPI):
             logger.info("统一调度服务已关闭")
         except Exception as e:
             logger.error(f"统一调度服务关闭失败: {e}", exc_info=True)
+
+        # 停止实时数据消费者
+        if settings.fraudhunter_realtime_data_enabled and _realtime_consumer is not None:
+            try:
+                await _realtime_consumer.stop()
+                logger.info("实时数据消费服务已停止")
+            except Exception as e:
+                logger.error(f"停止实时数据消费服务失败: {e}", exc_info=True)
 
         # 关闭PySpark服务
         await _shutdown_pyspark()

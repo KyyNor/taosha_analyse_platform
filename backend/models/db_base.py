@@ -1,5 +1,6 @@
 """
 SQLAlchemy基础配置
+改进MySQL连接超时问题
 """
 
 from sqlalchemy import create_engine, MetaData
@@ -32,12 +33,22 @@ def get_database_url() -> str:
     else:
         raise ValueError(f"不支持的数据库类型: {db_type}")
 
-# 创建数据库引擎
+# 创建数据库引擎（改进配置）
 engine = create_engine(
     get_database_url(),
     echo=getattr(settings, 'sql_debug', False),  # 是否打印SQL语句
     pool_pre_ping=True,  # 连接池预检查
-    pool_recycle=3600,    # 连接回收时间（秒）
+    pool_recycle=7200,    # 连接回收时间（秒）- 改为2小时
+    pool_size=10,         # 连接池大小
+    max_overflow=20,      # 最大溢出连接数
+    pool_timeout=30,      # 获取连接的超时时间
+    # 添加MySQL特定参数
+    connect_args={
+        "connect_timeout": 180,
+        "read_timeout": 600,
+        "write_timeout": 600,
+        "charset": "utf8mb4"
+    }
 )
 
 # 创建会话工厂

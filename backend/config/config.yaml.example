@@ -276,6 +276,30 @@ fraudhunter:
     sync_scheduler_interval: 600  # 离线同步调度间隔(秒) - 10分钟
     source_table: "hxb_dh_data_dwm.dwm_taosha_indicator_details"
 
+      # 实时数据服务配置
+  realtime_data:
+    enabled: false  # 是否启用实时数据服务（默认关闭）
+    storage_path: "/data/taosha/realtime_data"  # DuckDB文件存储路径
+    data_retention_days: 7  # 数据保留天数
+
+    # Kafka配置
+    kafka:
+      bootstrap_servers: "bigdata10:9092"
+      topic: "oss_inct_new"
+      group_id: "taosha_realtime_consumer"
+
+      # 消费者配置
+      consumer:
+        session_timeout_ms: 30000
+        heartbeat_interval_ms: 10000
+        max_poll_records: 1000
+        auto_offset_reset: "earliest"  # earliest | latest
+
+    # 写入配置
+    writer:
+      buffer_size: 2000  # 缓冲区大小（条）
+      flush_interval_seconds: 120  # 定时刷新间隔（秒）
+
 # 调度器配置
 scheduler:
   offline_wide_table_sync: 60 # 秒，检查是否可以同步的间隔

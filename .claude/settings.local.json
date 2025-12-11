@@ -57,7 +57,8 @@
       "Bash(npx shadcn-ui@latest add:*)",
       "Bash(tail:*)",
       "Bash(grep:*)",
-      "Bash(python3 -c \"import py_compile; py_compile.compile(''/home/kyynor/code/taosha_workspace/taosha_analyse_platform/backend/services/fraudhunter/wide_table_service/__pycache__/sync_monitor.cpython-311.pyc'', doraise=True)\")"
+      "Bash(python3 -c \"import py_compile; py_compile.compile(''/home/kyynor/code/taosha_workspace/taosha_analyse_platform/backend/services/fraudhunter/wide_table_service/__pycache__/sync_monitor.cpython-311.pyc'', doraise=True)\")",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": [],
