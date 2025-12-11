@@ -3,7 +3,6 @@
 import { useState, useMemo } from "react";
 import { Input } from "./input";
 import { Button } from "./button";
-import { Badge } from "./badge";
 import {
   Table,
   TableHeader,
@@ -68,6 +67,9 @@ interface MetadataTableProps {
     onPageChange: (page: number) => void;
   };
   emptyText?: string;
+  // 受控搜索模式（支持服务端搜索）
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
 }
 
 export function MetadataTable({
@@ -83,14 +85,35 @@ export function MetadataTable({
   showActions = true,
   customActions,
   pagination,
-  emptyText = "暂无数据"
+  emptyText = "暂无数据",
+  searchQuery: controlledSearchQuery,
+  onSearchChange
 }: MetadataTableProps) {
-  const [searchQuery, setSearchQuery] = useState("");
+  // 支持受控和非受控两种模式
+  const [localSearchQuery, setLocalSearchQuery] = useState("");
+  const isControlled = controlledSearchQuery !== undefined;
+  const searchQuery = isControlled ? controlledSearchQuery : localSearchQuery;
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ item: any; index: number } | null>(null);
 
-  // 过滤数据（仅在前端搜索时使用）
+  // 处理搜索变化
+  const handleSearchChange = (value: string) => {
+    if (isControlled) {
+      // 受控模式：通知父组件，由父组件调用 API
+      onSearchChange?.(value);
+    } else {
+      // 非受控模式：使用本地搜索
+      setLocalSearchQuery(value);
+    }
+  };
+
+  // 过滤数据（仅在非受控模式下使用前端搜索）
   const filteredData = useMemo(() => {
+    // 受控模式：数据已由服务端过滤，直接使用
+    if (isControlled) return data;
+
+    // 非受控模式：前端过滤
     if (!searchQuery.trim()) return data;
 
     const query = searchQuery.toLowerCase().trim();
@@ -106,7 +129,7 @@ export function MetadataTable({
         return String(value).toLowerCase().includes(query);
       });
     });
-  }, [data, columns, searchQuery]);
+  }, [data, columns, searchQuery, isControlled]);
 
   // 服务端分页：直接使用过滤后的数据，不做客户端 slice
   const displayData = filteredData;
@@ -159,7 +182,7 @@ export function MetadataTable({
           <Input
             placeholder={searchPlaceholder}
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="max-w-sm"
           />
           {onRefresh && (

@@ -27,6 +27,7 @@ export default function IndicatorsPage() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [objectTypeFilter, setObjectTypeFilter] = useState<string>("all");
   const [taskFilter, setTaskFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");  // 新增：搜索状态
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -55,6 +56,7 @@ export default function IndicatorsPage() {
       if (typeFilter !== "all") params.indicator_type = typeFilter;
       if (objectTypeFilter !== "all") params.object_type = objectTypeFilter;
       if (taskFilter !== "all") params.indicator_task_id = Number(taskFilter);
+      if (searchQuery.trim()) params.search = searchQuery.trim();  // 新增：搜索参数
 
       const response = await indicatorService.list(params);
       setData(response.items || []);
@@ -72,12 +74,12 @@ export default function IndicatorsPage() {
 
   useEffect(() => {
     load();
-  }, [statusFilter, typeFilter, objectTypeFilter, taskFilter, currentPage]);
+  }, [statusFilter, typeFilter, objectTypeFilter, taskFilter, searchQuery, currentPage]);  // 新增 searchQuery 依赖
 
-  // 筛选条件变化时重置到第一页
+  // 筛选条件或搜索变化时重置到第一页
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, typeFilter, objectTypeFilter, taskFilter]);
+  }, [statusFilter, typeFilter, objectTypeFilter, taskFilter, searchQuery]);  // 新增 searchQuery 依赖
 
   // 分页处理
   const handlePageChange = (page: number) => {
@@ -255,6 +257,8 @@ export default function IndicatorsPage() {
         onDelete={handleDelete}
         searchPlaceholder="搜索指标编码或名称..."
         emptyText="暂无指标数据"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
         pagination={{
           pageSize,
           currentPage,
