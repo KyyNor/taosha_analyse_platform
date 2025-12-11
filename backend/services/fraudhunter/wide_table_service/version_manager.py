@@ -110,7 +110,7 @@ class WideTableVersionManager:
         indicators = self.db.query(FraudHunterIndicatorDefinition).filter(
             and_(
                 FraudHunterIndicatorDefinition.status == 'online',
-                FraudHunterIndicatorDefinition.indicator_type == 'offline',
+                FraudHunterIndicatorDefinition.indicator_type.in_(['offline', 'realtime']),
                 FraudHunterIndicatorDefinition.object_type == object_type
             )
         ).order_by(FraudHunterIndicatorDefinition.id).all()

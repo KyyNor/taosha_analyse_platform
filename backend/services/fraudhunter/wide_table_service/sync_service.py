@@ -9,7 +9,7 @@
 """
 
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple, Callable
+from typing import List, Dict, Optional, Tuple, Callable, Union
 from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -149,6 +149,7 @@ class WideTableSyncService:
             )
 
             # 6. 执行Spark查询并保存为Parquet（这是耗时操作）
+            self._execute_sql_query(f"refresh table {self.source_table}")
             row_count, column_count, file_size = self._execute_spark_query_and_save(
                 sql, output_path
             )
@@ -362,6 +363,92 @@ class WideTableSyncService:
                 result['version_promote_error'] = str(e)
 
         return result
+
+    def _execute_sql_query(
+        self,
+        sql: str,
+        return_type: str = 'dataframe'
+    ) -> Union[pd.DataFrame, List[Dict]]:
+        """纯粹执行SQL查询，不保存文件
+
+        支持两种模式：
+        1. PySpark模式：直接使用PySpark执行查询
+        2. JDBC模式：通过JDBC连接执行查询
+
+        Args:
+            sql: SQL查询语句
+            return_type: 返回类型，'dataframe' 或 'dict'
+
+        Returns:
+            DataFrame或字典列表
+        """
+        logger.info(f"执行SQL查询，返回类型: {return_type}")
+        logger.debug(f"SQL: {sql}")
+
+        if self._use_pyspark:
+            result_df = self._query_with_pyspark(sql)
+        else:
+            result_df = self._query_with_jdbc(sql)
+
+        # 根据return_type返回不同格式
+        if return_type == 'dict':
+            return result_df.to_dict('records')
+        else:
+            return result_df
+
+    def _query_with_pyspark(self, sql: str) -> pd.DataFrame:
+        """使用PySpark执行查询并返回DataFrame
+
+        Args:
+            sql: SQL查询语句
+
+        Returns:
+            pandas DataFrame
+        """
+        from utils.spark_utils import pyspark_service
+
+        logger.info("使用PySpark执行查询")
+
+        # 确保PySpark已初始化
+        if not pyspark_service.is_initialized():
+            logger.info("PySpark未初始化，正在初始化...")
+            if not pyspark_service.initialize():
+                raise RuntimeError("PySpark初始化失败，无法执行查询")
+
+        # 使用PySpark执行查询
+        spark_df = pyspark_service.execute_sql(sql)
+
+        # 转换为pandas DataFrame
+        pandas_df = spark_df.toPandas()
+
+        logger.info(f"查询完成，返回 {len(pandas_df)} 行，{len(pandas_df.columns)} 列")
+        return pandas_df
+
+    def _query_with_jdbc(self, sql: str) -> pd.DataFrame:
+        """使用JDBC执行查询并返回DataFrame
+
+        Args:
+            sql: SQL查询语句
+
+        Returns:
+            pandas DataFrame
+        """
+        from utils.spark_utils import spark_utils
+
+        logger.info("使用JDBC执行查询")
+
+        # 执行查询
+        results = spark_utils.query_sql(sql, return_type='dict')
+
+        if not results:
+            logger.warning("查询返回空结果")
+            return pd.DataFrame()
+
+        # 转换为DataFrame
+        df = pd.DataFrame(results)
+
+        logger.info(f"查询完成，返回 {len(df)} 行，{len(df.columns)} 列")
+        return df
 
     def _build_pivot_sql(
         self,
