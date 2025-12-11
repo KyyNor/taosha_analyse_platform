@@ -45,9 +45,9 @@ class FraudHunterIndicatorTask(Base):
 
     # 审计字段
     created_by = Column(String(64), comment='创建人')
-    created_at = Column(DateTime, default=datetime.utcnow, comment='创建时间')
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
     updated_by = Column(String(64), comment='更新人')
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
 
     # 关系
     indicators = relationship("FraudHunterIndicatorDefinition", back_populates="indicator_task", cascade="all, delete-orphan")
@@ -89,7 +89,7 @@ class FraudHunterIndicatorTaskHistory(Base):
 
     # 审计字段
     created_by = Column(String(64), comment='创建人')
-    created_at = Column(DateTime, default=datetime.utcnow, comment='创建时间')
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
 
     # 关系
     indicator_task = relationship("FraudHunterIndicatorTask", back_populates="histories")
@@ -135,9 +135,9 @@ class FraudHunterIndicatorDefinition(Base):
 
     # 审计字段
     created_by = Column(String(64), comment='创建人')
-    created_at = Column(DateTime, default=datetime.utcnow, comment='创建时间')
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
     updated_by = Column(String(64), comment='更新人')
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
 
     # 关系
     indicator_task = relationship("FraudHunterIndicatorTask", back_populates="indicators")
@@ -181,7 +181,7 @@ class FraudHunterIndicatorHistory(Base):
 
     # 审计字段
     created_by = Column(String(64), comment='创建人')
-    created_at = Column(DateTime, default=datetime.utcnow, comment='创建时间')
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
 
     # 关系
     indicator = relationship("FraudHunterIndicatorDefinition", back_populates="histories")
@@ -209,8 +209,8 @@ class FraudHunterSequenceCounter(Base):
     counter_value = Column(Integer, nullable=False, default=0, comment='当前计数值')
 
     # 审计字段
-    created_at = Column(DateTime, default=datetime.utcnow, comment='创建时间')
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
 
     # 索引
     __table_args__ = (

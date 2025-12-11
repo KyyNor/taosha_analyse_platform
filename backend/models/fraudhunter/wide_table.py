@@ -37,11 +37,11 @@ class FraudHunterIndicatorRunProgress(Base):
     finish_time: Mapped[datetime] = mapped_column(DateTime, nullable=False, comment='完成时间')
 
     # 审计字段
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, comment='创建时间')
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment='创建时间')
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=datetime.now,
+        onupdate=datetime.now,
         comment='更新时间'
     )
 
@@ -119,11 +119,11 @@ class FraudHunterWideTableVersion(Base):
 
     # 审计字段
     created_by: Mapped[Optional[str]] = mapped_column(String(64), comment='创建人')
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, comment='创建时间')
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment='创建时间')
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=datetime.now,
+        onupdate=datetime.now,
         comment='更新时间'
     )
 
@@ -206,11 +206,11 @@ class FraudHunterWideTableSnapshot(Base):
     error_message: Mapped[Optional[str]] = mapped_column(Text, comment='错误信息')
 
     # 审计字段
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, comment='创建时间')
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment='创建时间')
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=datetime.now,
+        onupdate=datetime.now,
         comment='更新时间'
     )
 

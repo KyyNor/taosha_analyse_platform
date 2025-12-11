@@ -93,7 +93,7 @@ class DryRunTaskManager:
                     return
 
                 task_execution.status = 'running'
-                task_execution.start_time = datetime.utcnow()
+                task_execution.start_time = datetime.now()
                 db.commit()
 
                 logger.info(f"开始执行任务: {execution_id}")
@@ -103,7 +103,7 @@ class DryRunTaskManager:
 
                 # 更新任务状态为成功
                 task_execution.status = 'success'
-                task_execution.end_time = datetime.utcnow()
+                task_execution.end_time = datetime.now()
                 task_execution.result_summary = result
                 db.commit()
 
@@ -117,7 +117,7 @@ class DryRunTaskManager:
 
                 if task_execution:
                     task_execution.status = 'failed'
-                    task_execution.end_time = datetime.utcnow()
+                    task_execution.end_time = datetime.now()
                     task_execution.result_summary = {
                         'error': str(e),
                         'error_type': type(e).__name__
@@ -163,7 +163,7 @@ class DryRunTaskManager:
         # 估算剩余时间（简化版本）
         estimated_remaining_seconds = None
         if task_execution.status == 'running' and task_execution.start_time:
-            elapsed = (datetime.utcnow() - task_execution.start_time).total_seconds()
+            elapsed = (datetime.now() - task_execution.start_time).total_seconds()
             if progress > 0 and progress < 100:
                 estimated_remaining_seconds = int(elapsed * (100 - progress) / progress)
 
@@ -240,7 +240,7 @@ class DryRunTaskManager:
 
             # 更新任务状态
             task_execution.status = 'cancelled'
-            task_execution.end_time = datetime.utcnow()
+            task_execution.end_time = datetime.now()
             db.commit()
 
             logger.info(f"任务已取消: {execution_id}")
@@ -249,7 +249,7 @@ class DryRunTaskManager:
         # 如果任务还在pending状态，直接标记为cancelled
         if task_execution.status == 'pending':
             task_execution.status = 'cancelled'
-            task_execution.end_time = datetime.utcnow()
+            task_execution.end_time = datetime.now()
             db.commit()
             logger.info(f"任务已取消: {execution_id}")
             return True

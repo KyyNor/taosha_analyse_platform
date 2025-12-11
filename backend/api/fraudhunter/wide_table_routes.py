@@ -71,7 +71,7 @@ async def indicator_run_progress_callback(
 
         if progress:
             # 更新现有记录
-            progress.finish_time = datetime.utcnow()
+            progress.finish_time = datetime.now()
             logger.info(
                 f"更新指标运行进度: "
                 f"task_id={callback_data.indicator_task_id}, "
@@ -84,7 +84,7 @@ async def indicator_run_progress_callback(
                 indicator_task_id=callback_data.indicator_task_id,
                 indicator_version=callback_data.indicator_version,
                 etl_date=etl_date,
-                finish_time=datetime.utcnow()
+                finish_time=datetime.now()
             )
             db.add(progress)
             logger.info(

@@ -25,8 +25,8 @@ export default function IndicatorTaskDetailPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
-  const taskId = Number(params.id);
-  const mode = searchParams.get("mode");
+  const taskId = Number(params?.id || 0);
+  const mode = searchParams?.get("mode")||'view';
   const { confirm, DialogComponent } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);

@@ -227,7 +227,7 @@ class WideTableVersionManager:
 
         if existing_target:
             existing_target.status = 'skipped'
-            existing_target.skipped_at = datetime.utcnow()
+            existing_target.skipped_at = datetime.now()
             logger.info(f"将版本 {existing_target.version_hash[:16]}... 标记为skipped")
 
         # 6. 创建新版本
@@ -236,7 +236,7 @@ class WideTableVersionManager:
             version_hash=version_hash,
             indicator_metadata=indicator_metadata,
             status='target',
-            target_at=datetime.utcnow(),
+            target_at=datetime.now(),
             created_by=created_by
         )
 
@@ -350,12 +350,12 @@ class WideTableVersionManager:
 
         if old_current:
             old_current.status = 'history'
-            old_current.history_at = datetime.utcnow()
+            old_current.history_at = datetime.now()
             logger.info(f"将版本 {old_current.version_hash[:8]} 标记为history")
 
         # 2. 提升target为current
         target_version.status = 'current'
-        target_version.current_at = datetime.utcnow()
+        target_version.current_at = datetime.now()
 
         self.db.flush()
 

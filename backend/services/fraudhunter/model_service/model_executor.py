@@ -662,7 +662,7 @@ WHERE
 
         log_content = f"""[模型历史回测执行日志]
 模型: {model.model_code} ({model.model_name})
-执行时间: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}
+执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 日期范围: {start_date} 至 {end_date}
 
 执行结果:

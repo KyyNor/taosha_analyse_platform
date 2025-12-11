@@ -42,9 +42,9 @@ class FraudHunterModelDefinition(Base):
 
     # 审计字段
     created_by = Column(String(64), comment='创建人')
-    created_at = Column(DateTime, default=datetime.utcnow, comment='创建时间')
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
     updated_by = Column(String(64), comment='更新人')
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
 
     # 关系
     histories = relationship("FraudHunterModelHistory", back_populates="model", cascade="all, delete-orphan")
@@ -84,7 +84,7 @@ class FraudHunterModelHistory(Base):
 
     # 审计字段
     created_by = Column(String(64), comment='创建人')
-    created_at = Column(DateTime, default=datetime.utcnow, comment='创建时间')
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
 
     # 关系
     model = relationship("FraudHunterModelDefinition", back_populates="histories")

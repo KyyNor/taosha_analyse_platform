@@ -166,7 +166,7 @@ class FraudHunterVersionFallbackLog(Base):
     fallback_reason: Mapped[str] = mapped_column(String(32), comment='降级原因类型')
     fallback_indicators: Mapped[dict] = mapped_column(JSON, comment='触发降级的指标详情')
     
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 ```
 
 **降级原因类型（fallback_reason）**:
@@ -409,13 +409,13 @@ def check_and_promote_target(
     old_current = None
     if current_version:
         current_version.status = 'history'
-        current_version.history_at = datetime.utcnow()
+        current_version.history_at = datetime.now()
         old_current = current_version
         logger.info(f"版本 {current_version.version_hash[:8]} -> history")
     
     # 4.2 target → current
     target_version.status = 'current'
-    target_version.current_at = datetime.utcnow()
+    target_version.current_at = datetime.now()
     
     self.db.flush()
     

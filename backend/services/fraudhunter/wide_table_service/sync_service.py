@@ -163,7 +163,7 @@ class WideTableSyncService:
                     snapshot.row_count = row_count
                     snapshot.column_count = column_count
                     snapshot.file_size_bytes = file_size
-                    snapshot.generation_time = datetime.utcnow()
+                    snapshot.generation_time = datetime.now()
                     snapshot.error_message = None
                     db.commit()
 

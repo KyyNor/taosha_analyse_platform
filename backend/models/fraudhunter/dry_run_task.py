@@ -47,7 +47,7 @@ class FraudHunterDryRunExecution(Base):
 
     # 审计字段
     created_by = Column(String(64), comment='触发人')
-    created_at = Column(DateTime, default=datetime.utcnow, comment='创建时间')
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
 
     # 索引
     __table_args__ = (

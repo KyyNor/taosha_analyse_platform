@@ -32,8 +32,8 @@ export default function IndicatorDetailPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
-  const indicatorId = Number(params.id);
-  const mode = searchParams.get("mode");
+  const indicatorId = Number(params?.id || 0);
+  const mode = searchParams?.get("mode")||'view';
   const { confirm, DialogComponent } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
