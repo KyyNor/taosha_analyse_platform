@@ -106,7 +106,7 @@ class IndicatorTaskManager:
         page: int = 1,
         page_size: int = 20,
         status: Optional[str] = None,
-        task_code: Optional[str] = None,
+        search_query: Optional[str] = None,
         object_type: Optional[str] = None
     ) -> tuple[List[FraudHunterIndicatorTask], int]:
         """获取指标任务列表
@@ -115,7 +115,7 @@ class IndicatorTaskManager:
             page: 页码
             page_size: 每页数量
             status: 状态筛选
-            task_code: 编码筛选（模糊匹配）
+            search_query: 搜索关键词（模糊匹配编码和名称）
             object_type: 对象类型筛选
 
         Returns:
@@ -127,9 +127,14 @@ class IndicatorTaskManager:
         if status:
             query = query.filter(FraudHunterIndicatorTask.status == status)
 
-        # 编码筛选（模糊匹配）
-        if task_code:
-            query = query.filter(FraudHunterIndicatorTask.task_code.like(f"%{task_code}%"))
+        # 搜索（模糊匹配编码和名称）
+        if search_query:
+            from sqlalchemy import or_
+            search_filter = or_(
+                FraudHunterIndicatorTask.task_code.like(f"%{search_query}%"),
+                FraudHunterIndicatorTask.task_name.like(f"%{search_query}%")
+            )
+            query = query.filter(search_filter)
 
         # 对象类型筛选
         if object_type:

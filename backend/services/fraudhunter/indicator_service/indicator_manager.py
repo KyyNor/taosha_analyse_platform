@@ -128,7 +128,7 @@ class IndicatorManager:
         indicator_type: Optional[str] = None,
         object_type: Optional[str] = None,
         indicator_task_id: Optional[int] = None,
-        indicator_code: Optional[str] = None,
+        search_query: Optional[str] = None,
         query_type: Optional[str] = 'page',
     ) -> tuple[List[FraudHunterIndicatorDefinition], int]:
         """获取指标列表
@@ -140,7 +140,7 @@ class IndicatorManager:
             indicator_type: 指标类型筛选
             object_type: 对象类型筛选
             indicator_task_id: 指标组ID筛选
-            indicator_code: 编码筛选（模糊匹配）
+            search_query: 搜索关键词（模糊匹配编码和名称）
 
         Returns:
             (指标列表, 总数)
@@ -163,9 +163,14 @@ class IndicatorManager:
         if indicator_task_id:
             query = query.filter(FraudHunterIndicatorDefinition.indicator_task_id == indicator_task_id)
 
-        # 编码筛选（模糊匹配）
-        if indicator_code:
-            query = query.filter(FraudHunterIndicatorDefinition.indicator_code.like(f"%{indicator_code}%"))
+        # 搜索（模糊匹配编码和名称）
+        if search_query:
+            from sqlalchemy import or_
+            search_filter = or_(
+                FraudHunterIndicatorDefinition.indicator_code.like(f"%{search_query}%"),
+                FraudHunterIndicatorDefinition.indicator_name.like(f"%{search_query}%")
+            )
+            query = query.filter(search_filter)
 
         # 总数
         total = query.count()

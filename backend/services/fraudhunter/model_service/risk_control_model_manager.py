@@ -129,7 +129,7 @@ class RiskControlModelManager:
         page: int = 1,
         page_size: int = 20,
         status: Optional[str] = None,
-        model_code: Optional[str] = None
+        search_query: Optional[str] = None
     ) -> tuple[List[FraudHunterModelDefinition], int]:
         """获取预警管控模型列表
 
@@ -137,7 +137,7 @@ class RiskControlModelManager:
             page: 页码
             page_size: 每页数量
             status: 状态筛选
-            model_code: 编码筛选（模糊匹配）
+            search_query: 搜索关键词（模糊匹配编码和名称）
 
         Returns:
             (模型列表, 总数)
@@ -148,9 +148,14 @@ class RiskControlModelManager:
         if status:
             query = query.filter(FraudHunterModelDefinition.status == status)
 
-        # 编码筛选（模糊匹配）
-        if model_code:
-            query = query.filter(FraudHunterModelDefinition.model_code.like(f"%{model_code}%"))
+        # 搜索（模糊匹配编码和名称）
+        if search_query:
+            from sqlalchemy import or_
+            search_filter = or_(
+                FraudHunterModelDefinition.model_code.like(f"%{search_query}%"),
+                FraudHunterModelDefinition.model_name.like(f"%{search_query}%")
+            )
+            query = query.filter(search_filter)
 
         # 总数
         total = query.count()

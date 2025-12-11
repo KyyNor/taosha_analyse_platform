@@ -92,18 +92,36 @@ class MetadataService:
         page_size: int = 20,
         is_available: Optional[str] = None,
         include_fields: Optional[bool] = True,
-        table_name_filter: Optional[str] = None
+        table_name_filter: Optional[str] = None,
+        search_query: Optional[str] = None
     ) -> Dict[str, Any]:
         """分页获取表信息列表"""
         try:
-            # 构建过滤条件
-            filters = {}
-            if is_available is not None:
-                filters['is_available'] = is_available
-            if table_name_filter is not None:
-                filters['name'] = table_name_filter
+            from models.metadata_models import MetadataTable
+            query = self.db.query(MetadataTable)
 
-            result = self.table_repo.get_paginated(page=page, page_size=page_size, **filters)
+            # 应用过滤条件
+            if is_available is not None:
+                query = query.filter(MetadataTable.is_available == is_available)
+            if table_name_filter is not None:
+                query = query.filter(MetadataTable.name == table_name_filter)
+
+            # 应用搜索条件（模糊匹配表名和备注）
+            if search_query:
+                from sqlalchemy import or_
+                search_filter = or_(
+                    MetadataTable.name.like(f"%{search_query}%"),
+                    MetadataTable.comment.like(f"%{search_query}%"),
+                    MetadataTable.remark.like(f"%{search_query}%")
+                )
+                query = query.filter(search_filter)
+
+            # 计算总数
+            total = query.count()
+
+            # 应用分页
+            offset = (page - 1) * page_size
+            result = {'items': query.offset(offset).limit(page_size).all(), 'total': total, 'page': page, 'page_size': page_size}
 
             tables_list = []
             for table in result['items']:
@@ -739,10 +757,28 @@ class GlossaryService:
         """获取所有术语"""
         return self.get_glossary().get("terms", [])
 
-    def get_terms_paginated(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
+    def get_terms_paginated(self, page: int = 1, page_size: int = 20, search_query: Optional[str] = None) -> Dict[str, Any]:
         """分页获取术语列表"""
         try:
-            result = self.repo.get_paginated(page=page, page_size=page_size)
+            from models.glossary_models import GlossaryTerm
+            query = self.db.query(GlossaryTerm)
+
+            # 应用搜索条件（模糊匹配术语名称和内容）
+            if search_query:
+                from sqlalchemy import or_
+                search_filter = or_(
+                    GlossaryTerm.name.like(f"%{search_query}%"),
+                    GlossaryTerm.content.like(f"%{search_query}%"),
+                    GlossaryTerm.creator.like(f"%{search_query}%")
+                )
+                query = query.filter(search_filter)
+
+            # 计算总数
+            total = query.count()
+
+            # 应用分页
+            offset = (page - 1) * page_size
+            result = {'items': query.offset(offset).limit(page_size).all(), 'total': total, 'page': page, 'page_size': page_size}
 
             # 转换术语列表格式
             terms_list = []
@@ -958,10 +994,28 @@ class PromptTemplateService:
         """获取提示词模板数据（直接从数据库查询）"""
         return self._build_templates_dict()
 
-    def get_templates_paginated(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
+    def get_templates_paginated(self, page: int = 1, page_size: int = 20, search_query: Optional[str] = None) -> Dict[str, Any]:
         """分页获取提示词模板列表"""
         try:
-            result = self.repo.get_paginated(page=page, page_size=page_size)
+            from models.glossary_models import PromptTemplate
+            query = self.db.query(PromptTemplate)
+
+            # 应用搜索条件（模糊匹配模板名称和内容）
+            if search_query:
+                from sqlalchemy import or_
+                search_filter = or_(
+                    PromptTemplate.name.like(f"%{search_query}%"),
+                    PromptTemplate.template.like(f"%{search_query}%"),
+                    PromptTemplate.fields.like(f"%{search_query}%")
+                )
+                query = query.filter(search_filter)
+
+            # 计算总数
+            total = query.count()
+
+            # 应用分页
+            offset = (page - 1) * page_size
+            result = {'items': query.offset(offset).limit(page_size).all(), 'total': total, 'page': page, 'page_size': page_size}
 
             templates_list = []
             for template in result['items']:
@@ -1131,10 +1185,28 @@ class DataThemeService:
             logger.error(f"获取数据主题失败: {e}")
             return []
 
-    def get_themes_paginated(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
+    def get_themes_paginated(self, page: int = 1, page_size: int = 20, search_query: Optional[str] = None) -> Dict[str, Any]:
         """分页获取数据主题列表"""
         try:
-            result = self.theme_repo.get_paginated(page=page, page_size=page_size)
+            from models.theme_models import DataTheme
+            query = self.db.query(DataTheme)
+
+            # 应用搜索条件（模糊匹配主题名称、描述和部门）
+            if search_query:
+                from sqlalchemy import or_
+                search_filter = or_(
+                    DataTheme.theme_name.like(f"%{search_query}%"),
+                    DataTheme.theme_description.like(f"%{search_query}%"),
+                    DataTheme.department.like(f"%{search_query}%")
+                )
+                query = query.filter(search_filter)
+
+            # 计算总数
+            total = query.count()
+
+            # 应用分页
+            offset = (page - 1) * page_size
+            result = {'items': query.offset(offset).limit(page_size).all(), 'total': total, 'page': page, 'page_size': page_size}
 
             themes_list = []
             for theme in result['items']:
