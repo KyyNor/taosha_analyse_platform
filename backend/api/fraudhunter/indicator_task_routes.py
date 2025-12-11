@@ -88,7 +88,7 @@ async def list_indicator_tasks(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     status: Optional[str] = Query(None, description="状态筛选"),
-    task_code: Optional[str] = Query(None, description="编码筛选（模糊匹配）"),
+    search: Optional[str] = Query(None, description="搜索（模糊匹配编码和名称）"),
     object_type: Optional[str] = Query(None, description="对象类型筛选"),
     db: Session = Depends(get_db)
 ):
@@ -102,7 +102,7 @@ async def list_indicator_tasks(
             page=page,
             page_size=page_size,
             status=status,
-            task_code=task_code,
+            search_query=search,  # 修改：使用search_query参数
             object_type=object_type
         )
 

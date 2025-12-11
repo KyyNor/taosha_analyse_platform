@@ -126,6 +126,7 @@ async def indicator_run_progress_callback(
 async def list_versions(
     wide_table_name: Optional[str] = Query(None, description="宽表名称过滤"),
     status: Optional[str] = Query(None, description="状态过滤（current/target/history/skipped）"),
+    search: Optional[str] = Query(None, description="搜索（模糊匹配版本哈希）"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     db: Session = Depends(get_db)
@@ -135,6 +136,7 @@ async def list_versions(
     Args:
         wide_table_name: 宽表名称过滤（可选）
         status: 状态过滤（current/target/history/skipped）（可选）
+        search: 搜索（模糊匹配版本哈希）（可选）
         page: 页码（从1开始）
         page_size: 每页数量
 
@@ -148,6 +150,10 @@ async def list_versions(
 
     if status:
         query = query.filter(FraudHunterWideTableVersion.status == status)
+
+    # 新增：搜索版本哈希
+    if search:
+        query = query.filter(FraudHunterWideTableVersion.version_hash.like(f"%{search}%"))
 
     # 计算总数
     total = query.count()

@@ -14,14 +14,20 @@ export default function Page() {
   const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
 
+  // 搜索状态
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
   const load = async () => {
     setLoading(true);
     try {
-      const res = await getTables({
+      const params: any = {
         fields: false,
         page: currentPage,
         page_size: pageSize
-      }); // 优化查询，不返回字段信息
+      };
+      if (searchQuery.trim()) params.search = searchQuery.trim();
+
+      const res = await getTables(params); // 优化查询，不返回字段信息
       setData(res?.items || []);
       setTotal(res?.total || 0);
     } finally {
@@ -31,7 +37,12 @@ export default function Page() {
 
   useEffect(() => {
     load();
-  }, [currentPage]);
+  }, [currentPage, searchQuery]);
+
+  // 搜索变化时重置到第一页
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   // 分页处理
   const handlePageChange = (page: number) => {
@@ -79,6 +90,8 @@ export default function Page() {
         onEdit={handleEdit}
         searchPlaceholder="搜索表名或描述..."
         emptyText="暂无数据表数据"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
         pagination={{
           pageSize,
           currentPage,

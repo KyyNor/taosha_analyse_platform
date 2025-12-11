@@ -30,6 +30,7 @@ async def get_all_table_metadata(
         isAvailable: Optional[str] = None,
         fields: Optional[bool] = False,  # 默认不返回字段信息以提升性能
         table_name: Optional[str] = None,
+        search: Optional[str] = None,  # 新增：搜索参数（搜索表名和描述）
         db: Session = Depends(get_db)
 ):
     """获取所有表元数据（支持分页）"""
@@ -41,7 +42,8 @@ async def get_all_table_metadata(
             page_size=page_size,
             is_available=isAvailable,
             include_fields=fields,
-            table_name_filter=table_name
+            table_name_filter=table_name,
+            search_query=search
         )
 
         return {"success": True, **result}
@@ -225,12 +227,17 @@ async def delete_column_metadata(column_id: int, db: Session = Depends(get_db)):
 async def get_all_terms(
     page: int = 1,
     page_size: int = 20,
+    search: Optional[str] = None,  # 新增：搜索参数（搜索术语名称和类型）
     db: Session = Depends(get_db)
 ):
     """获取术语列表（支持分页）"""
     try:
         glossary_service = get_glossary_service(db)
-        result = glossary_service.get_terms_paginated(page=page, page_size=page_size)
+        result = glossary_service.get_terms_paginated(
+            page=page,
+            page_size=page_size,
+            search_query=search
+        )
         return {"success": True, **result}
     except Exception as e:
         logger.error(f"获取术语失败: {e}")
@@ -481,12 +488,17 @@ async def get_prompt_template_by_id(template_id: int, db: Session = Depends(get_
 async def get_all_prompt_templates(
     page: int = 1,
     page_size: int = 20,
+    search: Optional[str] = None,  # 新增：搜索参数（搜索模板名称）
     db: Session = Depends(get_db)
 ):
     """获取所有提示词模板（支持分页）"""
     try:
         template_service = get_prompt_template_service(db)
-        result = template_service.get_templates_paginated(page=page, page_size=page_size)
+        result = template_service.get_templates_paginated(
+            page=page,
+            page_size=page_size,
+            search_query=search
+        )
         return {"success": True, **result}
     except Exception as e:
         logger.error(f"获取提示词模板失败: {e}")
@@ -552,13 +564,18 @@ async def get_all_themes(
     page: int = 1,
     page_size: int = 20,
     theme_type: Optional[str] = None,
+    search: Optional[str] = None,  # 新增：搜索参数（搜索主题名称和描述）
     db: Session = Depends(get_db)
 ):
     """获取所有数据主题（支持分页）"""
     try:
         # todo 只返回非公共表
         theme_service = get_data_theme_service(db)
-        result = theme_service.get_themes_paginated(page=page, page_size=page_size)
+        result = theme_service.get_themes_paginated(
+            page=page,
+            page_size=page_size,
+            search_query=search
+        )
         return {"success": True, **result}
     except Exception as e:
         logger.error(f"获取数据主题失败: {e}")
