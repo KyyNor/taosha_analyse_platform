@@ -89,7 +89,7 @@ export function MetadataTable({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ item: any; index: number } | null>(null);
 
-  // 过滤数据
+  // 过滤数据（仅在前端搜索时使用）
   const filteredData = useMemo(() => {
     if (!searchQuery.trim()) return data;
 
@@ -108,14 +108,8 @@ export function MetadataTable({
     });
   }, [data, columns, searchQuery]);
 
-  // 分页数据
-  const paginatedData = useMemo(() => {
-    if (!pagination) return filteredData;
-
-    const startIndex = (pagination.currentPage - 1) * pagination.pageSize;
-    const endIndex = startIndex + pagination.pageSize;
-    return filteredData.slice(startIndex, endIndex);
-  }, [filteredData, pagination]);
+  // 服务端分页：直接使用过滤后的数据，不做客户端 slice
+  const displayData = filteredData;
 
   // 格式化单元格值
   const formatCellValue = (value: any, column: ColumnConfig) => {
@@ -209,7 +203,7 @@ export function MetadataTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedData.map((row, index) => (
+              {displayData.map((row, index) => (
                 <TableRow key={index}>
                   {columns.map((column) => (
                     <TableCell
@@ -264,7 +258,7 @@ export function MetadataTable({
         )}
 
         {/* 空状态 */}
-        {!loading && paginatedData.length === 0 && (
+        {!loading && displayData.length === 0 && (
           <div className="p-8">
             <Alert className="border-dashed">
               <Inbox className="h-4 w-4" />
