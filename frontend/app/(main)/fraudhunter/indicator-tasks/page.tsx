@@ -29,6 +29,9 @@ export default function IndicatorTasksPage() {
   const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
 
+  // 搜索状态
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
   // 上线对话框状态
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<IndicatorTask | null>(null);
@@ -43,10 +46,13 @@ export default function IndicatorTasksPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const response = await indicatorTaskService.list({
+      const params: any = {
         page: currentPage,
         page_size: pageSize,
-      });
+      };
+      if (searchQuery.trim()) params.search = searchQuery.trim();
+
+      const response = await indicatorTaskService.list(params);
       setData(response.items || []);
       setTotal(response.total || 0);
     } catch (error) {
@@ -58,7 +64,12 @@ export default function IndicatorTasksPage() {
 
   useEffect(() => {
     load();
-  }, [currentPage]);
+  }, [currentPage, searchQuery]);
+
+  // 搜索变化时重置到第一页
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   // 分页处理
   const handlePageChange = (page: number) => {
@@ -215,6 +226,8 @@ export default function IndicatorTasksPage() {
         onDelete={handleDelete}
         searchPlaceholder="搜索指标任务编码或名称..."
         emptyText="暂无指标任务数据"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
         pagination={{
           pageSize,
           currentPage,

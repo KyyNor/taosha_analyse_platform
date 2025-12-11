@@ -25,6 +25,9 @@ export default function WideTableVersionsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [tableNameFilter, setTableNameFilter] = useState<string>("all");
 
+  // 搜索状态
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
   // 加载数据
   const load = async () => {
     setLoading(true);
@@ -32,6 +35,7 @@ export default function WideTableVersionsPage() {
       const params: any = { page, page_size: pageSize };
       if (statusFilter !== "all") params.status = statusFilter;
       if (tableNameFilter !== "all") params.wide_table_name = tableNameFilter;
+      if (searchQuery.trim()) params.search = searchQuery.trim();
 
       const response = await wideTableVersionService.list(params);
       setData(response.items || []);
@@ -45,12 +49,12 @@ export default function WideTableVersionsPage() {
 
   useEffect(() => {
     load();
-  }, [statusFilter, tableNameFilter, page]);
+  }, [statusFilter, tableNameFilter, searchQuery, page]);
 
-  // 筛选条件变化时重置到第一页
+  // 筛选条件或搜索变化时重置到第一页
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, tableNameFilter]);
+  }, [statusFilter, tableNameFilter, searchQuery]);
 
   // 分页处理
   const handlePageChange = (newPage: number) => {
@@ -178,6 +182,8 @@ export default function WideTableVersionsPage() {
         onView={handleView}
         searchPlaceholder="搜索版本号..."
         emptyText="暂无宽表版本数据"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
         pagination={{
           pageSize,
           currentPage: page,

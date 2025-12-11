@@ -46,7 +46,9 @@ export default function RiskControlModelsPage() {
 
   // 筛选状态
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [codeFilter, setCodeFilter] = useState<string>("");
+
+  // 搜索状态
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   // 历史回测对话框状态
   const [backtestDialogOpen, setBacktestDialogOpen] = useState(false);
@@ -64,7 +66,7 @@ export default function RiskControlModelsPage() {
         page_size: pageSize,
       };
       if (statusFilter !== "all") params.status = statusFilter;
-      if (codeFilter) params.model_code = codeFilter;
+      if (searchQuery.trim()) params.search = searchQuery.trim();
 
       const response = await riskControlModelService.list(params);
       setData(response.items || []);
@@ -78,12 +80,12 @@ export default function RiskControlModelsPage() {
 
   useEffect(() => {
     load();
-  }, [statusFilter, codeFilter, currentPage]);
+  }, [statusFilter, searchQuery, currentPage]);
 
-  // 筛选条件变化时重置到第一页
+  // 筛选条件或搜索变化时重置到第一页
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, codeFilter]);
+  }, [statusFilter, searchQuery]);
 
   // 分页处理
   const handlePageChange = (page: number) => {
@@ -314,14 +316,6 @@ export default function RiskControlModelsPage() {
             <SelectItem value="archived">已归档</SelectItem>
           </SelectContent>
         </Select>
-
-        <input
-          type="text"
-          placeholder="模型编码搜索..."
-          value={codeFilter}
-          onChange={(e) => setCodeFilter(e.target.value)}
-          className="px-3 py-2 border border-input rounded-md bg-background"
-        />
       </div>
 
       {/* 表格 */}
@@ -335,6 +329,9 @@ export default function RiskControlModelsPage() {
         onAdd={handleAdd}
         onRefresh={load}
         customActions={customActions}
+        searchPlaceholder="搜索模型编码或名称..."
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
         pagination={{
           pageSize,
           currentPage,

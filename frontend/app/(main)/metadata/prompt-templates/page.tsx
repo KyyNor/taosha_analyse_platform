@@ -15,10 +15,16 @@ export default function Page() {
   const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
 
+  // 搜索状态
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
   const load = async () => {
     setLoading(true);
     try {
-      const res = await getPromptTemplates({ page: currentPage, page_size: pageSize });
+      const params: any = { page: currentPage, page_size: pageSize };
+      if (searchQuery.trim()) params.search = searchQuery.trim();
+
+      const res = await getPromptTemplates(params);
       setData(res?.items || []);
       setTotal(res?.total || 0);
     } finally {
@@ -28,7 +34,12 @@ export default function Page() {
 
   useEffect(() => {
     load();
-  }, [currentPage]);
+  }, [currentPage, searchQuery]);
+
+  // 搜索变化时重置到第一页
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   // 分页处理
   const handlePageChange = (page: number) => {
@@ -78,6 +89,8 @@ export default function Page() {
         onEdit={handleEdit}
         searchPlaceholder="搜索模板名称或描述..."
         emptyText="暂无提示词模板"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
         pagination={{
           pageSize,
           currentPage,
