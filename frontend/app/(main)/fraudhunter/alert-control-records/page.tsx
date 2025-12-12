@@ -1,0 +1,309 @@
+"use client";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from 'sonner';
+import { MetadataTable } from "@/components/ui/MetadataTable";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { FileSpreadsheet, FileText } from "lucide-react";
+import { alertControlRecordService } from "@/lib/services/fraudhunter/alertControlRecordService";
+import type { 
+  AlertControlRecord, 
+  AlertControlFilters 
+} from "@/lib/services/fraudhunter/alertControlRecordService";
+
+export default function AlertControlRecordsPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<AlertControlRecord[]>([]);
+  const [exporting, setExporting] = useState(false);
+
+  // 筛选状态
+  const [filters, setFilters] = useState<AlertControlFilters>({});
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+
+  // 加载告警管控记录列表
+  const loadRecords = async () => {
+    setLoading(true);
+    try {
+      const params = {
+        page: currentPage,
+        page_size: pageSize,
+        search: searchQuery.trim() || undefined,
+        ...filters,
+      };
+
+      const response = await alertControlRecordService.list(params);
+      setData(response.records || []);
+      setTotal(response.total || 0);
+    } catch (error) {
+      console.error("Failed to load alert control records:", error);
+      toast.error("加载告警管控记录失败");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRecords();
+  }, [filters, searchQuery, currentPage]);
+
+  // 筛选条件或搜索变化时重置到第一页
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, searchQuery]);
+
+  // 分页处理
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  // 查看详情
+  const handleView = (record: AlertControlRecord) => {
+    router.push(`/fraudhunter/alert-control-records/${record.id}`);
+  };
+
+  // 导出数据
+  const handleExport = async (format: 'csv' | 'excel') => {
+    setExporting(true);
+    try {
+      const blob = await alertControlRecordService.export({
+        filters: { ...filters, search: searchQuery.trim() || undefined },
+        format
+      });
+
+      // 创建下载链接
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // 生成文件名
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+      const extension = format === 'excel' ? 'xlsx' : 'csv';
+      link.download = `alert_control_records_${timestamp}.${extension}`;
+      
+      // 触发下载
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success(`${format === 'excel' ? 'Excel' : 'CSV'} 文件导出成功`);
+    } catch (error) {
+      console.error("Export failed:", error);
+      toast.error("导出失败，请重试");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+
+
+  // 表格列配置
+  const columns = [
+    { key: "id", label: "ID", type: "number" as const },
+    { key: "account_id", label: "账号", type: "text" as const },
+    { key: "record_date", label: "日期", type: "text" as const },
+    { 
+      key: "model_name", 
+      label: "模型", 
+      type: "text" as const,
+      maxLength: 30
+    },
+    {
+      key: "alert_status",
+      label: "告警状态",
+      type: "text" as const
+    },
+    {
+      key: "control_status",
+      label: "管控状态",
+      type: "text" as const
+    },
+    { key: "created_at", label: "创建时间", type: "datetime" as const }
+  ];
+
+  // 获取今天的日期字符串
+  const getTodayString = () => {
+    return new Date().toISOString().split('T')[0];
+  };
+
+  // 获取一周前的日期字符串
+  const getWeekAgoString = () => {
+    const date = new Date();
+    date.setDate(date.getDate() - 7);
+    return date.toISOString().split('T')[0];
+  };
+
+  return (
+    <div className="container mx-auto py-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">告警管控记录</h1>
+          <p className="text-muted-foreground">查看和管理模型执行的告警与管控记录</p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" disabled={exporting}>
+              <Download className="h-4 w-4 mr-2" />
+              {exporting ? "导出中..." : "导出数据"}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleExport('excel')}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              导出为 Excel
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport('csv')}>
+              <FileText className="h-4 w-4 mr-2" />
+              导出为 CSV
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* 筛选器 */}
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            {/* 日期范围 */}
+            <div className="space-y-2">
+              <Label htmlFor="start_date">开始日期</Label>
+              <Input
+                id="start_date"
+                type="date"
+                value={filters.start_date || ""}
+                onChange={(e) => setFilters(prev => ({ ...prev, start_date: e.target.value || undefined }))}
+                max={getTodayString()}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="end_date">结束日期</Label>
+              <Input
+                id="end_date"
+                type="date"
+                value={filters.end_date || ""}
+                onChange={(e) => setFilters(prev => ({ ...prev, end_date: e.target.value || undefined }))}
+                max={getTodayString()}
+                min={filters.start_date || ""}
+              />
+            </div>
+
+            {/* 告警状态筛选 */}
+            <div className="space-y-2">
+              <Label>告警状态</Label>
+              <Select
+                value={filters.alert_status || "all"}
+                onValueChange={(value) => setFilters(prev => ({ ...prev, alert_status: value === "all" ? undefined : value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择告警状态" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部状态</SelectItem>
+                  <SelectItem value="not_configured">未配置</SelectItem>
+                  <SelectItem value="sent">已发送</SelectItem>
+                  <SelectItem value="duplicate">重复告警</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 管控状态筛选 */}
+            <div className="space-y-2">
+              <Label>管控状态</Label>
+              <Select
+                value={filters.control_status || "all"}
+                onValueChange={(value) => setFilters(prev => ({ ...prev, control_status: value === "all" ? undefined : value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择管控状态" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部状态</SelectItem>
+                  <SelectItem value="not_configured">未配置</SelectItem>
+                  <SelectItem value="executed">已执行</SelectItem>
+                  <SelectItem value="duplicate">重复管控</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* 快速日期选择 */}
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                const today = getTodayString();
+                setFilters(prev => ({ ...prev, start_date: today, end_date: today }));
+              }}
+            >
+              今天
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                setFilters(prev => ({ 
+                  ...prev, 
+                  start_date: getWeekAgoString(), 
+                  end_date: getTodayString() 
+                }));
+              }}
+            >
+              最近一周
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setFilters({})}
+            >
+              重置筛选
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <MetadataTable
+        data={data}
+        columns={columns}
+        loading={loading}
+        onRefresh={loadRecords}
+        onView={handleView}
+        searchPlaceholder="搜索账号、模型等..."
+        emptyText="暂无告警管控记录"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        pagination={{
+          pageSize,
+          currentPage,
+          total,
+          onPageChange: handlePageChange,
+        }}
+      />
+    </div>
+  );
+}
