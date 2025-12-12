@@ -25,7 +25,8 @@ from api.fraudhunter import (
     task_router as fraudhunter_task_router,
     model_router,
     risk_control_model_router,
-    wide_table_router
+    wide_table_router,
+    alert_control_record_router
 )
 from services.query_engine import get_query_engine
 from services.nlquery_service.async_query_service import get_async_query_service
@@ -431,6 +432,7 @@ app.include_router(fraudhunter_task_router, prefix=fraudhunter_prefix)
 app.include_router(model_router, prefix=fraudhunter_prefix)  # 模型管理（规则引擎）
 app.include_router(risk_control_model_router, prefix=fraudhunter_prefix)  # 预警管控模型
 app.include_router(wide_table_router, prefix=fraudhunter_prefix)
+app.include_router(alert_control_record_router, prefix=fraudhunter_prefix)  # 告警管控记录
 
 # API 根路径信息
 @app.get(f"{api_prefix}/", tags=["API信息"])
