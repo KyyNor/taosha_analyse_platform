@@ -1,0 +1,100 @@
+"""
+FraudHunter模型执行跟踪相关模型
+"""
+
+from sqlalchemy import Column, BigInteger, Integer, String, Text, DateTime, Date, JSON, ForeignKey, Index
+from sqlalchemy.orm import relationship
+from datetime import datetime, date
+from typing import Optional, List, Dict, Any
+from models.db_base import Base
+
+
+class FraudHunterHitRecord(Base):
+    """模型运行命中记录表"""
+    __tablename__ = "fraudhunter_hit_record"
+
+    # 主键
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
+
+    # 基本信息
+    account_id = Column(String(64), nullable=False, comment='账号标识')
+    hit_time = Column(DateTime, nullable=False, comment='命中时间')
+
+    # 命中模型信息
+    hit_model_ids = Column(JSON, nullable=False, comment='命中模型ID列表')
+    hit_model_names = Column(JSON, nullable=False, comment='命中模型名称列表')
+
+    # 指标数据
+    indicator_data = Column(JSON, nullable=False, comment='指标数据')
+
+    # 审计字段
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
+
+    # 关系
+    alert_control_records = relationship(
+        "FraudHunterAlertControlRecord", 
+        back_populates="hit_record", 
+        cascade="all, delete-orphan"
+    )
+
+    # 索引
+    __table_args__ = (
+        Index('idx_fh_hit_account_id', 'account_id'),
+        Index('idx_fh_hit_hit_time', 'hit_time'),
+        Index('idx_fh_hit_created_at', 'created_at'),
+        {'comment': '模型运行命中记录表'}
+    )
+
+    def __repr__(self):
+        return f"<FraudHunterHitRecord(id={self.id}, account_id='{self.account_id}', hit_time='{self.hit_time}')>"
+
+
+class FraudHunterAlertControlRecord(Base):
+    """模型告警与管控记录表"""
+    __tablename__ = "fraudhunter_alert_control_record"
+
+    # 主键
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
+
+    # 关联信息
+    hit_record_id = Column(BigInteger, ForeignKey('fraudhunter_hit_record.id'), nullable=False, comment='命中记录ID')
+    account_id = Column(String(64), nullable=False, comment='账号标识')
+    record_date = Column(Date, nullable=False, comment='记录日期')
+
+    # 模型信息
+    model_id = Column(Integer, nullable=False, comment='模型ID')
+    model_name = Column(String(128), nullable=False, comment='模型名称')
+
+    # 告警相关字段
+    alert_status = Column(String(16), default='not_configured', comment='告警状态：not_configured/sent/duplicate')
+    alert_message = Column(Text, comment='告警消息内容')
+    alert_person = Column(String(64), comment='告警人')
+    alert_time = Column(DateTime, comment='告警时间')
+
+    # 管控相关字段
+    control_status = Column(String(16), default='not_configured', comment='管控状态：not_configured/executed/duplicate')
+    control_time = Column(DateTime, comment='管控时间')
+    control_serial_number = Column(String(64), comment='管控流水号')
+
+    # 审计字段
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
+
+    # 关系
+    hit_record = relationship("FraudHunterHitRecord", back_populates="alert_control_records")
+
+    # 索引
+    __table_args__ = (
+        Index('idx_fh_alert_account_date', 'account_id', 'record_date'),
+        Index('idx_fh_alert_model_id', 'model_id'),
+        Index('idx_fh_alert_alert_time', 'alert_time'),
+        Index('idx_fh_alert_control_time', 'control_time'),
+        Index('idx_fh_alert_hit_record_id', 'hit_record_id'),
+        Index('idx_fh_alert_alert_status', 'alert_status'),
+        Index('idx_fh_alert_control_status', 'control_status'),
+        {'comment': '模型告警与管控记录表'}
+    )
+
+    def __repr__(self):
+        return f"<FraudHunterAlertControlRecord(id={self.id}, account_id='{self.account_id}', model_id={self.model_id}, record_date='{self.record_date}')>"
