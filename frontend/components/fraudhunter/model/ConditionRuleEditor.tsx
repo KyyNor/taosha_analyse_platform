@@ -351,7 +351,7 @@ export function ConditionRuleEditor({
               {OPERATOR_GROUPS.set.some(op => allowedOperators.includes(op.value)) && (
                 <>
                   <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1">
-                    集合操作
+                    集合操作(精确匹配)
                   </div>
                   {OPERATOR_GROUPS.set
                     .filter(op => allowedOperators.includes(op.value))
@@ -367,7 +367,7 @@ export function ConditionRuleEditor({
               {OPERATOR_GROUPS.inclusion.some(op => allowedOperators.includes(op.value)) && (
                 <>
                   <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1">
-                    包含/不包含
+                    包含/不包含(模糊匹配)
                   </div>
                   {OPERATOR_GROUPS.inclusion
                     .filter(op => allowedOperators.includes(op.value))
