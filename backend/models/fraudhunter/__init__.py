@@ -21,6 +21,10 @@ from .wide_table import (
     FraudHunterWideTableVersion,
     FraudHunterWideTableSnapshot,
 )
+from .model_execution_tracking import (
+    FraudHunterHitRecord,
+    FraudHunterAlertControlRecord,
+)
 
 __all__ = [
     'FraudHunterIndicatorTask',
@@ -34,4 +38,6 @@ __all__ = [
     'FraudHunterIndicatorRunProgress',
     'FraudHunterWideTableVersion',
     'FraudHunterWideTableSnapshot',
+    'FraudHunterHitRecord',
+    'FraudHunterAlertControlRecord',
 ]

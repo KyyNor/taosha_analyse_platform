@@ -546,6 +546,9 @@ export const taskService = {
 // ============ 预警管控模型服务 ============
 export { riskControlModelService } from './fraudhunter/riskControlModelService';
 
+// ============ 告警管控记录服务 ============
+export { alertControlRecordService } from './fraudhunter/alertControlRecordService';
+
 export default {
   indicatorTask: indicatorTaskService,
   indicator: indicatorService,
