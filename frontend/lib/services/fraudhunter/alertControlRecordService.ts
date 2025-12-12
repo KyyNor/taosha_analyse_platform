@@ -86,7 +86,17 @@ export const alertControlRecordService = {
 
   // 导出告警管控记录
   async export(data: ExportRequest): Promise<Blob> {
-    const response = await api.post(`${BASE_PATH}/alert-control-records/export`, data, {
+    const params = new URLSearchParams();
+    params.append('format', data.format);
+    
+    // 添加筛选参数
+    Object.entries(data.filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value));
+      }
+    });
+
+    const response = await api.post(`${BASE_PATH}/alert-control-records/export?${params.toString()}`, {}, {
       responseType: 'blob'
     });
     return response.data;

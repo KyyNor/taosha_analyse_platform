@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from 'sonner';
 import { MetadataTable } from "@/components/ui/MetadataTable";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import {
@@ -28,6 +27,7 @@ import type {
   AlertControlRecord, 
   AlertControlFilters 
 } from "@/lib/services/fraudhunter/alertControlRecordService";
+import { alertStatusBadgeConfig, controlStatusBadgeConfig } from "@/lib/utils/badgeConfigs";
 
 export default function AlertControlRecordsPage() {
   const router = useRouter();
@@ -61,6 +61,8 @@ export default function AlertControlRecordsPage() {
     } catch (error) {
       console.error("Failed to load alert control records:", error);
       toast.error("加载告警管控记录失败");
+      setData([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -135,12 +137,14 @@ export default function AlertControlRecordsPage() {
     {
       key: "alert_status",
       label: "告警状态",
-      type: "text" as const
+      type: "badge" as const,
+      badgeConfig: alertStatusBadgeConfig
     },
     {
       key: "control_status",
       label: "管控状态",
-      type: "text" as const
+      type: "badge" as const,
+      badgeConfig: controlStatusBadgeConfig
     },
     { key: "created_at", label: "创建时间", type: "datetime" as const }
   ];

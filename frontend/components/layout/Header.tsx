@@ -35,7 +35,8 @@ const navItems: NavItem[] = [
       { href: "/fraudhunter/indicators", label: "指标" },
       { href: "/fraudhunter/dry-run", label: "试运行详情" },
       { href: "/fraudhunter/risk-control-models", label: "预警管控模型" },
-      { href: "/fraudhunter/wide-table-versions", label: "指标宽表版本" }
+      { href: "/fraudhunter/alert-control-records", label: "模型预警记录" },
+      { href: "/fraudhunter/wide-table-versions", label: "指标宽表版本" },
     ]
   },
   {

@@ -38,14 +38,25 @@ import {
   safeString
 } from "@/lib/utils/formatUtils";
 import { Alert, AlertDescription } from "./alert";
+import { Badge } from "./badge";
+
+interface BadgeConfig {
+  [key: string]: {
+    variant?: "default" | "secondary" | "destructive" | "outline";
+    label?: string;
+  };
+}
 
 interface ColumnConfig {
   key: string;
   label: string;
-  type?: 'text' | 'datetime' | 'boolean' | 'object' | 'number';
+  type?: 'text' | 'datetime' | 'boolean' | 'object' | 'number' | 'badge' | 'custom';
   maxLength?: number;
   width?: string;
   sortable?: boolean;
+  render?: (value: any, row: any) => React.ReactNode;
+  // 标签配置，当type为'badge'时使用
+  badgeConfig?: BadgeConfig;
 }
 
 interface MetadataTableProps {
@@ -135,9 +146,14 @@ export function MetadataTable({
   const displayData = filteredData;
 
   // 格式化单元格值
-  const formatCellValue = (value: any, column: ColumnConfig) => {
+  const formatCellValue = (value: any, column: ColumnConfig, row: any) => {
     const type = column.type || 'text';
     const maxLength = column.maxLength;
+
+    // 如果有自定义渲染函数，优先使用
+    if (type === 'custom' && column.render) {
+      return column.render(value, row);
+    }
 
     switch (type) {
       case 'datetime':
@@ -150,11 +166,27 @@ export function MetadataTable({
           : formatObjectInline(value);
       case 'number':
         return value !== null && value !== undefined ? String(value) : '-';
+      case 'badge':
+        return renderBadge(value, column.badgeConfig);
       default:
         return maxLength
           ? truncateText(safeString(value), maxLength)
           : safeString(value);
     }
+  };
+
+  // 渲染标签
+  const renderBadge = (value: any, badgeConfig?: BadgeConfig) => {
+    if (!value) return '-';
+    
+    const stringValue = String(value);
+    const config = badgeConfig?.[stringValue] || {};
+    
+    return (
+      <Badge variant={config.variant || "secondary"}>
+        {config.label || stringValue}
+      </Badge>
+    );
   };
 
   // 处理删除
@@ -233,7 +265,7 @@ export function MetadataTable({
                       key={column.key}
                       className="px-3 py-2"
                     >
-                      {formatCellValue(row[column.key], column)}
+                      {formatCellValue(row[column.key], column, row)}
                     </TableCell>
                   ))}
                   {showActions && (
