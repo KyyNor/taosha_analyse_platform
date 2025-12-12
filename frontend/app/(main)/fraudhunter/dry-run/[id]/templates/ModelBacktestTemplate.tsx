@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Download, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle, SkipForward, RefreshCw, Info } from "lucide-react";
+import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,39 +62,52 @@ interface ModelBacktestTemplateProps {
   taskId: string;
 }
 
-// CSV 导出工具函数
-function exportToCSV(data: Record<string, any>[], filename: string) {
-  if (!data || data.length === 0) {
-    alert("没有数据可导出");
-    return;
-  }
-
-  const headers = Object.keys(data[0]);
-  const csvRows = [];
-  
-  // 添加表头
-  csvRows.push(headers.join(','));
-  
-  // 添加数据行
-  for (const row of data) {
-    const values = headers.map(header => {
-      const value = row[header];
-      // 处理包含逗号或引号的值
-      if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
-        return `"${value.replace(/"/g, '""')}"`;
-      }
-      return value ?? '';
+// Excel 导出工具函数
+async function exportToExcel(taskId: string) {
+  try {
+    // 调用后端Excel导出接口
+    const response = await api.get(`/fraudhunter/tasks/${taskId}/export/excel`, {
+      responseType: 'blob'
     });
-    csvRows.push(values.join(','));
+
+    // 创建下载链接
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+
+    // 从响应头获取文件名，或使用默认文件名
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `backtest_${taskId}.xlsx`;
+
+    if (contentDisposition && contentDisposition.includes('filename=')) {
+      const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (filenameMatch && filenameMatch[1]) {
+        filename = filenameMatch[1];
+      }
+    }
+
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  } catch (error: any) {
+    console.error('导出Excel失败:', error);
+
+    // 尝试解析错误信息
+    let errorMessage = '导出Excel失败';
+    if (error.response && error.response.data) {
+      try {
+        const errorText = await error.response.data.text();
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.detail || errorMessage;
+      } catch {
+        errorMessage = '导出Excel失败，请稍后重试';
+      }
+    }
+
+    alert(errorMessage);
   }
-  
-  const csvContent = csvRows.join('\n');
-  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(link.href);
 }
 
 // 状态图标组件
@@ -360,11 +374,11 @@ export function ModelBacktestTemplate({ result, taskId }: ModelBacktestTemplateP
           <Button
             variant="outline"
             size="sm"
-            onClick={() => exportToCSV(result.matched_records, `backtest_${taskId}.csv`)}
+            onClick={() => exportToExcel(taskId)}
             disabled={totalRecords === 0}
           >
             <Download className="h-4 w-4 mr-2" />
-            导出 CSV
+            导出 Excel
           </Button>
         </CardHeader>
         <CardContent>

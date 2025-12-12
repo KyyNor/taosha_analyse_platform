@@ -3,8 +3,11 @@ FraudHunter任务管理API路由
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional
+import io
+import pandas as pd
 from models.db_base import get_db
 from schemas.fraudhunter.task import (
     TaskProgressResponse,
@@ -143,3 +146,78 @@ async def list_task_executions(
     except Exception as e:
         logger.error(f"查询任务执行历史失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"查询任务执行历史失败: {str(e)}")
+
+
+@router.get("/{task_id}/export/excel", summary="导出任务结果为Excel")
+async def export_task_result_excel(
+    task_id: str,
+    db: Session = Depends(get_db)
+):
+    """导出任务执行结果为Excel文件
+
+    参数:
+    - task_id: 任务执行ID
+
+    返回:
+    - Excel文件流，可直接下载
+    """
+    try:
+        # 获取任务结果
+        task_result = dry_run_task_manager.get_task_result(db, task_id)
+
+        if task_result['status'] != 'success':
+            raise HTTPException(status_code=400, detail="只有成功的任务才能导出结果")
+
+        result_data = task_result.get('result', {})
+
+        # 提取matched_records数据
+        matched_records = result_data.get('matched_records', [])
+
+        if not matched_records:
+            raise HTTPException(status_code=400, detail="没有可导出的命中记录")
+
+        # 创建Excel文件
+        output = io.BytesIO()
+
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # 将数据转换为DataFrame
+            df = pd.DataFrame(matched_records)
+
+            # 写入主数据表
+            df.to_excel(writer, sheet_name='命中记录', index=False)
+
+            # 创建统计信息表
+            stats_data = {
+                '指标': ['总天数', '成功天数', '跳过天数', '失败天数', '总命中记录数'],
+                '数值': [
+                    result_data.get('total_days', 0),
+                    result_data.get('success_days', 0),
+                    result_data.get('skipped_days', 0),
+                    result_data.get('failed_days', 0),
+                    result_data.get('total_rows_matched', 0)
+                ]
+            }
+            stats_df = pd.DataFrame(stats_data)
+            stats_df.to_excel(writer, sheet_name='执行统计', index=False)
+
+            # 创建每日执行详情表
+            daily_results = result_data.get('daily_results', [])
+            if daily_results:
+                daily_df = pd.DataFrame(daily_results)
+                daily_df.to_excel(writer, sheet_name='每日执行详情', index=False)
+
+        # 准备文件响应
+        output.seek(0)
+        filename = f"backtest_{task_id}.xlsx"
+
+        return StreamingResponse(
+            io.BytesIO(output.read()),
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"导出Excel失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"导出Excel失败: {str(e)}")
