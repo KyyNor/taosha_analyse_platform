@@ -136,7 +136,7 @@ async def list_alert_control_records(
         
         logger.info(
             f"查询告警管控记录: page={page}, page_size={page_size}, "
-            f"total={result.total}, filters={filters.dict(exclude_none=True)}"
+            f"total={result.total}, filters={filters.model_dump(exclude_none=True)}"
         )
         
         return result
@@ -200,11 +200,9 @@ async def get_alert_control_record_detail(
 
 @router.post(
     "/export",
-    summary="导出告警管控记录"
+    summary="导出告警管控记录为Excel"
 )
 async def export_alert_control_records(
-    format: str = Query("csv", description="导出格式：csv 或 excel"),
-    
     # 筛选参数（与列表查询相同）
     start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
@@ -214,18 +212,17 @@ async def export_alert_control_records(
     alert_status: Optional[str] = Query(None, description="告警状态：not_configured/sent/duplicate"),
     control_status: Optional[str] = Query(None, description="管控状态：not_configured/executed/duplicate"),
     search: Optional[str] = Query(None, description="搜索关键词"),
-    
+
     db: Session = Depends(get_db)
 ):
     """
-    导出告警管控记录为CSV或Excel文件
+    导出告警管控记录为Excel文件
 
     参数:
-    - format: 导出格式，支持 'csv' 或 'excel'
-    - 其他筛选参数与列表查询相同
+    - 筛选参数与列表查询相同
 
     返回:
-    - 文件下载响应
+    - Excel文件下载响应
 
     导出内容包含:
     - ID、账号、记录日期、模型信息
@@ -234,34 +231,25 @@ async def export_alert_control_records(
     - 创建时间、更新时间
 
     注意:
-    - CSV文件使用UTF-8编码，包含BOM以便Excel正确显示中文
-    - Excel文件使用.xlsx格式
     - 导出会包含所有符合筛选条件的记录，请注意数据量
     """
     try:
-        # 验证导出格式
-        if format not in ["csv", "excel"]:
-            raise HTTPException(
-                status_code=400,
-                detail=f"不支持的导出格式: {format}，支持的格式: csv, excel"
-            )
-        
-        # 验证状态参数（复用验证逻辑）
+        # 验证状态参数
         valid_alert_statuses = ["not_configured", "sent", "duplicate"]
         valid_control_statuses = ["not_configured", "executed", "duplicate"]
-        
+
         if alert_status and alert_status not in valid_alert_statuses:
             raise HTTPException(
                 status_code=400,
                 detail=f"无效的告警状态: {alert_status}，支持的状态: {', '.join(valid_alert_statuses)}"
             )
-        
+
         if control_status and control_status not in valid_control_statuses:
             raise HTTPException(
                 status_code=400,
                 detail=f"无效的管控状态: {control_status}，支持的状态: {', '.join(valid_control_statuses)}"
             )
-        
+
         # 验证日期格式
         if start_date:
             try:
@@ -271,7 +259,7 @@ async def export_alert_control_records(
                     status_code=400,
                     detail=f"无效的开始日期格式: {start_date}，请使用 YYYY-MM-DD 格式"
                 )
-        
+
         if end_date:
             try:
                 datetime.strptime(end_date, "%Y-%m-%d")
@@ -280,7 +268,7 @@ async def export_alert_control_records(
                     status_code=400,
                     detail=f"无效的结束日期格式: {end_date}，请使用 YYYY-MM-DD 格式"
                 )
-        
+
         # 构建筛选条件
         filters = AlertControlFilters(
             start_date=start_date,
@@ -292,30 +280,24 @@ async def export_alert_control_records(
             control_status=control_status,
             search=search
         )
-        
+
         # 导出数据
         manager = ModelHitAlertManager(db)
-        file_content = manager.export_alert_control_records(filters, format)
-        
+        file_content = manager.export_alert_control_records(filters)
+
         # 设置文件名和响应头
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        if format == "csv":
-            filename = f"alert_control_records_{timestamp}.csv"
-            media_type = "text/csv"
-        else:  # excel
-            filename = f"alert_control_records_{timestamp}.xlsx"
-            media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        
+        filename = f"alert_control_records_{timestamp}.xlsx"
+
         logger.info(
-            f"导出告警管控记录: format={format}, size={len(file_content)} bytes, "
-            f"filters={filters.dict(exclude_none=True)}"
+            f"导出告警管控记录: size={len(file_content)} bytes, "
+            f"filters={filters.model_dump(exclude_none=True)}"
         )
-        
+
         # 返回文件流响应
         return StreamingResponse(
             io.BytesIO(file_content),
-            media_type=media_type,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={
                 "Content-Disposition": f"attachment; filename={filename}"
             }

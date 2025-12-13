@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { toast } from 'sonner';
 import { MetadataTable } from "@/components/ui/MetadataTable";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { FileSpreadsheet } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -15,17 +15,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { FileSpreadsheet, FileText } from "lucide-react";
 import { alertControlRecordService } from "@/lib/services/fraudhunter/alertControlRecordService";
-import type { 
-  AlertControlRecord, 
-  AlertControlFilters 
+import type {
+  AlertControlRecord,
+  AlertControlFilters
 } from "@/lib/services/fraudhunter/alertControlRecordService";
 import { alertStatusBadgeConfig, controlStatusBadgeConfig } from "@/lib/utils/badgeConfigs";
 
@@ -88,31 +81,30 @@ export default function AlertControlRecordsPage() {
   };
 
   // 导出数据
-  const handleExport = async (format: 'csv' | 'excel') => {
+  const handleExport = async () => {
     setExporting(true);
     try {
       const blob = await alertControlRecordService.export({
         filters: { ...filters, search: searchQuery.trim() || undefined },
-        format
+        format: 'excel'
       });
 
       // 创建下载链接
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      
+
       // 生成文件名
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
-      const extension = format === 'excel' ? 'xlsx' : 'csv';
-      link.download = `alert_control_records_${timestamp}.${extension}`;
-      
+      link.download = `alert_control_records_${timestamp}.xlsx`;
+
       // 触发下载
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      toast.success(`${format === 'excel' ? 'Excel' : 'CSV'} 文件导出成功`);
+      toast.success('Excel 文件导出成功');
     } catch (error) {
       console.error("Export failed:", error);
       toast.error("导出失败，请重试");
@@ -168,24 +160,10 @@ export default function AlertControlRecordsPage() {
           <h1 className="text-2xl font-bold">告警管控记录</h1>
           <p className="text-muted-foreground">查看和管理模型执行的告警与管控记录</p>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" disabled={exporting}>
-              <Download className="h-4 w-4 mr-2" />
-              {exporting ? "导出中..." : "导出数据"}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleExport('excel')}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              导出为 Excel
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExport('csv')}>
-              <FileText className="h-4 w-4 mr-2" />
-              导出为 CSV
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Button variant="outline" disabled={exporting} onClick={handleExport}>
+          <FileSpreadsheet className="h-4 w-4 mr-2" />
+          {exporting ? "导出中..." : "导出Excel"}
+        </Button>
       </div>
 
       {/* 筛选器 */}

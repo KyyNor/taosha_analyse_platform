@@ -7,8 +7,6 @@ from datetime import datetime, date
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 from dataclasses import dataclass
-import csv
-import io
 import pandas as pd
 
 from models.fraudhunter.model_execution_tracking import (
@@ -25,6 +23,7 @@ from schemas.fraudhunter.alert_control_record import (
     AlertControlRecordDetailResponse
 )
 from utils.logger import logger
+from utils.excel_exporter import create_excel_exporter
 
 
 @dataclass
@@ -350,30 +349,22 @@ class ModelHitAlertManager:
         )
 
     def export_alert_control_records(
-        self, 
-        filters: AlertControlFilters, 
-        format: str = "csv"
+        self,
+        filters: AlertControlFilters
     ) -> bytes:
-        """导出告警管控记录
-        
+        """导出告警管控记录为Excel
+
         Args:
             filters: 筛选条件
-            format: 导出格式，支持 'csv' 或 'excel'
-            
+
         Returns:
-            导出的文件内容（字节）
-            
-        Raises:
-            ValueError: 如果格式不支持
+            导出的Excel文件内容（字节）
         """
-        if format not in ["csv", "excel"]:
-            raise ValueError(f"不支持的导出格式: {format}")
-        
         # 查询所有符合条件的记录
         query = self.db.query(FraudHunterModelAlertControlRecord)
         query = self._apply_filters(query, filters)
         records = query.order_by(FraudHunterModelAlertControlRecord.created_at.desc()).all()
-        
+
         # 准备导出数据
         export_data = []
         for record in records:
@@ -393,11 +384,19 @@ class ModelHitAlertManager:
                 '创建时间': record.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                 '更新时间': record.updated_at.strftime('%Y-%m-%d %H:%M:%S')
             })
-        
-        if format == "csv":
-            return self._export_to_csv(export_data)
-        else:  # excel
-            return self._export_to_excel(export_data)
+
+        # 转换为DataFrame
+        df = pd.DataFrame(export_data) if export_data else pd.DataFrame()
+
+        # 使用Excel导出器
+        exporter = create_excel_exporter(
+            max_column_width=50,
+            min_column_width=10,
+            enable_styling=True
+        )
+        output = exporter.export_single_sheet(df, sheet_name="告警管控记录")
+
+        return output.getvalue()
 
     def _apply_filters(self, query, filters: AlertControlFilters):
         """应用筛选条件到查询
@@ -457,10 +456,10 @@ class ModelHitAlertManager:
 
     def _get_status_display(self, status: str) -> str:
         """获取状态的显示文本
-        
+
         Args:
             status: 状态值
-            
+
         Returns:
             显示文本
         """
@@ -471,48 +470,6 @@ class ModelHitAlertManager:
             'executed': '已执行'
         }
         return status_map.get(status, status)
-
-    def _export_to_csv(self, data: List[Dict[str, Any]]) -> bytes:
-        """导出为CSV格式
-        
-        Args:
-            data: 要导出的数据
-            
-        Returns:
-            CSV文件内容（字节）
-        """
-        if not data:
-            return b""
-        
-        output = io.StringIO()
-        writer = csv.DictWriter(output, fieldnames=data[0].keys())
-        writer.writeheader()
-        writer.writerows(data)
-        
-        # 转换为字节并使用UTF-8编码
-        csv_content = output.getvalue()
-        return csv_content.encode('utf-8-sig')  # 使用BOM以便Excel正确识别中文
-
-    def _export_to_excel(self, data: List[Dict[str, Any]]) -> bytes:
-        """导出为Excel格式
-        
-        Args:
-            data: 要导出的数据
-            
-        Returns:
-            Excel文件内容（字节）
-        """
-        if not data:
-            # 返回空的Excel文件
-            df = pd.DataFrame()
-        else:
-            df = pd.DataFrame(data)
-        
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name='告警管控记录', index=False)
-        
-        return output.getvalue()
 
     def _generate_control_serial_number(self) -> str:
         """生成管控流水号
