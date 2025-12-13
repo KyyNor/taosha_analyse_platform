@@ -17,6 +17,7 @@ from schemas.fraudhunter.task import (
 )
 from services.fraudhunter.dry_run_task_service import dry_run_task_manager
 from utils.logger import logger
+from utils.excel_exporter import create_excel_exporter
 
 
 router = APIRouter(prefix="/tasks", tags=["任务管理"])
@@ -176,38 +177,39 @@ async def export_task_result_excel(
         if not matched_records:
             raise HTTPException(status_code=400, detail="没有可导出的命中记录")
 
-        # 创建Excel文件
-        output = io.BytesIO()
+        # 准备数据表
+        data_sheets = {}
 
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            # 将数据转换为DataFrame
-            df = pd.DataFrame(matched_records)
+        # 1. 命中记录表
+        data_sheets['命中记录'] = pd.DataFrame(matched_records)
 
-            # 写入主数据表
-            df.to_excel(writer, sheet_name='命中记录', index=False)
+        # 2. 执行统计表
+        stats_data = {
+            '指标': ['总天数', '成功天数', '跳过天数', '失败天数', '总命中记录数'],
+            '数值': [
+                result_data.get('total_days', 0),
+                result_data.get('success_days', 0),
+                result_data.get('skipped_days', 0),
+                result_data.get('failed_days', 0),
+                result_data.get('total_rows_matched', 0)
+            ]
+        }
+        data_sheets['执行统计'] = pd.DataFrame(stats_data)
 
-            # 创建统计信息表
-            stats_data = {
-                '指标': ['总天数', '成功天数', '跳过天数', '失败天数', '总命中记录数'],
-                '数值': [
-                    result_data.get('total_days', 0),
-                    result_data.get('success_days', 0),
-                    result_data.get('skipped_days', 0),
-                    result_data.get('failed_days', 0),
-                    result_data.get('total_rows_matched', 0)
-                ]
-            }
-            stats_df = pd.DataFrame(stats_data)
-            stats_df.to_excel(writer, sheet_name='执行统计', index=False)
+        # 3. 每日执行详情表（如果有）
+        daily_results = result_data.get('daily_results', [])
+        if daily_results:
+            data_sheets['每日执行详情'] = pd.DataFrame(daily_results)
 
-            # 创建每日执行详情表
-            daily_results = result_data.get('daily_results', [])
-            if daily_results:
-                daily_df = pd.DataFrame(daily_results)
-                daily_df.to_excel(writer, sheet_name='每日执行详情', index=False)
+        # 使用Excel导出器生成文件
+        exporter = create_excel_exporter(
+            max_column_width=50,
+            min_column_width=10,
+            enable_styling=True
+        )
+        output = exporter.export_to_bytes(data_sheets)
 
         # 准备文件响应
-        output.seek(0)
         filename = f"backtest_{task_id}.xlsx"
 
         return StreamingResponse(

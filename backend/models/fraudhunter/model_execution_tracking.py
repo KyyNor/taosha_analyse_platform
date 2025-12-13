@@ -33,7 +33,7 @@ class FraudHunterModelHitRecord(Base):
 
     # 关系
     alert_control_records = relationship(
-        "FraudHunterAlertControlRecord", 
+        "FraudHunterModelAlertControlRecord", 
         back_populates="hit_record", 
         cascade="all, delete-orphan"
     )
@@ -58,7 +58,7 @@ class FraudHunterModelAlertControlRecord(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
 
     # 关联信息
-    hit_record_id = Column(BigInteger, ForeignKey('fraudhunter_hit_record.id'), nullable=False, comment='命中记录ID')
+    hit_record_id = Column(BigInteger, ForeignKey('fraudhunter_model_hit_record.id'), nullable=False, comment='命中记录ID')
     account_id = Column(String(64), nullable=False, comment='账号标识')
     record_date = Column(Date, nullable=False, comment='记录日期')
 
@@ -97,4 +97,4 @@ class FraudHunterModelAlertControlRecord(Base):
     )
 
     def __repr__(self):
-        return f"<FraudHunterAlertControlRecord(id={self.id}, account_id='{self.account_id}', model_id={self.model_id}, record_date='{self.record_date}')>"
+        return f"<FraudHunterModelAlertControlRecord(id={self.id}, account_id='{self.account_id}', model_id={self.model_id}, record_date='{self.record_date}')>"
