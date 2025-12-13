@@ -20,8 +20,8 @@ sys.path.insert(0, str(project_root))
 from sqlalchemy import text
 from models.db_base import SessionLocal, engine
 from models.fraudhunter.model_execution_tracking import (
-    FraudHunterHitRecord,
-    FraudHunterAlertControlRecord
+    FraudHunterModelHitRecord,
+    FraudHunterModelAlertControlRecord
 )
 from utils.logger import logger
 
@@ -69,8 +69,8 @@ def create_model_execution_tracking_tables():
             return
 
         # 创建表
-        FraudHunterHitRecord.metadata.create_all(bind=engine)
-        FraudHunterAlertControlRecord.metadata.create_all(bind=engine)
+        FraudHunterModelHitRecord.metadata.create_all(bind=engine)
+        FraudHunterModelAlertControlRecord.metadata.create_all(bind=engine)
 
         logger.info("✓ 模型执行跟踪表创建成功！")
 

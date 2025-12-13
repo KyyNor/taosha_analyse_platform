@@ -9,9 +9,9 @@ from typing import Optional, List, Dict, Any
 from models.db_base import Base
 
 
-class FraudHunterHitRecord(Base):
+class FraudHunterModelHitRecord(Base):
     """模型运行命中记录表"""
-    __tablename__ = "fraudhunter_hit_record"
+    __tablename__ = "fraudhunter_model_hit_record"
 
     # 主键
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
@@ -47,12 +47,12 @@ class FraudHunterHitRecord(Base):
     )
 
     def __repr__(self):
-        return f"<FraudHunterHitRecord(id={self.id}, account_id='{self.account_id}', hit_time='{self.hit_time}')>"
+        return f"<FraudHunterModelHitRecord(id={self.id}, account_id='{self.account_id}', hit_time='{self.hit_time}')>"
 
 
-class FraudHunterAlertControlRecord(Base):
+class FraudHunterModelAlertControlRecord(Base):
     """模型告警与管控记录表"""
-    __tablename__ = "fraudhunter_alert_control_record"
+    __tablename__ = "fraudhunter_model_alert_control_record"
 
     # 主键
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
@@ -82,7 +82,7 @@ class FraudHunterAlertControlRecord(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
 
     # 关系
-    hit_record = relationship("FraudHunterHitRecord", back_populates="alert_control_records")
+    hit_record = relationship("FraudHunterModelHitRecord", back_populates="alert_control_records")
 
     # 索引
     __table_args__ = (

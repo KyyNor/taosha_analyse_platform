@@ -11,8 +11,8 @@ from datetime import datetime, date
 from main import app
 from models.db_base import get_db, Base
 from models.fraudhunter.model_execution_tracking import (
-    FraudHunterHitRecord,
-    FraudHunterAlertControlRecord
+    FraudHunterModelHitRecord,
+    FraudHunterModelAlertControlRecord
 )
 
 
@@ -47,8 +47,8 @@ class TestAlertControlRecordRoutes:
         # 清理测试数据
         db = TestingSessionLocal()
         try:
-            db.query(FraudHunterAlertControlRecord).delete()
-            db.query(FraudHunterHitRecord).delete()
+            db.query(FraudHunterModelAlertControlRecord).delete()
+            db.query(FraudHunterModelHitRecord).delete()
             db.commit()
         finally:
             db.close()
@@ -58,7 +58,7 @@ class TestAlertControlRecordRoutes:
         db = TestingSessionLocal()
         try:
             # 创建命中记录
-            hit_record = FraudHunterHitRecord(
+            hit_record = FraudHunterModelHitRecord(
                 account_id="test_account_001",
                 hit_time=datetime(2024, 12, 12, 10, 30, 0),
                 hit_model_ids=[1, 2],
@@ -69,7 +69,7 @@ class TestAlertControlRecordRoutes:
             db.flush()
 
             # 创建告警管控记录
-            alert_record = FraudHunterAlertControlRecord(
+            alert_record = FraudHunterModelAlertControlRecord(
                 hit_record_id=hit_record.id,
                 account_id="test_account_001",
                 record_date=date(2024, 12, 12),
@@ -218,7 +218,7 @@ class TestAlertControlRecordRoutes:
         db = TestingSessionLocal()
         try:
             for i in range(25):
-                hit_record = FraudHunterHitRecord(
+                hit_record = FraudHunterModelHitRecord(
                     account_id=f"test_account_{i:03d}",
                     hit_time=datetime(2024, 12, 12, 10, 30, i),
                     hit_model_ids=[1],
@@ -228,7 +228,7 @@ class TestAlertControlRecordRoutes:
                 db.add(hit_record)
                 db.flush()
 
-                alert_record = FraudHunterAlertControlRecord(
+                alert_record = FraudHunterModelAlertControlRecord(
                     hit_record_id=hit_record.id,
                     account_id=f"test_account_{i:03d}",
                     record_date=date(2024, 12, 12),

@@ -14,8 +14,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models.db_base import get_db_session
 from models.fraudhunter.model_execution_tracking import (
-    FraudHunterHitRecord,
-    FraudHunterAlertControlRecord
+    FraudHunterModelHitRecord,
+    FraudHunterModelAlertControlRecord
 )
 from utils.logger import logger
 
@@ -26,24 +26,24 @@ def verify_database_data():
     
     with get_db_session() as db:
         # 统计命中记录
-        hit_count = db.query(FraudHunterHitRecord).count()
+        hit_count = db.query(FraudHunterModelHitRecord).count()
         logger.info(f"命中记录总数: {hit_count}")
         
         # 统计告警管控记录
-        alert_count = db.query(FraudHunterAlertControlRecord).count()
+        alert_count = db.query(FraudHunterModelAlertControlRecord).count()
         logger.info(f"告警管控记录总数: {alert_count}")
         
         # 统计各种状态的记录
-        alert_sent = db.query(FraudHunterAlertControlRecord).filter(
-            FraudHunterAlertControlRecord.alert_status == 'sent'
+        alert_sent = db.query(FraudHunterModelAlertControlRecord).filter(
+            FraudHunterModelAlertControlRecord.alert_status == 'sent'
         ).count()
         
-        alert_duplicate = db.query(FraudHunterAlertControlRecord).filter(
-            FraudHunterAlertControlRecord.alert_status == 'duplicate'
+        alert_duplicate = db.query(FraudHunterModelAlertControlRecord).filter(
+            FraudHunterModelAlertControlRecord.alert_status == 'duplicate'
         ).count()
         
-        control_executed = db.query(FraudHunterAlertControlRecord).filter(
-            FraudHunterAlertControlRecord.control_status == 'executed'
+        control_executed = db.query(FraudHunterModelAlertControlRecord).filter(
+            FraudHunterModelAlertControlRecord.control_status == 'executed'
         ).count()
         
         logger.info(f"已发送告警: {alert_sent}")
@@ -51,8 +51,8 @@ def verify_database_data():
         logger.info(f"已执行管控: {control_executed}")
         
         # 获取最近的几条记录作为样本
-        recent_records = db.query(FraudHunterAlertControlRecord)\
-                           .order_by(FraudHunterAlertControlRecord.created_at.desc())\
+        recent_records = db.query(FraudHunterModelAlertControlRecord)\
+                           .order_by(FraudHunterModelAlertControlRecord.created_at.desc())\
                            .limit(3)\
                            .all()
         
@@ -150,8 +150,8 @@ def verify_data_consistency():
         
         # 获取数据库数据
         with get_db_session() as db:
-            db_records = db.query(FraudHunterAlertControlRecord)\
-                          .order_by(FraudHunterAlertControlRecord.created_at.desc())\
+            db_records = db.query(FraudHunterModelAlertControlRecord)\
+                          .order_by(FraudHunterModelAlertControlRecord.created_at.desc())\
                           .limit(100)\
                           .all()
         

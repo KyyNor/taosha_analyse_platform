@@ -12,8 +12,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from models.db_base import Base
 from models.fraudhunter.model_execution_tracking import (
-    FraudHunterHitRecord,
-    FraudHunterAlertControlRecord
+    FraudHunterModelHitRecord,
+    FraudHunterModelAlertControlRecord
 )
 from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
 from services.fraudhunter.model_execution_service.model_hit_alert_manager import (
@@ -204,8 +204,8 @@ class TestModelHitAlertManager:
             assert record.hit_time.date() == record_date
             
         # 从数据库查询验证记录确实被独立存储
-        db_records = db_session.query(FraudHunterHitRecord).filter(
-            FraudHunterHitRecord.account_id == account_id
+        db_records = db_session.query(FraudHunterModelHitRecord).filter(
+            FraudHunterModelHitRecord.account_id == account_id
         ).all()
         
         assert len(db_records) == repeat_count
@@ -453,8 +453,8 @@ class TestModelHitAlertManager:
         # 验证每条返回的记录都满足筛选条件
         for record_response in result.records:
             # 从数据库获取完整记录进行验证
-            db_record = db_session.query(FraudHunterAlertControlRecord).filter(
-                FraudHunterAlertControlRecord.id == record_response.id
+            db_record = db_session.query(FraudHunterModelAlertControlRecord).filter(
+                FraudHunterModelAlertControlRecord.id == record_response.id
             ).first()
             
             assert db_record is not None
@@ -492,7 +492,7 @@ class TestModelHitAlertManager:
         
         # 验证总数计算正确性
         # 手动计算符合条件的记录数
-        manual_query = db_session.query(FraudHunterAlertControlRecord)
+        manual_query = db_session.query(FraudHunterModelAlertControlRecord)
         manual_query = manager._apply_filters(manual_query, filters)
         expected_total = manual_query.count()
         
@@ -662,7 +662,7 @@ class TestModelHitAlertManager:
         
         # 验证导出的记录数量与查询结果一致
         # 这里我们通过手动查询来验证一致性
-        manual_query = db_session.query(FraudHunterAlertControlRecord)
+        manual_query = db_session.query(FraudHunterModelAlertControlRecord)
         manual_query = manager._apply_filters(manual_query, filters)
         expected_count = manual_query.count()
         

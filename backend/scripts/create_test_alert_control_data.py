@@ -13,8 +13,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models.db_base import get_db_session
 from models.fraudhunter.model_execution_tracking import (
-    FraudHunterHitRecord,
-    FraudHunterAlertControlRecord
+    FraudHunterModelHitRecord,
+    FraudHunterModelAlertControlRecord
 )
 from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
 from services.fraudhunter.model_execution_service.model_hit_alert_manager import (
@@ -154,8 +154,8 @@ def main():
             create_test_data(db)
             
             # 统计创建的数据
-            hit_count = db.query(FraudHunterHitRecord).count()
-            alert_count = db.query(FraudHunterAlertControlRecord).count()
+            hit_count = db.query(FraudHunterModelHitRecord).count()
+            alert_count = db.query(FraudHunterModelAlertControlRecord).count()
             
             logger.info(f"测试数据创建完成！")
             logger.info(f"命中记录: {hit_count} 条")

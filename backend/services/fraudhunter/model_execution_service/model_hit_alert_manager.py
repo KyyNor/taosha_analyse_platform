@@ -12,8 +12,8 @@ import io
 import pandas as pd
 
 from models.fraudhunter.model_execution_tracking import (
-    FraudHunterHitRecord,
-    FraudHunterAlertControlRecord
+    FraudHunterModelHitRecord,
+    FraudHunterModelAlertControlRecord
 )
 from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
 from schemas.fraudhunter.alert_control_record import (
@@ -46,7 +46,7 @@ class ModelHitAlertManager:
         hit_models: List[ModelHit],
         indicator_data: Dict[str, Any],
         hit_time: datetime
-    ) -> FraudHunterHitRecord:
+    ) -> FraudHunterModelHitRecord:
         """创建命中记录
         
         Args:
@@ -75,7 +75,7 @@ class ModelHitAlertManager:
         hit_model_names = [model.model_name for model in hit_models]
         
         # 创建命中记录
-        hit_record = FraudHunterHitRecord(
+        hit_record = FraudHunterModelHitRecord(
             account_id=account_id,
             hit_time=hit_time,
             hit_model_ids=hit_model_ids,
@@ -90,7 +90,7 @@ class ModelHitAlertManager:
         
         return hit_record
 
-    def hit_record_processor(self, hit_record: FraudHunterHitRecord) -> List[FraudHunterAlertControlRecord]:
+    def hit_record_processor(self, hit_record: FraudHunterModelHitRecord) -> List[FraudHunterModelAlertControlRecord]:
         """处理命中记录，生成告警管控记录
         
         Args:
@@ -112,7 +112,7 @@ class ModelHitAlertManager:
             ).first()
             
             # 创建告警管控记录
-            alert_control_record = FraudHunterAlertControlRecord(
+            alert_control_record = FraudHunterModelAlertControlRecord(
                 hit_record_id=hit_record.id,
                 account_id=hit_record.account_id,
                 record_date=record_date,
@@ -200,11 +200,11 @@ class ModelHitAlertManager:
         
         for model_id in model_ids:
             # 查询当天是否已有该模型的告警记录
-            existing_alert = self.db.query(FraudHunterAlertControlRecord).filter(
-                FraudHunterAlertControlRecord.account_id == account_id,
-                FraudHunterAlertControlRecord.model_id == model_id,
-                FraudHunterAlertControlRecord.record_date == date,
-                FraudHunterAlertControlRecord.alert_status.in_(['sent', 'duplicate'])
+            existing_alert = self.db.query(FraudHunterModelAlertControlRecord).filter(
+                FraudHunterModelAlertControlRecord.account_id == account_id,
+                FraudHunterModelAlertControlRecord.model_id == model_id,
+                FraudHunterModelAlertControlRecord.record_date == date,
+                FraudHunterModelAlertControlRecord.alert_status.in_(['sent', 'duplicate'])
             ).first()
             
             duplicate_map[model_id] = existing_alert is not None
@@ -222,15 +222,15 @@ class ModelHitAlertManager:
             是否重复管控
         """
         # 查询当天是否已有管控记录
-        existing_control = self.db.query(FraudHunterAlertControlRecord).filter(
-            FraudHunterAlertControlRecord.account_id == account_id,
-            FraudHunterAlertControlRecord.record_date == date,
-            FraudHunterAlertControlRecord.control_status.in_(['executed', 'duplicate'])
+        existing_control = self.db.query(FraudHunterModelAlertControlRecord).filter(
+            FraudHunterModelAlertControlRecord.account_id == account_id,
+            FraudHunterModelAlertControlRecord.record_date == date,
+            FraudHunterModelAlertControlRecord.control_status.in_(['executed', 'duplicate'])
         ).first()
         
         return existing_control is not None
 
-    def send_alert_message(self, alert_records: List[FraudHunterAlertControlRecord]) -> None:
+    def send_alert_message(self, alert_records: List[FraudHunterModelAlertControlRecord]) -> None:
         """发送告警消息（留空实现）
         
         Args:
@@ -241,7 +241,7 @@ class ModelHitAlertManager:
                 # 这里是留空实现，实际应该调用外部告警服务
                 logger.info(f"发送告警消息: {record.alert_message}")
 
-    def process_alert_control(self, alert_records: List[FraudHunterAlertControlRecord]) -> None:
+    def process_alert_control(self, alert_records: List[FraudHunterModelAlertControlRecord]) -> None:
         """处理告警管控（留空实现）
         
         Args:
@@ -287,7 +287,7 @@ class ModelHitAlertManager:
             告警管控记录列表响应
         """
         # 构建基础查询
-        query = self.db.query(FraudHunterAlertControlRecord)
+        query = self.db.query(FraudHunterModelAlertControlRecord)
         
         # 应用筛选条件
         query = self._apply_filters(query, filters)
@@ -297,7 +297,7 @@ class ModelHitAlertManager:
         
         # 应用分页
         offset = (pagination.page - 1) * pagination.page_size
-        records = query.order_by(FraudHunterAlertControlRecord.created_at.desc())\
+        records = query.order_by(FraudHunterModelAlertControlRecord.created_at.desc())\
                       .offset(offset)\
                       .limit(pagination.page_size)\
                       .all()
@@ -329,16 +329,16 @@ class ModelHitAlertManager:
             记录详情，如果不存在返回None
         """
         # 查询告警管控记录
-        alert_record = self.db.query(FraudHunterAlertControlRecord)\
-                             .filter(FraudHunterAlertControlRecord.id == record_id)\
+        alert_record = self.db.query(FraudHunterModelAlertControlRecord)\
+                             .filter(FraudHunterModelAlertControlRecord.id == record_id)\
                              .first()
         
         if not alert_record:
             return None
         
         # 查询关联的命中记录
-        hit_record = self.db.query(FraudHunterHitRecord)\
-                           .filter(FraudHunterHitRecord.id == alert_record.hit_record_id)\
+        hit_record = self.db.query(FraudHunterModelHitRecord)\
+                           .filter(FraudHunterModelHitRecord.id == alert_record.hit_record_id)\
                            .first()
         
         if not hit_record:
@@ -370,9 +370,9 @@ class ModelHitAlertManager:
             raise ValueError(f"不支持的导出格式: {format}")
         
         # 查询所有符合条件的记录
-        query = self.db.query(FraudHunterAlertControlRecord)
+        query = self.db.query(FraudHunterModelAlertControlRecord)
         query = self._apply_filters(query, filters)
-        records = query.order_by(FraudHunterAlertControlRecord.created_at.desc()).all()
+        records = query.order_by(FraudHunterModelAlertControlRecord.created_at.desc()).all()
         
         # 准备导出数据
         export_data = []
@@ -413,43 +413,43 @@ class ModelHitAlertManager:
         if filters.start_date:
             try:
                 start_date = datetime.strptime(filters.start_date, "%Y-%m-%d").date()
-                query = query.filter(FraudHunterAlertControlRecord.record_date >= start_date)
+                query = query.filter(FraudHunterModelAlertControlRecord.record_date >= start_date)
             except ValueError:
                 logger.warning(f"无效的开始日期格式: {filters.start_date}")
         
         if filters.end_date:
             try:
                 end_date = datetime.strptime(filters.end_date, "%Y-%m-%d").date()
-                query = query.filter(FraudHunterAlertControlRecord.record_date <= end_date)
+                query = query.filter(FraudHunterModelAlertControlRecord.record_date <= end_date)
             except ValueError:
                 logger.warning(f"无效的结束日期格式: {filters.end_date}")
         
         # 账号筛选
         if filters.account_id:
-            query = query.filter(FraudHunterAlertControlRecord.account_id == filters.account_id)
+            query = query.filter(FraudHunterModelAlertControlRecord.account_id == filters.account_id)
         
         # 模型筛选
         if filters.model_id:
-            query = query.filter(FraudHunterAlertControlRecord.model_id == filters.model_id)
+            query = query.filter(FraudHunterModelAlertControlRecord.model_id == filters.model_id)
         
         if filters.model_name:
-            query = query.filter(FraudHunterAlertControlRecord.model_name.like(f"%{filters.model_name}%"))
+            query = query.filter(FraudHunterModelAlertControlRecord.model_name.like(f"%{filters.model_name}%"))
         
         # 状态筛选
         if filters.alert_status:
-            query = query.filter(FraudHunterAlertControlRecord.alert_status == filters.alert_status)
+            query = query.filter(FraudHunterModelAlertControlRecord.alert_status == filters.alert_status)
         
         if filters.control_status:
-            query = query.filter(FraudHunterAlertControlRecord.control_status == filters.control_status)
+            query = query.filter(FraudHunterModelAlertControlRecord.control_status == filters.control_status)
         
         # 搜索关键词
         if filters.search:
             search_term = f"%{filters.search}%"
             query = query.filter(
                 or_(
-                    FraudHunterAlertControlRecord.account_id.like(search_term),
-                    FraudHunterAlertControlRecord.model_name.like(search_term),
-                    FraudHunterAlertControlRecord.alert_message.like(search_term)
+                    FraudHunterModelAlertControlRecord.account_id.like(search_term),
+                    FraudHunterModelAlertControlRecord.model_name.like(search_term),
+                    FraudHunterModelAlertControlRecord.alert_message.like(search_term)
                 )
             )
         
