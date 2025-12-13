@@ -177,11 +177,12 @@ export function MetadataTable({
 
   // 渲染标签
   const renderBadge = (value: any, badgeConfig?: BadgeConfig) => {
-    if (!value) return '-';
-    
+    // 对于布尔值，即使是 false 也应该渲染
+    if (value === null || value === undefined) return '-';
+
     const stringValue = String(value);
     const config = badgeConfig?.[stringValue] || {};
-    
+
     return (
       <Badge variant={config.variant || "secondary"}>
         {config.label || stringValue}

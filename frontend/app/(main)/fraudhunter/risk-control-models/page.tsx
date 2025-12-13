@@ -102,19 +102,13 @@ export default function RiskControlModelsPage() {
       key: "is_send_alert_message",
       label: "发送告警",
       type: "badge" as const,
-      badgeConfig: booleanBadgeConfig,
-      render: (value: boolean) => {
-        return String(value);
-      }
+      badgeConfig: booleanBadgeConfig
     },
     {
       key: "is_acct_control",
       label: "账户控制",
       type: "badge" as const,
-      badgeConfig: booleanBadgeConfig,
-      render: (value: boolean) => {
-        return String(value);
-      }
+      badgeConfig: booleanBadgeConfig
     },
     { key: "created_at", label: "创建时间", type: "datetime" as const }
   ];
