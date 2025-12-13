@@ -19,6 +19,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { downloadFromResponse, generateTimestampedFilename } from "@/lib/utils/downloadUtils";
 
 // 定义模型回测结果的数据结构
 interface DailyResult {
@@ -70,27 +71,9 @@ async function exportToExcel(taskId: string) {
       responseType: 'blob'
     });
 
-    // 创建下载链接
-    const blob = new Blob([response.data], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    });
-
-    // 从响应头获取文件名，或使用默认文件名
-    const contentDisposition = response.headers['content-disposition'];
-    let filename = `backtest_${taskId}.xlsx`;
-
-    if (contentDisposition && contentDisposition.includes('filename=')) {
-      const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-      if (filenameMatch && filenameMatch[1]) {
-        filename = filenameMatch[1];
-      }
-    }
-
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    // 使用公共工具函数下载文件（优先使用后端传递的文件名）
+    const defaultFilename = generateTimestampedFilename(`backtest_${taskId}`, 'xlsx');
+    downloadFromResponse(response, defaultFilename);
   } catch (error: any) {
     console.error('导出Excel失败:', error);
 

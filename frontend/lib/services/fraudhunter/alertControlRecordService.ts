@@ -1,4 +1,5 @@
 import api from "../../api";
+import { AxiosResponse } from 'axios';
 
 const BASE_PATH = "/fraudhunter";
 
@@ -85,10 +86,10 @@ export const alertControlRecordService = {
   },
 
   // 导出告警管控记录
-  async export(data: ExportRequest): Promise<Blob> {
+  async export(data: ExportRequest): Promise<AxiosResponse> {
     const params = new URLSearchParams();
     params.append('format', data.format);
-    
+
     // 添加筛选参数
     Object.entries(data.filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
@@ -99,7 +100,7 @@ export const alertControlRecordService = {
     const response = await api.post(`${BASE_PATH}/alert-control-records/export?${params.toString()}`, {}, {
       responseType: 'blob'
     });
-    return response.data;
+    return response;
   },
 
   // 获取统计数据

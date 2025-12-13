@@ -203,7 +203,7 @@ async def export_task_result_excel(
 
         # 使用Excel导出器生成文件
         exporter = create_excel_exporter(
-            max_column_width=50,
+            max_column_width=100,
             min_column_width=10,
             enable_styling=True
         )

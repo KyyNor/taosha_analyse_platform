@@ -6,8 +6,8 @@ import { Toaster } from "../components/ui/sonner";
 import { TooltipProvider } from "../components/ui/tooltip";
 
 export const metadata = {
-  title: "Taosha Analyse Platform",
-  description: "Frontend migrated to Next.js"
+  title: "淘沙数据分析平台",
+  description: "淘沙数据分析平台"
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

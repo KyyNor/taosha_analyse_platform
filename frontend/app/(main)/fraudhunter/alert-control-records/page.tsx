@@ -21,6 +21,7 @@ import type {
   AlertControlFilters
 } from "@/lib/services/fraudhunter/alertControlRecordService";
 import { alertStatusBadgeConfig, controlStatusBadgeConfig } from "@/lib/utils/badgeConfigs";
+import { downloadFromResponse, generateTimestampedFilename } from "@/lib/utils/downloadUtils";
 
 export default function AlertControlRecordsPage() {
   const router = useRouter();
@@ -84,25 +85,14 @@ export default function AlertControlRecordsPage() {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const blob = await alertControlRecordService.export({
+      const response = await alertControlRecordService.export({
         filters: { ...filters, search: searchQuery.trim() || undefined },
         format: 'excel'
       });
 
-      // 创建下载链接
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-
-      // 生成文件名
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
-      link.download = `alert_control_records_${timestamp}.xlsx`;
-
-      // 触发下载
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      // 使用公共工具函数下载文件（优先使用后端传递的文件名）
+      const defaultFilename = generateTimestampedFilename('alert_control_records', 'xlsx');
+      downloadFromResponse(response, defaultFilename);
 
       toast.success('Excel 文件导出成功');
     } catch (error) {
