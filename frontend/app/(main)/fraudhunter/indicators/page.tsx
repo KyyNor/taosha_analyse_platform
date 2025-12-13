@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from 'sonner';
 import { MetadataTable } from "@/components/ui/MetadataTable";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ListPlus } from "lucide-react";
 import {
@@ -15,6 +14,12 @@ import {
 } from "@/components/ui/select";
 import { indicatorService, indicatorTaskService } from "@/lib/services/fraudhunterService";
 import type { Indicator, IndicatorTask } from "@/lib/services/fraudhunterService";
+import {
+  objectTypeBadgeConfig,
+  taskStatusBadgeConfig,
+  indicatorTypeBadgeConfig,
+  dataTypeBadgeConfig
+} from "@/lib/utils/badgeConfigs";
 
 export default function IndicatorsPage() {
   const router = useRouter();
@@ -94,59 +99,27 @@ export default function IndicatorsPage() {
     {
       key: "indicator_type",
       label: "类型",
-      type: "text" as const,
-      render: (value: string) => (
-        <Badge variant="outline">
-          {value === "offline" ? "离线" : "实时"}
-        </Badge>
-      )
+      type: "badge" as const,
+      badgeConfig: indicatorTypeBadgeConfig
     },
     {
       key: "object_type",
       label: "对象类型",
-      type: "text" as const,
-      render: (value: string) => {
-        const labels: Record<string, string> = {
-          cust_no: "客户号",
-          dep_acct_no: "存款账号",
-          loan_acct_no: "贷款账号"
-        };
-        return (
-          <Badge variant="secondary">
-            {labels[value] || value}
-          </Badge>
-        );
-      }
+      type: "badge" as const,
+      badgeConfig: objectTypeBadgeConfig
     },
     {
       key: "data_type",
       label: "数据类型",
-      type: "text" as const,
-      render: (value: string) => {
-        const labels: Record<string, string> = {
-          numeric: "数值",
-          enum: "枚举",
-          text: "文本",
-          boolean: "布尔"
-        };
-        return <span>{labels[value] || value}</span>;
-      }
+      type: "badge" as const,
+      badgeConfig: dataTypeBadgeConfig
     },
     { key: "indicator_task_id", label: "指标任务ID", type: "number" as const },
     {
       key: "status",
       label: "状态",
-      type: "text" as const,
-      render: (value: string) => {
-        const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-          draft: "secondary",
-          testing: "default",
-          online: "default",
-          offline: "outline",
-          archived: "destructive"
-        };
-        return <Badge variant={variants[value] || "default"}>{value}</Badge>;
-      }
+      type: "badge" as const,
+      badgeConfig: taskStatusBadgeConfig
     },
     { key: "current_version", label: "版本", type: "number" as const },
     { key: "created_at", label: "创建时间", type: "datetime" as const }

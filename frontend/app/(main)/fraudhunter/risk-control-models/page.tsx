@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from 'sonner';
 import { MetadataTable } from "@/components/ui/MetadataTable";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -23,15 +22,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { riskControlModelService } from "@/lib/services/fraudhunterService";
-import type {
-  RiskControlModel,
-  ModelStatus
-} from "@/types/fraudhunter/risk-control-model";
-import {
-  getModelStatusLabel,
-  getModelStatusVariant
-} from "@/types/fraudhunter/risk-control-model";
+import type { RiskControlModel } from "@/types/fraudhunter/risk-control-model";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { booleanBadgeConfig, taskStatusBadgeConfig } from "@/lib/utils/badgeConfigs";
 
 export default function RiskControlModelsPage() {
   const router = useRouter();
@@ -100,30 +93,28 @@ export default function RiskControlModelsPage() {
     {
       key: "status",
       label: "状态",
-      type: "text" as const,
-      render: (value: ModelStatus) => (
-        <Badge variant={getModelStatusVariant(value)}>
-          {getModelStatusLabel(value)}
-        </Badge>
-      )
+      type: "badge" as const,
+      badgeConfig: taskStatusBadgeConfig,
     },
     { key: "current_version", label: "当前版本", type: "number" as const },
     { key: "latest_version", label: "最新版本", type: "number" as const },
     {
       key: "is_send_alert_message",
       label: "发送告警",
-      type: "text" as const,
-      render: (value: boolean) => (
-        <span>{value ? "是" : "否"}</span>
-      )
+      type: "badge" as const,
+      badgeConfig: booleanBadgeConfig,
+      render: (value: boolean) => {
+        return String(value);
+      }
     },
     {
       key: "is_acct_control",
       label: "账户控制",
-      type: "text" as const,
-      render: (value: boolean) => (
-        <span>{value ? "是" : "否"}</span>
-      )
+      type: "badge" as const,
+      badgeConfig: booleanBadgeConfig,
+      render: (value: boolean) => {
+        return String(value);
+      }
     },
     { key: "created_at", label: "创建时间", type: "datetime" as const }
   ];

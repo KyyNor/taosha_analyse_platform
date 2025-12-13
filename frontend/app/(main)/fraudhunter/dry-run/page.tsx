@@ -2,7 +2,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { MetadataTable } from "@/components/ui/MetadataTable";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -13,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { taskService } from "@/lib/services/fraudhunterService";
 import type { TaskExecution } from "@/lib/services/fraudhunterService";
+import { taskTypeBadgeConfig, executionStatusBadgeConfig } from "@/lib/utils/badgeConfigs";
 
 export default function TasksPage() {
   const router = useRouter();
@@ -98,13 +98,6 @@ export default function TasksPage() {
     };
   }, [data]);
 
-  // 任务类型标签映射
-  const taskTypeLabels: Record<string, string> = {
-    indicator_task: "指标任务试运行",
-    indicator: "指标试运行",
-    model_backtest: "模型历史回测"
-  };
-
   // 表格列配置
   const columns = [
     { key: "id", label: "ID", type: "number" as const },
@@ -112,35 +105,15 @@ export default function TasksPage() {
     {
       key: "task_type",
       label: "任务类型",
-      type: "text" as const,
-      render: (value: string) => (
-        <Badge variant="outline">
-          {taskTypeLabels[value] || value}
-        </Badge>
-      )
+      type: "badge" as const,
+      badgeConfig: taskTypeBadgeConfig
     },
     { key: "task_id", label: "关联ID", type: "number" as const },
     {
       key: "status",
       label: "状态",
-      type: "text" as const,
-      render: (value: string) => {
-        const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-          pending: "secondary",
-          running: "default",
-          success: "default",
-          failed: "destructive",
-          cancelled: "outline"
-        };
-        const labels: Record<string, string> = {
-          pending: "待执行",
-          running: "运行中",
-          success: "成功",
-          failed: "失败",
-          cancelled: "已取消"
-        };
-        return <Badge variant={variants[value] || "default"}>{labels[value] || value}</Badge>;
-      }
+      type: "badge" as const,
+      badgeConfig: executionStatusBadgeConfig
     },
     { key: "start_time", label: "开始时间", type: "datetime" as const },
     { key: "end_time", label: "结束时间", type: "datetime" as const },

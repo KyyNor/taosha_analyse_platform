@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MetadataTable } from "@/components/ui/MetadataTable";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +17,7 @@ import { Rocket, RefreshCw } from "lucide-react";
 import { indicatorTaskService } from "@/lib/services/fraudhunterService";
 import type { IndicatorTask } from "@/lib/services/fraudhunterService";
 import { toast } from "sonner";
+import { objectTypeBadgeConfig, taskStatusBadgeConfig } from "@/lib/utils/badgeConfigs";
 
 export default function IndicatorTasksPage() {
   const router = useRouter();
@@ -84,30 +84,14 @@ export default function IndicatorTasksPage() {
     {
       key: "object_type",
       label: "对象类型",
-      type: "text" as const,
-      render: (value: string) => {
-        const labels: Record<string, string> = {
-          cust_no: "客户号",
-          dep_acct_no: "存款账号",
-          loan_acct_no: "贷款账号"
-        };
-        return <span>{labels[value] || value}</span>;
-      }
+      type: "badge" as const,
+      badgeConfig: objectTypeBadgeConfig
     },
     {
       key: "status",
       label: "状态",
-      type: "text" as const,
-      render: (value: string) => {
-        const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-          draft: "secondary",
-          testing: "default",
-          online: "default",
-          offline: "outline",
-          archived: "destructive"
-        };
-        return <Badge variant={variants[value] || "default"}>{value}</Badge>;
-      }
+      type: "badge" as const,
+      badgeConfig: taskStatusBadgeConfig
     },
     { key: "current_version", label: "当前版本", type: "number" as const },
     { key: "latest_version", label: "最新版本", type: "number" as const },

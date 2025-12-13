@@ -41,3 +41,55 @@ export const typeBadgeConfig = {
   user: { variant: "outline" as const, label: "用户" },
   admin: { variant: "secondary" as const, label: "管理员" }
 };
+
+// 对象类型标签配置
+export const objectTypeBadgeConfig = {
+  dep_acct_no: { variant: "default" as const, label: "存款账户" },
+  cust_no: { variant: "secondary" as const, label: "客户号" },
+  loan_acct_no: { variant: "outline" as const, label: "贷款账户" }
+};
+
+// 指标类型标签配置
+export const indicatorTypeBadgeConfig = {
+  offline: { variant: "secondary" as const, label: "离线" },
+  realtime: { variant: "default" as const, label: "实时" }
+};
+
+// 数据类型标签配置
+export const dataTypeBadgeConfig = {
+  numeric: { variant: "default" as const, label: "数值" },
+  enum: { variant: "secondary" as const, label: "枚举" },
+  text: { variant: "outline" as const, label: "文本" },
+  boolean: { variant: "default" as const, label: "布尔" }
+};
+
+// 布尔类型标签配置
+export const booleanBadgeConfig = {
+  true: { variant: "default" as const, label: "是" },
+  false: { variant: "secondary" as const, label: "否" }
+};
+
+// 指标任务/模型状态标签配置
+export const taskStatusBadgeConfig = {
+  draft: { variant: "secondary" as const, label: "草稿" },
+  testing: { variant: "default" as const, label: "测试中" },
+  online: { variant: "default" as const, label: "在线" },
+  offline: { variant: "outline" as const, label: "离线" },
+  archived: { variant: "destructive" as const, label: "已归档" }
+};
+
+// 试运行任务状态标签配置
+export const executionStatusBadgeConfig = {
+  pending: { variant: "secondary" as const, label: "待执行" },
+  running: { variant: "default" as const, label: "运行中" },
+  success: { variant: "default" as const, label: "成功" },
+  failed: { variant: "destructive" as const, label: "失败" },
+  cancelled: { variant: "outline" as const, label: "已取消" }
+};
+
+// 试运行任务类型标签配置
+export const taskTypeBadgeConfig = {
+  indicator_task: { variant: "default" as const, label: "指标任务试运行" },
+  indicator: { variant: "secondary" as const, label: "指标试运行" },
+  model_backtest: { variant: "outline" as const, label: "模型历史回测" }
+};
