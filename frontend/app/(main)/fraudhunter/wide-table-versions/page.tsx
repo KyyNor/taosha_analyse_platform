@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MetadataTable } from "@/components/ui/MetadataTable";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -12,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { wideTableVersionService } from "@/lib/services/fraudhunterService";
 import type { WideTableVersion } from "@/lib/services/fraudhunterService";
+import { wideTableNameBadgeConfig, wideTableVersionStatusBadgeConfig } from "@/lib/utils/badgeConfigs";
 
 export default function WideTableVersionsPage() {
   const router = useRouter();
@@ -67,19 +67,8 @@ export default function WideTableVersionsPage() {
     {
       key: "wide_table_name",
       label: "宽表名称",
-      type: "text" as const,
-      render: (value: string) => {
-        const labels: Record<string, string> = {
-          dep_acct_wide_table: "存款账户宽表",
-          cust_wide_table: "客户宽表",
-          loan_acct_wide_table: "贷款账户宽表"
-        };
-        return (
-          <Badge variant="outline">
-            {labels[value] || value}
-          </Badge>
-        );
-      }
+      type: "badge" as const,
+      badgeConfig: wideTableNameBadgeConfig
     },
     {
       key: "version_hash",
@@ -103,22 +92,8 @@ export default function WideTableVersionsPage() {
     {
       key: "status",
       label: "状态",
-      type: "text" as const,
-      render: (value: string) => {
-        const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-          current: "default",
-          target: "secondary",
-          history: "outline",
-          skipped: "destructive"
-        };
-        const labels: Record<string, string> = {
-          current: "当前版本",
-          target: "目标版本",
-          history: "历史版本",
-          skipped: "已跳过"
-        };
-        return <Badge variant={variants[value] || "default"}>{labels[value] || value}</Badge>;
-      }
+      type: "badge" as const,
+      badgeConfig: wideTableVersionStatusBadgeConfig
     },
     {
       key: "current_at",

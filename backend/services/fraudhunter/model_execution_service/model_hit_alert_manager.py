@@ -389,11 +389,7 @@ class ModelHitAlertManager:
         df = pd.DataFrame(export_data) if export_data else pd.DataFrame()
 
         # 使用Excel导出器
-        exporter = create_excel_exporter(
-            max_column_width=100,
-            min_column_width=10,
-            enable_styling=True
-        )
+        exporter = create_excel_exporter()
         output = exporter.export_single_sheet(df, sheet_name="告警管控记录")
 
         return output.getvalue()

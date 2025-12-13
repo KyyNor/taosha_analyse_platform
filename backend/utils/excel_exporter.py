@@ -24,7 +24,7 @@ class ExcelExporter:
     """
 
     # 默认配置
-    DEFAULT_MAX_COLUMN_WIDTH = 50  # 最大列宽
+    DEFAULT_MAX_COLUMN_WIDTH = 150  # 最大列宽
     DEFAULT_MIN_COLUMN_WIDTH = 10  # 最小列宽
 
     # 颜色配置（克制的浅色系）

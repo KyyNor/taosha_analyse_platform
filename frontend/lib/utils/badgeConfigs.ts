@@ -93,3 +93,24 @@ export const taskTypeBadgeConfig = {
   indicator: { variant: "secondary" as const, label: "指标试运行" },
   model_backtest: { variant: "outline" as const, label: "模型历史回测" }
 };
+
+// 宽表名称标签配置
+export const wideTableNameBadgeConfig = {
+  dep_acct_wide_table: { variant: "default" as const, label: "存款账户宽表" },
+  cust_wide_table: { variant: "secondary" as const, label: "客户宽表" },
+  loan_acct_wide_table: { variant: "outline" as const, label: "贷款账户宽表" }
+};
+
+// 宽表版本状态标签配置
+export const wideTableVersionStatusBadgeConfig = {
+  current: { variant: "default" as const, label: "当前版本" },
+  target: { variant: "secondary" as const, label: "目标版本" },
+  history: { variant: "outline" as const, label: "历史版本" },
+  skipped: { variant: "destructive" as const, label: "已跳过" }
+};
+
+// 报表类型标签配置
+export const reportTypeBadgeConfig = {
+  summary: { variant: "default" as const, label: "汇总表" },
+  detail: { variant: "secondary" as const, label: "明细表" }
+};

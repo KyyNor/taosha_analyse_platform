@@ -4,6 +4,7 @@ import { MetadataTable } from "@/components/ui/MetadataTable";
 import { getGlossary } from "@/lib/services/metadataService";
 import { useRouter } from "next/navigation";
 import { BookOpen } from "lucide-react";
+import { booleanBadgeConfig } from "@/lib/utils/badgeConfigs";
 
 export default function Page() {
   const [loading, setLoading] = useState(false);
@@ -53,7 +54,12 @@ export default function Page() {
     { key: "type", label: "术语类型", type: "text" as const },
     { key: "content", label: "内容配置", type: "object" as const, maxLength: 100 },
     { key: "creator", label: "创建者", type: "text" as const },
-    { key: "is_basic", label: "基础术语", type: "boolean" as const },
+    {
+      key: "is_basic",
+      label: "基础术语",
+      type: "badge" as const,
+      badgeConfig: booleanBadgeConfig
+    },
     { key: "created_at", label: "创建时间", type: "datetime" as const },
     { key: "updated_at", label: "更新时间", type: "datetime" as const },
   ];

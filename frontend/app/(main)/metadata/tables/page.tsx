@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { MetadataTable } from "@/components/ui/MetadataTable";
 import { getTables } from "@/lib/services/metadataService";
 import { useRouter } from "next/navigation";
+import { booleanBadgeConfig } from "@/lib/utils/badgeConfigs";
 
 export default function Page() {
   const [loading, setLoading] = useState(false);
@@ -55,7 +56,12 @@ export default function Page() {
     { key: "name", label: "表名", type: "text" as const },
     { key: "comment", label: "表描述", type: "text" as const, maxLength: 50 },
     { key: "remark", label: "备注", type: "text" as const, maxLength: 50 },
-    { key: "is_available", label: "是否可用", type: "boolean" as const },
+    {
+      key: "is_available",
+      label: "是否可用",
+      type: "badge" as const,
+      badgeConfig: booleanBadgeConfig
+    },
     { key: "created_at", label: "创建时间", type: "datetime" as const },
     { key: "updated_at", label: "更新时间", type: "datetime" as const },
   ];

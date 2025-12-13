@@ -202,11 +202,7 @@ async def export_task_result_excel(
             data_sheets['每日执行详情'] = pd.DataFrame(daily_results)
 
         # 使用Excel导出器生成文件
-        exporter = create_excel_exporter(
-            max_column_width=100,
-            min_column_width=10,
-            enable_styling=True
-        )
+        exporter = create_excel_exporter()
         output = exporter.export_to_bytes(data_sheets)
 
         # 准备文件响应

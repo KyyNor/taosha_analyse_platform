@@ -5,6 +5,7 @@ import { getFineReports, deleteFineReport, type FineReport } from "@/lib/service
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { reportTypeBadgeConfig, booleanBadgeConfig } from "@/lib/utils/badgeConfigs";
 
 export default function FineReportsPage() {
   const { confirm, DialogComponent } = useConfirmDialog();
@@ -62,13 +63,18 @@ export default function FineReportsPage() {
     {
       key: "report_type",
       label: "报表类型",
-      type: "text" as const,
-      render: (value: string) => value === 'summary' ? '汇总表' : '明细表'
+      type: "badge" as const,
+      badgeConfig: reportTypeBadgeConfig
     },
     { key: "report_design_address", label: "设计器地址", type: "text" as const, maxLength: 30 },
     { key: "department_id", label: "部门ID", type: "number" as const },
     { key: "description", label: "报表说明", type: "text" as const, maxLength: 50 },
-    { key: "is_available", label: "是否可用", type: "boolean" as const },
+    {
+      key: "is_available",
+      label: "是否可用",
+      type: "badge" as const,
+      badgeConfig: booleanBadgeConfig
+    },
     { key: "created_at", label: "创建时间", type: "datetime" as const },
     { key: "updated_at", label: "更新时间", type: "datetime" as const },
   ];
