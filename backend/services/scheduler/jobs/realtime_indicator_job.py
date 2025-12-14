@@ -54,6 +54,18 @@ async def generate_realtime_wide_table_job():
     #
     #     except Exception as e:
     #         logger.error(f"生成实时指标宽表失败: {e}", exc_info=True)
+    
+    # 指标：
+    # step1: 使用只读模式连接DuckDB
+    # step2: 汇总所有状态为 “上线” 的 “dep_acct_no” 的 实时指标SQL
+    # step3: 按一定规则执行实时指标SQL，生成最新的指标数据，入到DuckDB表中？
+    
+    # 模型：
+    # step4: 汇总所有状态为上线的模型
+    # step5: 获取模型的查询条件
+    # step6: 使用step1的duckdb连接，执行模型查询
+    # step7: 模型命中结果入到hit record库中
+    
 
 
 def _execute_realtime_logic(
