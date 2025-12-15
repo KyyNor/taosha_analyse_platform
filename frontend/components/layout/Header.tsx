@@ -28,9 +28,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { type: 'link', href: "/nlquery", label: "查询" },
   { type: 'link', href: "/agent", label: "Agent" },
-  { type: 'link', href: "/history", label: "历史" },
   { type: 'link', href: "/favorites", label: "收藏" },
-  { type: 'link', href: "/settings", label: "设置" },
   {
     type: 'dropdown',
     label: "猎诈",
