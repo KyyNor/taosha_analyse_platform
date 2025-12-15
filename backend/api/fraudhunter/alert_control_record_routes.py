@@ -19,7 +19,7 @@ from schemas.fraudhunter.alert_control_record import (
     AlertControlListResponse,
     AlertControlRecordDetailResponse
 )
-from backend.services.fraudhunter.model_service.model_hit_alert_manager import ModelHitAlertManager
+from services.fraudhunter.model_service.model_hit_alert_manager import ModelHitAlertManager
 from utils.logger import logger
 
 

@@ -16,16 +16,8 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from "@/components/ui/dialog";
 import { indicatorService, indicatorTaskService } from "@/lib/services/fraudhunterService";
-import type { Indicator, IndicatorUpdate, IndicatorTask, PublishRequest } from "@/lib/services/fraudhunterService";
+import type { Indicator, IndicatorUpdate, IndicatorTask } from "@/lib/services/fraudhunterService";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function IndicatorDetailPage() {
@@ -43,13 +35,6 @@ export default function IndicatorDetailPage() {
   const [originalData, setOriginalData] = useState<Indicator | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [IndicatorTasks, setIndicatorTasks] = useState<IndicatorTask[]>([]);
-
-  // 发布对话框状态
-  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
-  const [publishData, setPublishData] = useState<PublishRequest>({
-    version: 1,
-    change_description: ""
-  });
 
   // 加载指标任务列表
   const loadIndicatorTasks = async () => {
@@ -144,19 +129,6 @@ export default function IndicatorDetailPage() {
   // 进入编辑模式
   const handleEdit = () => {
     router.push(`/fraudhunter/indicators/${indicatorId}?mode=edit`);
-  };
-
-  // 发布
-  const handlePublish = async () => {
-    try {
-      await indicatorService.publish(indicatorId, publishData);
-      toast.success("发布成功");
-      setPublishDialogOpen(false);
-      await loadData();
-    } catch (error: any) {
-      console.error("Failed to publish indicator:", error);
-      toast.error(error.response?.data?.detail || "发布失败");
-    }
   };
 
   // 归档
@@ -392,72 +364,12 @@ export default function IndicatorDetailPage() {
             <CardTitle>操作</CardTitle>
           </CardHeader>
           <CardContent className="flex gap-4">
-            <Button onClick={() => setPublishDialogOpen(true)}>
-              发布版本
-            </Button>
             <Button variant="destructive" onClick={handleArchive}>
               归档
             </Button>
           </CardContent>
         </Card>
       )}
-
-      {/* 发布对话框 */}
-      <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>发布指标</DialogTitle>
-            <DialogDescription>
-              将指定版本的指标发布到生产环境
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="publish-version">版本号 *</Label>
-              <Input
-                id="publish-version"
-                type="number"
-                value={publishData.version}
-                onChange={(e) =>
-                  setPublishData({
-                    ...publishData,
-                    version: Number(e.target.value)
-                  })
-                }
-                min={1}
-                max={data.latest_version}
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                可发布版本: 1 - {data.latest_version}
-              </p>
-            </div>
-            <div>
-              <Label htmlFor="change-description">变更说明</Label>
-              <Textarea
-                id="change-description"
-                value={publishData.change_description}
-                onChange={(e) =>
-                  setPublishData({
-                    ...publishData,
-                    change_description: e.target.value
-                  })
-                }
-                rows={3}
-                placeholder="描述此次发布的主要变更"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setPublishDialogOpen(false)}
-            >
-              取消
-            </Button>
-            <Button onClick={handlePublish}>发布</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       <DialogComponent />
     </div>
   );

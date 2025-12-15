@@ -233,51 +233,6 @@ async def dry_run_indicator_task(
         logger.error(f"提交试运行任务失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"提交试运行任务失败: {str(e)}")
 
-
-@router.post("/{task_id}/publish", response_model=IndicatorTaskResponse, summary="发布指标任务")
-async def publish_indicator_task(
-    task_id: int,
-    publish_request: PublishRequest,
-    db: Session = Depends(get_db)
-):
-    """发布指标任务到指定版本"""
-    try:
-        manager = IndicatorTaskManager(db)
-        task = manager.publish_indicator_task(
-            task_id,
-            publish_request.version,
-            updated_by="system",
-            change_description=publish_request.change_description
-        )
-
-        return task
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"发布指标任务失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"发布指标任务失败: {str(e)}")
-
-
-@router.post("/{task_id}/archive", response_model=IndicatorTaskResponse, summary="归档指标任务")
-async def archive_indicator_task(
-    task_id: int,
-    db: Session = Depends(get_db)
-):
-    """归档指标任务"""
-    try:
-        manager = IndicatorTaskManager(db)
-        task = manager.archive_indicator_task(task_id, updated_by="system")
-
-        return task
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"归档指标任务失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"归档指标任务失败: {str(e)}")
-
-
 @router.delete("/{task_id}", summary="删除指标任务")
 async def delete_indicator_task(
     task_id: int,

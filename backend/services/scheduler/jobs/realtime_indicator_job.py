@@ -18,7 +18,7 @@ from models.fraudhunter.indicator import FraudHunterIndicatorTask
 from models.fraudhunter.wide_table import FraudHunterWideTableSnapshot, FraudHunterWideTableVersion
 from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
 from models.fraudhunter.model_execution_tracking import FraudHunterModelExecution
-from backend.services.fraudhunter.model_service.model_hit_alert_manager import ModelHitAlertManager, ModelHit
+from services.fraudhunter.model_service.model_hit_alert_manager import ModelHitAlertManager, ModelHit
 from utils.logger import logger
 from utils.config import settings
 

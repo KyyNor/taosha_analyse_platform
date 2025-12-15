@@ -219,11 +219,6 @@ export interface DryRunResponse {
   message: string;
 }
 
-export interface PublishRequest {
-  version: number;
-  change_description?: string;
-}
-
 export interface PublishToDSRequest {
   schedule_cron?: string;
 }

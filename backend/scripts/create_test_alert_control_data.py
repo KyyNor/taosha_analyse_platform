@@ -17,7 +17,7 @@ from models.fraudhunter.model_execution_tracking import (
     FraudHunterModelAlertControlRecord
 )
 from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
-from backend.services.fraudhunter.model_service.model_hit_alert_manager import (
+from services.fraudhunter.model_service.model_hit_alert_manager import (
     ModelHitAlertManager,
     ModelHit
 )

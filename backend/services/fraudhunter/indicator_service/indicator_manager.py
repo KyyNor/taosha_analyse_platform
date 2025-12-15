@@ -224,54 +224,6 @@ class IndicatorManager:
         logger.info(f"更新指标成功: {db_indicator.indicator_code}, 新版本={db_indicator.latest_version}")
         return db_indicator
 
-    def publish_indicator(
-        self,
-        indicator_id: int,
-        version: int,
-        updated_by: str,
-        change_description: Optional[str] = None
-    ) -> FraudHunterIndicatorDefinition:
-        """发布指标
-
-        Args:
-            indicator_id: 指标ID
-            version: 要发布的版本号
-            updated_by: 更新人
-            change_description: 变更说明
-
-        Returns:
-            发布后的指标对象
-
-        Raises:
-            ValueError: 如果指标不存在或版本号无效
-        """
-        db_indicator = self.get_indicator(indicator_id)
-        if not db_indicator:
-            raise ValueError(f"指标不存在: {indicator_id}")
-
-        # 验证版本号
-        if version > db_indicator.latest_version:
-            raise ValueError(f"版本号不存在: {version}")
-
-        # 更新发布版本
-        db_indicator.current_version = version
-        db_indicator.status = 'online'
-        db_indicator.updated_by = updated_by
-
-        # 创建版本历史
-        self._create_version_history(
-            db_indicator,
-            'publish',
-            change_description or f'发布版本{version}',
-            updated_by
-        )
-
-        self.db.commit()
-        self.db.refresh(db_indicator)
-
-        logger.info(f"发布指标成功: {db_indicator.indicator_code}, 版本: {version}")
-        return db_indicator
-
     def archive_indicator(
         self,
         indicator_id: int,

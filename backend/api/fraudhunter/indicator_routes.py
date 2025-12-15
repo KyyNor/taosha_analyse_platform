@@ -292,31 +292,6 @@ async def update_indicator(
         raise HTTPException(status_code=500, detail=f"更新指标失败: {str(e)}")
 
 
-@router.post("/{indicator_id}/publish", response_model=IndicatorResponse, summary="发布指标")
-async def publish_indicator(
-    indicator_id: int,
-    publish_request: PublishRequest,
-    db: Session = Depends(get_db)
-):
-    """发布指标到指定版本"""
-    try:
-        manager = IndicatorManager(db)
-        indicator = manager.publish_indicator(
-            indicator_id,
-            publish_request.version,
-            updated_by="system",
-            change_description=publish_request.change_description
-        )
-
-        return indicator
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"发布指标失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"发布指标失败: {str(e)}")
-
-
 @router.post("/{indicator_id}/archive", response_model=IndicatorResponse, summary="归档指标")
 async def archive_indicator(
     indicator_id: int,

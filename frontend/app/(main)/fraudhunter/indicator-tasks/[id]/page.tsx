@@ -44,12 +44,6 @@ export default function IndicatorTaskDetailPage() {
     task_version: 1
   });
 
-  // 发布对话框状态
-  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
-  const [publishData, setPublishData] = useState({
-    version: 1,
-    change_description: ""
-  });
 
   // 加载数据
   const loadData = async () => {
@@ -157,38 +151,6 @@ export default function IndicatorTaskDetailPage() {
       console.error("Failed to start dry run:", error);
       toast.error(error.response?.data?.detail || "试运行提交失败");
     }
-  };
-
-  // 发布
-  const handlePublish = async () => {
-    try {
-      await indicatorTaskService.publish(taskId, publishData);
-      toast.success("发布成功");
-      setPublishDialogOpen(false);
-      await loadData();
-    } catch (error: any) {
-      console.error("Failed to publish indicator task:", error);
-      toast.error(error.response?.data?.detail || "发布失败");
-    }
-  };
-
-  // 归档
-  const handleArchive = async () => {
-    confirm({
-      title: "确认归档",
-      description: "确定要归档此指标任务吗？",
-      onConfirm: async () => {
-        try {
-          await indicatorTaskService.archive(taskId);
-          toast.success("归档成功");
-          await loadData();
-        } catch (error: any) {
-          console.error("Failed to archive indicator task:", error);
-          toast.error(error.response?.data?.detail || "归档失败");
-        }
-      },
-      variant: "default"
-    });
   };
 
   if (loading) {
@@ -407,12 +369,6 @@ export default function IndicatorTaskDetailPage() {
             <Button onClick={() => setDryRunDialogOpen(true)}>
               试运行
             </Button>
-            <Button onClick={() => setPublishDialogOpen(true)}>
-              发布版本
-            </Button>
-            <Button variant="destructive" onClick={handleArchive}>
-              归档
-            </Button>
           </CardContent>
         </Card>
       )}
@@ -472,63 +428,6 @@ export default function IndicatorTaskDetailPage() {
               取消
             </Button>
             <Button onClick={handleDryRun}>开始试运行</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 发布对话框 */}
-      <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>发布指标任务</DialogTitle>
-            <DialogDescription>
-              将指定版本的指标任务发布到生产环境
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="publish-version">版本号 *</Label>
-              <Input
-                id="publish-version"
-                type="number"
-                value={publishData.version}
-                onChange={(e) =>
-                  setPublishData({
-                    ...publishData,
-                    version: Number(e.target.value)
-                  })
-                }
-                min={1}
-                max={data.latest_version}
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                可发布版本: 1 - {data.latest_version}
-              </p>
-            </div>
-            <div>
-              <Label htmlFor="change-description">变更说明</Label>
-              <Textarea
-                id="change-description"
-                value={publishData.change_description}
-                onChange={(e) =>
-                  setPublishData({
-                    ...publishData,
-                    change_description: e.target.value
-                  })
-                }
-                rows={3}
-                placeholder="描述此次发布的主要变更"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setPublishDialogOpen(false)}
-            >
-              取消
-            </Button>
-            <Button onClick={handlePublish}>发布</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
