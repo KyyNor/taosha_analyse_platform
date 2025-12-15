@@ -24,7 +24,7 @@ class RealtimeDataConsumer:
     def __init__(self):
         """初始化消费者"""
         # DuckDB配置
-        self.db_path = Path(settings.fraudhunter_realtime_data_storage_path) / "realtime_inct.duckdb"
+        self.db_path = Path(settings.fraudhunter_realtime_data_storage_path) / "realtime_data.duckdb"
         self.conn: Optional[duckdb.DuckDBPyConnection] = None
 
         # Kafka配置
@@ -88,28 +88,68 @@ class RealtimeDataConsumer:
 
             # 创建表（如果不存在）
             self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS realtime_inct (
-                    acct_no VARCHAR NOT NULL,
-                    txn_amt DECIMAL(18,2),
-                    etl_date DATE NOT NULL,
-                    event_time TIMESTAMP,
-                    raw_data JSON,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                CREATE TABLE IF NOT EXISTS realtime_oss_inct_new (
+                    `acct_no`             varchar(255), 
+                    `acct_open_dt`        varchar(255), 
+                    `acct_type`           varchar(255), 
+                    `aorm_date`           varchar(255), 
+                    `branch_name`         varchar(255), 
+                    `branch_no`           varchar(255), 
+                    `busi_typ`            varchar(255), 
+                    `ccy_name`            varchar(255), 
+                    `cha_desc`            varchar(255), 
+                    `channel`             varchar(255), 
+                    `class_type`          varchar(255), 
+                    `cp_acct_name`        varchar(255), 
+                    `cp_acct_no`          varchar(255), 
+                    `cp_acct_type`        varchar(255), 
+                    `cp_bank_branch_name` varchar(255), 
+                    `cp_bank_num`         varchar(255), 
+                    `cp_class_type`       varchar(255), 
+                    `cp_int_cat`          varchar(255), 
+                    `currency`            varchar(255), 
+                    `cust_name`           varchar(255), 
+                    `cust_type`           varchar(255), 
+                    `customer_no`         varchar(255), 
+                    `fir_branch_name`     varchar(255), 
+                    `fir_branch_no`       varchar(255), 
+                    `gl_class_code`       varchar(255), 
+                    `inct_01_amount`      decimal(18,2), 
+                    `inct_01_balance`     decimal(18,2), 
+                    `inct_01_tran_acct`   varchar(255), 
+                    `inct_20_chnnel`      varchar(255), 
+                    `inct_20_desc`        varchar(255), 
+                    `inct_20_narr`        varchar(255), 
+                    `inct_20_rec_no`      varchar(255), 
+                    `inct_20_source`      varchar(255), 
+                    `inma_flag`           varchar(255), 
+                    `int_cat`             varchar(255), 
+                    `jrnl_no`             varchar(255), 
+                    `mgr_no`              varchar(255), 
+                    `mst_aom_no`          varchar(255), 
+                    `parent_branch_name`  varchar(255), 
+                    `parent_branch_no`    varchar(255), 
+                    `peri_no`             varchar(255), 
+                    `prd_name`            varchar(255), 
+                    `rec_no`              varchar(255), 
+                    `rt_processing_time`  varchar(255), 
+                    `send_to_fh_time`     varchar(255), 
+                    `tran_branch`         varchar(255), 
+                    `tran_date`           varchar(255), 
+                    `tran_time`           varchar(255), 
+                    `tran_type`           varchar(255), 
+                    `trn_code`            varchar(255)
                 )
             """)
 
             # 创建索引
             self.conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_etl_date
-                ON realtime_inct(etl_date)
+                CREATE INDEX IF NOT EXISTS idx_tran_date
+                ON realtime_oss_inct_new(tran_date)
             """)
             self.conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_acct_no
-                ON realtime_inct(acct_no)
-            """)
-            self.conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_event_time
-                ON realtime_inct(event_time)
+                ON realtime_oss_inct_new(acct_no)
             """)
 
             logger.info(f"DuckDB初始化完成: {self.db_path}")
@@ -193,11 +233,56 @@ class RealtimeDataConsumer:
             # 添加到缓冲区
             for item in items:
                 parsed_record = {
-                    'acct_no': item.get('acct_no'),
-                    'txn_amt': item.get('txn_amt'),
-                    'etl_date': date.today(),  # 使用当前日期
-                    'event_time': datetime.now(),
-                    'raw_data': json.dumps(item, ensure_ascii=False)
+                    'acct_no': item.get('acct_no'),  
+                    'acct_open_dt': item.get('acct_open_dt'),  
+                    'acct_type': item.get('acct_type'),  
+                    'aorm_date': item.get('aorm_date'),  
+                    'branch_name': item.get('branch_name'),  
+                    'branch_no': item.get('branch_no'),  
+                    'busi_typ': item.get('busi_typ'),  
+                    'ccy_name': item.get('ccy_name'),  
+                    'cha_desc': item.get('cha_desc'),  
+                    'channel': item.get('channel'),  
+                    'class_type': item.get('class_type'),  
+                    'cp_acct_name': item.get('cp_acct_name'),  
+                    'cp_acct_no': item.get('cp_acct_no'),  
+                    'cp_acct_type': item.get('cp_acct_type'),  
+                    'cp_bank_branch_name': item.get('cp_bank_branch_name'),  
+                    'cp_bank_num': item.get('cp_bank_num'),  
+                    'cp_class_type': item.get('cp_class_type'),  
+                    'cp_int_cat': item.get('cp_int_cat'),  
+                    'currency': item.get('currency'),  
+                    'cust_name': item.get('cust_name'),  
+                    'cust_type': item.get('cust_type'),  
+                    'customer_no': item.get('customer_no'),  
+                    'fir_branch_name': item.get('fir_branch_name'),  
+                    'fir_branch_no': item.get('fir_branch_no'),  
+                    'gl_class_code': item.get('gl_class_code'),  
+                    'inct_01_amount': item.get('inct_01_amount'),  
+                    'inct_01_balance': item.get('inct_01_balance'),  
+                    'inct_01_tran_acct': item.get('inct_01_tran_acct'),  
+                    'inct_20_chnnel': item.get('inct_20_chnnel'),  
+                    'inct_20_desc': item.get('inct_20_desc'),  
+                    'inct_20_narr': item.get('inct_20_narr'),  
+                    'inct_20_rec_no': item.get('inct_20_rec_no'),  
+                    'inct_20_source': item.get('inct_20_source'),  
+                    'inma_flag': item.get('inma_flag'),  
+                    'int_cat': item.get('int_cat'),  
+                    'jrnl_no': item.get('jrnl_no'),  
+                    'mgr_no': item.get('mgr_no'),  
+                    'mst_aom_no': item.get('mst_aom_no'),  
+                    'parent_branch_name': item.get('parent_branch_name'),  
+                    'parent_branch_no': item.get('parent_branch_no'),  
+                    'peri_no': item.get('peri_no'),  
+                    'prd_name': item.get('prd_name'),  
+                    'rec_no': item.get('rec_no'),  
+                    'rt_processing_time': item.get('rt_processing_time'),  
+                    'send_to_fh_time': item.get('send_to_fh_time'),  
+                    'tran_branch': item.get('tran_branch'),  
+                    'tran_date': item.get('tran_date'),  
+                    'tran_time': item.get('tran_time'),  
+                    'tran_type': item.get('tran_type'),  
+                    'trn_code': item.get('trn_code')
                 }
                 self.buffer.append(parsed_record)
                 self.metrics['messages_consumed'] += 1
@@ -221,7 +306,7 @@ class RealtimeDataConsumer:
             self.conn.execute("BEGIN TRANSACTION")
 
             # 插入数据
-            self.conn.execute("INSERT INTO realtime_inct SELECT * FROM df")
+            self.conn.execute("INSERT INTO realtime_oss_inct_new SELECT * FROM df")
 
             # 提交事务
             self.conn.execute("COMMIT")

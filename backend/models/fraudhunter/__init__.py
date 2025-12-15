@@ -24,6 +24,7 @@ from .wide_table import (
 from .model_execution_tracking import (
     FraudHunterModelHitRecord,
     FraudHunterModelAlertControlRecord,
+    FraudHunterModelUserVariableConfig,
 )
 
 __all__ = [
@@ -40,4 +41,5 @@ __all__ = [
     'FraudHunterWideTableSnapshot',
     'FraudHunterModelHitRecord',
     'FraudHunterModelAlertControlRecord',
+    'FraudHunterModelUserVariableConfig',
 ]

@@ -17,7 +17,7 @@ from models.db_base import get_db_session
 from models.fraudhunter.indicator import FraudHunterIndicatorTask
 from models.fraudhunter.wide_table import FraudHunterWideTableSnapshot, FraudHunterWideTableVersion
 from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
-from models.fraudhunter.model_execution_tracking import FraudHunterModelExecution
+from models.fraudhunter.model_execution_tracking import FraudHunterModelExecution, FraudHunterModelUserVariableConfig
 from services.fraudhunter.model_service.model_hit_alert_manager import ModelHitAlertManager, ModelHit
 from utils.logger import logger
 from utils.config import settings
@@ -155,13 +155,16 @@ async def generate_realtime_wide_table_job():
             logger.info("=" * 60)
 
             # 1.1 只读模式连接 DuckDB
-            duckdb_path = Path(settings.fraudhunter_realtime_data_storage_path) / "realtime_inct.duckdb"
+            duckdb_path = Path(settings.fraudhunter_realtime_data_storage_path) / "realtime_data.duckdb"
             if not duckdb_path.exists():
                 logger.warning(f"DuckDB文件不存在: {duckdb_path}")
                 return
 
             logger.info(f"连接DuckDB: {duckdb_path} (只读模式)")
             duckdb_conn = duckdb.connect(str(duckdb_path), read_only=True)
+
+            today = date.today()
+            today_str = today.strftime('%Y-%m-%d')
 
             # 1.2 获取所有状态为上线的 dep_acct_no 的指标任务
             realtime_tasks = db.query(FraudHunterIndicatorTask).filter(
@@ -195,11 +198,16 @@ async def generate_realtime_wide_table_job():
 
             # 1.4 执行所有实时指标 SQL 并合并结果
             all_indicator_results = []
+            user_variable_config = _build_all_user_variable_config()
 
             for task in realtime_tasks:
                 sql = task.realtime_logic_content
 
                 # 替换表名为 read_parquet
+                for k,v in user_variable_config.items():
+                    sql = sql.replace("${"+k+"}", v)
+
+                sql = sql.replace("${date}", today_str)
                 sql = sql.replace('offline_dep_acct_no_table', f"read_parquet('{dep_acct_parquet_path}')")
                 if cust_parquet_path:
                     sql = sql.replace('offline_cust_no_table', f"read_parquet('{cust_parquet_path}')")
@@ -234,8 +242,7 @@ async def generate_realtime_wide_table_job():
             output_dir = Path(settings.fraudhunter_wide_table_storage_path) / "dep_acct_wide_table_realtime"
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            today = date.today()
-            output_file = output_dir / f"dep_acct_realtime_{today.strftime('%Y%m%d')}.parquet"
+            output_file = output_dir / f"dep_acct_realtime_{datetime.now().strftime("%Y%m%d_%H%M%S")}.parquet"
 
             final_result.to_parquet(output_file)
             row_count = len(final_result)
@@ -266,6 +273,7 @@ async def generate_realtime_wide_table_job():
 
             # 2.1 关闭只读连接，创建内存DuckDB连接用于模型执行
             duckdb_conn.close()
+
             duckdb_conn = duckdb.connect(":memory:")
 
             # 2.2 汇总所有状态为上线的模型
@@ -341,7 +349,6 @@ async def generate_realtime_wide_table_job():
             # 3.1 处理每条命中记录
             manager = ModelHitAlertManager(db)
             hit_time = datetime.now()
-            today = date.today()
 
             # 用于统计的集合
             all_hit_accounts = set()  # 所有命中账户
@@ -516,8 +523,10 @@ def _build_model_matching_sql(
     select_fields = [
         "dep_acct_realtime_indicator.target_id AS 账号",
         "dep_acct_realtime_indicator.etl_date AS 实时数据日期",
-        "dep_acct_realtime_indicator.*",  # 包含所有实时指标
-        f"{array_expr} AS 命中模型情况"
+        "dep_acct_realtime_indicator.*",  # 实时存款指标
+        "dep_acct_offline_indicator.*",   # 离线存款指标
+        "cust_offline_indicator.*",       # 离线客户指标
+        f"{array_expr} AS model_hit_array"
     ]
 
     select_clause = ",\n    ".join(select_fields)
@@ -536,7 +545,7 @@ def _build_model_matching_sql(
         ])
 
     # 构建 WHERE 子句（命中模型清单不为空）
-    where_clause = "WHERE list_count(命中模型情况) > 0"
+    where_clause = "WHERE list_count(model_hit_array) > 0"
 
     # 组装完整SQL
     sql = f"""-- 实时模型匹配SQL
@@ -550,3 +559,20 @@ SELECT
 """
 
     return sql
+
+
+def _build_all_user_variable_config(
+    db: Session,
+) -> dict:
+    all_user_config = db.query(FraudHunterModelUserVariableConfig).all()
+    _user_config = {}
+    for c in all_user_config:
+        if c.config_type == "pure_value":
+            _user_config[c.config_key] = _user_config[c.config_value]['value']
+        
+        if c.config_type == "list_to_in_str":
+            tmp_list = [f"'{_}'" for _ in _user_config[c.config_value]['value']]
+            _user_config[c.config_key] = ','.join(tmp_list)
+    
+    logger.info(f"用户变量组装完毕：{_user_config}")
+    return _user_config

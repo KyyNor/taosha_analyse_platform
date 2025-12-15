@@ -166,3 +166,30 @@ class FraudHunterModelAlertControlRecord(Base):
 
     def __repr__(self):
         return f"<FraudHunterModelAlertControlRecord(id={self.id}, account_id='{self.account_id}', model_id={self.model_id}, record_date='{self.record_date}')>"
+    
+class FraudHunterModelUserVariableConfig(Base):
+    """模型用户变量配置表"""
+    __tablename__ = "fraudhunter_model_user_variable_config"
+
+    # 主键
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
+
+    config_key = Column(String(64), nullable=False, comment='配置id')
+    config_desc = Column(String(64), nullable=False, comment='配置名称')
+
+    config_value = Column(JSON, nullable=False, comment='配置值')
+
+    config_type = Column(String(64), nullable=False, comment='配置类型')
+
+    # 审计字段
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
+
+    # 索引
+    __table_args__ = (
+        Index('idx_fh_user_env_config_key', 'config_key'),
+        {'comment': '模型用户变量配置表'}
+    )
+
+    def __repr__(self):
+        return f"<FraudHunterModelUserVariableConfig(id={self.id}, config_key='{self.config_key}', config_type='{self.config_type}')>"
