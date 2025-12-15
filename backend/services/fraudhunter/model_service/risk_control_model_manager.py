@@ -261,12 +261,12 @@ class RiskControlModelManager:
         db_model.updated_by = updated_by
 
         # 创建版本历史
-        self._create_version_history(
-            db_model,
-            'publish',
-            change_description or f'发布版本{version}',
-            updated_by
-        )
+        # self._create_version_history(
+        #     db_model,
+        #     'publish',
+        #     change_description or f'发布版本{version}',
+        #     updated_by
+        # )
 
         self.db.commit()
         self.db.refresh(db_model)
@@ -299,7 +299,7 @@ class RiskControlModelManager:
         db_model.updated_by = updated_by
 
         # 创建版本历史
-        self._create_version_history(db_model, 'archive', '归档模型', updated_by)
+        # self._create_version_history(db_model, 'archive', '归档模型', updated_by)
 
         self.db.commit()
         self.db.refresh(db_model)

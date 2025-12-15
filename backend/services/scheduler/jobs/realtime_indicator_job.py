@@ -216,7 +216,7 @@ async def generate_realtime_wide_table_job():
                     sql = sql.replace('offline_cust_no_table', f"read_parquet('{cust_parquet_path}')")
 
                 logger.debug(f"执行指标任务 {task.task_code} 的实时SQL")
-                logger.debug(f"SQL: {sql[:200]}...")
+                logger.debug(f"SQL: {sql}...")
 
                 try:
                     result_df = duckdb_conn.execute(sql).df()
@@ -320,6 +320,7 @@ async def generate_realtime_wide_table_job():
 
             # 2.3 组装查询语句
             model_sql = _build_model_matching_sql(
+                db,
                 online_models,
                 realtime_wide_table_path,
                 dep_acct_parquet_path,
@@ -331,7 +332,7 @@ async def generate_realtime_wide_table_job():
             db.flush()
 
             logger.debug("模型匹配SQL已生成")
-            logger.debug(f"SQL: {model_sql[:500]}...")
+            logger.debug(f"SQL: {model_sql}...")
 
             # 2.4 执行模型匹配查询
             try:
@@ -359,8 +360,8 @@ async def generate_realtime_wide_table_job():
             new_hit_accounts = set()  # 新命中账户（当日第一次）
 
             for _, row in matched_df.iterrows():
-                account_id = str(row.get('账号', ''))
-                hit_model_list = row.get('命中模型情况', [])
+                account_id = str(row.get('realtime_target_id', ''))
+                hit_model_list = row.get('model_hit_array', [])
 
                 if not hit_model_list or len(hit_model_list) == 0:
                     continue
@@ -401,7 +402,7 @@ async def generate_realtime_wide_table_job():
                 indicator_data = {
                     k: (v.item() if hasattr(v, 'item') else v)
                     for k, v in row.items()
-                    if k != '命中模型情况'
+                    if k != 'model_hit_array'
                 }
 
                 # 3.2 创建命中记录
@@ -465,6 +466,7 @@ async def generate_realtime_wide_table_job():
 
 
 def _build_model_matching_sql(
+    db: Session,
     models: List[FraudHunterModelDefinition],
     realtime_wide_table_path: str,
     dep_acct_offline_path: str,
@@ -507,7 +509,7 @@ def _build_model_matching_sql(
         rule_config = RuleConfig(**rule_config_dict)
 
         # 使用 RuleEngine 生成 WHERE 条件
-        rule_engine = RuleEngine(db=None)  # 此处不需要db，因为不需要中文名
+        rule_engine = RuleEngine(db=db)
         indicator_alias_mapping = rule_engine.build_indicator_alias_mapping(
             rule_config,
             use_alias=True
@@ -525,8 +527,8 @@ def _build_model_matching_sql(
 
     # 构建 SELECT 字段列表
     select_fields = [
-        "dep_acct_realtime_indicator.target_id AS 账号",
-        "dep_acct_realtime_indicator.etl_date AS 实时数据日期",
+        "dep_acct_realtime_indicator.target_id AS realtime_target_id",
+        "dep_acct_realtime_indicator.etl_date AS realtime_etl_date",
         "dep_acct_realtime_indicator.*",  # 实时存款指标
         "dep_acct_offline_indicator.*",   # 离线存款指标
         "cust_offline_indicator.*",       # 离线客户指标
