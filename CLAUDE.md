@@ -6,9 +6,9 @@
 
 **淘沙分析平台** 是一个 AI 驱动的商业智能平台，可将自然语言查询转换为 SQL，并提供基于智能体的对话能力和工具集成。
 
-- **后端**：FastAPI 服务，支持自然语言转 SQL、智能体对话和元数据管理
-- **前端**：Next.js React 应用，具有实时流式 UI
-- **最新提交**：`009e414`（docs: 将 CLAUDE.md 重写为中文）
+- **后端**：FastAPI 服务，支持自然语言转 SQL、智能体对话、元数据管理和实时风控系统
+- **前端**：Next.js React 应用，具有实时流式 UI 和可视化规则引擎
+- **最新提交**：`f8f7195`（refactor: 清理fraudhunter模块冗余代码和文档）
 
 ## 开发命令
 
@@ -83,6 +83,12 @@ npm run lint
    - `agents_routes.py` - 智能体对话，支持流式 SSE
    - `metadata_routes.py` - 表/列元数据 CRUD
    - `user_routes.py` - 用户管理（最小化）
+   - **FraudHunter API** (`fraudhunter/`) - 风控反诈系统完整API
+     - `indicator_routes.py` - 指标定义管理（CRUD、批量创建）
+     - `indicator_task_routes.py` - 指标任务管理（SQL生成、版本管理、上线发布）
+     - `model_routes.py` - 风控模型管理（规则引擎、回测、导入导出）
+     - `wide_table_routes.py` - 宽表版本管理（双版本机制、快照追踪）
+     - `alert_control_record_routes.py` - 告警管控记录（命中追踪、Excel导出）
    - **基础路径**：`/api/taosha/v1`
 
 2. **服务层** (`/backend/services/`)
@@ -116,10 +122,38 @@ npm run lint
      - SQLAlchemy 模型用于表、列、术语表、主题、关系
      - 模式缓存和同步
 
+   - **FraudHunter服务** (`fraudhunter/`) - 完整的风控反诈业务服务层
+     - **指标服务** (`indicator_service/`)
+       - `indicator_manager.py` - 指标定义CRUD、批量创建、自动编码生成
+       - `indicator_task_manager.py` - 指标任务管理、SQL生成和优化、版本发布
+     - **模型服务** (`model_service/`)
+       - `model_manager.py` - 风控模型CRUD、规则配置管理
+       - `model_backtest_manager.py` - 历史数据回测、结果分析
+       - `rule_engine.py` - 可视化规则引擎、SQL生成器（支持嵌套规则组）
+       - `model_hit_alert_manager.py` - 模型命中记录、告警管控处理
+       - `realtime_consumer.py` - Kafka实时数据消费和DuckDB加工
+     - **宽表服务** (`wide_table_service/`)
+       - `wide_table_manager.py` - 宽表版本CRUD、双版本机制管理
+       - `wide_table_sync_service.py` - 离线宽表同步、版本提升、Parquet持久化
+       - `wide_table_realtime_service.py` - 实时宽表生成、指标合并
+
+   - **调度服务** (`scheduler/`) - 定时任务和后台作业
+     - `realtime_indicator_job.py` - 实时指标加工、模型匹配、告警生成
+     - 支持APScheduler定时调度执行
+
+   - **DolphinScheduler集成** (`dolphinscheduler/`)
+     - 工作流管理、任务调度、表检查、横表转纵表功能
+
 3. **数据库层** (`/backend/database`, `/backend/models`)
    - ORM：SQLAlchemy 2.0
    - 数据库：SQLite（开发）、MySQL（生产）
-   - 模型：元数据、主题、术语表、追踪、训练记录
+   - **核心模型**：元数据、主题、术语表、追踪、训练记录
+   - **FraudHunter模型** (`models/fraudhunter/`)
+     - `indicator.py` - 指标定义模型（支持多种数据类型、对象类型）
+     - `indicator_task.py` - 指标任务模型（SQL生成、版本管理、上线状态）
+     - `risk_control_model.py` - 风控模型（规则配置、状态管理）
+     - `wide_table_version.py` - 宽表版本模型（双版本机制、快照追踪）
+     - `model_execution_tracking.py` - 模型执行追踪（命中记录、告警管控记录）
    - 连接池通过 `db_base.py`
 
 4. **基础设施**
@@ -143,15 +177,35 @@ npm run lint
 app/(main)/
 ├── agent/page.tsx           # 智能体对话界面
 ├── nlquery/page.tsx         # 自然语言查询提交与结果
-├── history/page.tsx         # 查询历史
-├── favorites/page.tsx       # 保存的查询
-├── settings/page.tsx        # 应用设置
-└── metadata/                # 元数据管理（表、术语表、主题等）
+├── metadata/                # 元数据管理（表、术语表、主题等）
+└── fraudhunter/             # 猎诈风控系统（完整的反诈业务模块）
+    ├── indicators/          # 指标定义管理
+    │   ├── page.tsx        # 指标列表、批量创建
+    │   └── [id]/page.tsx   # 指标详情编辑
+    ├── indicator-tasks/     # 指标任务管理
+    │   ├── page.tsx        # 任务列表、SQL生成
+    │   └── [id]/page.tsx   # 任务详情、版本管理
+    ├── models/              # 风控模型管理
+    │   ├── page.tsx        # 模型列表
+    │   ├── new/page.tsx    # 新建模型（可视化规则构建器）
+    │   └── [id]/page.tsx   # 模型详情、回测、导入导出
+    ├── wide-tables/         # 宽表版本管理
+    │   ├── page.tsx        # 版本列表、快照追踪
+    │   └── [id]/page.tsx   # 版本详情
+    └── alert-control-records/ # 告警管控记录
+        └── page.tsx        # 记录列表、Excel导出
 
 components/
 ├── agent/                   # 智能体 UI 组件
 ├── query/                   # 查询表单和结果
+├── fraudhunter/            # 猎诈系统专用组件
+│   ├── RuleBuilder.tsx     # 可视化规则构建器（支持嵌套规则组）
+│   ├── IndicatorSelector.tsx # 指标选择器（支持搜索）
+│   └── WideTableVersionCard.tsx # 宽表版本卡片
 ├── generative_ui/          # GenUI 支持
+├── common/                 # 通用业务组件
+│   ├── MetadataTable.tsx   # 通用元数据表格（支持分页、搜索、自定义操作）
+│   └── ConfirmDialog.tsx   # 统一确认对话框
 └── ui/                     # Radix UI + 自定义组件
 
 lib/
@@ -568,6 +622,10 @@ class LoggerManager:
 | 样式 | Tailwind CSS、Radix UI | UI 组件和样式 |
 | 流 | Vercel AI SDK 5.0 | 客户端 SSE/流 |
 | HTTP | Axios 1.7 | 前端 API 调用 |
+| 实时数据 | Kafka、DuckDB 1.2 | 实时数据流处理 |
+| 离线计算 | Apache Spark、PySpark | 大数据离线批处理 |
+| 列式存储 | Parquet | 高效数据存储格式 |
+| 任务调度 | APScheduler、DolphinScheduler | 定时任务和工作流管理 |
 
 ## 配置
 
@@ -647,6 +705,146 @@ class LoggerManager:
 - **智能体**：SSE（服务器发送事件）用于实时令牌流
 - **前端**：使用 `text`、`tool_call`、`tool_result` 事件类型解析 SSE 事件流
 - Vercel AI SDK 提供解析辅助程序
+
+## FraudHunter 猎诈风控系统
+
+FraudHunter 是淘沙平台的核心业务模块,提供完整的实时风控和反诈能力。
+
+### 系统架构
+
+**四层架构设计：**
+
+```
+指标层 → 宽表层 → 模型层 → 告警层
+```
+
+1. **指标层** - 指标定义和计算引擎
+   - **指标定义**：支持多种数据类型（integer/float/string/date）和对象类型（dep_acct_no等）
+   - **指标任务**：SQL查询生成、自动编码、版本管理
+   - **批量创建**：分步骤UI引导批量创建指标和任务
+   - **离线/实时双SQL**：支持DolphinScheduler离线调度和Spark实时计算
+
+2. **宽表层** - 智能双版本宽表机制
+   - **双版本设计**：
+     - **离线宽表**：定期T+1全量更新,存储Parquet格式
+     - **实时宽表**：基于Kafka Canal数据流实时增量更新
+   - **版本管理**：支持版本号、版本哈希、快照追踪
+   - **智能降级**：实时宽表异常时自动降级到离线宽表
+   - **同步服务**：`wide_table_sync_service.py` 负责离线宽表生成和版本提升
+
+3. **模型层** - 可视化规则引擎和回测系统
+   - **可视化规则构建器**：
+     - 支持多层嵌套规则组（AND/OR逻辑）
+     - 丰富的运算符（=、!=、>、<、in、between、contains等）
+     - 复杂值表达式（固定值、指标间比较、时间函数）
+     - 实时SQL预览和规则导入导出
+   - **规则引擎**（`rule_engine.py`）：
+     - 将可视化规则配置编译为SQL WHERE子句
+     - 支持DuckDB list_filter和CASE WHEN语法
+     - 生成可执行的Spark SQL和DuckDB查询
+   - **回测系统**：
+     - 历史数据回测验证模型效果
+     - 结果导出为Excel格式
+     - 支持自定义时间范围和客户群体
+
+4. **告警层** - 实时告警和管控追踪
+   - **模型执行追踪**：
+     - `model_hit_alert_manager.py` - 命中记录生成和管理
+     - 支持重复告警检测和管控逻辑
+     - 记录命中模型、命中时间、target_id等信息
+   - **告警管控记录**：
+     - 完整的告警生命周期追踪
+     - 支持Excel批量导出
+     - 管控状态和结果记录
+   - **实时处理任务**（`realtime_indicator_job.py`）：
+     - 定时从Kafka消费数据
+     - 实时指标计算和宽表合并
+     - 模型匹配和告警生成
+     - 完整的事务管理和异常处理
+
+### 核心数据流
+
+**完整的实时风控链路：**
+
+```
+Kafka Canal数据流
+    ↓
+realtime_consumer.py（DuckDB实时加工）
+    ↓
+realtime_indicator_job.py（定时任务）
+    ├─→ 实时指标计算
+    ├─→ 实时宽表生成（LEFT JOIN 离线宽表）
+    ├─→ 模型规则匹配（RuleEngine SQL生成）
+    ├─→ 命中记录创建
+    └─→ 告警管控处理
+```
+
+**离线宽表同步链路：**
+
+```
+DolphinScheduler定时任务
+    ↓
+指标任务SQL执行（Spark）
+    ↓
+wide_table_sync_service.py
+    ├─→ 汇总所有上线指标结果
+    ├─→ 基于target_id合并生成宽表
+    ├─→ 存储为Parquet文件
+    ├─→ 版本号自动提升
+    └─→ 快照记录更新
+```
+
+### 技术亮点
+
+1. **智能双版本机制**
+   - 实时性与稳定性的完美平衡
+   - 自动降级保证服务可用性
+   - 版本哈希确保数据一致性追溯
+
+2. **可视化规则引擎**
+   - 零代码配置复杂风控规则
+   - 支持无限层级嵌套
+   - 规则配置可导入导出复用
+   - 实时SQL预览验证规则正确性
+
+3. **高性能实时处理**
+   - DuckDB内存数据库极速计算
+   - Parquet列式存储高效读取
+   - 基于list_filter的批量模型匹配
+   - 完整的事务管理和错误恢复
+
+4. **完整的可观测性**
+   - 每个环节的详细日志记录
+   - 版本追踪和快照管理
+   - 命中记录和告警追踪
+   - Excel导出支持业务分析
+
+### 前端交互特性
+
+1. **分步骤批量创建流程**
+   - 第一步：基础信息配置
+   - 第二步：指标批量输入
+   - 第三步：任务SQL配置
+   - 第四步：预览和确认
+   - 第五步：预执行验证
+
+2. **可视化规则构建器**
+   - 拖拽式规则组嵌套
+   - 智能指标选择器（支持搜索、分组）
+   - 实时表单验证
+   - 单行紧凑布局优化
+
+3. **统一的列表管理**
+   - 服务端分页支持
+   - 全文搜索功能
+   - Badge标签展示（状态、类型等）
+   - 批量操作和导出
+
+4. **导航菜单分组**
+   - 指标管理分组（指标定义、指标任务）
+   - 模型管理分组（模型列表、新建模型）
+   - 试运行分组（回测、验证）
+   - 宽表管理分组（版本管理、同步监控）
 
 ## 测试
 
@@ -791,4 +989,179 @@ class LoggerManager:
 
 这次更新为项目建立了完整的开发规范和设计体系，为后续的功能开发和团队协作提供了清晰的指导。
 
-- **Latest Commit**: `5d1b0ed` (cleanup: 清理历史文件和旧备份)
+## 最新功能更新（自 5d1b0ed 以来）
+
+### FraudHunter 猎诈系统核心功能（主要更新）
+
+本次更新最重要的里程碑是完成了FraudHunter猎诈风控系统的全栈开发,这是一个企业级的实时风控平台。
+
+#### 1. 实时风控能力（`8a7097a`、`cd80431`、`e523d60`）
+
+**实时指标加工和模型匹配任务**：
+- 完整实现 `realtime_indicator_job.py` 的三大核心功能
+- 只读模式连接DuckDB实时数据，基于target_id合并生成实时宽表
+- 使用RuleEngine构建模型匹配条件，生成命中记录
+- 完整的告警管控记录处理流程
+
+**Kafka Canal模拟数据生成器**：
+- 新增完整的Canal格式数据模拟器用于开发测试
+- 支持多种表结构和可配置的数据生成规则
+- 完整的命令行参数支持
+
+**服务模块重构**：
+- 将model_hit_alert_manager和realtime_consumer移动到model_service模块
+- 删除独立的model_execution_service和realtime_data_service
+- 清理测试文件和旧文档
+
+#### 2. 前端UI和交互优化（`042fa6f`、`3e1e599`、`f8f7195`）
+
+**导航菜单优化**：
+- 为导航菜单添加分组标题和分隔符支持
+- 重构猎诈菜单结构，添加四个清晰的分组
+- 优化下拉菜单的视觉层次和可读性
+
+**代码清理**：
+- 清理前端未使用的历史和设置页面
+- 清理fraudhunter模块冗余代码和文档
+- 删除README文档，移除未使用的API调用
+
+#### 3. 列表分页和搜索功能（`9727f01`、`d2e889c`、`f00a962`等）
+
+**全面的分页支持**：
+- 为所有元数据API和页面添加服务端分页
+- 为fraudhunter所有列表页面添加分页
+- 为宽表版本管理添加分页和进度追踪
+
+**搜索功能完善**：
+- 完成所有前端页面的搜索功能改造
+- 完成后端Service层的搜索功能实现
+- 为指标选择器添加搜索功能
+
+#### 4. 宽表版本管理系统（`70490d3`、`09931ab`、`b4fe352`等）
+
+**双版本宽表机制**：
+- 实现智能双版本宽表（离线+实时）
+- 版本降级显示卡片和智能降级逻辑
+- 版本同步与指标任务版本变更联动
+
+**版本管理功能**：
+- 宽表版本列表支持分页和进度追踪
+- 版本快照记录和追溯
+- 版本哈希确保数据一致性
+
+#### 5. 规则引擎和模型管理（`d623bcb`、`94ce44f`、`76e03a8`等）
+
+**可视化规则引擎v2.0.0**：
+- 实现完整的可视化规则构建器
+- 支持多层嵌套规则组（AND/OR逻辑）
+- 规则配置导入/导出功能
+
+**值表达式功能v2.1.0**：
+- 实现日期比较和指标间比较
+- 支持复杂的值表达式（固定值、指标比较、时间函数）
+- 单行布局优化和交互体验提升
+
+**模型回测功能**：
+- 添加模型历史回测功能
+- 回测结果CSV导出升级为Excel导出
+- 支持自定义时间范围和客户群体
+
+#### 6. 指标和任务管理（`3fb2d90`、`d2788bb`、`703b5f2`等）
+
+**批量创建功能**：
+- 指标和任务自动编码生成
+- 分步骤UI设计的批量创建流程
+- 预执行验证功能
+
+**版本管理**：
+- 实现指标任务编辑和版本管理
+- 指标版本与任务版本同步
+- 版本发布和上线状态管理
+
+#### 7. DolphinScheduler集成（`ce56952`、`4185c66`、`2c7c22f`等）
+
+**工作流管理**：
+- 完善DolphinScheduler集成服务
+- 实现指标任务横表转纵表功能
+- 完善指标任务调度功能
+- 添加表检查和工作流配置
+
+#### 8. 告警管控系统（`272e10d`、`9f369d2`、`1e3eab2`等）
+
+**告警控制记录**：
+- 新增风控告警控制记录前端页面和服务
+- 实现风控模型执行追踪和告警系统
+- 完善告警控制记录功能和模型执行追踪
+- 支持Excel导出和批量操作
+
+#### 9. 用户体验优化
+
+**Badge展示统一**：
+- 统一FraudHunter列表页面Badge展示风格（`bbec263`）
+- 统一元数据页面Badge展示风格（`516eadb`）
+- 修复布尔值Badge显示问题（`eaab20e`）
+
+**文件下载和导出**：
+- 优化文件下载功能（`51441a8`）
+- 添加测试数据生成工具
+- 统一使用Excel导出（`4b8ff14`）
+
+**前端交互优化**：
+- 统一使用自定义确认对话框替换原生confirm（`23edc47`）
+- 指标下拉框自动定位到已选择的指标（`4bedbf9`）
+- 优化规则构建器指标下拉框UI（`4f73521`）
+
+### 技术架构升级
+
+#### 后端架构
+- **服务模块重构**：清晰的模块职责划分
+- **Spark支持**：添加PySpark支持，重构同步服务（`c6ba6be`）
+- **数据库优化**：独立的数据库会话管理
+- **定时任务**：完善调度服务架构（`0899a3d`）
+
+#### 前端架构
+- **组件复用**：通用MetadataTable组件支持自定义操作（`60d6ffc`）
+- **NavigationMenu重构**：使用NavigationMenu组件重构Header（`52f288c`）
+- **分步骤流程**：标准化的多步骤表单设计
+
+#### 数据处理
+- **DuckDB优化**：只读模式+内存模式+read_parquet
+- **Parquet存储**：高效的列式存储格式
+- **智能SQL构建**：复用RuleEngine确保逻辑一致性
+
+### 开发工具和文档
+
+**测试工具**：
+- Kafka Canal模拟数据生成器
+- FraudHunter测试数据生成工具
+- 模型回测和预执行验证
+
+**文档完善**：
+- 删除过时的设计文档
+- 清理废弃文件
+- 更新依赖约束
+
+### 重要修复
+
+- 修复指标任务上线后状态不更新的问题（`637af7e`）
+- 修复fraudhunter模型关系映射错误（`1c9b8ca`）
+- 修复MetadataTable分页和搜索功能（`5e4e8cb`、`27cfb63`）
+- 修复时间函数数据类型验证（`38d4321`）
+- 修复规则引擎SQL生成逻辑（`16ace9e`）
+
+### 提交统计
+
+从 `5d1b0ed` 到 `f8f7195` 共有 **148个提交**,涵盖:
+- 核心功能开发: ~60个提交
+- UI/UX优化: ~30个提交
+- Bug修复: ~20个提交
+- 重构和清理: ~25个提交
+- 文档和工具: ~13个提交
+
+这次更新标志着FraudHunter从0到1的完整实现,建立了企业级实时风控平台的技术架构和业务能力。
+
+---
+
+**Documentation Last Updated**: `f8f7195` (refactor: 清理fraudhunter模块冗余代码和文档)
+**Update Date**: 2025-12-15
+**Commits Range**: 5d1b0ed..f8f7195 (148 commits)
