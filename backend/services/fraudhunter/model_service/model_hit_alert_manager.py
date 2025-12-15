@@ -44,49 +44,52 @@ class ModelHitAlertManager:
         account_id: str,
         hit_models: List[ModelHit],
         indicator_data: Dict[str, Any],
-        hit_time: datetime
+        hit_time: datetime,
+        execution_id: Optional[int] = None
     ) -> FraudHunterModelHitRecord:
         """创建命中记录
-        
+
         Args:
             account_id: 账号标识
             hit_models: 命中的模型列表
             indicator_data: 指标数据
             hit_time: 命中时间
-            
+            execution_id: 执行记录ID（可选）
+
         Returns:
             创建的命中记录
-            
+
         Raises:
             ValueError: 如果参数无效
         """
         if not account_id:
             raise ValueError("账号ID不能为空")
-        
+
         if not hit_models:
             raise ValueError("命中模型列表不能为空")
-            
+
         if not indicator_data:
             raise ValueError("指标数据不能为空")
-            
+
         # 提取模型ID和名称列表
         hit_model_ids = [model.model_id for model in hit_models]
         hit_model_names = [model.model_name for model in hit_models]
-        
+
         # 创建命中记录
         hit_record = FraudHunterModelHitRecord(
+            execution_id=execution_id,
             account_id=account_id,
             hit_time=hit_time,
             hit_model_ids=hit_model_ids,
             hit_model_names=hit_model_names,
             indicator_data=indicator_data
         )
-        
+
         self.db.add(hit_record)
         self.db.flush()  # 获取ID但不提交事务
-        
-        logger.info(f"创建命中记录: account_id={account_id}, models={hit_model_ids}, hit_time={hit_time}")
-        
+
+        logger.info(f"创建命中记录: account_id={account_id}, models={hit_model_ids}, hit_time={hit_time}, execution_id={execution_id}")
+
         return hit_record
 
     def hit_record_processor(self, hit_record: FraudHunterModelHitRecord) -> List[FraudHunterModelAlertControlRecord]:
@@ -112,6 +115,7 @@ class ModelHitAlertManager:
             
             # 创建告警管控记录
             alert_control_record = FraudHunterModelAlertControlRecord(
+                execution_id=hit_record.execution_id,
                 hit_record_id=hit_record.id,
                 account_id=hit_record.account_id,
                 record_date=record_date,

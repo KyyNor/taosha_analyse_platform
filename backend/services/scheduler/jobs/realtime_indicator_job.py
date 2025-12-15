@@ -17,7 +17,8 @@ from models.db_base import get_db_session
 from models.fraudhunter.indicator import FraudHunterIndicatorTask
 from models.fraudhunter.wide_table import FraudHunterWideTableSnapshot, FraudHunterWideTableVersion
 from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
-from services.fraudhunter.model_execution_service.model_hit_alert_manager import ModelHitAlertManager, ModelHit
+from models.fraudhunter.model_execution_tracking import FraudHunterModelExecution
+from backend.services.fraudhunter.model_service.model_hit_alert_manager import ModelHitAlertManager, ModelHit
 from utils.logger import logger
 from utils.config import settings
 
@@ -278,6 +279,33 @@ async def generate_realtime_wide_table_job():
 
             logger.info(f"找到 {len(online_models)} 个在线模型")
 
+            # 2.2.1 创建执行记录
+            online_models_info = [
+                {
+                    'id': model.id,
+                    'name': model.model_name,
+                    'code': model.model_code,
+                    'version': model.current_version
+                }
+                for model in online_models
+            ]
+
+            execution_start_time = datetime.now()
+            execution_record = FraudHunterModelExecution(
+                realtime_dep_acct_wide_table_path=realtime_wide_table_path,
+                offline_dep_acct_wide_table_path=dep_acct_parquet_path,
+                offline_cust_wide_table_path=cust_parquet_path,
+                online_models_info=online_models_info,
+                generated_sql='',  # 稍后更新
+                execution_start_time=execution_start_time,
+                status='running'
+            )
+            db.add(execution_record)
+            db.flush()  # 获取execution_id
+
+            execution_id = execution_record.id
+            logger.info(f"创建执行记录: execution_id={execution_id}")
+
             # 2.3 组装查询语句
             model_sql = _build_model_matching_sql(
                 online_models,
@@ -285,6 +313,10 @@ async def generate_realtime_wide_table_job():
                 dep_acct_parquet_path,
                 cust_parquet_path
             )
+
+            # 更新执行记录的SQL
+            execution_record.generated_sql = model_sql
+            db.flush()
 
             logger.info("模型匹配SQL已生成")
             logger.debug(f"SQL: {model_sql[:500]}...")
@@ -309,6 +341,11 @@ async def generate_realtime_wide_table_job():
             # 3.1 处理每条命中记录
             manager = ModelHitAlertManager(db)
             hit_time = datetime.now()
+            today = date.today()
+
+            # 用于统计的集合
+            all_hit_accounts = set()  # 所有命中账户
+            new_hit_accounts = set()  # 新命中账户（当日第一次）
 
             for _, row in matched_df.iterrows():
                 account_id = str(row.get('账号', ''))
@@ -334,6 +371,21 @@ async def generate_realtime_wide_table_job():
                 if not hit_models:
                     continue
 
+                # 记录命中账户
+                all_hit_accounts.add(account_id)
+
+                # 检查是否为当日第一次命中
+                from models.fraudhunter.model_execution_tracking import FraudHunterModelAlertControlRecord
+                existing_record = db.query(FraudHunterModelAlertControlRecord).filter(
+                    and_(
+                        FraudHunterModelAlertControlRecord.account_id == account_id,
+                        FraudHunterModelAlertControlRecord.record_date == today
+                    )
+                ).first()
+
+                if not existing_record:
+                    new_hit_accounts.add(account_id)
+
                 # 构建指标数据（排除命中模型情况列）
                 indicator_data = {
                     k: (v.item() if hasattr(v, 'item') else v)
@@ -346,7 +398,8 @@ async def generate_realtime_wide_table_job():
                     account_id=account_id,
                     hit_models=hit_models,
                     indicator_data=indicator_data,
-                    hit_time=hit_time
+                    hit_time=hit_time,
+                    execution_id=execution_id  # 传递execution_id
                 )
 
                 # 3.3 处理命中记录（生成告警管控记录）
@@ -367,11 +420,32 @@ async def generate_realtime_wide_table_job():
                     f"{[m.model_name for m in hit_models]}"
                 )
 
+            # 3.6 更新执行记录的统计信息
+            execution_record.execution_end_time = datetime.now()
+            execution_record.total_hit_accounts = len(all_hit_accounts)
+            execution_record.new_hit_accounts = len(new_hit_accounts)
+            execution_record.status = 'success'
+            db.flush()
+
+            logger.info(
+                f"执行记录已更新: execution_id={execution_id}, "
+                f"命中账户数={len(all_hit_accounts)}, "
+                f"新命中账户数={len(new_hit_accounts)}"
+            )
+
             db.commit()
             logger.info("实时指标宽表生成及模型匹配完成")
 
         except Exception as e:
             logger.error(f"生成实时指标宽表失败: {e}", exc_info=True)
+
+            # 如果执行记录已创建，更新为失败状态
+            if 'execution_record' in locals() and execution_record:
+                execution_record.execution_end_time = datetime.now()
+                execution_record.status = 'failed'
+                execution_record.error_message = str(e)
+                db.commit()
+
             db.rollback()
             raise
         finally:
