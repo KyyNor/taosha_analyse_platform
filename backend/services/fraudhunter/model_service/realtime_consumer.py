@@ -43,6 +43,9 @@ class RealtimeDataConsumer:
         self._consume_thread = None
         self.last_flush_time = time.time()
 
+        self.last_log_time = time.time()
+        self.insert_cnt = 0
+
         # 监控指标
         self.metrics = {
             'messages_consumed': 0,
@@ -89,56 +92,56 @@ class RealtimeDataConsumer:
             # 创建表（如果不存在）
             self.conn.execute("""
                 CREATE TABLE IF NOT EXISTS realtime_oss_inct_new (
-                    `acct_no`             varchar(255), 
-                    `acct_open_dt`        varchar(255), 
-                    `acct_type`           varchar(255), 
-                    `aorm_date`           varchar(255), 
-                    `branch_name`         varchar(255), 
-                    `branch_no`           varchar(255), 
-                    `busi_typ`            varchar(255), 
-                    `ccy_name`            varchar(255), 
-                    `cha_desc`            varchar(255), 
-                    `channel`             varchar(255), 
-                    `class_type`          varchar(255), 
-                    `cp_acct_name`        varchar(255), 
-                    `cp_acct_no`          varchar(255), 
-                    `cp_acct_type`        varchar(255), 
-                    `cp_bank_branch_name` varchar(255), 
-                    `cp_bank_num`         varchar(255), 
-                    `cp_class_type`       varchar(255), 
-                    `cp_int_cat`          varchar(255), 
-                    `currency`            varchar(255), 
-                    `cust_name`           varchar(255), 
-                    `cust_type`           varchar(255), 
-                    `customer_no`         varchar(255), 
-                    `fir_branch_name`     varchar(255), 
-                    `fir_branch_no`       varchar(255), 
-                    `gl_class_code`       varchar(255), 
-                    `inct_01_amount`      decimal(18,2), 
-                    `inct_01_balance`     decimal(18,2), 
-                    `inct_01_tran_acct`   varchar(255), 
-                    `inct_20_chnnel`      varchar(255), 
-                    `inct_20_desc`        varchar(255), 
-                    `inct_20_narr`        varchar(255), 
-                    `inct_20_rec_no`      varchar(255), 
-                    `inct_20_source`      varchar(255), 
-                    `inma_flag`           varchar(255), 
-                    `int_cat`             varchar(255), 
-                    `jrnl_no`             varchar(255), 
-                    `mgr_no`              varchar(255), 
-                    `mst_aom_no`          varchar(255), 
-                    `parent_branch_name`  varchar(255), 
-                    `parent_branch_no`    varchar(255), 
-                    `peri_no`             varchar(255), 
-                    `prd_name`            varchar(255), 
-                    `rec_no`              varchar(255), 
-                    `rt_processing_time`  varchar(255), 
-                    `send_to_fh_time`     varchar(255), 
-                    `tran_branch`         varchar(255), 
-                    `tran_date`           varchar(255), 
-                    `tran_time`           varchar(255), 
-                    `tran_type`           varchar(255), 
-                    `trn_code`            varchar(255)
+                    acct_no             varchar(255), 
+                    acct_open_dt        varchar(255), 
+                    acct_type           varchar(255), 
+                    aorm_date           varchar(255), 
+                    branch_name         varchar(255), 
+                    branch_no           varchar(255), 
+                    busi_typ            varchar(255), 
+                    ccy_name            varchar(255), 
+                    cha_desc            varchar(255), 
+                    channel             varchar(255), 
+                    class_type          varchar(255), 
+                    cp_acct_name        varchar(255), 
+                    cp_acct_no          varchar(255), 
+                    cp_acct_type        varchar(255), 
+                    cp_bank_branch_name varchar(255), 
+                    cp_bank_num         varchar(255), 
+                    cp_class_type       varchar(255), 
+                    cp_int_cat          varchar(255), 
+                    currency            varchar(255), 
+                    cust_name           varchar(255), 
+                    cust_type           varchar(255), 
+                    customer_no         varchar(255), 
+                    fir_branch_name     varchar(255), 
+                    fir_branch_no       varchar(255), 
+                    gl_class_code       varchar(255), 
+                    inct_01_amount      decimal(18,2), 
+                    inct_01_balance     decimal(18,2), 
+                    inct_01_tran_acct   varchar(255), 
+                    inct_20_chnnel      varchar(255), 
+                    inct_20_desc        varchar(255), 
+                    inct_20_narr        varchar(255), 
+                    inct_20_rec_no      varchar(255), 
+                    inct_20_source      varchar(255), 
+                    inma_flag           varchar(255), 
+                    int_cat             varchar(255), 
+                    jrnl_no             varchar(255), 
+                    mgr_no              varchar(255), 
+                    mst_aom_no          varchar(255), 
+                    parent_branch_name  varchar(255), 
+                    parent_branch_no    varchar(255), 
+                    peri_no             varchar(255), 
+                    prd_name            varchar(255), 
+                    rec_no              varchar(255), 
+                    rt_processing_time  varchar(255), 
+                    send_to_fh_time     varchar(255), 
+                    tran_branch         varchar(255), 
+                    tran_date           varchar(255), 
+                    tran_time           varchar(255), 
+                    tran_type           varchar(255), 
+                    trn_code            varchar(255)
                 )
             """)
 
@@ -232,7 +235,8 @@ class RealtimeDataConsumer:
 
             # 添加到缓冲区
             for item in items:
-                parsed_record = {
+                if item:
+                   parsed_record = {
                     'acct_no': item.get('acct_no'),  
                     'acct_open_dt': item.get('acct_open_dt'),  
                     'acct_type': item.get('acct_type'),  
@@ -316,7 +320,14 @@ class RealtimeDataConsumer:
 
             # 更新指标
             self.metrics['messages_written'] += len(self.buffer)
-            logger.info(f"成功写入 {len(self.buffer)} 条记录到DuckDB")
+
+            _cur_time = time.time()
+            if _cur_time - self.last_log_time > 1800:  # 半小时记录一次入库日志
+                logger.info(f"成功写入 {self.insert_cnt + len(self.buffer)} 条记录到DuckDB")
+                self.insert_cnt = 0
+                self.last_log_time = _cur_time
+            else:
+                self.insert_cnt = self.insert_cnt + len(self.buffer)
 
             # 清空缓冲区
             self.buffer = []

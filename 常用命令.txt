@@ -1,4 +1,4 @@
-export bak_path=taosha_analyse_platform_bak20251209v1
+export bak_path=taosha_analyse_platform_bak20251215v1
 mv ../$bak_path/.venv .
 mv ../$bak_path/backend/config/config.yaml backend/config/
 mv ../$bak_path/frontend/node_modules frontend/
@@ -16,13 +16,15 @@ chmod a+x embeddings_model/local-ai-v3.7.0-linux-amd64
 # 启动后端
 source .venv/bin/activate
 cd backend
-uvicorn main:app --workers=2 --port 50020 --host 0.0.0.0
+uvicorn main:app --workers=1 --port 50020 --host 0.0.0.0
 nohup uvicorn main:app --workers=1 --port 50020 --host 0.0.0.0 &
 
 # 启动前端
 cd frontend
 npm run build
 npm run start
+
+nohup npm run start & disown
 
 
 

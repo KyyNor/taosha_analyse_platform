@@ -289,12 +289,6 @@ export const indicatorTaskService = {
     return response.data;
   },
 
-  // 发布指标任务
-  async publish(id: number, data: PublishRequest): Promise<IndicatorTask> {
-    const response = await api.post(`${BASE_PATH}/indicator-tasks/${id}/publish`, data);
-    return response.data;
-  },
-
   // 归档指标任务
   async archive(id: number): Promise<IndicatorTask> {
     const response = await api.post(`${BASE_PATH}/indicator-tasks/${id}/archive`);
@@ -351,12 +345,6 @@ export const indicatorService = {
   // 删除指标
   async delete(id: number): Promise<void> {
     await api.delete(`${BASE_PATH}/indicators/${id}`);
-  },
-
-  // 发布指标
-  async publish(id: number, data: PublishRequest): Promise<Indicator> {
-    const response = await api.post(`${BASE_PATH}/indicators/${id}/publish`, data);
-    return response.data;
   },
 
   // 归档指标

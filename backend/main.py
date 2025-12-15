@@ -233,7 +233,7 @@ async def _initialize_system_services():
         # 注意：在启动锁保护内启动，确保只有一个worker执行
         if settings.fraudhunter_realtime_data_enabled:
             try:
-                from services.fraudhunter.realtime_data_service import RealtimeDataConsumer
+                from services.fraudhunter.model_service import RealtimeDataConsumer
 
                 # 全局保存consumer引用（用于关闭时停止）
                 global _realtime_consumer
