@@ -81,15 +81,6 @@ export default function WideTableVersionsPage() {
       )
     },
     {
-      key: "indicator_metadata",
-      label: "指标数量",
-      type: "text" as const,
-      render: (value: Record<string, any>) => {
-        const count = value ? Object.keys(value).length : 0;
-        return <span>{count} 个</span>;
-      }
-    },
-    {
       key: "status",
       label: "状态",
       type: "badge" as const,

@@ -368,10 +368,10 @@ async def generate_realtime_wide_table_job():
 
                 # 提取模型信息
                 hit_models = []
-                for model_name in hit_model_list:
+                for model_id in hit_model_list:
                     # 查找模型
                     model = db.query(FraudHunterModelDefinition).filter(
-                        FraudHunterModelDefinition.model_name == model_name
+                        FraudHunterModelDefinition.id == model_id
                     ).first()
 
                     if model:
@@ -399,11 +399,20 @@ async def generate_realtime_wide_table_job():
                     new_hit_accounts.add(account_id)
 
                 # 构建指标数据（排除命中模型情况列）
-                indicator_data = {
-                    k: (v.item() if hasattr(v, 'item') else v)
-                    for k, v in row.items()
-                    if k != 'model_hit_array'
-                }
+                indicator_data = {}
+
+                for k, v in row.items():
+                    if k != 'model_hit_array':
+                        continue
+                    
+                    if pd.isna(v):
+                        temp_v = None
+                    elif hasattr(v, 'item'):
+                        temp_v = v.item()
+                    else:
+                        temp_v = v
+                    indicator_data[k] = temp_v
+
 
                 # 3.2 创建命中记录
                 hit_record = manager.create_hit_record(
@@ -519,7 +528,7 @@ def _build_model_matching_sql(
 
         # 生成 CASE WHEN 子句
         case_when_clauses.append(
-            f"CASE WHEN ({where_condition}) THEN '{model.model_name}' ELSE NULL END"
+            f"CASE WHEN ({where_condition}) THEN '{model.id}' ELSE NULL END"
         )
 
     # 构建 array 表达式（过滤NULL值）

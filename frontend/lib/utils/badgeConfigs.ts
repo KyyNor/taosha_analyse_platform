@@ -60,7 +60,7 @@ export const dataTypeBadgeConfig = {
   numeric: { variant: "default" as const, label: "数值" },
   enum: { variant: "secondary" as const, label: "枚举" },
   text: { variant: "outline" as const, label: "文本" },
-  boolean: { variant: "default" as const, label: "布尔" }
+  date: { variant: "secondary" as const, label: "日期" }
 };
 
 // 布尔类型标签配置
