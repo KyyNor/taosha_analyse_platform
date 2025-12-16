@@ -1,0 +1,49 @@
+-- FraudHunterSystemConfig 初始化数据
+  -- 告警消息相关配置
+
+  -- 1. 告警通知接收人
+  INSERT INTO fraudhunter_system_config (
+      config_category, config_key, config_desc, config_type, config_value, sql_in_convert, sort_order, created_at, updated_at
+  ) VALUES (
+      'system_param',
+      'alert_notice_no',
+      '告警消息通知接收人（系统用户编号）',
+      'string',
+      '{"value": "whwangzeqi"}',
+      0,
+      100,
+      NOW(),
+      NOW()
+  );
+
+  -- 2. 带管控的告警消息模板
+  -- 支持变量: {account_id}, {time}, {model_list}, {control_serial_number}
+  INSERT INTO fraudhunter_system_config (
+      config_category, config_key, config_desc, config_type, config_value, sql_in_convert, sort_order, created_at, updated_at
+  ) VALUES (
+      'system_param',
+      'alert_message_template_with_control',
+      '带管控的告警消息模板，支持变量: {account_id}, {time}, {model_list}, {control_serial_number}',
+      'string',
+      '{"value": "【武汉分行监测系统】账号：{account_id} 在 {time} 触发 {model_list} 模型，已采取暂停非柜面管控措施，管控流水号为：{control_serial_number},请在2小时内核实。"}',
+      0,
+      101,
+      NOW(),
+      NOW()
+  );
+
+  -- 3. 不带管控的告警消息模板
+  -- 支持变量: {account_id}, {time}, {model_list}
+  INSERT INTO fraudhunter_system_config (
+      config_category, config_key, config_desc, config_type, config_value, sql_in_convert, sort_order, created_at, updated_at
+  ) VALUES (
+      'system_param',
+      'alert_message_template_without_control',
+      '不带管控的告警消息模板，支持变量: {account_id}, {time}, {model_list}',
+      'string',
+      '{"value": "【武汉分行监测系统】账号：{account_id} 在 {time} 触发 {model_list} 模型告警。"}',
+      0,
+      102,
+      NOW(),
+      NOW()
+  );

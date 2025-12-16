@@ -23,6 +23,7 @@ from schemas.fraudhunter.alert_control_record import (
     HitRecordResponse,
     AlertControlRecordDetailResponse
 )
+from services.fraudhunter.system_config_service import SystemConfigManager
 from utils.logger import logger
 from utils.excel_exporter import create_excel_exporter
 from utils.config import settings
@@ -43,6 +44,8 @@ class ModelHitAlertManager:
         # 从配置加载接口URL
         self.control_api_url = settings.fraudhunter_alert_control_control_api_url
         self.message_api_url = settings.fraudhunter_alert_control_message_api_url
+        # 系统配置管理器
+        self.config_manager = SystemConfigManager(db)
 
     def create_hit_record(
         self,
@@ -203,9 +206,15 @@ class ModelHitAlertManager:
                     control_serial_number=control_serial_number
                 )
 
+                # 从配置获取告警通知人
+                alert_notice_no = self.config_manager.get_config_value(
+                    'alert_notice_no',
+                    default='whwangzeqi'  # 默认值
+                )
+
                 # 调用消息提醒接口
                 send_success = self.send_alert_message(
-                    notice_no="whwangzeqi", # todo 
+                    notice_no=alert_notice_no,
                     notice=alert_message
                 )
 
@@ -387,6 +396,12 @@ class ModelHitAlertManager:
     ) -> str:
         """格式化告警消息
 
+        使用系统配置中的消息模板，支持变量替换：
+        - {account_id}: 账号ID
+        - {time}: 命中时间
+        - {model_list}: 模型名称列表
+        - {control_serial_number}: 管控流水号
+
         Args:
             account_id: 账号ID
             hit_time: 命中时间
@@ -399,12 +414,40 @@ class ModelHitAlertManager:
         model_list = ",".join(model_names)
         time_str = hit_time.strftime("%Y-%m-%d %H:%M:%S")
 
+        # 默认模板
+        default_template_with_control = (
+            "【武汉分行监测系统】账号：{account_id} 在 {time} 触发 {model_list} 模型，"
+            "已采取暂停非柜面管控措施，管控流水号为：{control_serial_number},请在2小时内核实。"
+        )
+        default_template_without_control = (
+            "【武汉分行监测系统】账号：{account_id} 在 {time} 触发 {model_list} 模型告警。"
+        )
+
         if control_serial_number:
-            # 需要管控的消息格式
-            return f"【武汉分行监测系统】账号：{account_id} 在 {time_str} 触发 {model_list} 模型，已采取暂停非柜面管控措施，管控流水号为：{control_serial_number},请在2小时内核实。"
+            # 从配置获取带管控的消息模板
+            template = self.config_manager.get_config_value(
+                'alert_message_template_with_control',
+                default=default_template_with_control
+            )
+            # 变量替换
+            return template.format(
+                account_id=account_id,
+                time=time_str,
+                model_list=model_list,
+                control_serial_number=control_serial_number
+            )
         else:
-            # 不需要管控的消息格式
-            return f"【武汉分行监测系统】账号：{account_id} 在 {time_str} 触发 {model_list} 模型告警。"
+            # 从配置获取不带管控的消息模板
+            template = self.config_manager.get_config_value(
+                'alert_message_template_without_control',
+                default=default_template_without_control
+            )
+            # 变量替换
+            return template.format(
+                account_id=account_id,
+                time=time_str,
+                model_list=model_list
+            )
 
     def get_alert_control_records(
         self, 
