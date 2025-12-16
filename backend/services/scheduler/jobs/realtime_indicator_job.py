@@ -16,7 +16,7 @@ from sqlalchemy import and_, desc
 from models.db_base import get_db_session
 from models.fraudhunter.indicator import FraudHunterIndicatorTask, FraudHunterIndicatorDefinition
 from models.fraudhunter.wide_table import FraudHunterWideTableSnapshot, FraudHunterWideTableVersion
-from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
+from models.fraudhunter.risk_control_model import FraudHunterModelDefinition, FraudHunterModelHistory
 from models.fraudhunter.model_execution_tracking import FraudHunterModelExecution, FraudHunterModelUserVariableConfig
 from services.fraudhunter.model_service.model_hit_alert_manager import ModelHitAlertManager, ModelHit
 from utils.logger import logger
@@ -514,7 +514,25 @@ def _build_model_matching_sql(
     # 构建CASE WHEN子句列表
     case_when_clauses = []
     for model in models:
-        rule_config_dict = model.rule_config
+        # 从版本历史表中获取发布版本的规则配置
+        model_history = db.query(FraudHunterModelHistory).filter(
+            and_(
+                FraudHunterModelHistory.model_id == model.id,
+                FraudHunterModelHistory.version == model.current_version
+            )
+        ).first()
+
+        # 优先使用版本历史表的规则，如果不存在则使用模型表的规则（兼容旧数据）
+        if model_history and model_history.rule_config:
+            rule_config_dict = model_history.rule_config
+            logger.debug(f"模型 {model.model_code} 使用版本历史表的规则配置 (version={model.current_version})")
+        else:
+            rule_config_dict = model.rule_config
+            logger.warning(
+                f"模型 {model.model_code} 的版本历史记录不存在 (version={model.current_version}), "
+                f"降级使用模型表的规则配置"
+            )
+
         rule_config = RuleConfig(**rule_config_dict)
 
         # 使用 RuleEngine 生成 WHERE 条件
