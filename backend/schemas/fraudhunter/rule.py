@@ -79,8 +79,8 @@ class TimeFunction(BaseModel):
     type: Literal["time_function"]
     indicator: str = Field(
         ...,
-        pattern=r'^[a-zA-Z_][a-zA-Z0-9_]*$',
-        description="日期指标编码"
+        pattern=r'^(__T-?\d+__|[a-zA-Z_][a-zA-Z0-9_]*)$',
+        description="日期指标编码（支持系统时间变量 __T0__, __T-1__ 等）"
     )
     offset: int = Field(
         ...,
