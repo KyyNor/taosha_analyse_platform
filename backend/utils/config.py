@@ -232,6 +232,8 @@ class ConfigManager:
             fraudhunter_realtime_kafka_auto_offset_reset: str = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('kafka', {}).get('consumer', {}).get('auto_offset_reset', 'earliest')
             fraudhunter_realtime_writer_buffer_size: int = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('writer', {}).get('buffer_size', 2000)
             fraudhunter_realtime_writer_flush_interval: int = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('writer', {}).get('flush_interval_seconds', 120)
+            fraudhunter_alert_control_control_api_url: str = self._config_data.get('fraudhunter', {}).get('alert_control', {}).get('control_api_url', 'http://125.15.15.15:7799/sspd')
+            fraudhunter_alert_control_message_api_url: str = self._config_data.get('fraudhunter', {}).get('alert_control', {}).get('message_api_url', 'http://125.15.15.15:7799/sendwx')
 
             scheduler_offline_wide_table_sync: int = self._config_data.get('scheduler', {}).get('offline_wide_table_sync', 60)
             scheduler_model_runner_interval: int = self._config_data.get('scheduler', {}).get('model_runner_interval', 600)

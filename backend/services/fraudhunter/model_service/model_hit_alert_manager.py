@@ -25,7 +25,7 @@ from schemas.fraudhunter.alert_control_record import (
 )
 from utils.logger import logger
 from utils.excel_exporter import create_excel_exporter
-from utils.config import config_manager
+from utils.config import settings
 
 
 @dataclass
@@ -41,8 +41,8 @@ class ModelHitAlertManager:
     def __init__(self, db: Session):
         self.db = db
         # 从配置加载接口URL
-        self.control_api_url = config_manager.get("fraudhunter.alert_control.control_api_url")
-        self.message_api_url = config_manager.get("fraudhunter.alert_control.message_api_url")
+        self.control_api_url = settings.fraudhunter_alert_control_control_api_url
+        self.message_api_url = settings.fraudhunter_alert_control_message_api_url
 
     def create_hit_record(
         self,
