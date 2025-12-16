@@ -124,14 +124,12 @@ def create_test_data(db):
                         hit_time=hit_time
                     )
                     
-                    # 处理命中记录，生成告警管控记录
-                    alert_control_records = manager.hit_record_processor(hit_record)
-                    
-                    # 发送告警和处理管控
-                    manager.send_alert_message(alert_control_records)
-                    manager.process_alert_control(alert_control_records)
-                    
-                    logger.info(f"创建测试数据: {account_id}, {len(hit_models)}个模型, {hit_time}")
+                    # 处理命中记录，生成告警管控记录（内部已处理告警和管控）
+                    alert_control_record = manager.hit_record_processor(hit_record)
+
+                    logger.info(f"创建测试数据: {account_id}, {len(hit_models)}个模型, {hit_time}, "
+                               f"alert_status={alert_control_record.alert_status}, "
+                               f"control_status={alert_control_record.control_status}")
                     
                 except Exception as e:
                     logger.error(f"创建测试数据失败: {e}")

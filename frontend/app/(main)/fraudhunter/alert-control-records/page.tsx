@@ -110,11 +110,15 @@ export default function AlertControlRecordsPage() {
     { key: "id", label: "ID", type: "number" as const },
     { key: "account_id", label: "账号", type: "text" as const },
     { key: "record_date", label: "日期", type: "text" as const },
-    { 
-      key: "model_name", 
-      label: "模型", 
-      type: "text" as const,
-      maxLength: 30
+    {
+      key: "hit_model_names",
+      label: "模型",
+      type: "custom" as const,
+      render: (value: string[]) => {
+        if (!value || value.length === 0) return '-';
+        const displayText = value.join(', ');
+        return displayText.length > 30 ? displayText.slice(0, 30) + '...' : displayText;
+      }
     },
     {
       key: "alert_status",

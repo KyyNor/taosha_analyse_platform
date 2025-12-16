@@ -424,17 +424,7 @@ async def generate_realtime_wide_table_job():
                 )
 
                 # 3.3 处理命中记录（生成告警管控记录）
-                alert_control_records = manager.hit_record_processor(hit_record)
-
-                # 3.4 对需要告警的记录发送告警
-                alert_records = [r for r in alert_control_records if r.alert_status == 'sent']
-                if alert_records:
-                    manager.send_alert_message(alert_records)
-
-                # 3.5 对需要管控的记录执行管控
-                control_records = [r for r in alert_control_records if r.control_status == 'executed']
-                if control_records:
-                    manager.process_alert_control(control_records)
+                manager.hit_record_processor(hit_record)
 
                 logger.info(
                     f"账户 {account_id} 命中 {len(hit_models)} 个模型: "

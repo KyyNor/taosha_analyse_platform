@@ -207,18 +207,23 @@ export default function AlertControlRecordDetailPage() {
             <CardTitle className="text-lg">模型信息</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
-            <InfoRow 
-              label="模型ID" 
-              value={data.record.model_id} 
-              copyable 
-              copyValue={String(data.record.model_id)} 
+            <InfoRow
+              label="模型数量"
+              value={data.record.hit_model_ids.length}
             />
-            <InfoRow 
-              label="模型名称" 
-              value={data.record.model_name} 
-              copyable 
-              copyValue={data.record.model_name} 
-            />
+            <div className="space-y-2 mt-2">
+              <div className="text-sm text-muted-foreground">命中模型列表：</div>
+              <div className="space-y-1">
+                {data.record.hit_model_ids.map((modelId, index) => (
+                  <div key={modelId} className="flex items-center space-x-2 text-sm">
+                    <span className="text-muted-foreground">{index + 1}.</span>
+                    <span className="font-mono">{modelId}</span>
+                    <span>-</span>
+                    <span>{data.record.hit_model_names[index] || `模型 ${modelId}`}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </CardContent>
         </Card>
 

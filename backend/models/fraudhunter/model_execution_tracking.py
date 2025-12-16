@@ -129,9 +129,9 @@ class FraudHunterModelAlertControlRecord(Base):
     account_id = Column(String(64), nullable=False, comment='账号标识')
     record_date = Column(Date, nullable=False, comment='记录日期')
 
-    # 模型信息
-    model_id = Column(Integer, nullable=False, comment='模型ID')
-    model_name = Column(String(128), nullable=False, comment='模型名称')
+    # 模型信息（JSON数组格式）
+    hit_model_ids = Column(JSON, nullable=False, comment='命中模型ID列表')
+    hit_model_names = Column(JSON, nullable=False, comment='命中模型名称列表')
 
     # 告警相关字段
     alert_status = Column(String(16), default='not_configured', comment='告警状态：not_configured/sent/duplicate')
@@ -155,7 +155,6 @@ class FraudHunterModelAlertControlRecord(Base):
     __table_args__ = (
         Index('idx_fh_alert_execution_id', 'execution_id'),
         Index('idx_fh_alert_account_date', 'account_id', 'record_date'),
-        Index('idx_fh_alert_model_id', 'model_id'),
         Index('idx_fh_alert_alert_time', 'alert_time'),
         Index('idx_fh_alert_control_time', 'control_time'),
         Index('idx_fh_alert_hit_record_id', 'hit_record_id'),
@@ -165,7 +164,7 @@ class FraudHunterModelAlertControlRecord(Base):
     )
 
     def __repr__(self):
-        return f"<FraudHunterModelAlertControlRecord(id={self.id}, account_id='{self.account_id}', model_id={self.model_id}, record_date='{self.record_date}')>"
+        return f"<FraudHunterModelAlertControlRecord(id={self.id}, account_id='{self.account_id}', hit_model_ids={self.hit_model_ids}, record_date='{self.record_date}')>"
     
 class FraudHunterModelUserVariableConfig(Base):
     """模型用户变量配置表"""

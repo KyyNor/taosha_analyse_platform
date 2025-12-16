@@ -2,12 +2,13 @@
 模型命中与告警管理器
 """
 
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from datetime import datetime, date
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func
+from sqlalchemy import or_, func, String
 from dataclasses import dataclass
 import pandas as pd
+import requests
 
 from models.fraudhunter.model_execution_tracking import (
     FraudHunterModelHitRecord,
@@ -24,6 +25,7 @@ from schemas.fraudhunter.alert_control_record import (
 )
 from utils.logger import logger
 from utils.excel_exporter import create_excel_exporter
+from utils.config import config_manager
 
 
 @dataclass
@@ -38,6 +40,9 @@ class ModelHitAlertManager:
 
     def __init__(self, db: Session):
         self.db = db
+        # 从配置加载接口URL
+        self.control_api_url = config_manager.get("fraudhunter.alert_control.control_api_url")
+        self.message_api_url = config_manager.get("fraudhunter.alert_control.message_api_url")
 
     def create_hit_record(
         self,
@@ -92,127 +97,180 @@ class ModelHitAlertManager:
 
         return hit_record
 
-    def hit_record_processor(self, hit_record: FraudHunterModelHitRecord) -> List[FraudHunterModelAlertControlRecord]:
+    def hit_record_processor(self, hit_record: FraudHunterModelHitRecord) -> FraudHunterModelAlertControlRecord:
         """处理命中记录，生成告警管控记录
-        
+
         Args:
             hit_record: 命中记录
-            
+
         Returns:
-            生成的告警管控记录列表
+            生成的告警管控记录
         """
-        alert_control_records = []
         record_date = hit_record.hit_time.date()
-        
-        # 为每个命中的模型创建告警管控记录
-        for i, model_id in enumerate(hit_record.hit_model_ids):
-            model_name = hit_record.hit_model_names[i]
-            
-            # 获取模型配置
+
+        # 创建一条告警管控记录，包含所有命中的模型
+        alert_control_record = FraudHunterModelAlertControlRecord(
+            execution_id=hit_record.execution_id,
+            hit_record_id=hit_record.id,
+            account_id=hit_record.account_id,
+            record_date=record_date,
+            hit_model_ids=hit_record.hit_model_ids,
+            hit_model_names=hit_record.hit_model_names
+        )
+
+        # 获取所有命中模型的配置
+        model_configs = {}
+        for model_id in hit_record.hit_model_ids:
             model_def = self.db.query(FraudHunterModelDefinition).filter(
                 FraudHunterModelDefinition.id == model_id
             ).first()
-            
-            # 创建告警管控记录
-            alert_control_record = FraudHunterModelAlertControlRecord(
-                execution_id=hit_record.execution_id,
-                hit_record_id=hit_record.id,
-                account_id=hit_record.account_id,
-                record_date=record_date,
-                model_id=model_id,
-                model_name=model_name
+            if model_def:
+                model_configs[model_id] = model_def
+
+        # 管控流水号
+        control_serial_number = None
+
+        # 处理管控逻辑：检查是否有任何模型需要管控
+        needs_control = any(
+            model_configs.get(model_id) and model_configs[model_id].is_acct_control
+            for model_id in hit_record.hit_model_ids
+        )
+
+        if needs_control:
+            # 检查该账号当日是否已有管控记录
+            duplicate_control = self.check_duplicate_control(
+                hit_record.account_id,
+                record_date
             )
-            
-            # 设置告警状态和消息
-            if model_def and model_def.is_send_alert_message:
-                # 检查是否重复告警
-                duplicate_alerts = self.check_duplicate_alert(
-                    hit_record.account_id, 
-                    [model_id], 
-                    record_date
-                )
-                
-                if duplicate_alerts.get(model_id, False):
-                    # 重复告警
-                    alert_control_record.alert_status = 'duplicate'
-                    alert_control_record.alert_message = self._format_alert_message(
-                        hit_record.account_id, 
-                        hit_record.hit_time, 
-                        [model_name],
-                        has_control=model_def.is_acct_control if model_def else False
-                    )
-                else:
-                    # 首次告警
-                    alert_control_record.alert_status = 'sent'
-                    alert_control_record.alert_message = self._format_alert_message(
-                        hit_record.account_id, 
-                        hit_record.hit_time, 
-                        [model_name],
-                        has_control=model_def.is_acct_control if model_def else False
-                    )
-                    alert_control_record.alert_person = 'system'
-                    alert_control_record.alert_time = datetime.now()
+
+            if duplicate_control:
+                # 重复管控
+                alert_control_record.control_status = 'duplicate'
             else:
-                alert_control_record.alert_status = 'not_configured'
-            
-            # 设置管控状态
-            if model_def and model_def.is_acct_control:
-                # 检查是否重复管控
-                duplicate_control = self.check_duplicate_control(
-                    hit_record.account_id, 
-                    record_date
-                )
-                
-                if duplicate_control:
-                    # 重复管控
-                    alert_control_record.control_status = 'duplicate'
-                else:
-                    # 首次管控
+                # 首次管控，调用管控接口
+                control_resp = self._call_control_api(hit_record.account_id)
+
+                if control_resp:
+                    # 管控接口调用成功，从响应中提取流水号
+                    control_serial_number = control_resp.get('body', {}).get('serialNumber', '000000')
                     alert_control_record.control_status = 'executed'
                     alert_control_record.control_time = datetime.now()
-                    alert_control_record.control_serial_number = self._generate_control_serial_number()
-            else:
-                alert_control_record.control_status = 'not_configured'
-            
-            self.db.add(alert_control_record)
-            alert_control_records.append(alert_control_record)
-        
-        self.db.flush()
-        
-        logger.info(f"处理命中记录完成: hit_record_id={hit_record.id}, 生成{len(alert_control_records)}条告警管控记录")
-        
-        return alert_control_records
+                    alert_control_record.control_serial_number = control_serial_number
+                else:
+                    # 管控接口调用失败，使用默认流水号
+                    control_serial_number = '000000'
+                    alert_control_record.control_status = 'executed'
+                    alert_control_record.control_time = datetime.now()
+                    alert_control_record.control_serial_number = control_serial_number
+                    logger.warning(f"管控接口调用失败，使用默认流水号: account_id={hit_record.account_id}")
+        else:
+            alert_control_record.control_status = 'not_configured'
 
-    def check_duplicate_alert(
-        self, 
-        account_id: str, 
-        model_ids: List[int], 
-        date: date
-    ) -> Dict[int, bool]:
-        """检查重复告警
-        
+        # 处理告警逻辑：检查是否有模型需要发送告警
+        # 1. 找出所有需要发送告警的模型
+        models_need_alert = [
+            model_id for model_id in hit_record.hit_model_ids
+            if model_configs.get(model_id) and model_configs[model_id].is_send_alert_message
+        ]
+
+        if models_need_alert:
+            # 2. 查询该账号当日已发送告警的模型ID
+            alerted_model_ids = self.get_alerted_model_ids(
+                hit_record.account_id,
+                record_date
+            )
+
+            # 3. 找出需要发送但尚未发送的模型
+            models_to_alert = [
+                model_id for model_id in models_need_alert
+                if model_id not in alerted_model_ids
+            ]
+
+            if models_to_alert:
+                # 有模型需要发送告警
+                # 获取需要发送告警的模型名称
+                alert_model_names = [
+                    hit_record.hit_model_names[i]
+                    for i, model_id in enumerate(hit_record.hit_model_ids)
+                    if model_id in models_to_alert
+                ]
+
+                # 生成告警消息
+                alert_message = self._format_alert_message(
+                    hit_record.account_id,
+                    hit_record.hit_time,
+                    alert_model_names,
+                    control_serial_number=control_serial_number
+                )
+
+                # 调用消息提醒接口
+                send_success = self.send_alert_message(
+                    notice_no="whwangzeqi", # todo 
+                    notice=alert_message
+                )
+
+                if send_success:
+                    alert_control_record.alert_status = 'sent'
+                    alert_control_record.alert_message = alert_message
+                    alert_control_record.alert_person = 'system'
+                    alert_control_record.alert_time = datetime.now()
+                else:
+                    # 消息发送失败，但仍记录消息内容
+                    alert_control_record.alert_status = 'sent'
+                    alert_control_record.alert_message = alert_message
+                    alert_control_record.alert_person = 'system'
+                    alert_control_record.alert_time = datetime.now()
+                    logger.warning(f"消息发送失败，但已记录告警信息: account_id={hit_record.account_id}")
+            else:
+                # 所有需要告警的模型都已发送过
+                alert_control_record.alert_status = 'duplicate'
+                # 生成消息内容（用于记录）
+                alert_model_names = [
+                    hit_record.hit_model_names[i]
+                    for i, model_id in enumerate(hit_record.hit_model_ids)
+                    if model_id in models_need_alert
+                ]
+                alert_control_record.alert_message = self._format_alert_message(
+                    hit_record.account_id,
+                    hit_record.hit_time,
+                    alert_model_names,
+                    control_serial_number=control_serial_number
+                )
+        else:
+            alert_control_record.alert_status = 'not_configured'
+
+        self.db.add(alert_control_record)
+        self.db.flush()
+
+        logger.info(f"处理命中记录完成: hit_record_id={hit_record.id}, account_id={hit_record.account_id}, "
+                   f"alert_status={alert_control_record.alert_status}, control_status={alert_control_record.control_status}")
+
+        return alert_control_record
+
+    def get_alerted_model_ids(self, account_id: str, date: date) -> List[int]:
+        """获取该账号当日已发送告警的模型ID列表
+
         Args:
             account_id: 账号ID
-            model_ids: 模型ID列表
             date: 检查日期
-            
+
         Returns:
-            模型ID到是否重复的映射
+            已发送告警的模型ID列表
         """
-        duplicate_map = {}
-        
-        for model_id in model_ids:
-            # 查询当天是否已有该模型的告警记录
-            existing_alert = self.db.query(FraudHunterModelAlertControlRecord).filter(
-                FraudHunterModelAlertControlRecord.account_id == account_id,
-                FraudHunterModelAlertControlRecord.model_id == model_id,
-                FraudHunterModelAlertControlRecord.record_date == date,
-                FraudHunterModelAlertControlRecord.alert_status.in_(['sent', 'duplicate'])
-            ).first()
-            
-            duplicate_map[model_id] = existing_alert is not None
-        
-        return duplicate_map
+        # 查询当天该账号的所有告警记录
+        alert_records = self.db.query(FraudHunterModelAlertControlRecord).filter(
+            FraudHunterModelAlertControlRecord.account_id == account_id,
+            FraudHunterModelAlertControlRecord.record_date == date,
+            FraudHunterModelAlertControlRecord.alert_status.in_(['sent', 'duplicate'])
+        ).all()
+
+        # 收集所有已发送告警的模型ID
+        alerted_model_ids = set()
+        for record in alert_records:
+            if record.hit_model_ids:
+                alerted_model_ids.update(record.hit_model_ids)
+
+        return list(alerted_model_ids)
 
     def check_duplicate_control(self, account_id: str, date: date) -> bool:
         """检查重复管控
@@ -233,47 +291,120 @@ class ModelHitAlertManager:
         
         return existing_control is not None
 
-    def send_alert_message(self, alert_records: List[FraudHunterModelAlertControlRecord]) -> None:
-        """发送告警消息（留空实现）
-        
-        Args:
-            alert_records: 需要发送告警的记录列表
-        """
-        for record in alert_records:
-            if record.alert_status == 'sent':
-                # 这里是留空实现，实际应该调用外部告警服务
-                logger.info(f"发送告警消息: {record.alert_message}")
+    def _call_control_api(self, account_id: str, account_type: str = "1") -> Optional[Dict[str, Any]]:
+        """调用管控接口
 
-    def process_alert_control(self, alert_records: List[FraudHunterModelAlertControlRecord]) -> None:
-        """处理告警管控（留空实现）
-        
         Args:
-            alert_records: 需要处理管控的记录列表
-        """
-        for record in alert_records:
-            if record.control_status == 'executed':
-                # 这里是留空实现，实际应该调用外部管控服务
-                logger.info(f"执行管控操作: account_id={record.account_id}, serial_number={record.control_serial_number}")
+            account_id: 账号ID
+            account_type: 账号类型，默认为"1"
 
-    def _format_alert_message(self, account_id: str, hit_time: datetime, model_names: List[str], has_control: bool = False) -> str:
+        Returns:
+            管控接口响应，如果失败返回None
+        """
+        try:
+            headers = {
+                "Content-Type": "application/json"
+            }
+
+            data = {
+                "iibs": {
+                    "req": {
+                        "body": {
+                            "acctNo": account_id,
+                            "acctType": account_type,
+                            "resAbs": "淘沙实时管控模型"
+                        }
+                    }
+                }
+            }
+
+            response = requests.post(
+                url=self.control_api_url,
+                json=data,
+                headers=headers
+            )
+            response.raise_for_status()
+
+            result = response.json()
+            resp_data = result.get('iibs', {}).get('resp')
+
+            logger.info(f"管控接口调用成功: account_id={account_id}, response={resp_data}")
+            return resp_data
+
+        except Exception as e:
+            logger.error(f"管控接口调用失败: account_id={account_id}, error={str(e)}")
+            return None
+
+    def send_alert_message(self, notice_no: str, notice: str) -> bool:
+        """发送告警消息
+
+        Args:
+            notice_no: 通知编号（账号ID）
+            notice: 通知内容
+
+        Returns:
+            发送是否成功
+        """
+        try:
+            headers = {
+                "Content-Type": "application/json"
+            }
+
+            data = {
+                "noticeNo": notice_no,
+                "notice": notice
+            }
+
+            response = requests.post(
+                url=self.message_api_url,
+                json=data,
+                headers=headers
+            )
+            response.raise_for_status()
+
+            result = response.json()
+            resp_code = result.get("body", {}).get("respCode")
+            resp_msg = result.get("body", {}).get("respMsg")
+
+            if resp_code == "00000":
+                logger.info(f"消息发送成功: notice_no={notice_no}")
+                return True
+            else:
+                logger.warning(f"消息发送失败: notice_no={notice_no}, code={resp_code}, msg={resp_msg}")
+                return False
+
+        except Exception as e:
+            logger.error(f"消息发送异常: notice_no={notice_no}, error={str(e)}")
+            return False
+
+
+    def _format_alert_message(
+        self,
+        account_id: str,
+        hit_time: datetime,
+        model_names: List[str],
+        control_serial_number: Optional[str] = None
+    ) -> str:
         """格式化告警消息
-        
+
         Args:
             account_id: 账号ID
             hit_time: 命中时间
             model_names: 模型名称列表
-            has_control: 是否包含管控模型
-            
+            control_serial_number: 管控流水号（可选）
+
         Returns:
             格式化的告警消息
         """
-        model_list = "、".join(model_names)
+        model_list = ",".join(model_names)
         time_str = hit_time.strftime("%Y-%m-%d %H:%M:%S")
-        
-        if has_control:
-            return f"账户 {account_id} 在 {time_str}，因命中{model_list}模型，触发告警及管控"
+
+        if control_serial_number:
+            # 需要管控的消息格式
+            return f"【武汉分行监测系统】账号：{account_id} 在 {time_str} 触发 {model_list} 模型，已采取暂停非柜面管控措施，管控流水号为：{control_serial_number},请在2小时内核实。"
         else:
-            return f"账户 {account_id} 在 {time_str}，因命中{model_list}模型，触发告警"
+            # 不需要管控的消息格式
+            return f"【武汉分行监测系统】账号：{account_id} 在 {time_str} 触发 {model_list} 模型告警。"
 
     def get_alert_control_records(
         self, 
@@ -372,12 +503,16 @@ class ModelHitAlertManager:
         # 准备导出数据
         export_data = []
         for record in records:
+            # 将JSON数组转换为逗号分隔的字符串
+            model_ids_str = ','.join(map(str, record.hit_model_ids)) if record.hit_model_ids else ''
+            model_names_str = ','.join(record.hit_model_names) if record.hit_model_names else ''
+
             export_data.append({
                 'ID': record.id,
                 '账号': record.account_id,
                 '记录日期': record.record_date.strftime('%Y-%m-%d'),
-                '模型ID': record.model_id,
-                '模型名称': record.model_name,
+                '模型ID': model_ids_str,
+                '模型名称': model_names_str,
                 '告警状态': self._get_status_display(record.alert_status),
                 '告警消息': record.alert_message or '',
                 '告警人': record.alert_person or '',
@@ -427,27 +562,34 @@ class ModelHitAlertManager:
         if filters.account_id:
             query = query.filter(FraudHunterModelAlertControlRecord.account_id == filters.account_id)
         
-        # 模型筛选
+        # 模型筛选（JSON数组包含检查）
         if filters.model_id:
-            query = query.filter(FraudHunterModelAlertControlRecord.model_id == filters.model_id)
-        
+            # 使用JSON_CONTAINS检查数组中是否包含指定的model_id
+            # 注意：这里使用cast将JSON转为文本进行模糊匹配，兼容性更好
+            query = query.filter(
+                func.cast(FraudHunterModelAlertControlRecord.hit_model_ids, String).like(f'%{filters.model_id}%')
+            )
+
         if filters.model_name:
-            query = query.filter(FraudHunterModelAlertControlRecord.model_name.like(f"%{filters.model_name}%"))
-        
+            # 检查JSON数组中是否包含指定的模型名称
+            query = query.filter(
+                func.cast(FraudHunterModelAlertControlRecord.hit_model_names, String).like(f"%{filters.model_name}%")
+            )
+
         # 状态筛选
         if filters.alert_status:
             query = query.filter(FraudHunterModelAlertControlRecord.alert_status == filters.alert_status)
-        
+
         if filters.control_status:
             query = query.filter(FraudHunterModelAlertControlRecord.control_status == filters.control_status)
-        
+
         # 搜索关键词
         if filters.search:
             search_term = f"%{filters.search}%"
             query = query.filter(
                 or_(
                     FraudHunterModelAlertControlRecord.account_id.like(search_term),
-                    FraudHunterModelAlertControlRecord.model_name.like(search_term),
+                    func.cast(FraudHunterModelAlertControlRecord.hit_model_names, String).like(search_term),
                     FraudHunterModelAlertControlRecord.alert_message.like(search_term)
                 )
             )
@@ -470,13 +612,3 @@ class ModelHitAlertManager:
             'executed': '已执行'
         }
         return status_map.get(status, status)
-
-    def _generate_control_serial_number(self) -> str:
-        """生成管控流水号
-        
-        Returns:
-            管控流水号
-        """
-        # 简化实现，使用时间戳
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        return f"CTRL{timestamp}"

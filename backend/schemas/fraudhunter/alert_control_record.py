@@ -38,29 +38,29 @@ class PaginationParams(BaseModel):
 
 class AlertControlRecordResponse(BaseModel):
     """告警管控记录响应"""
-    
+
     id: int
     hit_record_id: int
     account_id: str
     record_date: date
-    model_id: int
-    model_name: str
-    
+    hit_model_ids: List[int]
+    hit_model_names: List[str]
+
     # 告警信息
     alert_status: str
     alert_message: Optional[str] = None
     alert_person: Optional[str] = None
     alert_time: Optional[datetime] = None
-    
+
     # 管控信息
     control_status: str
     control_time: Optional[datetime] = None
     control_serial_number: Optional[str] = None
-    
+
     # 审计信息
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 

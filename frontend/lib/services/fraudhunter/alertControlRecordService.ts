@@ -9,20 +9,20 @@ export interface AlertControlRecord {
   hit_record_id: number;
   account_id: string;
   record_date: string;
-  model_id: number;
-  model_name: string;
-  
+  hit_model_ids: number[];
+  hit_model_names: string[];
+
   // 告警信息
   alert_status: string;
   alert_message?: string;
   alert_person?: string;
   alert_time?: string;
-  
+
   // 管控信息
   control_status: string;
   control_time?: string;
   control_serial_number?: string;
-  
+
   // 审计信息
   created_at: string;
   updated_at: string;

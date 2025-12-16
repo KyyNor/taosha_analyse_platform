@@ -304,3 +304,10 @@ fraudhunter:
 scheduler:
   offline_wide_table_sync: 60 # 秒，检查是否可以同步的间隔
   model_runner_interval: 300  # 秒，实时指标生成间隔（5分钟）
+
+# 管控和告警接口配置
+alert_control:
+  # 管控接口URL
+  control_api_url: "http://125.15.15.15:7799/sspd"
+  # 消息提醒接口URL
+  message_api_url: "http://125.15.15.15:7799/sendwx"
