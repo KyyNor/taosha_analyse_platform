@@ -19,7 +19,7 @@ import { IndicatorTaskTemplate } from "./templates/IndicatorTaskTemplate";
 export default function TaskDetailPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
-  const taskId = params?.id || '';
+  const taskId = parseInt(params?.id || '0', 10);
   const { confirm, DialogComponent } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);

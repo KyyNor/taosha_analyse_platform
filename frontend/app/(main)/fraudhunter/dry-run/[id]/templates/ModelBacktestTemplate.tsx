@@ -60,11 +60,11 @@ interface ModelBacktestResultData {
 
 interface ModelBacktestTemplateProps {
   result: ModelBacktestResultData;
-  taskId: string;
+  taskId: number;
 }
 
 // Excel 导出工具函数
-async function exportToExcel(taskId: string) {
+async function exportToExcel(taskId: number) {
   try {
     // 调用后端Excel导出接口
     const response = await api.get(`/fraudhunter/tasks/${taskId}/export/excel`, {

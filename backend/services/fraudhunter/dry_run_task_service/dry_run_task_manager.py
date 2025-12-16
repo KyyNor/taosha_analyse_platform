@@ -131,12 +131,12 @@ class DryRunTaskManager:
                 if execution_id in self.running_tasks:
                     del self.running_tasks[execution_id]
 
-    def get_task_progress(self, db: Session, execution_id: str) -> Dict[str, Any]:
+    def get_task_progress(self, db: Session, task_id: int) -> Dict[str, Any]:
         """获取任务进度
 
         Args:
             db: 数据库会话
-            execution_id: 任务执行ID
+            task_id: 任务主键ID
 
         Returns:
             任务进度信息
@@ -145,11 +145,11 @@ class DryRunTaskManager:
             ValueError: 如果任务不存在
         """
         task_execution = db.query(FraudHunterDryRunExecution).filter(
-            FraudHunterDryRunExecution.execution_id == execution_id
+            FraudHunterDryRunExecution.id == task_id
         ).first()
 
         if not task_execution:
-            raise ValueError(f"任务不存在: {execution_id}")
+            raise ValueError(f"任务不存在: {task_id}")
 
         # 计算进度（简化版本，实际应该根据任务类型和状态计算）
         progress = 0.0
@@ -168,7 +168,7 @@ class DryRunTaskManager:
                 estimated_remaining_seconds = int(elapsed * (100 - progress) / progress)
 
         return {
-            'task_id': execution_id,
+            'task_id': task_execution.execution_id,
             'task_type': task_execution.task_type,
             'status': task_execution.status,
             'progress': progress,
@@ -178,12 +178,12 @@ class DryRunTaskManager:
             'estimated_remaining_seconds': estimated_remaining_seconds
         }
 
-    def get_task_result(self, db: Session, execution_id: str) -> Dict[str, Any]:
+    def get_task_result(self, db: Session, task_id: int) -> Dict[str, Any]:
         """获取任务结果
 
         Args:
             db: 数据库会话
-            execution_id: 任务执行ID
+            task_id: 任务主键ID
 
         Returns:
             任务结果信息
@@ -192,14 +192,14 @@ class DryRunTaskManager:
             ValueError: 如果任务不存在或未完成
         """
         task_execution = db.query(FraudHunterDryRunExecution).filter(
-            FraudHunterDryRunExecution.execution_id == execution_id
+            FraudHunterDryRunExecution.id == task_id
         ).first()
 
         if not task_execution:
-            raise ValueError(f"任务不存在: {execution_id}")
+            raise ValueError(f"任务不存在: {task_id}")
 
         if task_execution.status not in ['success', 'failed']:
-            raise ValueError(f"任务尚未完成: {execution_id}")
+            raise ValueError(f"任务尚未完成: {task_id}")
 
         # 计算执行时长
         duration_seconds = None
@@ -207,18 +207,18 @@ class DryRunTaskManager:
             duration_seconds = int((task_execution.end_time - task_execution.start_time).total_seconds())
 
         return {
-            'task_id': execution_id,
+            'task_id': task_execution.execution_id,
             'status': task_execution.status,
             'duration_seconds': duration_seconds,
             'result': task_execution.result_summary
         }
 
-    async def cancel_task(self, db: Session, execution_id: str) -> bool:
+    async def cancel_task(self, db: Session, task_id: int) -> bool:
         """取消任务
 
         Args:
             db: 数据库会话
-            execution_id: 任务执行ID
+            task_id: 任务主键ID
 
         Returns:
             是否成功取消
@@ -227,11 +227,14 @@ class DryRunTaskManager:
             ValueError: 如果任务不存在
         """
         task_execution = db.query(FraudHunterDryRunExecution).filter(
-            FraudHunterDryRunExecution.execution_id == execution_id
+            FraudHunterDryRunExecution.id == task_id
         ).first()
 
         if not task_execution:
-            raise ValueError(f"任务不存在: {execution_id}")
+            raise ValueError(f"任务不存在: {task_id}")
+
+        # 获取execution_id用于查找运行中的任务
+        execution_id = task_execution.execution_id
 
         # 尝试取消异步任务
         if execution_id in self.running_tasks:

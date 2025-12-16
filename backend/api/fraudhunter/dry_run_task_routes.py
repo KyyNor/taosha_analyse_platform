@@ -14,7 +14,6 @@ from schemas.fraudhunter.task import (
     TaskProgressResponse,
     TaskResultResponse,
     TaskExecutionListResponse,
-    TaskExecutionItem,
 )
 from services.fraudhunter.dry_run_task_service import dry_run_task_manager
 from utils.logger import logger
@@ -26,13 +25,13 @@ router = APIRouter(prefix="/tasks", tags=["任务管理"])
 
 @router.get("/{task_id}/progress", response_model=TaskProgressResponse, summary="查询任务进度")
 async def get_task_progress(
-    task_id: str,
+    task_id: int,
     db: Session = Depends(get_db)
 ):
     """查询任务执行进度
 
     参数:
-    - task_id: 任务执行ID
+    - task_id: 任务主键ID
 
     返回:
     - status: 任务状态（pending/running/success/failed/cancelled）
@@ -53,7 +52,7 @@ async def get_task_progress(
 
 @router.get("/{task_id}/result", response_model=TaskResultResponse, summary="获取任务结果")
 async def get_task_result(
-    task_id: str,
+    task_id: int,
     db: Session = Depends(get_db)
 ):
     """获取任务执行结果
@@ -61,7 +60,7 @@ async def get_task_result(
     只有状态为success或failed的任务才能获取结果
 
     参数:
-    - task_id: 任务执行ID
+    - task_id: 任务主键ID
 
     返回:
     - status: 任务状态
@@ -81,13 +80,13 @@ async def get_task_result(
 
 @router.post("/{task_id}/cancel", summary="取消任务")
 async def cancel_task(
-    task_id: str,
+    task_id: int,
     db: Session = Depends(get_db)
 ):
     """取消正在执行的任务
 
     参数:
-    - task_id: 任务执行ID
+    - task_id: 任务主键ID
 
     返回:
     - success: 是否成功取消
@@ -152,13 +151,13 @@ async def list_task_executions(
 
 @router.get("/{task_id}/export/excel", summary="导出任务结果为Excel")
 async def export_task_result_excel(
-    task_id: str,
+    task_id: int,
     db: Session = Depends(get_db)
 ):
     """导出任务执行结果为Excel文件
 
     参数:
-    - task_id: 任务执行ID
+    - task_id: 任务主键ID
 
     返回:
     - Excel文件流，可直接下载

@@ -509,19 +509,19 @@ export const taskService = {
   },
 
   // 获取任务进度
-  async getProgress(taskId: string): Promise<TaskProgress> {
+  async getProgress(taskId: number): Promise<TaskProgress> {
     const response = await api.get(`${BASE_PATH}/tasks/${taskId}/progress`);
     return response.data;
   },
 
   // 获取任务结果
-  async getResult(taskId: string): Promise<TaskResult> {
+  async getResult(taskId: number): Promise<TaskResult> {
     const response = await api.get(`${BASE_PATH}/tasks/${taskId}/result`);
     return response.data;
   },
 
   // 取消任务
-  async cancel(taskId: string): Promise<void> {
+  async cancel(taskId: number): Promise<void> {
     await api.post(`${BASE_PATH}/tasks/${taskId}/cancel`);
   },
 };

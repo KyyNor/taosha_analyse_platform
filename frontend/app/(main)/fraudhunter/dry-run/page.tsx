@@ -122,7 +122,7 @@ export default function TasksPage() {
 
   // 操作处理
   const handleView = (item: TaskExecution) => {
-    router.push(`/fraudhunter/dry-run/${item.execution_id}`);
+    router.push(`/fraudhunter/dry-run/${item.id}`);
   };
 
   return (
