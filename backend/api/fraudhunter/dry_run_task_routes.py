@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional
+from urllib.parse import quote
 import io
 import pandas as pd
 from models.db_base import get_db
@@ -207,11 +208,15 @@ async def export_task_result_excel(
 
         # 准备文件响应
         filename = f"backtest_{task_id}.xlsx"
+        # 使用RFC 5987格式支持Unicode文件名
+        encoded_filename = quote(filename)
 
         return StreamingResponse(
             io.BytesIO(output.read()),
             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}; filename*=UTF-8''{encoded_filename}"
+            }
         )
 
     except ValueError as e:

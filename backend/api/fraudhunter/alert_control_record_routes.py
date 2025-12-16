@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
+from urllib.parse import quote
 import io
 
 from models.db_base import get_db
@@ -288,6 +289,8 @@ async def export_alert_control_records(
         # 设置文件名和响应头
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"alert_control_records_{timestamp}.xlsx"
+        # 使用RFC 5987格式支持Unicode文件名
+        encoded_filename = quote(filename)
 
         logger.info(
             f"导出告警管控记录: size={len(file_content)} bytes, "
@@ -299,7 +302,7 @@ async def export_alert_control_records(
             io.BytesIO(file_content),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={
-                "Content-Disposition": f"attachment; filename={filename}"
+                "Content-Disposition": f"attachment; filename={filename}; filename*=UTF-8''{encoded_filename}"
             }
         )
 
