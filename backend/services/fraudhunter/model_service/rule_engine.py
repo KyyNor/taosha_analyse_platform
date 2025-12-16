@@ -838,21 +838,21 @@ class RuleEngine:
             # 使用 INTERVAL 语法
             if value_expr.unit == "days":
                 if offset >= 0:
-                    return f"({ind_sql} + INTERVAL {offset} DAY)"
+                    return f"(cast({ind_sql} as date) + INTERVAL {offset} DAY)"
                 else:
-                    return f"({ind_sql} - INTERVAL {-offset} DAY)"
+                    return f"(cast({ind_sql} as date) - INTERVAL {-offset} DAY)"
 
             elif value_expr.unit == "months":
                 if offset >= 0:
-                    return f"({ind_sql} + INTERVAL {offset} MONTH)"
+                    return f"(cast({ind_sql} as date) + INTERVAL {offset} MONTH)"
                 else:
-                    return f"({ind_sql} - INTERVAL {-offset} MONTH)"
+                    return f"(cast({ind_sql} as date) - INTERVAL {-offset} MONTH)"
 
             elif value_expr.unit == "years":
                 if offset >= 0:
-                    return f"({ind_sql} + INTERVAL {offset} YEAR)"
+                    return f"(cast({ind_sql} as date) + INTERVAL {offset} YEAR)"
                 else:
-                    return f"({ind_sql} - INTERVAL {-offset} YEAR)"
+                    return f"(cast({ind_sql} as date) - INTERVAL {-offset} YEAR)"
 
         # 数学函数
         elif isinstance(value_expr, MathFunction):
