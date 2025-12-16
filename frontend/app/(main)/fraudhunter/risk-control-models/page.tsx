@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { riskControlModelService } from "@/lib/services/fraudhunterService";
 import type { RiskControlModel } from "@/types/fraudhunter/risk-control-model";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -49,6 +50,12 @@ export default function RiskControlModelsPage() {
   const [backtestStartDate, setBacktestStartDate] = useState<string>("");
   const [backtestEndDate, setBacktestEndDate] = useState<string>("");
   const [backtestLoading, setBacktestLoading] = useState(false);
+
+  // 发布对话框状态
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [publishModel, setPublishModel] = useState<RiskControlModel | null>(null);
+  const [publishDescription, setPublishDescription] = useState<string>("");
+  const [publishLoading, setPublishLoading] = useState(false);
 
   // 加载预警管控模型列表
   const load = async () => {
@@ -143,32 +150,31 @@ export default function RiskControlModelsPage() {
     });
   };
 
-  const handlePublish = async (item: RiskControlModel) => {
-    const version = prompt(
-      `请输入要发布的版本号 (1-${item.latest_version}):`,
-      String(item.latest_version)
-    );
+  // 打开发布对话框
+  const handleOpenPublishDialog = (item: RiskControlModel) => {
+    setPublishModel(item);
+    setPublishDescription("");
+    setPublishDialogOpen(true);
+  };
 
-    if (!version) return;
+  // 提交发布
+  const handleSubmitPublish = async () => {
+    if (!publishModel) return;
 
-    const versionNum = parseInt(version);
-    if (isNaN(versionNum) || versionNum < 1 || versionNum > item.latest_version) {
-      toast.error("无效的版本号");
-      return;
-    }
-
-    const description = prompt("请输入变更说明（可选）:");
-
+    setPublishLoading(true);
     try {
-      await riskControlModelService.publish(item.id, {
-        version: versionNum,
-        change_description: description || undefined
+      await riskControlModelService.publish(publishModel.id, {
+        version: publishModel.latest_version,
+        change_description: publishDescription.trim() || undefined
       });
       await load();
       toast.success("发布成功");
+      setPublishDialogOpen(false);
     } catch (error: any) {
       console.error("Failed to publish risk control model:", error);
       toast.error(error.response?.data?.detail || "发布失败");
+    } finally {
+      setPublishLoading(false);
     }
   };
 
@@ -259,7 +265,7 @@ export default function RiskControlModelsPage() {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => handlePublish(item)}
+        onClick={() => handleOpenPublishDialog(item)}
         disabled={item.status === "archived"}
         title="发布"
       >
@@ -378,6 +384,52 @@ export default function RiskControlModelsPage() {
               disabled={backtestLoading}
             >
               {backtestLoading ? "提交中..." : "提交回测任务"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 发布对话框 */}
+      <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>发布模型</DialogTitle>
+            <DialogDescription>
+              {publishModel && (
+                <>
+                  将模型 <strong>{publishModel.model_name}</strong> ({publishModel.model_code}) 的最新版本 <strong>v{publishModel.latest_version}</strong> 发布上线。
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="publishDescription">
+                变更说明（可选）
+              </Label>
+              <Textarea
+                id="publishDescription"
+                placeholder="请输入本次发布的变更说明，如：新增规则、修复问题等..."
+                value={publishDescription}
+                onChange={(e) => setPublishDescription(e.target.value)}
+                rows={4}
+                className="resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPublishDialogOpen(false)}
+              disabled={publishLoading}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleSubmitPublish}
+              disabled={publishLoading}
+            >
+              {publishLoading ? "发布中..." : "确认发布"}
             </Button>
           </DialogFooter>
         </DialogContent>
