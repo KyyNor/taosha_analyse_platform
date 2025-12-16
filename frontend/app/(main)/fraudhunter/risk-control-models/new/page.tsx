@@ -31,9 +31,9 @@ export default function NewRiskControlModelPage() {
       logic: "AND",
       rules: []
     },
-    is_send_alert_message: false,
+    is_send_alert_message: true,
     alert_message_target: "",
-    is_acct_control: false
+    is_acct_control: true
   });
 
   // 加载所有上线的指标（不按object_type筛选）
@@ -87,10 +87,6 @@ export default function NewRiskControlModelPage() {
 
     if (!formData.rule_config || formData.rule_config.rules.length === 0) {
       errors.push("至少需要配置一条规则");
-    }
-
-    if (formData.is_send_alert_message && !formData.alert_message_target?.trim()) {
-      errors.push("开启告警消息时，告警目标不能为空");
     }
 
     return errors;
@@ -244,22 +240,6 @@ export default function NewRiskControlModelPage() {
                 发送告警消息
               </Label>
             </div>
-
-            {formData.is_send_alert_message && (
-              <div>
-                <Label htmlFor="alert-target">告警消息目标 *</Label>
-                <Input
-                  id="alert-target"
-                  value={formData.alert_message_target}
-                  onChange={(e) => updateField("alert_message_target", e.target.value)}
-                  placeholder="如: admin@example.com"
-                  maxLength={256}
-                />
-                <p className="text-sm text-muted-foreground mt-1">
-                  邮箱、手机号或其他告警通道
-                </p>
-              </div>
-            )}
 
             <div className="flex items-center space-x-2">
               <Checkbox

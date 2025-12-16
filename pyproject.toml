@@ -52,6 +52,7 @@ dependencies = [
     "hypothesis>=6.100.0",
     "deepagents>=0.3.0",
     "python-multipart>=0.0.20",
+    "pip>=25.3",
 ]
 
 [[tool.uv.index]]

@@ -168,11 +168,6 @@ export default function RiskControlModelDetailPage() {
   const handleSave = async () => {
     if (!data || !hasChanges) return;
 
-    if (data.is_send_alert_message && !data.alert_message_target?.trim()) {
-      toast.error("开启告警消息时，告警目标不能为空");
-      return;
-    }
-
     setSaving(true);
     try {
       const updateData: RiskControlModelUpdate = {
@@ -460,23 +455,6 @@ export default function RiskControlModelDetailPage() {
                 发送告警消息
               </Label>
             </div>
-
-            {data.is_send_alert_message && (
-              <div>
-                <Label htmlFor="alert-target">告警消息目标</Label>
-                {isEditMode ? (
-                  <Input
-                    id="alert-target"
-                    value={data.alert_message_target || ""}
-                    onChange={(e) => updateField("alert_message_target", e.target.value)}
-                    placeholder="如: admin@example.com"
-                    maxLength={256}
-                  />
-                ) : (
-                  <Input value={data.alert_message_target || ""} disabled />
-                )}
-              </div>
-            )}
 
             <div className="flex items-center space-x-2">
               <Checkbox
