@@ -23,7 +23,7 @@ from schemas.fraudhunter.rule import (
     RuleConfig, Rule, ConditionRule, GroupRule,
     ComparisonOperator, RuleValidationResult,
     ValueExpression, ConstantValue, IndicatorReference,
-    TimeFunction, MathFunction
+    TimeFunction, MathFunction, RelativeCalculation
 )
 from models.fraudhunter.indicator import FraudHunterIndicatorDefinition
 
@@ -98,6 +98,8 @@ class RuleEngine:
         elif isinstance(expr, TimeFunction):
             indicators.add(expr.indicator)
         elif isinstance(expr, MathFunction):
+            indicators.add(expr.indicator)
+        elif isinstance(expr, RelativeCalculation):
             indicators.add(expr.indicator)
 
         return indicators
@@ -397,6 +399,27 @@ class RuleEngine:
                         f"{path}: abs()参数必须为numeric类型，实际为{param_ind.data_type}"
                     )
 
+            # 相对计算：验证左侧和参数都是 numeric
+            elif isinstance(value_expr, RelativeCalculation):
+                if left_type != 'numeric':
+                    result.errors.append(
+                        f"{path}: 相对计算要求左侧为numeric类型，实际为{left_type}"
+                    )
+
+                param_ind = self._get_indicator_cached(value_expr.indicator)
+                if not param_ind:
+                    result.errors.append(
+                        f"{path}: 相对计算引用指标 {value_expr.indicator} 不存在"
+                    )
+                elif param_ind.data_type != 'numeric':
+                    result.errors.append(
+                        f"{path}: 相对计算引用指标 {value_expr.indicator} 必须为numeric类型，实际为{param_ind.data_type}"
+                    )
+
+                # 验证除数不为零
+                if value_expr.operation == "divide" and value_expr.value == 0:
+                    result.errors.append(f"{path}: 除法运算的除数不能为零")
+
         def traverse_rule(rule: Rule, path: str):
             if isinstance(rule, ConditionRule):
                 validate_condition(rule, path)
@@ -547,6 +570,32 @@ class RuleEngine:
                 except (ValueError, TypeError) as e:
                     logger.error(f"abs()参数值错误: {param_value}, {e}")
                     return None
+
+        # 相对计算
+        elif isinstance(value_expr, RelativeCalculation):
+            base_value = indicator_values.get(value_expr.indicator)
+            if base_value is None:
+                logger.warning(f"相对计算基础指标 {value_expr.indicator} 值缺失")
+                return None
+
+            try:
+                base_value = float(base_value)
+                calc_value = float(value_expr.value)
+
+                if value_expr.operation == "add":
+                    return base_value + calc_value
+                elif value_expr.operation == "subtract":
+                    return base_value - calc_value
+                elif value_expr.operation == "multiply":
+                    return base_value * calc_value
+                elif value_expr.operation == "divide":
+                    if calc_value == 0:
+                        logger.warning(f"除零错误: {value_expr.indicator} / {value_expr.value}")
+                        return None
+                    return base_value / calc_value
+            except (ValueError, TypeError) as e:
+                logger.error(f"相对计算失败: {value_expr}, 错误: {e}")
+                return None
 
         return None
 
@@ -864,6 +913,26 @@ class RuleEngine:
                 ind_sql = self._get_indicator_sql_with_cast(ind, indicator_alias_mapping)
             if value_expr.function == "abs":
                 return f"ABS({ind_sql})"
+
+        # 相对计算
+        elif isinstance(value_expr, RelativeCalculation):
+            # 获取指标SQL
+            if use_display_name:
+                indicator_sql = self._get_indicator_display_name(value_expr.indicator)
+            else:
+                indicator_sql = self._get_indicator_sql_with_cast(value_expr.indicator, indicator_alias_mapping)
+
+            # 构建运算符SQL
+            operator_map = {
+                "add": "+",
+                "subtract": "-",
+                "multiply": "*",
+                "divide": "/"
+            }
+            operator = operator_map[value_expr.operation]
+            value_sql = str(value_expr.value)
+
+            return f"({indicator_sql} {operator} {value_sql})"
 
         return "NULL"
 

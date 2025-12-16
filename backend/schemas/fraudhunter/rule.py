@@ -8,7 +8,7 @@ FraudHunter规则引擎数据模型
 3. 规则执行和评估
 
 支持操作符: 基础比较、集合操作(in/not in)、正则匹配(regexp/not regexp)
-支持值表达式: 常量值、指标引用、时间函数、数学函数
+支持值表达式: 常量值、指标引用、时间函数、数学函数、相对计算
 """
 
 from typing import Literal, Union, List, Optional
@@ -136,8 +136,54 @@ class MathFunction(BaseModel):
         }
 
 
+class RelativeCalculation(BaseModel):
+    """数值指标相对计算表达式"""
+
+    type: Literal["relative_calculation"]
+    indicator: str = Field(
+        ...,
+        pattern=r'^[a-zA-Z_][a-zA-Z0-9_]*$',
+        description="数值指标编码"
+    )
+    operation: Literal["add", "subtract", "multiply", "divide"] = Field(
+        ...,
+        description="运算类型：加法、减法、乘法、除法"
+    )
+    value: Union[int, float] = Field(
+        ...,
+        description="常量运算值"
+    )
+
+    @field_validator('value')
+    @classmethod
+    def validate_divide_by_zero(cls, v, info):
+        """验证除法运算的除数不为零"""
+        operation = info.data.get('operation')
+        if operation == 'divide' and v == 0:
+            raise ValueError("除法运算的除数不能为零")
+        return v
+
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "type": "relative_calculation",
+                    "indicator": "i_average_balance",
+                    "operation": "multiply",
+                    "value": 1.5
+                },
+                {
+                    "type": "relative_calculation",
+                    "indicator": "i_baseline_amount",
+                    "operation": "add",
+                    "value": 1000
+                }
+            ]
+        }
+
+
 # 值表达式联合类型
-ValueExpression = Union[ConstantValue, IndicatorReference, TimeFunction, MathFunction]
+ValueExpression = Union[ConstantValue, IndicatorReference, TimeFunction, MathFunction, RelativeCalculation]
 
 # ==================== 规则结构定义 ====================
 
