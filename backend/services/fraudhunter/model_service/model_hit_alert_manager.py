@@ -593,7 +593,18 @@ class ModelHitAlertManager:
                     FraudHunterModelAlertControlRecord.alert_message.like(search_term)
                 )
             )
-        
+
+        # 隐藏无效记录（告警和管控均为重复或未配置）
+        if filters.hide_inactive:
+            inactive_statuses = ['duplicate', 'not_configured']
+            # 过滤条件：至少有一个状态是有效的（sent 或 executed）
+            query = query.filter(
+                or_(
+                    ~FraudHunterModelAlertControlRecord.alert_status.in_(inactive_statuses),
+                    ~FraudHunterModelAlertControlRecord.control_status.in_(inactive_statuses)
+                )
+            )
+
         return query
 
     def _get_status_display(self, status: str) -> str:

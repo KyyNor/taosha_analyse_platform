@@ -140,18 +140,6 @@ export const riskControlModelService = {
   async backtest(modelId: number, data: ModelBacktestRequest): Promise<ModelBacktestResponse> {
     const response = await api.post<ModelBacktestResponse>(`${BASE_PATH}/${modelId}/backtest`, data)
     return response.data
-  },
-
-  /**
-   * 模型上线执行（预留功能）
-   *
-   * @param modelId 模型ID
-   * @param data 上线参数
-   * @returns 上线结果
-   */
-  async online(modelId: number, data?: ModelOnlineRequest): Promise<ModelOnlineResponse> {
-    const response = await api.post<ModelOnlineResponse>(`${BASE_PATH}/${modelId}/online`, data || {})
-    return response.data
   }
 }
 

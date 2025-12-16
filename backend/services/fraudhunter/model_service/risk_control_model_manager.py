@@ -430,39 +430,3 @@ class RiskControlModelManager:
 
         logger.info(f"模型历史回测任务已提交: {execution_id}")
         return execution_id
-
-    def execute_online(
-        self,
-        model_id: int,
-        updated_by: str
-    ) -> Dict[str, Any]:
-        """模型上线执行（占位方法，后续完善）
-
-        将模型部署到生产环境执行
-
-        Args:
-            model_id: 模型ID
-            updated_by: 操作人
-
-        Returns:
-            执行结果
-
-        Raises:
-            ValueError: 如果模型不存在
-            NotImplementedError: 功能待实现
-        """
-        # 验证模型存在
-        model = self.get_risk_control_model(model_id)
-        if not model:
-            raise ValueError(f"预警管控模型不存在: {model_id}")
-
-        # TODO: 实现模型上线逻辑
-        # 1. 验证模型状态（必须是online状态）
-        # 2. 生成生产环境SQL
-        # 3. 部署到DolphinScheduler
-        # 4. 配置定时任务
-        # 5. 更新模型执行状态
-
-        logger.info(f"模型上线执行（待实现）: {model.model_code}")
-
-        raise NotImplementedError("模型上线功能尚未实现，后续版本将完善此功能")

@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { alertControlRecordService } from "@/lib/services/fraudhunter/alertControlRecordService";
 import type {
   AlertControlRecord,
@@ -32,6 +33,7 @@ export default function AlertControlRecordsPage() {
   // 筛选状态
   const [filters, setFilters] = useState<AlertControlFilters>({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [hideInactive, setHideInactive] = useState(true);
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -46,6 +48,7 @@ export default function AlertControlRecordsPage() {
         page: currentPage,
         page_size: pageSize,
         search: searchQuery.trim() || undefined,
+        hide_inactive: hideInactive || undefined,
         ...filters,
       };
 
@@ -64,12 +67,12 @@ export default function AlertControlRecordsPage() {
 
   useEffect(() => {
     loadRecords();
-  }, [filters, searchQuery, currentPage]);
+  }, [filters, searchQuery, currentPage, hideInactive]);
 
   // 筛选条件或搜索变化时重置到第一页
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters, searchQuery]);
+  }, [filters, searchQuery, hideInactive]);
 
   // 分页处理
   const handlePageChange = (page: number) => {
@@ -86,7 +89,7 @@ export default function AlertControlRecordsPage() {
     setExporting(true);
     try {
       const response = await alertControlRecordService.export({
-        filters: { ...filters, search: searchQuery.trim() || undefined },
+        filters: { ...filters, search: searchQuery.trim() || undefined, hide_inactive: hideInactive || undefined },
         format: 'excel'
       });
 
@@ -227,38 +230,55 @@ export default function AlertControlRecordsPage() {
             </div>
           </div>
 
-          {/* 快速日期选择 */}
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => {
-                const today = getTodayString();
-                setFilters(prev => ({ ...prev, start_date: today, end_date: today }));
-              }}
-            >
-              今天
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => {
-                setFilters(prev => ({ 
-                  ...prev, 
-                  start_date: getWeekAgoString(), 
-                  end_date: getTodayString() 
-                }));
-              }}
-            >
-              最近一周
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setFilters({})}
-            >
-              重置筛选
-            </Button>
+          {/* 快速日期选择和过滤选项 */}
+          <div className="flex items-center justify-between">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const today = getTodayString();
+                  setFilters(prev => ({ ...prev, start_date: today, end_date: today }));
+                }}
+              >
+                今天
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFilters(prev => ({
+                    ...prev,
+                    start_date: getWeekAgoString(),
+                    end_date: getTodayString()
+                  }));
+                }}
+              >
+                最近一周
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setFilters({})}
+              >
+                重置筛选
+              </Button>
+            </div>
+
+            {/* 隐藏无效记录 */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="hide_inactive"
+                checked={hideInactive}
+                onCheckedChange={(checked) => setHideInactive(checked === true)}
+              />
+              <Label
+                htmlFor="hide_inactive"
+                className="text-sm font-normal cursor-pointer"
+              >
+                隐藏无效记录（告警/管控均为重复或未配置）
+              </Label>
+            </div>
           </div>
         </CardContent>
       </Card>

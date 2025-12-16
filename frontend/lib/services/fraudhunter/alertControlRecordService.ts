@@ -53,6 +53,7 @@ export interface AlertControlFilters {
   alert_status?: string;
   control_status?: string;
   search?: string;
+  hide_inactive?: boolean;
 }
 
 export interface AlertControlListResponse {

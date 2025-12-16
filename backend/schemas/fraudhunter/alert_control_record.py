@@ -28,6 +28,9 @@ class AlertControlFilters(BaseModel):
     # 搜索关键词
     search: Optional[str] = Field(None, description="搜索关键词")
 
+    # 隐藏无效记录（告警和管控均为重复或未配置）
+    hide_inactive: Optional[bool] = Field(None, description="隐藏无效记录")
+
 
 class PaginationParams(BaseModel):
     """分页参数"""
