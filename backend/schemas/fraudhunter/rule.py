@@ -60,8 +60,8 @@ class IndicatorReference(BaseModel):
     type: Literal["indicator"]
     indicator: str = Field(
         ...,
-        pattern=r'^[a-zA-Z_][a-zA-Z0-9_]*$',
-        description="引用的指标编码"
+        pattern=r'^(__T-?\d+__|[a-zA-Z_][a-zA-Z0-9_]*)$',
+        description="引用的指标编码（支持系统时间变量 __T0__, __T-1__ 等）"
     )
 
     class Config:
