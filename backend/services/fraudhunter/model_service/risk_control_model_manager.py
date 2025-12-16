@@ -255,18 +255,10 @@ class RiskControlModelManager:
         if version > db_model.latest_version:
             raise ValueError(f"版本号不存在: {version}")
 
-        # 更新发布版本
+        # 更新发布版本（状态变更，不创建新版本历史）
         db_model.current_version = version
         db_model.status = 'online'
         db_model.updated_by = updated_by
-
-        # 创建版本历史
-        # self._create_version_history(
-        #     db_model,
-        #     'publish',
-        #     change_description or f'发布版本{version}',
-        #     updated_by
-        # )
 
         self.db.commit()
         self.db.refresh(db_model)
@@ -295,11 +287,9 @@ class RiskControlModelManager:
         if not db_model:
             raise ValueError(f"预警管控模型不存在: {model_id}")
 
+        # 归档模型（状态变更，不创建新版本历史）
         db_model.status = 'archived'
         db_model.updated_by = updated_by
-
-        # 创建版本历史
-        # self._create_version_history(db_model, 'archive', '归档模型', updated_by)
 
         self.db.commit()
         self.db.refresh(db_model)
