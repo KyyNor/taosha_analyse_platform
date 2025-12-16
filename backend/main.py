@@ -35,7 +35,6 @@ from services.vector_store.vector_training_service import VectorTrainingService
 from services.tracking_service.observability_service import initialize_observability
 from services.metadata_service.metadata_sync_service import MetadataSyncService
 from services.metadata_service.fine_report_sync_service import FineReportSyncService
-# from services.agents.fine_report_tools import get_browser, _cleanup_browser  # 已改为异步版本
 
 # 全局变量：实时数据消费者实例
 _realtime_consumer = None
@@ -328,7 +327,7 @@ async def lifespan(app: FastAPI):
         # 初始化异步 Playwright 浏览器（每个worker都需要）
         if not settings.fine_report_disable_browser_init:
             logger.info("初始化异步 Playwright 浏览器...")
-            from services.agents.fine_report_tools import get_async_browser_context
+            from services.agents.tools.fine_report_tools import get_async_browser_context
             await get_async_browser_context()  # 初始化异步浏览器并建立登录会话
             logger.info("异步 Playwright 浏览器初始化完成")
         else:
@@ -383,7 +382,7 @@ async def lifespan(app: FastAPI):
         # 清理异步 Playwright 浏览器（每个worker都需要清理）
         if not settings.fine_report_disable_browser_init:
             logger.info("清理异步 Playwright 浏览器...")
-            from services.agents.fine_report_tools import cleanup_async_browser
+            from services.agents.tools.fine_report_tools import cleanup_async_browser
             await cleanup_async_browser()
             logger.info("异步 Playwright 浏览器已清理")
         else:

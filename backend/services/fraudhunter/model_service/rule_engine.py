@@ -817,7 +817,7 @@ class RuleEngine:
                     ind_sql = "T日(实时数据日期)"
                 else:
                     ind_sql = "dep_acct_realtime_indicator.etl_date"
-            elif ind == '__T-1__':
+            elif ind == '__T_1__':
                 # T-1日: 离线宽表的etl_date
                 if use_display_name:
                     ind_sql = "T-1日(离线数据日期)"

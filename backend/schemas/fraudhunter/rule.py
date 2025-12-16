@@ -61,7 +61,7 @@ class IndicatorReference(BaseModel):
     indicator: str = Field(
         ...,
         pattern=r'^(__T-?\d+__|[a-zA-Z_][a-zA-Z0-9_]*)$',
-        description="引用的指标编码（支持系统时间变量 __T0__, __T-1__ 等）"
+        description="引用的指标编码（支持系统时间变量 __T0__, __T_1__ 等）"
     )
 
     class Config:
@@ -80,7 +80,7 @@ class TimeFunction(BaseModel):
     indicator: str = Field(
         ...,
         pattern=r'^(__T-?\d+__|[a-zA-Z_][a-zA-Z0-9_]*)$',
-        description="日期指标编码（支持系统时间变量 __T0__, __T-1__ 等）"
+        description="日期指标编码（支持系统时间变量 __T0__, __T_1__ 等）"
     )
     offset: int = Field(
         ...,

@@ -185,7 +185,7 @@ export function ConditionRuleEditor({
         // 特殊时间变量的显示名称
         const getTimeIndicatorDisplayValue = (indicator: string) => {
           if (indicator === '__T0__') return 'T日 (实时数据日期)'
-          if (indicator === '__T-1__') return 'T-1日 (离线数据日期)'
+          if (indicator === '__T_1__') return 'T-1日 (离线数据日期)'
           const ind = indicators.find(i => i.indicator_code === indicator)
           return ind ? getIndicatorDisplayName(ind) : indicator
         }
@@ -210,7 +210,7 @@ export function ConditionRuleEditor({
                   系统日期
                 </div>
                 <SelectItem value="__T0__">T日 (实时数据日期)</SelectItem>
-                <SelectItem value="__T-1__">T-1日 (离线数据日期)</SelectItem>
+                <SelectItem value="__T_1__">T-1日 (离线数据日期)</SelectItem>
                 
                 {/* 日期类型指标 */}
                 {indicators.filter(ind => ind.data_type === 'date').length > 0 && (
