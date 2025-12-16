@@ -46,6 +46,9 @@ const navItems: NavItem[] = [
       { type: 'separator' },
       { type: 'group', label: "宽表管理" },
       { type: 'link', href: "/fraudhunter/wide-table-versions", label: "指标宽表版本" },
+      { type: 'separator' },
+      { type: 'group', label: "系统管理" },
+      { type: 'link', href: "/fraudhunter/system-config", label: "系统配置" },
     ]
   },
   {

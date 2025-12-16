@@ -166,19 +166,34 @@ class FraudHunterModelAlertControlRecord(Base):
     def __repr__(self):
         return f"<FraudHunterModelAlertControlRecord(id={self.id}, account_id='{self.account_id}', hit_model_ids={self.hit_model_ids}, record_date='{self.record_date}')>"
     
-class FraudHunterModelUserVariableConfig(Base):
-    """模型用户变量配置表"""
-    __tablename__ = "fraudhunter_model_user_variable_config"
+class FraudHunterSystemConfig(Base):
+    """系统热配置表
+
+    用于存储系统级别的动态配置，包括：
+    - SQL变量：用于指标任务SQL中的 ${变量} 替换
+    - 系统参数：通知人员清单、消息模板等
+    """
+    __tablename__ = "fraudhunter_system_config"
 
     # 主键
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment='主键ID')
 
-    config_key = Column(String(64), nullable=False, comment='配置id')
-    config_desc = Column(String(64), nullable=False, comment='配置名称')
+    # 分类
+    config_category = Column(String(32), nullable=False, comment='配置分类: sql_variable/system_param')
 
+    # 配置标识
+    config_key = Column(String(64), nullable=False, unique=True, comment='配置键（唯一）')
+    config_desc = Column(String(256), nullable=False, comment='配置描述')
+
+    # 值类型和值
+    config_type = Column(String(32), nullable=False, comment='值类型: string/list/json_list')
     config_value = Column(JSON, nullable=False, comment='配置值')
 
-    config_type = Column(String(64), nullable=False, comment='配置类型')
+    # SQL转换选项（仅对list类型有效）
+    sql_in_convert = Column(Integer, default=0, comment='列表是否转换为SQL IN格式（0:否 1:是）')
+
+    # 排序
+    sort_order = Column(Integer, default=0, comment='排序顺序')
 
     # 审计字段
     created_at = Column(DateTime, default=datetime.now, comment='创建时间')
@@ -186,9 +201,14 @@ class FraudHunterModelUserVariableConfig(Base):
 
     # 索引
     __table_args__ = (
-        Index('idx_fh_user_env_config_key', 'config_key'),
-        {'comment': '模型用户变量配置表'}
+        Index('idx_fh_sys_config_category', 'config_category'),
+        Index('idx_fh_sys_config_key', 'config_key'),
+        {'comment': '系统热配置表'}
     )
 
     def __repr__(self):
-        return f"<FraudHunterModelUserVariableConfig(id={self.id}, config_key='{self.config_key}', config_type='{self.config_type}')>"
+        return f"<FraudHunterSystemConfig(id={self.id}, config_key='{self.config_key}', config_type='{self.config_type}')>"
+
+
+# 保留旧类名作为别名，确保兼容性（可在迁移完成后删除）
+FraudHunterModelUserVariableConfig = FraudHunterSystemConfig

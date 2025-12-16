@@ -17,8 +17,9 @@ from models.db_base import get_db_session
 from models.fraudhunter.indicator import FraudHunterIndicatorTask, FraudHunterIndicatorDefinition
 from models.fraudhunter.wide_table import FraudHunterWideTableSnapshot, FraudHunterWideTableVersion
 from models.fraudhunter.risk_control_model import FraudHunterModelDefinition, FraudHunterModelHistory
-from models.fraudhunter.model_execution_tracking import FraudHunterModelExecution, FraudHunterModelUserVariableConfig
+from models.fraudhunter.model_execution_tracking import FraudHunterModelExecution
 from services.fraudhunter.model_service.model_hit_alert_manager import ModelHitAlertManager, ModelHit
+from services.fraudhunter.system_config_service import SystemConfigManager
 from utils.logger import logger
 from utils.config import settings
 
@@ -587,15 +588,10 @@ SELECT
 def _build_all_user_variable_config(
     db: Session,
 ) -> dict:
-    all_user_config = db.query(FraudHunterModelUserVariableConfig).all()
-    _user_config = {}
-    for c in all_user_config:
-        if c.config_type == "pure_value":
-            _user_config[c.config_key] = c.config_value['value']
-        
-        if c.config_type == "list_to_in_str":
-            tmp_list = [f"'{_}'" for _ in c.config_value['value']]
-            _user_config[c.config_key] = ','.join(tmp_list)
-    
-    logger.debug(f"用户变量组装完毕：{_user_config}")
-    return _user_config
+    """构建SQL变量替换字典
+
+    使用 SystemConfigManager 获取所有 sql_variable 类型的配置，
+    并根据配置类型进行相应的转换。
+    """
+    manager = SystemConfigManager(db)
+    return manager.build_sql_variable_dict()
