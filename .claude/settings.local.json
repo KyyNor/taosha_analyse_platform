@@ -64,7 +64,8 @@
       "mcp__mysql__describe_table",
       "mcp__mysql__execute",
       "mcp__mysql__query",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(source .venv/bin/activate)"
     ],
     "deny": [],
     "ask": [],
