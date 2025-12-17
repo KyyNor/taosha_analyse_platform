@@ -20,17 +20,24 @@ router = APIRouter(prefix="/indicator-query", tags=["指标数据查询"])
 
 @router.get("/wide-tables", response_model=dict)
 async def list_wide_table_files(
-    object_type: str = Query(..., description="对象类型"),
+    wide_table_type: str = Query(..., description="宽表类型: dep_acct_offline, loan_acct_offline, cust_offline, dep_acct_realtime"),
     date_filter: Optional[str] = Query(None, description="日期过滤 YYYY-MM-DD"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(50, ge=1, le=100, description="每页大小"),
     db: Session = Depends(get_db)
 ):
-    """获取宽表文件列表"""
+    """获取宽表文件列表
+
+    支持四种宽表类型:
+    - dep_acct_offline: 离线存款宽表
+    - loan_acct_offline: 离线贷款宽表
+    - cust_offline: 离线客户宽表
+    - dep_acct_realtime: 实时存款宽表
+    """
     try:
         service = IndicatorQueryService(db)
         result = service.get_wide_table_files(
-            object_type=object_type,
+            wide_table_type=wide_table_type,
             date_filter=date_filter,
             page=page,
             page_size=page_size

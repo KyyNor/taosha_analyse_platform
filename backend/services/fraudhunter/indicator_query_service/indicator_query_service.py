@@ -2,14 +2,12 @@
 指标数据查询服务
 """
 
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, desc
-from datetime import datetime, timedelta
+from sqlalchemy import desc
+from datetime import datetime
 import duckdb
-import pandas as pd
 from pathlib import Path
-import json
 
 from models.fraudhunter.indicator import FraudHunterIndicatorDefinition
 from models.fraudhunter.wide_table import (
@@ -17,17 +15,39 @@ from models.fraudhunter.wide_table import (
     FraudHunterWideTableSnapshot
 )
 from utils.logger import logger
-from utils.config import settings
 
 
 class IndicatorQueryService:
     """指标数据查询服务"""
 
-    # 对象类型到宽表名称的映射
-    OBJECT_TYPE_TO_TABLE_NAME = {
-        'cust_no': 'cust_wide_table',
-        'dep_acct_no': 'dep_acct_wide_table',
-        'loan_acct_no': 'loan_acct_wide_table',
+    # 宽表类型配置
+    # key: 前端选择的宽表类型
+    # value: {wide_table_name: 数据库中的宽表名称, label: 显示名称, is_realtime: 是否实时宽表}
+    WIDE_TABLE_CONFIG = {
+        'dep_acct_offline': {
+            'wide_table_name': 'dep_acct_wide_table',
+            'label': '离线存款宽表',
+            'is_realtime': False,
+            'object_type': 'dep_acct_no'
+        },
+        'loan_acct_offline': {
+            'wide_table_name': 'loan_acct_wide_table',
+            'label': '离线贷款宽表',
+            'is_realtime': False,
+            'object_type': 'loan_acct_no'
+        },
+        'cust_offline': {
+            'wide_table_name': 'cust_wide_table',
+            'label': '离线客户宽表',
+            'is_realtime': False,
+            'object_type': 'cust_no'
+        },
+        'dep_acct_realtime': {
+            'wide_table_name': 'dep_acct_wide_table_realtime',
+            'label': '实时存款宽表',
+            'is_realtime': True,
+            'object_type': 'dep_acct_no'
+        }
     }
 
     # 宽表名称到对象类型的映射
@@ -35,6 +55,7 @@ class IndicatorQueryService:
         'cust_wide_table': 'cust_no',
         'dep_acct_wide_table': 'dep_acct_no',
         'loan_acct_wide_table': 'loan_acct_no',
+        'dep_acct_wide_table_realtime': 'dep_acct_no'
     }
 
     def __init__(self, db: Session):
@@ -42,7 +63,7 @@ class IndicatorQueryService:
 
     def get_wide_table_files(
         self,
-        object_type: str,
+        wide_table_type: str,
         date_filter: Optional[str] = None,
         page: int = 1,
         page_size: int = 50
@@ -50,7 +71,7 @@ class IndicatorQueryService:
         """获取宽表文件列表
 
         Args:
-            object_type: 对象类型
+            wide_table_type: 宽表类型 (dep_acct_offline, loan_acct_offline, cust_offline, dep_acct_realtime)
             date_filter: 日期过滤，格式: YYYY-MM-DD
             page: 页码
             page_size: 每页大小
@@ -58,11 +79,14 @@ class IndicatorQueryService:
         Returns:
             包含文件列表和分页信息的字典
         """
-        wide_table_name = self.OBJECT_TYPE_TO_TABLE_NAME.get(object_type)
-        if not wide_table_name:
-            raise ValueError(f"不支持的对象类型: {object_type}")
+        config = self.WIDE_TABLE_CONFIG.get(wide_table_type)
+        if not config:
+            raise ValueError(f"不支持的宽表类型: {wide_table_type}")
 
-        # 构建基础查询
+        wide_table_name = config['wide_table_name']
+        is_realtime = config['is_realtime']
+
+        # 构建基础查询 - 从 FraudHunterWideTableSnapshot 获取
         query = self.db.query(FraudHunterWideTableSnapshot).filter(
             FraudHunterWideTableSnapshot.wide_table_name == wide_table_name,
             FraudHunterWideTableSnapshot.status == 'ready'
@@ -83,21 +107,51 @@ class IndicatorQueryService:
         total = query.count()
         snapshots = query.offset((page - 1) * page_size).limit(page_size).all()
 
+        # 获取版本信息（离线宽表需要）
+        version_info_map = {}
+        if not is_realtime:
+            # 获取所有相关的版本信息
+            version_hashes = [s.version_hash for s in snapshots if s.version_hash]
+            if version_hashes:
+                versions = self.db.query(FraudHunterWideTableVersion).filter(
+                    FraudHunterWideTableVersion.version_hash.in_(version_hashes)
+                ).all()
+                version_info_map = {v.version_hash: v for v in versions}
+
         # 转换为响应格式
         files = []
         for snapshot in snapshots:
+            # 获取版本状态
+            version_status = None
+            if snapshot.version_hash and snapshot.version_hash in version_info_map:
+                version_status = version_info_map[snapshot.version_hash].status
+
+            # 构建显示标签: 数据日期(版本号[状态])
+            etl_date_str = snapshot.etl_date.strftime('%Y-%m-%d') if snapshot.etl_date else ''
+            if snapshot.version_hash:
+                version_short = snapshot.version_hash[:6] if snapshot.version_hash else ''
+                display_label = f"{etl_date_str}({version_short}[{version_status or 'unknown'}])"
+            else:
+                display_label = f"{etl_date_str}(实时)"
+
+            # 获取文件名
+            file_name = Path(snapshot.parquet_file_path).name if snapshot.parquet_file_path else ''
+
             files.append({
                 "id": snapshot.id,
                 "wide_table_name": snapshot.wide_table_name,
                 "etl_date": snapshot.etl_date,
                 "version_hash": snapshot.version_hash,
+                "version_status": version_status,
                 "file_path": snapshot.parquet_file_path,
+                "file_name": file_name,
+                "display_label": display_label,
                 "status": snapshot.status,
                 "generation_time": snapshot.generation_time,
                 "row_count": snapshot.row_count,
                 "column_count": snapshot.column_count,
                 "file_size_bytes": snapshot.file_size_bytes,
-                "is_realtime": snapshot.version_hash is None
+                "is_realtime": is_realtime
             })
 
         return {
@@ -208,15 +262,20 @@ class IndicatorQueryService:
             if not file_path.exists():
                 raise ValueError(f"文件不存在: {snapshot.parquet_file_path}")
 
-            # 3. 构建SQL查询
-            sql_query = self._build_query_sql(request)
-            count_sql = self._build_count_sql(request)
+            parquet_path = snapshot.parquet_file_path
 
-            # 4. 执行查询
+            # 3. 获取指标信息用于构建SELECT字段和类型转换
+            indicators = self.get_indicators_by_wide_table(snapshot.id)
+            indicator_map = {ind['indicator_code']: ind for ind in indicators}
+
+            # 4. 构建SQL查询
+            sql_query = self._build_query_sql(request, parquet_path, indicator_map)
+            count_sql = self._build_count_sql(request, parquet_path)
+
+            logger.info(f"执行查询SQL: {sql_query[:500]}...")
+
+            # 5. 执行查询
             con = duckdb.connect(database=':memory:')
-
-            # 加载Parquet文件
-            con.execute(f"CREATE TABLE wide_table AS SELECT * FROM read_parquet('{snapshot.parquet_file_path}')")
 
             # 获取总数
             total_result = con.execute(count_sql).fetchone()
@@ -231,7 +290,7 @@ class IndicatorQueryService:
 
             con.close()
 
-            # 5. 格式化结果
+            # 6. 格式化结果
             return {
                 "items": items,
                 "total": total_count,
@@ -243,14 +302,67 @@ class IndicatorQueryService:
             logger.error(f"查询数据失败: {str(e)}")
             raise
 
-    def _build_query_sql(self, request: Dict[str, Any]) -> str:
-        """构建查询SQL"""
-        # 基础SELECT - 查询所有字段
-        base_sql = "SELECT * FROM wide_table WHERE 1=1"
+    def _get_cast_expression(self, field: str, data_type: str) -> str:
+        """根据数据类型获取CAST表达式
+
+        Args:
+            field: 字段名
+            data_type: 数据类型 (string, numeric, date)
+
+        Returns:
+            CAST表达式
+        """
+        if data_type == 'numeric':
+            return f"CAST({field} AS DOUBLE)"
+        elif data_type == 'date':
+            return f"CAST({field} AS DATE)"
+        else:
+            # string 或其他类型
+            return f"CAST({field} AS VARCHAR)"
+
+    def _build_query_sql(
+        self,
+        request: Dict[str, Any],
+        parquet_path: str,
+        indicator_map: Dict[str, Dict]
+    ) -> str:
+        """构建查询SQL - 直接从parquet文件查询，带中文别名
+
+        Args:
+            request: 查询请求
+            parquet_path: parquet文件路径
+            indicator_map: 指标信息映射 {indicator_code: indicator_info}
+
+        Returns:
+            SQL查询语句
+        """
+        # 构建SELECT字段 - 使用中文别名，并根据类型CAST
+        select_fields = []
+
+        # 添加target_id字段
+        select_fields.append('target_id AS "对象ID"')
+        select_fields.append('etl_date AS "数据日期"')
+
+        # 添加指标字段 - 按中文名称展示，并根据类型CAST
+        for code, info in indicator_map.items():
+            if code in ('target_id', 'etl_date'):
+                continue
+            indicator_name = info.get('indicator_name', code)
+            data_type = info.get('data_type', 'string')
+
+            # 根据数据类型进行CAST
+            cast_expr = self._get_cast_expression(code, data_type)
+            select_fields.append(f'{cast_expr} AS "{indicator_name}"')
+
+        select_clause = ",\n    ".join(select_fields)
+
+        # 构建WHERE子句
+        where_conditions = ["1=1"]
 
         # 添加target_id条件
         if request.get("target_id"):
-            base_sql += f" AND target_id = '{request['target_id']}'"
+            target_id = request['target_id'].replace("'", "''")  # 防SQL注入
+            where_conditions.append(f"target_id = '{target_id}'")
 
         # 添加指标查询条件
         conditions = request.get("conditions", [])
@@ -263,67 +375,134 @@ class IndicatorQueryService:
             if field == "target_id":
                 continue
 
-            if operator == "like":
-                base_sql += f" AND {field} LIKE '%{value}%'"
-            elif operator == "=":
-                if isinstance(value, str):
-                    base_sql += f" AND {field} = '{value}'"
-                else:
-                    base_sql += f" AND {field} = {value}"
-            elif operator in [">", "<", ">=", "<="]:
-                if isinstance(value, str):
-                    # 尝试转换为数值
-                    try:
-                        value = float(value)
-                        base_sql += f" AND {field} {operator} {value}"
-                    except ValueError:
-                        # 如果不能转换为数值，作为字符串比较
-                        base_sql += f" AND CAST({field} AS VARCHAR) {operator} '{value}'"
-                else:
-                    base_sql += f" AND {field} {operator} {value}"
+            # 获取指标的数据类型
+            indicator_info = indicator_map.get(field, {})
+            data_type = indicator_info.get('data_type', 'string')
+
+            # 根据数据类型构建条件
+            condition_sql = self._build_condition(field, operator, value, data_type)
+            if condition_sql:
+                where_conditions.append(condition_sql)
+
+        where_clause = " AND ".join(where_conditions)
 
         # 添加分页
         page = request.get("page", 1)
         page_size = request.get("page_size", 100)
         offset = (page - 1) * page_size
-        base_sql += f" LIMIT {page_size} OFFSET {offset}"
 
-        return base_sql
+        # 构建完整SQL - 直接从parquet文件查询
+        sql = f"""SELECT
+    {select_clause}
+FROM read_parquet('{parquet_path}')
+WHERE {where_clause}
+LIMIT {page_size} OFFSET {offset}"""
 
-    def _build_count_sql(self, request: Dict[str, Any]) -> str:
-        """构建计数SQL"""
-        base_sql = "SELECT COUNT(*) FROM wide_table WHERE 1=1"
+        return sql
+
+    def _build_condition(
+        self,
+        field: str,
+        operator: str,
+        value: Any,
+        data_type: str
+    ) -> str:
+        """构建单个查询条件
+
+        Args:
+            field: 字段名
+            operator: 运算符
+            value: 值
+            data_type: 数据类型 (numeric/text/date)
+
+        Returns:
+            SQL条件表达式
+        """
+        if not value and value != 0:
+            return ""
+
+        # 防SQL注入
+        if isinstance(value, str):
+            value = value.replace("'", "''")
+
+        if operator == "like":
+            return f"{field} LIKE '%{value}%'"
+        elif operator == "=":
+            if data_type == 'numeric':
+                try:
+                    num_value = float(value)
+                    return f"{field} = {num_value}"
+                except (ValueError, TypeError):
+                    return f"CAST({field} AS VARCHAR) = '{value}'"
+            else:
+                return f"{field} = '{value}'"
+        elif operator in [">", "<", ">=", "<="]:
+            if data_type == 'numeric':
+                try:
+                    num_value = float(value)
+                    return f"{field} {operator} {num_value}"
+                except (ValueError, TypeError):
+                    return f"CAST({field} AS VARCHAR) {operator} '{value}'"
+            elif data_type == 'date':
+                return f"{field} {operator} '{value}'"
+            else:
+                return f"CAST({field} AS VARCHAR) {operator} '{value}'"
+
+        return ""
+
+    def _build_count_sql(self, request: Dict[str, Any], parquet_path: str) -> str:
+        """构建计数SQL - 直接从parquet文件查询
+
+        Args:
+            request: 查询请求
+            parquet_path: parquet文件路径
+
+        Returns:
+            SQL计数语句
+        """
+        # 构建WHERE子句
+        where_conditions = ["1=1"]
 
         # 添加target_id条件
         if request.get("target_id"):
-            base_sql += f" AND target_id = '{request['target_id']}'"
+            target_id = request['target_id'].replace("'", "''")
+            where_conditions.append(f"target_id = '{target_id}'")
 
-        # 添加指标查询条件（不分页）
+        # 添加指标查询条件
         conditions = request.get("conditions", [])
         for condition in conditions:
             field = condition["field"]
             operator = condition["operator"]
             value = condition["value"]
 
-            # 跳过target_id的条件
             if field == "target_id":
                 continue
 
-            if operator == "like":
-                base_sql += f" AND {field} LIKE '%{value}%'"
-            elif operator == "=":
-                if isinstance(value, str):
-                    base_sql += f" AND {field} = '{value}'"
-                else:
-                    base_sql += f" AND {field} = {value}"
-            elif operator in [">", "<", ">=", "<="]:
-                if isinstance(value, str):
-                    try:
-                        value = float(value)
-                        base_sql += f" AND {field} {operator} {value}"
-                    except ValueError:
-                        base_sql += f" AND CAST({field} AS VARCHAR) {operator} '{value}'"
-                else:
-                    base_sql += f" AND {field} {operator} {value}"
+            # 简化的条件构建（计数不需要类型转换）
+            if not value and value != 0:
+                continue
 
-        return base_sql
+            if isinstance(value, str):
+                value = value.replace("'", "''")
+
+            if operator == "like":
+                where_conditions.append(f"{field} LIKE '%{value}%'")
+            elif operator == "=":
+                if isinstance(value, (int, float)):
+                    where_conditions.append(f"{field} = {value}")
+                else:
+                    try:
+                        num_value = float(value)
+                        where_conditions.append(f"{field} = {num_value}")
+                    except (ValueError, TypeError):
+                        where_conditions.append(f"{field} = '{value}'")
+            elif operator in [">", "<", ">=", "<="]:
+                try:
+                    num_value = float(value)
+                    where_conditions.append(f"{field} {operator} {num_value}")
+                except (ValueError, TypeError):
+                    where_conditions.append(f"CAST({field} AS VARCHAR) {operator} '{value}'")
+
+        where_clause = " AND ".join(where_conditions)
+
+        return f"SELECT COUNT(*) FROM read_parquet('{parquet_path}') WHERE {where_clause}"

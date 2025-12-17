@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, Search, ChevronDown, ChevronUp, Calendar, FileText, Clock } from "lucide-react";
+import { Trash2, Plus, Search, ChevronDown, ChevronUp, Calendar, FileText, Clock, Database } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -31,22 +31,16 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { Separator } from "@/components/ui/separator";
 import { indicatorQueryService } from "@/lib/services/fraudhunterService";
 import {
   WideTableFile,
   IndicatorInfo,
   IndicatorQueryCondition,
   IndicatorQueryResponse,
-  WideTableFilesResponse
+  WideTableFilesResponse,
+  WideTableType,
+  WIDE_TABLE_TYPE_OPTIONS
 } from "@/types/fraudhunter/indicatorQuery";
-
-// 对象类型选项
-const OBJECT_TYPE_OPTIONS = [
-  { value: "cust_no", label: "客户号" },
-  { value: "dep_acct_no", label: "存款账户" },
-  { value: "loan_acct_no", label: "贷款账户" },
-];
 
 // 运算符选项
 const OPERATOR_OPTIONS = [
@@ -58,7 +52,7 @@ const OPERATOR_OPTIONS = [
   { value: "like", label: "包含" },
 ];
 
-export default function DataQueryPage() {
+export default function IndicatorQueryPage() {
   // 状态管理
   const [loading, setLoading] = useState(false);
   const [querying, setQuerying] = useState(false);
@@ -71,7 +65,7 @@ export default function DataQueryPage() {
   const [fileListTotalPages, setFileListTotalPages] = useState(1);
 
   // 查询参数
-  const [objectType, setObjectType] = useState<string>("");
+  const [wideTableType, setWideTableType] = useState<WideTableType | "">("");
   const [selectedFile, setSelectedFile] = useState<WideTableFile | null>(null);
   const [dateFilter, setDateFilter] = useState<string>("");
   const [conditions, setConditions] = useState<IndicatorQueryCondition[]>([
@@ -87,12 +81,12 @@ export default function DataQueryPage() {
 
   // 加载宽表文件列表
   const loadWideTableFiles = async (page: number = 1) => {
-    if (!objectType) return;
+    if (!wideTableType) return;
 
     try {
       setLoading(true);
       const response: WideTableFilesResponse = await indicatorQueryService.getWideTableFiles({
-        object_type: objectType,
+        wide_table_type: wideTableType,
         date_filter: dateFilter || undefined,
         page,
         page_size: 10
@@ -221,12 +215,13 @@ export default function DataQueryPage() {
     if (!dataType) return OPERATOR_OPTIONS.filter(op => op.value === "=" || op.value === "like");
 
     switch (dataType) {
-      case "integer":
-      case "float":
+      case "numeric":
       case "date":
+        // 数值和日期类型支持比较运算符，不支持like
         return OPERATOR_OPTIONS.filter(op => op.value !== "like");
-      case "string":
+      case "text":
       default:
+        // 文本类型只支持等于和包含
         return OPERATOR_OPTIONS.filter(op => op.value === "=" || op.value === "like");
     }
   };
@@ -244,18 +239,13 @@ export default function DataQueryPage() {
     return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + " " + sizes[i];
   };
 
-  // 格式化日期
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("zh-CN");
-  };
-
   // 格式化时间
   const formatDateTime = (dateStr: string) => {
     return new Date(dateStr).toLocaleString("zh-CN");
   };
 
   useEffect(() => {
-    if (objectType) {
+    if (wideTableType) {
       loadWideTableFiles();
       setSelectedFile(null);
       setIndicators([]);
@@ -268,10 +258,10 @@ export default function DataQueryPage() {
       }]);
       setQueryResult(null);
     }
-  }, [objectType]);
+  }, [wideTableType]);
 
   useEffect(() => {
-    if (dateFilter && objectType) {
+    if (dateFilter && wideTableType) {
       loadWideTableFiles(1);
     }
   }, [dateFilter]);
@@ -292,15 +282,16 @@ export default function DataQueryPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            {OBJECT_TYPE_OPTIONS.map((option) => (
+          <div className="grid grid-cols-4 gap-4">
+            {WIDE_TABLE_TYPE_OPTIONS.map((option) => (
               <Button
                 key={option.value}
-                variant={objectType === option.value ? "default" : "outline"}
-                onClick={() => setObjectType(option.value)}
-                className="h-16"
+                variant={wideTableType === option.value ? "default" : "outline"}
+                onClick={() => setWideTableType(option.value)}
+                className="h-16 flex flex-col gap-1"
               >
-                {option.label}
+                <Database className="w-5 h-5" />
+                <span>{option.label}</span>
               </Button>
             ))}
           </div>
@@ -308,13 +299,13 @@ export default function DataQueryPage() {
       </Card>
 
       {/* 第二步：选择宽表文件 */}
-      {objectType && (
+      {wideTableType && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
-                选择宽表文件
+                选择数据日期
               </div>
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
@@ -345,14 +336,27 @@ export default function DataQueryPage() {
                       <div className="flex items-center gap-4">
                         <FileText className="w-5 h-5 text-muted-foreground" />
                         <div>
-                          <div className="font-medium">
-                            {formatDate(file.etl_date)}
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{file.display_label}</span>
                             {file.is_realtime && (
-                              <Badge variant="secondary" className="ml-2">实时</Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                <Clock className="w-3 h-3 mr-1" />
+                                实时
+                              </Badge>
+                            )}
+                            {file.version_status && (
+                              <Badge
+                                variant={file.version_status === 'current' ? 'default' : 'outline'}
+                                className="text-xs"
+                              >
+                                {file.version_status}
+                              </Badge>
                             )}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {file.row_count?.toLocaleString()} 行 × {file.column_count} 列
+                            {file.file_name}
+                            {file.row_count && ` · ${file.row_count?.toLocaleString()} 行`}
+                            {file.column_count && ` × ${file.column_count} 列`}
                             {file.file_size_bytes && ` · ${formatFileSize(file.file_size_bytes)}`}
                           </div>
                         </div>
@@ -591,12 +595,12 @@ export default function DataQueryPage() {
             {queryResult.items.length > 0 ? (
               <>
                 {/* 数据表格 */}
-                <div className="rounded-md border">
+                <div className="rounded-md border overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         {Object.keys(queryResult.items[0]).map((key) => (
-                          <TableHead key={key}>{key}</TableHead>
+                          <TableHead key={key} className="whitespace-nowrap">{key}</TableHead>
                         ))}
                       </TableRow>
                     </TableHeader>
@@ -604,7 +608,7 @@ export default function DataQueryPage() {
                       {queryResult.items.map((row, index) => (
                         <TableRow key={index}>
                           {Object.values(row).map((value: any, idx: number) => (
-                            <TableCell key={idx}>
+                            <TableCell key={idx} className="whitespace-nowrap">
                               {value?.toString() || "-"}
                             </TableCell>
                           ))}

@@ -530,7 +530,7 @@ export const taskService = {
 export const indicatorQueryService = {
   // 获取宽表文件列表
   async getWideTableFiles(params: {
-    object_type: string;
+    wide_table_type: string;
     date_filter?: string;
     page?: number;
     page_size?: number;
