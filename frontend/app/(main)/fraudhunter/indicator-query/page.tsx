@@ -68,15 +68,7 @@ export default function IndicatorQueryPage() {
   const [wideTableType, setWideTableType] = useState<WideTableType | "">("");
   const [selectedFile, setSelectedFile] = useState<WideTableFile | null>(null);
   const [dateFilter, setDateFilter] = useState<string>("");
-  const [conditions, setConditions] = useState<IndicatorQueryCondition[]>([
-    {
-      id: "target_id",
-      field: "target_id",
-      operator: "=",
-      value: "",
-      field_name: "对象ID"
-    }
-  ]);
+  const [conditions, setConditions] = useState<IndicatorQueryCondition[]>([]);
   const [isQueryConditionsCollapsed, setIsQueryConditionsCollapsed] = useState(false);
 
   // 加载宽表文件列表
@@ -117,16 +109,8 @@ export default function IndicatorQueryPage() {
   const handleSelectFile = (file: WideTableFile) => {
     setSelectedFile(file);
     loadIndicators(file.id);
-    // 重置查询条件（保留target_id）
-    setConditions([
-      {
-        id: "target_id",
-        field: "target_id",
-        operator: "=",
-        value: "",
-        field_name: "对象ID"
-      }
-    ]);
+    // 重置查询条件
+    setConditions([]);
     setQueryResult(null);
     setIsQueryConditionsCollapsed(false);
   };
@@ -137,7 +121,7 @@ export default function IndicatorQueryPage() {
       toast.error("最多只能添加10个查询条件");
       return;
     }
-    if (indicators.length <= 1) { // 只有target_id
+    if (indicators.length === 0) {
       toast.error("没有可用的指标字段");
       return;
     }
@@ -151,10 +135,6 @@ export default function IndicatorQueryPage() {
 
   // 删除查询条件
   const removeCondition = (id: string) => {
-    if (id === "target_id") {
-      toast.error("对象ID条件不能删除");
-      return;
-    }
     setConditions(conditions.filter(c => c.id !== id));
   };
 
@@ -172,18 +152,22 @@ export default function IndicatorQueryPage() {
       return;
     }
 
-    // 检查target_id是否有值
-    const targetIdCondition = conditions.find(c => c.field === "target_id");
-    if (!targetIdCondition || !targetIdCondition.value) {
-      toast.error("请输入对象ID");
+    // 检查是否至少有一个有效条件
+    const validConditions = conditions.filter(c => c.field && c.value);
+    if (validConditions.length === 0) {
+      toast.error("请至少添加一个查询条件");
       return;
     }
 
     setQuerying(true);
     try {
+      // 查找target_id条件
+      const targetIdCondition = conditions.find(c => c.field === "target_id" && c.value);
+
       const queryParams = {
         snapshot_id: selectedFile.id,
-        target_id: targetIdCondition.value,
+        // target_id是可选的，只在有值时传递
+        ...(targetIdCondition ? { target_id: targetIdCondition.value } : {}),
         conditions: conditions
           .filter(c => c.field && c.value && c.field !== "target_id")
           .map(({ field, operator, value }) => ({
@@ -249,13 +233,7 @@ export default function IndicatorQueryPage() {
       loadWideTableFiles();
       setSelectedFile(null);
       setIndicators([]);
-      setConditions([{
-        id: "target_id",
-        field: "target_id",
-        operator: "=",
-        value: "",
-        field_name: "对象ID"
-      }]);
+      setConditions([]);
       setQueryResult(null);
     }
   }, [wideTableType]);
@@ -448,13 +426,16 @@ export default function IndicatorQueryPage() {
             <CardContent>
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">当前查询条件：</div>
-                {conditions.map((condition) => (
-                  condition.value && (
+                {conditions.map((condition) => {
+                  if (!condition.value) return null;
+                  const indicator = getSelectedIndicator(condition.field);
+                  const displayName = indicator?.indicator_name || condition.field;
+                  return (
                     <Badge key={condition.id} variant="outline" className="mr-2">
-                      {condition.field_name || condition.field} {condition.operator} {condition.value}
+                      {displayName} {condition.operator} {condition.value}
                     </Badge>
-                  )
-                ))}
+                  );
+                })}
                 <Button
                   variant="link"
                   size="sm"
@@ -469,46 +450,39 @@ export default function IndicatorQueryPage() {
           {/* 展开状态 */}
           {!isQueryConditionsCollapsed && (
             <CardContent className="space-y-4">
+              {conditions.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  暂无查询条件，点击"添加条件"开始配置
+                </div>
+              )}
+
               {conditions.map((condition, index) => (
                 <div key={condition.id} className="flex gap-2 items-end">
                   <div className="flex-1">
-                    <Label className="text-sm text-muted-foreground">
-                      {condition.id === "target_id" ? "对象ID" : "查询条件"}
-                    </Label>
-                    {condition.id === "target_id" ? (
-                      <Input
-                        value={condition.value}
-                        onChange={(e) => updateCondition(condition.id, 'value', e.target.value)}
-                        placeholder="请输入对象ID"
-                        className="mt-1"
-                      />
-                    ) : (
-                      <Select
-                        value={condition.field}
-                        onValueChange={(value) => updateCondition(condition.id, 'field', value)}
-                      >
-                        <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="选择指标" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {indicators
-                            .filter(ind => ind.indicator_code !== "target_id")
-                            .map((indicator) => (
-                            <SelectItem key={indicator.indicator_code} value={indicator.indicator_code}>
-                              <div className="flex items-center gap-2">
-                                <span>{indicator.indicator_name}</span>
-                                <Badge variant="outline" className="text-xs">
-                                  {indicator.indicator_code}
-                                </Badge>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
+                    <Label className="text-sm text-muted-foreground">指标字段</Label>
+                    <Select
+                      value={condition.field}
+                      onValueChange={(value) => updateCondition(condition.id, 'field', value)}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="选择指标" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {indicators.map((indicator) => (
+                          <SelectItem key={indicator.indicator_code} value={indicator.indicator_code}>
+                            <div className="flex items-center gap-2">
+                              <span>{indicator.indicator_name}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {indicator.indicator_code}
+                              </Badge>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  {condition.field !== "target_id" && condition.field && (
+                  {condition.field && (
                     <div className="w-32">
                       <Label className="text-sm text-muted-foreground">运算符</Label>
                       <Select
@@ -529,7 +503,7 @@ export default function IndicatorQueryPage() {
                     </div>
                   )}
 
-                  {condition.field !== "target_id" && condition.field && (
+                  {condition.field && (
                     <div className="flex-1">
                       <Label className="text-sm text-muted-foreground">值</Label>
                       <Input
@@ -541,16 +515,14 @@ export default function IndicatorQueryPage() {
                     </div>
                   )}
 
-                  {condition.id !== "target_id" && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeCondition(condition.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeCondition(condition.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               ))}
 
@@ -568,7 +540,7 @@ export default function IndicatorQueryPage() {
 
                 <Button
                   onClick={() => executeQuery(1)}
-                  disabled={querying || !conditions.find(c => c.field === "target_id" && c.value)}
+                  disabled={querying || conditions.filter(c => c.field && c.value).length === 0}
                   className="w-32"
                 >
                   <Search className="w-4 h-4 mr-2" />
