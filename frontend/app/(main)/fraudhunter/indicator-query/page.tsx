@@ -39,7 +39,7 @@ import {
   IndicatorQueryCondition,
   IndicatorQueryResponse,
   WideTableFilesResponse
-} from "@/types/fraudhunter/dataQuery";
+} from "@/types/fraudhunter/indicatorQuery";
 
 // 对象类型选项
 const OBJECT_TYPE_OPTIONS = [
