@@ -37,26 +37,16 @@ def _get_latest_offline_snapshot(
     Returns:
         最新的快照记录，如果不存在返回None
     """
-    # 获取current版本
-    current_version = db.query(FraudHunterWideTableVersion).filter(
-        and_(
-            FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-            FraudHunterWideTableVersion.status == 'current'
-        )
-    ).first()
-
-    if not current_version:
-        logger.warning(f"未找到 {wide_table_name} 的current版本")
-        return None
-
-    # 获取该版本最新日期的快照
+    # 获取最新日期的快照
     snapshot = db.query(FraudHunterWideTableSnapshot).filter(
         and_(
             FraudHunterWideTableSnapshot.wide_table_name == wide_table_name,
-            FraudHunterWideTableSnapshot.version_hash == current_version.version_hash,
             FraudHunterWideTableSnapshot.status == 'ready'
         )
-    ).order_by(desc(FraudHunterWideTableSnapshot.etl_date)).first()
+    ).order_by(
+        desc(FraudHunterWideTableSnapshot.etl_date),
+        desc(FraudHunterWideTableSnapshot.generation_time)
+    ).first()
 
     if not snapshot:
         logger.warning(f"未找到 {wide_table_name} 的任何ready状态快照")

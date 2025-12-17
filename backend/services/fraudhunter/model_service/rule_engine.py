@@ -775,6 +775,9 @@ class RuleEngine:
         indicator = self._get_indicator_cached(indicator_code)
         if indicator and indicator.data_type == 'numeric':
             return f"CAST({base_sql} AS DOUBLE)"
+        
+        if indicator and indicator.data_type == 'date':
+            return f"CAST({base_sql} AS DATE)"
 
         return base_sql
 

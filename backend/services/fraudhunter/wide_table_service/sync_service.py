@@ -172,12 +172,6 @@ class WideTableSyncService:
                 f"{row_count}行, {column_count}列, {file_size}字节"
             )
 
-            # 8. 删除同日期的旧版本文件
-            self._delete_old_version_files(
-                wide_table_name,
-                etl_date,
-                version_hash
-            )
 
             return {
                 "id": snapshot_id,
@@ -625,40 +619,6 @@ PIVOT (
         # 存储在子目录: {storage_path}/{wide_table_name}/
         table_dir = self.storage_path / wide_table_name
         return table_dir / filename
-
-    def _delete_old_version_files(
-        self,
-        wide_table_name: str,
-        etl_date: date,
-        current_version_hash: str
-    ):
-        """删除同日期的旧版本文件
-
-        Args:
-            wide_table_name: 宽表名称
-            etl_date: ETL日期
-            current_version_hash: 当前版本号（保留）
-        """
-        table_dir = self.storage_path / wide_table_name
-        if not table_dir.exists():
-            return
-
-        etl_date_str = etl_date.strftime('%Y%m%d')
-        pattern = f"{wide_table_name}_*_{etl_date_str}.parquet"
-
-        deleted_count = 0
-        for file_path in table_dir.glob(pattern):
-            # 检查是否是当前版本
-            if current_version_hash not in file_path.name:
-                try:
-                    file_path.unlink()
-                    deleted_count += 1
-                    logger.info(f"删除旧版本文件: {file_path.name}")
-                except Exception as e:
-                    logger.error(f"删除文件失败 {file_path}: {e}")
-
-        if deleted_count > 0:
-            logger.info(f"清理完成，删除 {deleted_count} 个旧版本文件")
 
     def _get_object_type_from_wide_table_name(self, wide_table_name: str) -> str:
         """从宽表名称推断object_type
