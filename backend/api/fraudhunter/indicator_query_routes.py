@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from database import get_db
+from models.db_base import get_db
 from services.fraudhunter.indicator_service import IndicatorQueryService
 from schemas.fraudhunter.indicator_query import (
     IndicatorQueryRequest,
