@@ -36,6 +36,7 @@ const navItems: NavItem[] = [
       { type: 'group', label: "指标管理" },
       { type: 'link', href: "/fraudhunter/indicators", label: "指标定义" },
       { type: 'link', href: "/fraudhunter/indicator-tasks", label: "指标任务" },
+      { type: 'link', href: "/fraudhunter/data-query", label: "指标数据查询" },
       { type: 'separator' },
       { type: 'group', label: "模型管理" },
       { type: 'link', href: "/fraudhunter/risk-control-models", label: "预警管控模型定义" },

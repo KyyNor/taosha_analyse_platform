@@ -9,6 +9,7 @@ from .dry_run_task_routes import router as task_router
 from .wide_table_routes import router as wide_table_router
 from .alert_control_record_routes import router as alert_control_record_router
 from .system_config_routes import router as system_config_router
+from .data_query_routes import router as data_query_router
 
 __all__ = [
     'indicator_task_router',
@@ -19,4 +20,5 @@ __all__ = [
     'wide_table_router',
     'alert_control_record_router',
     'system_config_router',
+    'data_query_router',
 ]

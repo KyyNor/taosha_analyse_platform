@@ -526,6 +526,42 @@ export const taskService = {
   },
 };
 
+// ============ 指标数据查询服务 ============
+export const dataQueryService = {
+  // 获取宽表文件列表
+  async getWideTableFiles(params: {
+    object_type: string;
+    date_filter?: string;
+    page?: number;
+    page_size?: number;
+  }) {
+    const response = await api.get(`${BASE_PATH}/data-query/wide-tables`, { params });
+    return response.data;
+  },
+
+  // 根据快照ID获取指标列表
+  async getIndicatorsBySnapshot(snapshotId: number) {
+    const response = await api.get(`${BASE_PATH}/data-query/indicators/${snapshotId}`);
+    return response.data;
+  },
+
+  // 执行数据查询
+  async queryData(request: {
+    snapshot_id: number;
+    target_id?: string;
+    conditions: Array<{
+      field: string;
+      operator: string;
+      value: any;
+    }>;
+    page: number;
+    page_size: number;
+  }) {
+    const response = await api.post(`${BASE_PATH}/data-query/query`, request);
+    return response.data;
+  }
+};
+
 // ============ 预警管控模型服务 ============
 export { riskControlModelService } from './fraudhunter/riskControlModelService';
 
@@ -537,4 +573,5 @@ export default {
   indicator: indicatorService,
   task: taskService,
   wideTableVersion: wideTableVersionService,
+  dataQuery: dataQueryService,
 };
