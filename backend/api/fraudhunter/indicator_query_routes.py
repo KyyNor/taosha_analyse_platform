@@ -7,15 +7,15 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from database import get_db
-from services.fraudhunter.data_query_service import DataQueryService
-from schemas.fraudhunter.data_query import (
-    DataQueryRequest,
-    DataQueryResponse,
+from services.fraudhunter.indicator_query_service import IndicatorQueryService
+from schemas.fraudhunter.indicator_query import (
+    IndicatorQueryRequest,
+    IndicatorQueryResponse,
     IndicatorInfo
 )
 from utils.logger import logger
 
-router = APIRouter(prefix="/data-query", tags=["指标数据查询"])
+router = APIRouter(prefix="/indicator-query", tags=["指标数据查询"])
 
 
 @router.get("/wide-tables", response_model=dict)
@@ -28,7 +28,7 @@ async def list_wide_table_files(
 ):
     """获取宽表文件列表"""
     try:
-        service = DataQueryService(db)
+        service = IndicatorQueryService(db)
         result = service.get_wide_table_files(
             object_type=object_type,
             date_filter=date_filter,
@@ -50,7 +50,7 @@ async def get_indicators_by_snapshot(
 ):
     """根据快照ID获取指标列表"""
     try:
-        service = DataQueryService(db)
+        service = IndicatorQueryService(db)
         indicators = service.get_indicators_by_wide_table(snapshot_id)
         return indicators
     except ValueError as e:
@@ -60,14 +60,14 @@ async def get_indicators_by_snapshot(
         raise HTTPException(status_code=500, detail="获取指标列表失败")
 
 
-@router.post("/query", response_model=DataQueryResponse)
+@router.post("/query", response_model=IndicatorQueryResponse)
 async def query_wide_table_data(
-    request: DataQueryRequest,
+    request: IndicatorQueryRequest,
     db: Session = Depends(get_db)
 ):
     """查询宽表数据"""
     try:
-        service = DataQueryService(db)
+        service = IndicatorQueryService(db)
         result = service.query_data(request.model_dump())
         return result
     except ValueError as e:

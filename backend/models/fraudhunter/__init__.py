@@ -26,7 +26,6 @@ from .model_execution_tracking import (
     FraudHunterModelHitRecord,
     FraudHunterModelAlertControlRecord,
     FraudHunterSystemConfig,
-    FraudHunterModelUserVariableConfig,  # 兼容别名
 )
 
 __all__ = [
@@ -45,5 +44,4 @@ __all__ = [
     'FraudHunterModelHitRecord',
     'FraudHunterModelAlertControlRecord',
     'FraudHunterSystemConfig',
-    'FraudHunterModelUserVariableConfig',  # 兼容别名
 ]

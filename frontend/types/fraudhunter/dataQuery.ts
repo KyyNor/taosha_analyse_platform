@@ -25,7 +25,7 @@ export interface IndicatorInfo {
   object_type: string;
 }
 
-export interface QueryCondition {
+export interface IndicatorQueryCondition {
   id: string;
   field: string;
   operator: "=" | ">" | "<" | ">=" | "<=" | "like";
@@ -33,15 +33,15 @@ export interface QueryCondition {
   field_name?: string;
 }
 
-export interface DataQueryRequest {
+export interface IndicatorQueryRequest {
   snapshot_id: number;
   target_id?: string;
-  conditions: Omit<QueryCondition, "id">[];
+  conditions: Omit<IndicatorQueryCondition, "id">[];
   page: number;
   page_size: number;
 }
 
-export interface DataQueryResponse {
+export interface IndicatorQueryResponse {
   items: Record<string, any>[];
   total: number;
   page: number;

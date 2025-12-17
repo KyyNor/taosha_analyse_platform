@@ -32,12 +32,12 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Separator } from "@/components/ui/separator";
-import { dataQueryService } from "@/lib/services/fraudhunterService";
+import { indicatorQueryService } from "@/lib/services/fraudhunterService";
 import {
   WideTableFile,
   IndicatorInfo,
-  QueryCondition,
-  DataQueryResponse,
+  IndicatorQueryCondition,
+  IndicatorQueryResponse,
   WideTableFilesResponse
 } from "@/types/fraudhunter/dataQuery";
 
@@ -64,7 +64,7 @@ export default function DataQueryPage() {
   const [querying, setQuerying] = useState(false);
   const [wideTableFiles, setWideTableFiles] = useState<WideTableFile[]>([]);
   const [indicators, setIndicators] = useState<IndicatorInfo[]>([]);
-  const [queryResult, setQueryResult] = useState<DataQueryResponse | null>(null);
+  const [queryResult, setQueryResult] = useState<IndicatorQueryResponse | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [fileListPage, setFileListPage] = useState(1);
@@ -74,7 +74,7 @@ export default function DataQueryPage() {
   const [objectType, setObjectType] = useState<string>("");
   const [selectedFile, setSelectedFile] = useState<WideTableFile | null>(null);
   const [dateFilter, setDateFilter] = useState<string>("");
-  const [conditions, setConditions] = useState<QueryCondition[]>([
+  const [conditions, setConditions] = useState<IndicatorQueryCondition[]>([
     {
       id: "target_id",
       field: "target_id",
@@ -91,7 +91,7 @@ export default function DataQueryPage() {
 
     try {
       setLoading(true);
-      const response: WideTableFilesResponse = await dataQueryService.getWideTableFiles({
+      const response: WideTableFilesResponse = await indicatorQueryService.getWideTableFiles({
         object_type: objectType,
         date_filter: dateFilter || undefined,
         page,
@@ -111,7 +111,7 @@ export default function DataQueryPage() {
   // 加载指标列表
   const loadIndicators = async (snapshotId: number) => {
     try {
-      const response = await dataQueryService.getIndicatorsBySnapshot(snapshotId);
+      const response = await indicatorQueryService.getIndicatorsBySnapshot(snapshotId);
       setIndicators(response);
     } catch (error) {
       console.error("Failed to load indicators:", error);
@@ -165,7 +165,7 @@ export default function DataQueryPage() {
   };
 
   // 更新查询条件
-  const updateCondition = (id: string, field: keyof QueryCondition, value: any) => {
+  const updateCondition = (id: string, field: keyof IndicatorQueryCondition, value: any) => {
     setConditions(conditions.map(c =>
       c.id === id ? { ...c, [field]: value } : c
     ));
@@ -201,7 +201,7 @@ export default function DataQueryPage() {
         page_size: 100
       };
 
-      const response = await dataQueryService.queryData(queryParams);
+      const response = await indicatorQueryService.queryData(queryParams);
       setQueryResult(response);
       setCurrentPage(response.page);
       setTotalPages(Math.ceil(response.total / response.page_size));

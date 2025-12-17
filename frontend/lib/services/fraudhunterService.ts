@@ -527,7 +527,7 @@ export const taskService = {
 };
 
 // ============ 指标数据查询服务 ============
-export const dataQueryService = {
+export const indicatorQueryService = {
   // 获取宽表文件列表
   async getWideTableFiles(params: {
     object_type: string;
@@ -535,13 +535,13 @@ export const dataQueryService = {
     page?: number;
     page_size?: number;
   }) {
-    const response = await api.get(`${BASE_PATH}/data-query/wide-tables`, { params });
+    const response = await api.get(`${BASE_PATH}/indicator-query/wide-tables`, { params });
     return response.data;
   },
 
   // 根据快照ID获取指标列表
   async getIndicatorsBySnapshot(snapshotId: number) {
-    const response = await api.get(`${BASE_PATH}/data-query/indicators/${snapshotId}`);
+    const response = await api.get(`${BASE_PATH}/indicator-query/indicators/${snapshotId}`);
     return response.data;
   },
 
@@ -557,7 +557,7 @@ export const dataQueryService = {
     page: number;
     page_size: number;
   }) {
-    const response = await api.post(`${BASE_PATH}/data-query/query`, request);
+    const response = await api.post(`${BASE_PATH}/indicator-query/query`, request);
     return response.data;
   }
 };
@@ -573,5 +573,5 @@ export default {
   indicator: indicatorService,
   task: taskService,
   wideTableVersion: wideTableVersionService,
-  dataQuery: dataQueryService,
+  indicatorQuery: indicatorQueryService,
 };

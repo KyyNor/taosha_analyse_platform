@@ -210,5 +210,3 @@ class FraudHunterSystemConfig(Base):
         return f"<FraudHunterSystemConfig(id={self.id}, config_key='{self.config_key}', config_type='{self.config_type}')>"
 
 
-# 保留旧类名作为别名，确保兼容性（可在迁移完成后删除）
-FraudHunterModelUserVariableConfig = FraudHunterSystemConfig

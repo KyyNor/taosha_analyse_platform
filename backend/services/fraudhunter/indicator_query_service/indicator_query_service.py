@@ -20,8 +20,8 @@ from utils.logger import logger
 from utils.config import settings
 
 
-class DataQueryService:
-    """数据查询服务"""
+class IndicatorQueryService:
+    """指标数据查询服务"""
 
     # 对象类型到宽表名称的映射
     OBJECT_TYPE_TO_TABLE_NAME = {
