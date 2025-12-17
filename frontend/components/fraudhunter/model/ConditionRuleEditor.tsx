@@ -119,6 +119,14 @@ export function ConditionRuleEditor({
           indicator: indicators.find(ind => isNumericType(ind.data_type))?.indicator_code || ''
         }
         break
+      case 'relative_calculation':
+        newValue = {
+          type: 'relative_calculation',
+          indicator: indicators.find(ind => isNumericType(ind.data_type))?.indicator_code || '',
+          operation: 'multiply',
+          value: 1.0
+        }
+        break
       default:
         newValue = createDefaultConstantValue(currentIndicator?.data_type)
     }
@@ -270,6 +278,50 @@ export function ConditionRuleEditor({
           </div>
         )
 
+      case 'relative_calculation':
+        return (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-muted-foreground">(</span>
+
+            {/* 指标选择器 */}
+            <IndicatorCombobox
+              indicators={indicators.filter(ind => isNumericType(ind.data_type))}
+              value={rule.value.indicator}
+              onChange={(value) => updateValue({ ...rule.value, indicator: value })}
+              placeholder="选择数值指标"
+              className="w-[200px]"
+            />
+
+            {/* 运算符选择器 */}
+            <Select
+              value={rule.value.operation}
+              onValueChange={(value) => updateValue({ ...rule.value, operation: value as any })}
+            >
+              <SelectTrigger className="w-[80px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="add">+</SelectItem>
+                <SelectItem value="subtract">−</SelectItem>
+                <SelectItem value="multiply">×</SelectItem>
+                <SelectItem value="divide">÷</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* 常量数值输入 */}
+            <Input
+              type="number"
+              step="any"
+              value={rule.value.value}
+              onChange={(e) => updateValue({ ...rule.value, value: parseFloat(e.target.value) || 0 })}
+              className="w-[100px] h-8"
+              placeholder="数值"
+            />
+
+            <span className="text-sm text-muted-foreground">)</span>
+          </div>
+        )
+
       default:
         return null
     }
@@ -397,6 +449,7 @@ export function ConditionRuleEditor({
               <SelectItem value="indicator">指标</SelectItem>
               <SelectItem value="time_function">时间函数</SelectItem>
               <SelectItem value="math_function">数学函数</SelectItem>
+              <SelectItem value="relative_calculation">相对计算</SelectItem>
             </SelectContent>
           </Select>
 

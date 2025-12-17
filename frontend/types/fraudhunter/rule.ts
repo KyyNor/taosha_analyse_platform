@@ -3,7 +3,7 @@
  *
  * 版本: v2.1.0 (支持值表达式)
  * 支持操作符: 基础比较、集合操作(in/not in)、正则匹配(regexp/not regexp)
- * 支持值表达式: 常量值、指标引用、时间函数、数学函数
+ * 支持值表达式: 常量值、指标引用、时间函数、数学函数、相对计算
  */
 
 // ==================== 基础类型定义 ====================
@@ -39,7 +39,7 @@ export type TimeUnit = 'days' | 'months' | 'years'
 /**
  * 值表达式类型
  */
-export type ValueType = 'constant' | 'indicator' | 'time_function' | 'math_function'
+export type ValueType = 'constant' | 'indicator' | 'time_function' | 'math_function' | 'relative_calculation'
 
 // ==================== 值表达式定义 ====================
 
@@ -79,6 +79,16 @@ export interface MathFunction {
 }
 
 /**
+ * 相对计算表达式
+ */
+export interface RelativeCalculation {
+  type: 'relative_calculation'
+  indicator: string           // 基础指标编码
+  operation: 'add' | 'subtract' | 'multiply' | 'divide'  // 运算类型
+  value: number               // 常量运算值
+}
+
+/**
  * 值表达式联合类型
  */
 export type ValueExpression =
@@ -86,6 +96,7 @@ export type ValueExpression =
   | IndicatorReference
   | TimeFunction
   | MathFunction
+  | RelativeCalculation
 
 // ==================== 规则结构定义 ====================
 
