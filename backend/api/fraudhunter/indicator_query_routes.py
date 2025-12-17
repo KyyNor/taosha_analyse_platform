@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from database import get_db
-from services.fraudhunter.indicator_query_service import IndicatorQueryService
+from services.fraudhunter.indicator_service import IndicatorQueryService
 from schemas.fraudhunter.indicator_query import (
     IndicatorQueryRequest,
     IndicatorQueryResponse,
