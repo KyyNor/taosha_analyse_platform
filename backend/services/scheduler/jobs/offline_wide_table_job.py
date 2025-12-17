@@ -37,7 +37,7 @@ def _sync_wide_table(wide_table_name: str, lookback_days: int) -> Dict:
     from services.fraudhunter.wide_table_service.sync_service import WideTableSyncService
 
     try:
-        logger.info(f"[线程] 开始同步宽表: {wide_table_name}")
+        # 线程内不再打印开始日志，由上层统一打印
 
         # 创建服务实例（不需要传入db session）
         sync_service = WideTableSyncService()
@@ -48,25 +48,35 @@ def _sync_wide_table(wide_table_name: str, lookback_days: int) -> Dict:
             lookback_days=lookback_days
         )
 
-        # 日志输出
-        log_msg = (
-            f"[线程] {wide_table_name} 同步完成: "
-            f"成功{result['synced']}, "
-            f"跳过{result['skipped']}, "
-            f"失败{result['failed']}"
-        )
-        
-        # 如果版本被提升，追加日志
+        # 构建详细的汇总信息
+        summary_parts = [
+            f"成功{result['synced']}"
+        ]
+
+        # 如果有跳过的，显示跳过原因
+        if result.get('skipped', 0) > 0:
+            skip_parts = []
+            if result.get('skipped_ready', 0) > 0:
+                skip_parts.append(f"已存在{result['skipped_ready']}")
+            if result.get('skipped_not_ready', 0) > 0:
+                skip_parts.append(f"指标不足{result['skipped_not_ready']}")
+            summary_parts.append(f"跳过({','.join(skip_parts)}){result['skipped']}")
+
+        # 如果有失败的，显示失败数
+        if result.get('failed', 0) > 0:
+            summary_parts.append(f"失败{result['failed']}")
+
+        # 如果版本被提升，追加版本切换信息
         if result.get('version_promoted'):
-            log_msg += f", 版本已切换: {result.get('new_current_version')}"
-        
-        logger.info(log_msg)
+            summary_parts.append(f"版本已切换: {result.get('new_current_version')}")
+
+        logger.info(f"{wide_table_name} 同步完成: " + ", ".join(summary_parts))
 
         return result
 
     except Exception as e:
         logger.error(
-            f"[线程] {wide_table_name} 同步失败: {e}",
+            f"{wide_table_name} 同步失败: {e}",
             exc_info=True
         )
         return {
@@ -99,7 +109,7 @@ async def sync_all_wide_tables_job():
     try:
         from utils.config import settings
 
-        logger.info("=== 开始执行离线宽表定时同步（异步模式） ===")
+        logger.info("=== 开始执行离线宽表定时同步 ===")
 
         # 从配置读取回溯天数
         lookback_days = settings.fraudhunter_wide_table_sync_lookback_days
@@ -113,6 +123,8 @@ async def sync_all_wide_tables_job():
 
         total_synced = 0
         total_skipped = 0
+        total_skipped_ready = 0  # 因已存在而跳过
+        total_skipped_not_ready = 0  # 因指标不足而跳过
         total_failed = 0
         promoted_versions = []
 
@@ -131,6 +143,8 @@ async def sync_all_wide_tables_job():
 
                 total_synced += result.get('synced', 0)
                 total_skipped += result.get('skipped', 0)
+                total_skipped_ready += result.get('skipped_ready', 0)
+                total_skipped_not_ready += result.get('skipped_not_ready', 0)
                 total_failed += result.get('failed', 0)
                 
                 # 记录版本切换信息
@@ -142,24 +156,39 @@ async def sync_all_wide_tables_job():
 
             except Exception as e:
                 logger.error(
-                    f"{wide_table_name} 同步失败: {e}",
+                    f"{wide_table_name} 同步异常: {e}",
                     exc_info=True
                 )
                 total_failed += 1
 
-        # 汇总日志
-        summary_msg = (
-            f"=== 离线宽表定时同步完成 === "
-            f"总计: 成功{total_synced}, 跳过{total_skipped}, 失败{total_failed}"
-        )
-        
+        # 构建详细的汇总信息
+        summary_parts = [
+            f"成功{total_synced}"
+        ]
+
+        # 如果有跳过的，显示跳过原因
+        if total_skipped > 0:
+            skip_parts = []
+            if total_skipped_ready > 0:
+                skip_parts.append(f"已存在{total_skipped_ready}")
+            if total_skipped_not_ready > 0:
+                skip_parts.append(f"指标不足{total_skipped_not_ready}")
+            summary_parts.append(f"跳过({','.join(skip_parts)}){total_skipped}")
+
+        # 如果有失败的，显示失败数
+        if total_failed > 0:
+            summary_parts.append(f"失败{total_failed}")
+
+        # 构建最终消息
+        summary_msg = "=== 离线宽表定时同步完成 === " + ", ".join(summary_parts)
+
         if promoted_versions:
             summary_msg += f", 版本切换: {len(promoted_versions)}个"
             for pv in promoted_versions:
                 logger.info(
                     f"  ✓ {pv['wide_table_name']} 版本已切换至 {pv['new_version']}"
                 )
-        
+
         logger.info(summary_msg)
 
     except Exception as e:

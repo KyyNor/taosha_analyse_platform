@@ -70,7 +70,9 @@ class WideTableSyncService:
             etl_date: ETL日期
 
         Returns:
-            成功则返回包含snapshot信息的字典，失败或跳过则返回None
+            成功：返回包含snapshot信息的字典
+            跳过：返回包含status='skipped'和skip_reason的字典
+            失败：返回None（异常情况）
         """
         snapshot_id = None
 
@@ -89,11 +91,16 @@ class WideTableSyncService:
                 )
 
                 if not is_ready:
-                    logger.warning(
+                    logger.debug(
                         f"版本 {version_hash[:16]}... 在 {etl_date} 未就绪，"
                         f"缺失 {len(missing_tasks)} 个任务"
                     )
-                    return None
+                    return {
+                        "status": "skipped",
+                        "skip_reason": "version_not_ready",
+                        "wide_table_name": wide_table_name,
+                        "etl_date": str(etl_date)
+                    }
 
             # 2. 使用独立session检查是否已存在该日期的Snapshot
             with get_db_session() as db:
@@ -106,11 +113,13 @@ class WideTableSyncService:
                 ).first()
 
                 if existing_snapshot and existing_snapshot.status == 'ready':
-                    logger.info(f"该日期 {etl_date} 的宽表已存在且状态为ready，跳过同步")
+                    logger.debug(f"该日期 {etl_date} 的宽表已存在且状态为ready，跳过同步")
+                    # 添加is_new_sync标志，标识这不是新同步的
                     return {
                         "id": existing_snapshot.id,
-                        "status": existing_snapshot.status,
-                        "row_count": existing_snapshot.row_count
+                        "status": "ready",
+                        "row_count": existing_snapshot.row_count,
+                        "is_new_sync": False  # 标识这是已存在的，不是新同步的
                     }
 
                 # 3. 创建或更新Snapshot记录（status='generating'）
@@ -132,11 +141,7 @@ class WideTableSyncService:
                     db.refresh(new_snapshot)
                     snapshot_id = new_snapshot.id
 
-            logger.info(
-                f"开始同步宽表: {wide_table_name}, "
-                f"version={version_hash[:16]}..., "
-                f"etl_date={etl_date}"
-            )
+            # 开始同步日志由上层统一处理
 
             # 4. 构建Spark SQL PIVOT查询
             sql = self._build_pivot_sql(wide_table_name, indicator_metadata, etl_date)
@@ -178,7 +183,8 @@ class WideTableSyncService:
                 "status": "ready",
                 "row_count": row_count,
                 "column_count": column_count,
-                "file_size": file_size
+                "file_size": file_size,
+                "is_new_sync": True  # 标识这是新同步的
             }
 
         except Exception as e:
@@ -223,10 +229,7 @@ class WideTableSyncService:
                 "details": [...]
             }
         """
-        logger.info(
-            f"开始批量同步宽表: {wide_table_name}, "
-            f"回溯 {lookback_days} 天"
-        )
+        logger.info(f"开始同步宽表: {wide_table_name}, 回溯 {lookback_days} 天")
 
         # 1. 使用独立session获取target版本信息
         target_version_id = None
@@ -276,6 +279,8 @@ class WideTableSyncService:
         # 3. 遍历每个日期进行同步
         synced_count = 0
         skipped_count = 0
+        skipped_ready_count = 0  # 因已存在ready状态而跳过的天数
+        skipped_not_ready_count = 0  # 因版本未就绪而跳过的天数
         failed_count = 0
         details = []
 
@@ -290,26 +295,60 @@ class WideTableSyncService:
                 )
 
                 if result:
-                    if result.get('status') == 'ready':
-                        synced_count += 1
+                    status = result.get('status')
+
+                    if status == 'ready':
+                        if result.get('is_new_sync', False):
+                            # 新同步的才计入成功统计并打印日志
+                            synced_count += 1
+                            logger.info(
+                                f"宽表同步成功: {wide_table_name} {etl_date}, "
+                                f"{result.get('row_count')}行"
+                            )
+                            details.append({
+                                "etl_date": str(etl_date),
+                                "status": "synced",
+                                "row_count": result.get('row_count')
+                            })
+                        else:
+                            # 已存在的计入跳过统计
+                            skipped_ready_count += 1
+                            skipped_count += 1
+                            details.append({
+                                "etl_date": str(etl_date),
+                                "status": "already_ready",
+                                "row_count": result.get('row_count')
+                            })
+
+                    elif status == 'skipped':
+                        # 根据返回的跳过原因进行统计
+                        skip_reason = result.get('skip_reason')
+                        if skip_reason == 'version_not_ready':
+                            skipped_not_ready_count += 1
+                        else:
+                            skipped_ready_count += 1
+
+                        skipped_count += 1
                         details.append({
                             "etl_date": str(etl_date),
-                            "status": "synced",
-                            "row_count": result.get('row_count')
+                            "status": "skipped",
+                            "reason": skip_reason
                         })
-                    elif result.get('status') == 'failed':
+                    else:
+                        # 其他状态（如failed）
                         failed_count += 1
                         details.append({
                             "etl_date": str(etl_date),
                             "status": "failed",
-                            "error": result.get('error')
+                            "error": result.get('error', 'Unknown error')
                         })
                 else:
-                    skipped_count += 1
+                    # None返回值表示异常情况
+                    failed_count += 1
                     details.append({
                         "etl_date": str(etl_date),
-                        "status": "skipped",
-                        "reason": "version_not_ready"
+                        "status": "failed",
+                        "error": "No result returned"
                     })
 
             except Exception as e:
@@ -326,17 +365,34 @@ class WideTableSyncService:
             "total_dates": len(etl_dates),
             "synced": synced_count,
             "skipped": skipped_count,
+            "skipped_ready": skipped_ready_count,
+            "skipped_not_ready": skipped_not_ready_count,
             "failed": failed_count,
             "details": details,
             "version_promoted": False,
             "new_current_version": None
         }
 
-        logger.info(
-            f"{wide_table_name} 批量同步完成: "
-            f"总计{len(etl_dates)}天, 成功{synced_count}, "
-            f"跳过{skipped_count}, 失败{failed_count}"
-        )
+        # 构建详细的汇总信息
+        summary_parts = [
+            f"总计{len(etl_dates)}天",
+            f"成功{synced_count}"
+        ]
+
+        # 如果有跳过的，显示跳过原因
+        if skipped_count > 0:
+            skip_parts = []
+            if skipped_ready_count > 0:
+                skip_parts.append(f"已存在{skipped_ready_count}")
+            if skipped_not_ready_count > 0:
+                skip_parts.append(f"指标不足{skipped_not_ready_count}")
+            summary_parts.append(f"跳过({','.join(skip_parts)}){skipped_count}")
+
+        # 如果有失败的，显示失败数
+        if failed_count > 0:
+            summary_parts.append(f"失败{failed_count}")
+
+        logger.info(f"{wide_table_name} 同步完成: " + ", ".join(summary_parts))
 
         # 4. 检查并执行版本切换
         if synced_count > 0:
