@@ -280,11 +280,11 @@ class IndicatorQueryService:
             # 获取总数
             total_result = con.execute(count_sql).fetchone()
             total_count = total_result[0] if total_result else 0
-
+            
             # 执行分页查询
             if total_count > 0:
                 result_df = con.execute(sql_query).fetchdf()
-                items = result_df.to_dict('records')
+                items = self._convert_numpy_types(result_df.to_dict('records'))
             else:
                 items = []
 
@@ -293,7 +293,7 @@ class IndicatorQueryService:
             # 6. 格式化结果
             return {
                 "items": items,
-                "total": total_count,
+                "total": int(total_count),
                 "page": request.get("page", 1),
                 "page_size": request.get("page_size", 100)
             }
@@ -506,3 +506,37 @@ LIMIT {page_size} OFFSET {offset}"""
         where_clause = " AND ".join(where_conditions)
 
         return f"SELECT COUNT(*) FROM read_parquet('{parquet_path}') WHERE {where_clause}"
+    
+    def _convert_numpy_types(self, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """将numpy/pandas 类型转换成原生python类型
+
+        Args:
+            records (List[Dict[str, Any]]): 包含numpy/pandas类型的list
+
+        Returns:
+            List[Dict[str, Any]]: 原生python类型的list
+        """
+        import numpy as np
+        import pandas as pd
+        from pandas._libs.tslibs.nattype import NaTType
+        
+        def convert_value(val):
+            if val is None or (isinstance(val, float) and np.isnan(val)):
+                return None
+            if isinstance(val, (np.integer, np.int64, np.int32)):
+                return int(val)
+            if isinstance(val, (np.floating, np.float64, np.float32)):
+                return float(val)
+            if isinstance(val, np.bool_):
+                return bool(val)
+            if isinstance(val, (np.ndarray, list)):
+                return [convert_value(v) for v in val]
+            if isinstance(val, (pd.Timestamp, np.datetime64)):
+                return str(val)
+            if isinstance(val, bytes):
+                return val.decode('utf-8', errors='replace')
+            if isinstance(val, NaTType):
+                return None
+            return val
+        
+        return [{k: convert_value(v) for k, v in record.items()} for record in records]

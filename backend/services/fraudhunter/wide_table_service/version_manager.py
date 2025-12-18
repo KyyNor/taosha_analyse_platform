@@ -312,12 +312,12 @@ class WideTableVersionManager:
         is_ready = len(missing_tasks) == 0
 
         if is_ready:
-            logger.info(
+            logger.debug(
                 f"版本 {target_version.version_hash[:16]}... "
                 f"在 {etl_date} 的所有指标已完成"
             )
         else:
-            logger.warning(
+            logger.debug(
                 f"版本 {target_version.version_hash[:16]}... "
                 f"在 {etl_date} 还有 {len(missing_tasks)} 个指标未完成"
             )
