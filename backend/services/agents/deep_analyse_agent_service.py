@@ -1,0 +1,330 @@
+"""
+DeepAgents 数据分析智能体服务
+基于 LangChain deepagents 框架构建的数据分析智能体
+支持任务规划、SQL查询、代码执行、知识库检索等能力
+"""
+
+import uuid
+from pathlib import Path
+from typing import Optional, Dict, Any, List
+from datetime import datetime
+
+from deepagents import create_deep_agent
+from deepagents.backends import FilesystemBackend
+from langchain.agents.middleware import SummarizationMiddleware
+
+from services.llm_service.base_llm_service import BaseLLMService
+from services.agents.tools.sql_query_tool import sql_query
+from services.agents.tools.code_execution_tool import execute_code
+from services.agents.tools.qdrant_vector_store_tool import search_knowledge_base
+from services.agents.tools.chart_tool import create_chart
+from services.agents.tools.common_tools import get_date_range
+from services.agents.tools.metrics_tool import get_metrics
+from utils.logger import logger
+
+
+# 数据分析系统提示词
+DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家。你的任务是帮助用户分析数据并生成可视化报告。
+
+## 工作流程
+1. **理解问题**：仔细理解用户的分析需求
+2. **制定计划**：使用 write_todos 创建详细的分析计划
+3. **收集数据**：
+   - 使用 sql_query 工具查询数据库获取数据
+   - 使用 search_knowledge_base 工具检索相关知识和文档
+4. **分析数据**：
+   - 使用 execute_code 工具执行 Python 代码进行数据处理和统计分析
+   - 可以使用 pandas、numpy 等库
+5. **可视化**：
+   - 使用 create_chart 工具生成图表（支持 line/bar/pie/treemap）
+6. **保存结果**：
+   - 将分析过程和中间结果写入文件系统
+   - 将图表配置保存到 /charts/ 目录
+7. **生成报告**：
+   - 完成所有 todos 后，将最终分析报告写入 /report.html
+   - 报告应包含：分析背景、数据来源、分析过程、关键发现、结论建议
+
+## 可用工具
+- **sql_query**: 执行 SQL 查询，支持 DuckDB 和 Spark
+- **execute_code**: 执行 Python 代码进行数据处理（支持 pandas、numpy）
+- **search_knowledge_base**: 检索知识库获取相关文档和知识
+- **create_chart**: 创建可视化图表（line/bar/pie/treemap）
+- **get_date_range**: 获取日期范围
+- **get_metrics**: 获取指标数据
+
+## 文件系统使用
+- /data/ - 存放查询到的原始数据
+- /analysis/ - 存放分析过程和中间结果
+- /charts/ - 存放图表配置（JSON格式）
+- /report.html - 最终的 HTML 分析报告
+
+## HTML 报告格式要求
+生成的 report.html 应该是一个完整的、独立的 HTML 文件，包含：
+1. 完整的 HTML 结构（<!DOCTYPE html>, <html>, <head>, <body>）
+2. 内嵌 CSS 样式（不依赖外部 CSS）
+3. 清晰的报告结构：标题、摘要、数据分析、图表、结论
+4. 使用 <script> 标签引用项目内的图表 JS（路径: /static/js/charts.bundle.js）
+5. 图表容器使用 <div id="chart-1" data-chart-config='JSON配置'></div> 格式
+
+## 输出要求
+- 分析要有理有据，结论要基于数据
+- 图表要清晰展示数据特征
+- 报告要结构清晰，易于理解
+"""
+
+
+class DeepAnalyseAgentService:
+    """DeepAgents 数据分析智能体服务"""
+
+    def __init__(
+        self,
+        session_id: Optional[str] = None,
+        output_base_dir: str = "./analysis_output",
+    ):
+        """初始化 DeepAgents 数据分析服务
+
+        Args:
+            session_id: 会话ID，用于文件隔离。如果不传入则自动生成
+            output_base_dir: 输出基础目录
+        """
+        # 配置（暂时写死，后续可提取到配置文件）
+        self._config = {
+            "output_base_dir": output_base_dir,
+            "code_execution_enabled": True,
+            "code_execution_timeout": 30,
+            "max_iterations": 50,
+            "default_query_limit": 1000,
+            "max_tokens_before_summary": 50000,
+            "messages_to_keep": 20,
+        }
+
+        # 会话管理 - 按会话ID隔离文件
+        self.session_id = session_id or str(uuid.uuid4())
+        self.output_dir = Path(self._config["output_base_dir"]) / self.session_id
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        # LLM 服务
+        self.llm_service = BaseLLMService()
+
+        # Agent 实例
+        self.agent = None
+
+        logger.info(f"DeepAnalyseAgentService 初始化完成，会话ID: {self.session_id}")
+        logger.info(f"输出目录: {self.output_dir}")
+
+    def create_agent(self) -> None:
+        """创建 DeepAgent 实例"""
+        try:
+            # 准备工具列表
+            tools = [
+                sql_query,                  # SQL 查询工具
+                execute_code,               # Python 代码执行工具
+                search_knowledge_base,      # 知识库检索工具
+                create_chart,               # 图表生成工具
+                get_date_range,             # 日期范围工具
+                get_metrics,                # 指标数据工具
+            ]
+
+            # 创建 DeepAgent
+            # deepagents 自动包含: TodoListMiddleware, FilesystemMiddleware, SubAgentMiddleware
+            self.agent = create_deep_agent(
+                model=self.llm_service.client,
+                tools=tools,
+                system_prompt=DATA_ANALYSIS_SYSTEM_PROMPT,
+                backend=FilesystemBackend(
+                    root_dir=str(self.output_dir),
+                    virtual_mode=True
+                ),
+                middleware=[
+                    SummarizationMiddleware(
+                        model=self.llm_service.client,
+                        max_tokens_before_summary=self._config["max_tokens_before_summary"],
+                        messages_to_keep=self._config["messages_to_keep"],
+                        summary_prompt="请总结以上对话内容，保留关键的分析步骤和结论。"
+                    ),
+                ],
+            )
+
+            logger.info("DeepAgent 创建成功")
+
+        except Exception as e:
+            logger.error(f"DeepAgent 创建失败: {e}")
+            raise
+
+    def run_analysis(self, question: str) -> Dict[str, Any]:
+        """运行数据分析
+
+        Args:
+            question: 用户的数据分析问题
+
+        Returns:
+            包含分析结果的字典
+        """
+        if not self.agent:
+            self.create_agent()
+
+        logger.info(f"开始分析: {question[:100]}...")
+        start_time = datetime.now()
+
+        try:
+            # 执行 Agent
+            result = self.agent.invoke({
+                "messages": [{"role": "user", "content": question}]
+            })
+
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds()
+
+            # 检查是否生成了报告文件
+            report_path = self.output_dir / "report.html"
+            report_exists = report_path.exists()
+
+            logger.info(f"分析完成，耗时: {duration:.2f}秒")
+
+            return {
+                "success": True,
+                "session_id": self.session_id,
+                "question": question,
+                "output_dir": str(self.output_dir),
+                "report_path": str(report_path) if report_exists else None,
+                "report_exists": report_exists,
+                "duration_seconds": duration,
+                "result": result,
+            }
+
+        except Exception as e:
+            logger.error(f"分析执行失败: {e}")
+            return {
+                "success": False,
+                "session_id": self.session_id,
+                "question": question,
+                "output_dir": str(self.output_dir),
+                "error": str(e),
+            }
+
+    async def run_analysis_stream(self, question: str):
+        """流式运行数据分析
+
+        Args:
+            question: 用户的数据分析问题
+
+        Yields:
+            分析过程中的事件
+        """
+        if not self.agent:
+            self.create_agent()
+
+        logger.info(f"开始流式分析: {question[:100]}...")
+
+        try:
+            async for event in self.agent.astream_events(
+                {"messages": [{"role": "user", "content": question}]},
+            ):
+                event_type = event.get("event", "")
+                data = event.get("data", {})
+
+                # 处理不同类型的事件
+                if event_type == "on_chat_model_stream":
+                    chunk = data.get("chunk")
+                    if chunk and hasattr(chunk, "content") and chunk.content:
+                        yield {
+                            "event": "text",
+                            "data": {"content": chunk.content}
+                        }
+
+                elif event_type == "on_tool_start":
+                    yield {
+                        "event": "tool_start",
+                        "data": {
+                            "name": data.get("name", "unknown"),
+                            "input": data.get("input", {})
+                        }
+                    }
+
+                elif event_type == "on_tool_end":
+                    yield {
+                        "event": "tool_end",
+                        "data": {
+                            "name": data.get("name", "unknown"),
+                            "output": str(data.get("output", ""))[:500]  # 截断输出
+                        }
+                    }
+
+            # 发送完成事件
+            yield {
+                "event": "done",
+                "data": {
+                    "session_id": self.session_id,
+                    "output_dir": str(self.output_dir)
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"流式分析失败: {e}")
+            yield {
+                "event": "error",
+                "data": {"error": str(e)}
+            }
+
+    def get_session_files(self) -> List[Dict[str, Any]]:
+        """获取当前会话的所有文件
+
+        Returns:
+            文件信息列表
+        """
+        files = []
+        for file_path in self.output_dir.rglob("*"):
+            if file_path.is_file():
+                files.append({
+                    "path": str(file_path.relative_to(self.output_dir)),
+                    "size": file_path.stat().st_size,
+                    "modified": datetime.fromtimestamp(
+                        file_path.stat().st_mtime
+                    ).isoformat()
+                })
+        return files
+
+    def read_file(self, relative_path: str) -> Optional[str]:
+        """读取会话目录中的文件
+
+        Args:
+            relative_path: 相对于会话目录的文件路径
+
+        Returns:
+            文件内容或 None
+        """
+        file_path = self.output_dir / relative_path
+        if file_path.exists() and file_path.is_file():
+            try:
+                return file_path.read_text(encoding="utf-8")
+            except Exception as e:
+                logger.error(f"读取文件失败: {e}")
+                return None
+        return None
+
+    def cleanup(self) -> None:
+        """清理会话资源"""
+        self.agent = None
+        logger.info(f"会话 {self.session_id} 资源已清理")
+
+
+# 便捷函数：创建服务实例
+def create_deep_analyse_service(
+    session_id: Optional[str] = None,
+    output_base_dir: str = "./analysis_output"
+) -> DeepAnalyseAgentService:
+    """创建 DeepAgents 数据分析服务实例
+
+    Args:
+        session_id: 会话ID，用于文件隔离
+        output_base_dir: 输出基础目录
+
+    Returns:
+        DeepAnalyseAgentService 实例
+    """
+    service = DeepAnalyseAgentService(
+        session_id=session_id,
+        output_base_dir=output_base_dir
+    )
+    service.create_agent()
+    return service

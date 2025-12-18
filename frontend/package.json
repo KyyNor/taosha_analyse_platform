@@ -7,7 +7,8 @@
     "dev": "next dev -H 0.0.0.0 --port 50011",
     "build": "next build",
     "start": "next start -H 0.0.0.0 --port 50011",
-    "lint": "next lint"
+    "lint": "next lint",
+    "build:charts": "node scripts/build-charts-bundle.mjs"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",
@@ -54,6 +55,7 @@
     "@types/react": "^18.3.8",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.20",
+    "esbuild": "^0.24.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.5",
     "postcss": "^8.4.47",
