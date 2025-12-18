@@ -28,6 +28,7 @@ from models.fraudhunter.wide_table import (
 from models.fraudhunter.dry_run_task import FraudHunterDryRunExecution
 from schemas.fraudhunter.rule import RuleConfig, ConditionRule, GroupRule, Rule
 from services.fraudhunter.model_service.rule_engine import RuleEngine
+from services.fraudhunter.system_config_service import SystemConfigManager
 from utils.logger import logger
 
 
@@ -527,7 +528,13 @@ WHERE
         # 提取模型使用的指标编码
         model_indicator_codes = self._extract_indicator_codes_from_model(model)
         logger.info(f"模型使用的指标: {model_indicator_codes}")
-        
+
+        # 获取白名单账户列表
+        whitelist_acct = SystemConfigManager(db).get_config_value('whitelist_acct', default=[])
+        whitelist_set = set(whitelist_acct) if whitelist_acct else set()
+        if whitelist_set:
+            logger.info(f"加载白名单账户 {len(whitelist_set)} 个")
+
         # 获取current版本信息（用于降级日志记录）
         current_dep_version = self._get_version_by_status(db, dep_acct_wide_table_name, 'current')
         current_cust_version = self._get_version_by_status(db, cust_wide_table_name, 'current')
@@ -638,6 +645,10 @@ WHERE
                 # 收集命中记录到结果集
                 if len(execute_result) > 0:
                     records = execute_result.to_dict('records')
+                    # 为每条记录添加白名单标记
+                    for record in records:
+                        account_id = str(record.get('账号', ''))
+                        record['是否白名单'] = account_id in whitelist_set
                     results['matched_records'].extend(records)
 
                 logger.info(f"日期 {current_date} 回测完成，命中 {day_result['rows_matched']} 条记录")

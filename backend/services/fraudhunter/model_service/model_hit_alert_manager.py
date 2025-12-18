@@ -100,11 +100,16 @@ class ModelHitAlertManager:
 
         return hit_record
 
-    def hit_record_processor(self, hit_record: FraudHunterModelHitRecord) -> FraudHunterModelAlertControlRecord:
+    def hit_record_processor(
+        self,
+        hit_record: FraudHunterModelHitRecord,
+        is_whitelist: bool = False
+    ) -> FraudHunterModelAlertControlRecord:
         """处理命中记录，生成告警管控记录
 
         Args:
             hit_record: 命中记录
+            is_whitelist: 是否为白名单账号
 
         Returns:
             生成的告警管控记录
@@ -120,6 +125,18 @@ class ModelHitAlertManager:
             hit_model_ids=hit_record.hit_model_ids,
             hit_model_names=hit_record.hit_model_names
         )
+
+        # 如果是白名单账号，直接设置状态为whitelist，不触发告警和管控
+        if is_whitelist:
+            alert_control_record.alert_status = 'whitelist'
+            alert_control_record.control_status = 'whitelist'
+            self.db.add(alert_control_record)
+            self.db.flush()
+            logger.info(
+                f"白名单账号跳过告警管控: hit_record_id={hit_record.id}, "
+                f"account_id={hit_record.account_id}"
+            )
+            return alert_control_record
 
         # 获取所有命中模型的配置
         model_configs = {}
@@ -663,6 +680,7 @@ class ModelHitAlertManager:
             'not_configured': '未配置',
             'sent': '已发送',
             'duplicate': '重复',
-            'executed': '已执行'
+            'executed': '已执行',
+            'whitelist': '白名单'
         }
         return status_map.get(status, status)

@@ -346,9 +346,16 @@ async def generate_realtime_wide_table_job():
             manager = ModelHitAlertManager(db)
             hit_time = datetime.now()
 
+            # 获取白名单账户列表
+            whitelist_acct = SystemConfigManager(db).get_config_value('whitelist_acct', default=[])
+            whitelist_set = set(whitelist_acct) if whitelist_acct else set()
+            if whitelist_set:
+                logger.debug(f"加载白名单账户 {len(whitelist_set)} 个")
+
             # 用于统计的集合
             all_hit_accounts = set()  # 所有命中账户
             new_hit_accounts = set()  # 新命中账户（当日第一次）
+            whitelist_hit_accounts = set()  # 白名单命中账户
 
             for _, row in matched_df.iterrows():
                 account_id = str(row.get('realtime_target_id', ''))
@@ -376,6 +383,11 @@ async def generate_realtime_wide_table_job():
 
                 # 记录命中账户
                 all_hit_accounts.add(account_id)
+
+                # 检查账号是否在白名单中
+                is_whitelist = account_id in whitelist_set
+                if is_whitelist:
+                    whitelist_hit_accounts.add(account_id)
 
                 # 检查是否为当日第一次命中
                 from models.fraudhunter.model_execution_tracking import FraudHunterModelAlertControlRecord
@@ -415,10 +427,12 @@ async def generate_realtime_wide_table_job():
                 )
 
                 # 3.3 处理命中记录（生成告警管控记录）
-                manager.hit_record_processor(hit_record)
+                # 白名单账号不触发告警和管控，但仍记录
+                manager.hit_record_processor(hit_record, is_whitelist=is_whitelist)
 
+                whitelist_tag = "[白名单]" if is_whitelist else ""
                 logger.info(
-                    f"账户 {account_id} 命中 {len(hit_models)} 个模型: "
+                    f"账户 {account_id} {whitelist_tag}命中 {len(hit_models)} 个模型: "
                     f"{[m.model_name for m in hit_models]}"
                 )
 
@@ -432,7 +446,8 @@ async def generate_realtime_wide_table_job():
             logger.debug(
                 f"执行记录已更新: execution_id={execution_id}, "
                 f"命中账户数={len(all_hit_accounts)}, "
-                f"新命中账户数={len(new_hit_accounts)}"
+                f"新命中账户数={len(new_hit_accounts)}, "
+                f"白名单命中账户数={len(whitelist_hit_accounts)}"
             )
 
             db.commit()
