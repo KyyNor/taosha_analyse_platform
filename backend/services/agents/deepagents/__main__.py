@@ -2,10 +2,10 @@
 DeepAgents CLI 入口
 
 使用方式:
-    python -m backend.services.agents.deepagents "分析近三个月的销售趋势"
-    python -m backend.services.agents.deepagents -o ./reports "用户活跃度分析"
-    python -m backend.services.agents.deepagents --interactive
-    python -m backend.services.agents.deepagents --engine duckdb "数据质量检查"
+    python -m services.agents.deepagents "分析近三个月的销售趋势"
+    python -m services.agents.deepagents -o ./reports "用户活跃度分析"
+    python -m services.agents.deepagents --interactive
+    python -m services.agents.deepagents --engine duckdb "数据质量检查"
 """
 
 import sys
@@ -21,15 +21,15 @@ if str(backend_root) not in sys.path:
 def main():
     """CLI 主入口"""
     parser = argparse.ArgumentParser(
-        prog="python -m backend.services.agents.deepagents",
+        prog="python -m services.agents.deepagents",
         description="淘沙分析平台 - DeepAgents 数据分析智能体",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  python -m backend.services.agents.deepagents "分析近三个月的销售趋势"
-  python -m backend.services.agents.deepagents -o ./reports "用户活跃度分析"
-  python -m backend.services.agents.deepagents --interactive
-  python -m backend.services.agents.deepagents --session abc123 "继续上次的分析"
+  python -m services.agents.deepagents "分析近三个月的销售趋势"
+  python -m services.agents.deepagents -o ./reports "用户活跃度分析"
+  python -m services.agents.deepagents --interactive
+  python -m services.agents.deepagents --session abc123 "继续上次的分析"
         """
     )
 

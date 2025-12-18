@@ -28,7 +28,10 @@ class BaseLLMService:
                 api_key=settings.openai_api_key,
                 base_url=settings.openai_base_url,
                 temperature=settings.openai_temperature,
-                model=settings.openai_model
+                model=settings.openai_model,
+                profile={
+                    "max_input_tokens": 100_000
+                }
             )
             self.client = openai_client
         else:

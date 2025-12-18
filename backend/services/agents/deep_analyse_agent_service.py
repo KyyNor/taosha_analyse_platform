@@ -20,6 +20,7 @@ from services.agents.tools.qdrant_vector_store_tool import search_knowledge_base
 from services.agents.tools.chart_tool import create_chart
 from services.agents.tools.common_tools import get_date_range
 from services.agents.tools.metrics_tool import get_metrics
+from services.agents.tools.weather_tool import get_weather
 from utils.logger import logger
 
 
@@ -117,12 +118,12 @@ class DeepAnalyseAgentService:
         try:
             # 准备工具列表
             tools = [
-                sql_query,                  # SQL 查询工具
+                # sql_query,                  # SQL 查询工具
                 execute_code,               # Python 代码执行工具
-                search_knowledge_base,      # 知识库检索工具
-                create_chart,               # 图表生成工具
-                get_date_range,             # 日期范围工具
-                get_metrics,                # 指标数据工具
+                # search_knowledge_base,      # 知识库检索工具
+                # get_date_range,             # 日期范围工具
+                # get_metrics,                # 指标数据工具
+                get_weather,
             ]
 
             # 创建 DeepAgent
@@ -136,12 +137,6 @@ class DeepAnalyseAgentService:
                     virtual_mode=True
                 ),
                 middleware=[
-                    SummarizationMiddleware(
-                        model=self.llm_service.client,
-                        max_tokens_before_summary=self._config["max_tokens_before_summary"],
-                        messages_to_keep=self._config["messages_to_keep"],
-                        summary_prompt="请总结以上对话内容，保留关键的分析步骤和结论。"
-                    ),
                 ],
             )
 
