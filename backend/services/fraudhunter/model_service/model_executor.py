@@ -447,12 +447,13 @@ LEFT JOIN
     read_parquet('{dep_acct_offline_parquet_path}') as dep_acct_offline_indicator
 ON
     dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id
-LEFT JOIN 
+LEFT JOIN
     read_parquet('{cust_offline_parquet_path}') as cust_offline_indicator
 ON
     dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id
 WHERE
     {where_clause}
+LIMIT 200
 """
         return sql
 
