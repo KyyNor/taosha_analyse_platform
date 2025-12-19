@@ -1,0 +1,1 @@
+docker build -t taosha-sandbox:latest -f backend/scripts/Dockerfile.sandbox .

@@ -53,6 +53,7 @@ dependencies = [
     "deepagents>=0.3.0",
     "python-multipart>=0.0.20",
     "pip>=25.3",
+    "docker>=7.1.0",
 ]
 
 [[tool.uv.index]]
