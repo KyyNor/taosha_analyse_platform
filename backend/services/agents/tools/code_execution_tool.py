@@ -79,7 +79,7 @@ def execute_code(
         }
         ''')
     """
-    logger.info(f"执行Python代码: {code[:100]}...")
+    logger.info(f"执行Python代码: {code}[200:]...")
 
     stdout_capture = io.StringIO()
     stderr_capture = io.StringIO()
@@ -145,10 +145,10 @@ def execute_code(
 
     try:
         # 设置超时（仅在支持 signal 的系统上有效）
-        has_signal = hasattr(signal, 'SIGALRM')
-        if has_signal:
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(timeout)
+        # has_signal = hasattr(signal, 'SIGALRM')
+        # if has_signal:
+        #     old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+        #     signal.alarm(timeout)
 
         with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
             # 编译并执行代码
@@ -158,9 +158,9 @@ def execute_code(
             # 获取 result 变量（如果存在）
             result = namespace.get('result', None)
 
-        if has_signal:
-            signal.alarm(0)  # 取消超时
-            signal.signal(signal.SIGALRM, old_handler)
+        # if has_signal:
+        #     signal.alarm(0)  # 取消超时
+        #     signal.signal(signal.SIGALRM, old_handler)
 
         stdout_output = stdout_capture.getvalue()
         stderr_output = stderr_capture.getvalue()

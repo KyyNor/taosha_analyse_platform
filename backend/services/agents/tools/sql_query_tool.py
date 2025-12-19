@@ -17,6 +17,7 @@ def sql_query(
 ) -> str:
     """
     执行 SQL 查询并返回结果
+    注意，查询除hxb_dh_data_dim外的表<important>必须带ETL_DATE/CDATE查询条件</important>
 
     Args:
         sql: SQL 查询语句。支持标准 SQL 语法，可以进行 SELECT、JOIN、GROUP BY 等操作

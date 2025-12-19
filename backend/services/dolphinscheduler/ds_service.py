@@ -96,45 +96,66 @@ class DolphinSchedulerService:
                     )
                     check_shell_group.append(temp_shell)
 
-                # 临时表名：hxb_dh_data_tmp.taosha_tmp_{task_code}_{date}
-                temp_table_name = f"hxb_dh_data_tmp.taosha_tmp_{indicator_task.task_code}_${{date}}"
+#                 # 临时表名：hxb_dh_data_tmp.taosha_tmp_{task_code}_{date}
+#                 temp_table_name = f"hxb_dh_data_tmp.taosha_tmp_{indicator_task.task_code}_${{date}}"
 
-                # 处理 logic_content：去掉末尾的分号（如果有）
-                logic_content = indicator_task.logic_content.strip()
-                if logic_content.endswith(';'):
-                    logic_content = logic_content[:-1].strip()
+#                 # 处理 logic_content：去掉末尾的分号（如果有）
+#                 logic_content = indicator_task.logic_content.strip()
+#                 if logic_content.endswith(';'):
+#                     logic_content = logic_content[:-1].strip()
 
-                # 构建完整的SQL语句
-                sql_statements = []
+#                 # 构建完整的SQL语句
+#                 sql_statements = []
 
-                # 1. 删除临时表
-                sql_statements.append(f"drop table if exists {temp_table_name}")
+#                 # 1. 删除临时表
+#                 sql_statements.append(f"drop table if exists {temp_table_name}")
 
-                # 2. 创建临时表
-                sql_statements.append(f"create table {temp_table_name} as\n{logic_content}")
+#                 # 2. 创建临时表
+#                 sql_statements.append(f"create table {temp_table_name} as\n{logic_content}")
 
-                # 3. 逐个指标入库
+#                 # 3. 逐个指标入库
+#                 for indicator_code in indicator_codes:
+#                     insert_sql = f"""INSERT OVERWRITE TABLE hxb_dh_data_dwm.dwm_taosha_indicator_details
+# SELECT
+#     target_id,
+#     {indicator_code} as indicator_value,
+#     '{indicator_task.object_type}' as object_type,
+#     etl_date as etl_date,
+#     '{indicator_code}' as indicator_id
+# FROM {temp_table_name}"""
+#                     sql_statements.append(insert_sql)
+
+#                 # 4. 删除临时表
+#                 sql_statements.append(f"drop table if exists {temp_table_name}")
+
+#                 # 将所有SQL语句用分号连接
+#                 full_sql = ";\n\n".join(sql_statements) + ";"
+
+                # 生成横表转纵表的SQL
+                unpivot_unions = []
                 for indicator_code in indicator_codes:
-                    insert_sql = f"""INSERT OVERWRITE TABLE hxb_dh_data_dwm.dwm_taosha_indicator_details
-SELECT
-    target_id,
-    {indicator_code} as indicator_value,
-    '{indicator_task.object_type}' as object_type,
-    etl_date as etl_date,
-    '{indicator_code}' as indicator_id
-FROM {temp_table_name}"""
-                    sql_statements.append(insert_sql)
+                    unpivot_unions.append(f"""
+                    SELECT
+                        target_id,
+                        {indicator_code} as indicator_value,
+                        '{indicator_task.object_type}' as object_type,
+                        etl_date as etl_date,
+                        '{indicator_code}' as indicator_id
+                    FROM temp_data
+                    """.strip())
 
-                # 4. 删除临时表
-                sql_statements.append(f"drop table if exists {temp_table_name}")
-
-                # 将所有SQL语句用分号连接
-                full_sql = ";\n\n".join(sql_statements) + ";"
+                unpivot_sql = "\nUNION ALL\n".join(unpivot_unions)
 
                 # 指标SQL执行
                 indicator_task_sql = Sql(
                     name="indicator_task_sql",
-                    sql=full_sql,
+                    sql=f"""with temp_data as (
+                                 {indicator_task.logic_content}
+                            )
+                            INSERT OVERWRITE TABLE
+                            hxb_dh_data_dwm.dwm_taosha_indicator_details
+                            {unpivot_sql}
+                            """,
                     datasource_name=settings.dolphinscheduler_task_sql_task_datasource_name,
                     sql_type="1",  # NOT_SELECT 非查询
                     environment_name="bdspk",
@@ -150,7 +171,7 @@ FROM {temp_table_name}"""
                     fail_retry_times=settings.dolphinscheduler_task_sql_task_fail_retry_times,
                     fail_retry_interval=settings.dolphinscheduler_task_sql_task_fail_retry_interval,
                 )
-
+                
                 # [end task_declare]
 
                 # [start task_relation_declare]

@@ -74,6 +74,42 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
 """
 
 
+DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家。你的任务是帮助用户分析数据并生成可视化报告。
+
+## 工作流程
+1. **理解问题**：仔细理解用户的分析需求
+2. **制定计划**：使用 write_todos 创建详细的分析计划
+3. **收集数据**：
+   - 使用 sql_query 工具查询数据库获取数据
+   - 使用 search_knowledge_base 工具检索相关知识和文档
+4. **分析数据**：
+   - 对数据处理和统计分析
+5. **保存结果**：
+   - 将分析过程和中间结果写入文件系统
+   - 将图表配置保存到 /charts/ 目录
+6. **生成报告**：
+   - 完成所有 todos 后，将最终分析报告写入 /report.html
+   - 报告应包含：分析背景、数据来源、分析过程、关键发现、结论建议
+
+
+## 文件系统使用
+- /data/ - 存放查询到的原始数据
+- /analysis/ - 存放分析过程和中间结果
+- /charts/ - 存放图表配置（JSON格式）
+- /report.html - 最终的 HTML 分析报告
+
+## HTML 报告格式要求
+生成的 report.html 应该是一个完整的、独立的 HTML 文件，包含：
+1. 完整的 HTML 结构（<!DOCTYPE html>, <html>, <head>, <body>）
+2. 内嵌 CSS 样式（不依赖外部 CSS/JS）
+3. 清晰的报告结构：标题、摘要、数据分析、图表、结论
+
+## 输出要求
+- 分析要有理有据，结论要基于数据
+- 图表要清晰展示数据特征
+- 报告要结构清晰，易于理解
+"""
+
 class DeepAnalyseAgentService:
     """DeepAgents 数据分析智能体服务"""
 
@@ -118,12 +154,12 @@ class DeepAnalyseAgentService:
         try:
             # 准备工具列表
             tools = [
-                # sql_query,                  # SQL 查询工具
-                execute_code,               # Python 代码执行工具
-                # search_knowledge_base,      # 知识库检索工具
+                sql_query,                  # SQL 查询工具
+                # execute_code,               # Python 代码执行工具
+                search_knowledge_base,      # 知识库检索工具
                 # get_date_range,             # 日期范围工具
                 # get_metrics,                # 指标数据工具
-                get_weather,
+                # get_weather,
             ]
 
             # 创建 DeepAgent
@@ -163,9 +199,21 @@ class DeepAnalyseAgentService:
 
         try:
             # 执行 Agent
-            result = self.agent.invoke({
-                "messages": [{"role": "user", "content": question}]
-            })
+            import os
+            from utils.config import settings
+            from langfuse import get_client
+            from langfuse import propagate_attributes
+
+            os.environ["LANGFUSE_PUBLIC_KEY"] = settings.langfuse_public_key
+            os.environ["LANGFUSE_SECRET_KEY"] = settings.langfuse_secret_key
+            os.environ["LANGFUSE_HOST"] = settings.langfuse_host
+            _langfuse_client = get_client()
+
+            with _langfuse_client.start_as_current_span(name="deep_agent") as span:
+                with propagate_attributes(user_id='deep_agent_test', session_id=self.session_id):
+                    result = self.agent.invoke({
+                        "messages": [{"role": "user", "content": question}]
+                    })
 
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
