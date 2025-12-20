@@ -24,6 +24,10 @@ from .training_repository import (
 from .fine_report_repository import (
     FineReportRepository
 )
+from .deepagents import (
+    AnalysisSessionRepository,
+    AnalysisScoreRepository,
+)
 
 __all__ = [
     # 基础Repository
@@ -54,4 +58,8 @@ __all__ = [
 
     # FineReport Repository
     "FineReportRepository",
+
+    # DeepAgents Repository
+    "AnalysisSessionRepository",
+    "AnalysisScoreRepository",
 ]

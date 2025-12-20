@@ -54,6 +54,7 @@ dependencies = [
     "python-multipart>=0.0.20",
     "pip>=25.3",
     "docker>=7.1.0",
+    "bokeh>=3.4.0",
 ]
 
 [[tool.uv.index]]

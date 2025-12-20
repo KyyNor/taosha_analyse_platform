@@ -17,7 +17,7 @@ from services.llm_service.base_llm_service import BaseLLMService
 from services.agents.tools.sql_query_tool import sql_query
 from services.agents.tools.code_execution_tool import execute_code
 from services.agents.tools.qdrant_vector_store_tool import search_knowledge_base
-from services.agents.tools.chart_tool import create_chart
+from services.agents.tools.chart_tool import create_chart, create_chart_html
 from services.agents.tools.common_tools import get_date_range
 from services.agents.tools.metrics_tool import get_metrics
 from services.agents.tools.weather_tool import get_weather
@@ -37,10 +37,11 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
    - 使用 execute_code 工具执行 Python 代码进行数据处理和统计分析
    - 可以使用 pandas、numpy 等库
 5. **可视化**：
-   - 使用 create_chart 工具生成图表（支持 line/bar/pie/treemap）
+   - 使用 create_chart_html 工具生成离线 HTML 图表（完全不依赖 CDN）
+   - 支持 line/bar/pie 图表类型
 6. **保存结果**：
    - 将分析过程和中间结果写入文件系统
-   - 将图表配置保存到 /charts/ 目录
+   - 将图表 HTML 直接嵌入报告
 7. **生成报告**：
    - 完成所有 todos 后，将最终分析报告写入 /report.html
    - 报告应包含：分析背景、数据来源、分析过程、关键发现、结论建议
@@ -49,14 +50,13 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
 - **sql_query**: 执行 SQL 查询，支持 DuckDB 和 Spark
 - **execute_code**: 执行 Python 代码进行数据处理（支持 pandas、numpy）
 - **search_knowledge_base**: 检索知识库获取相关文档和知识
-- **create_chart**: 创建可视化图表（line/bar/pie/treemap）
+- **create_chart_html**: 创建离线 HTML 图表（line/bar/pie），可直接嵌入报告
 - **get_date_range**: 获取日期范围
 - **get_metrics**: 获取指标数据
 
 ## 文件系统使用
 - /data/ - 存放查询到的原始数据
 - /analysis/ - 存放分析过程和中间结果
-- /charts/ - 存放图表配置（JSON格式）
 - /report.html - 最终的 HTML 分析报告
 
 ## HTML 报告格式要求
@@ -64,8 +64,8 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
 1. 完整的 HTML 结构（<!DOCTYPE html>, <html>, <head>, <body>）
 2. 内嵌 CSS 样式（不依赖外部 CSS）
 3. 清晰的报告结构：标题、摘要、数据分析、图表、结论
-4. 使用 <script> 标签引用项目内的图表 JS（路径: /static/js/charts.bundle.js）
-5. 图表容器使用 <div id="chart-1" data-chart-config='JSON配置'></div> 格式
+4. 图表使用 create_chart_html 工具生成的 HTML 代码块直接嵌入
+5. 所有资源完全离线，不依赖任何外部 CDN
 
 ## 输出要求
 - 分析要有理有据，结论要基于数据
@@ -74,21 +74,21 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
 """
 
 
-class DeepAnalyseAgentService:
-    """DeepAgents 数据分析智能体服务"""
+class DataAnalyserAgent:
+    """DeepAgents 数据分析智能体"""
 
     def __init__(
         self,
         session_id: Optional[str] = None,
         output_base_dir: str = "./analysis_output",
     ):
-        """初始化 DeepAgents 数据分析服务
+        """初始化数据分析智能体
 
         Args:
             session_id: 会话ID，用于文件隔离。如果不传入则自动生成
             output_base_dir: 输出基础目录
         """
-        # 配置（暂时写死，后续可提取到配置文件）
+        # 配置
         self._config = {
             "output_base_dir": output_base_dir,
             "code_execution_enabled": True,
@@ -110,7 +110,10 @@ class DeepAnalyseAgentService:
         # Agent 实例
         self.agent = None
 
-        logger.info(f"DeepAnalyseAgentService 初始化完成，会话ID: {self.session_id}")
+        # 分析结果
+        self.llm_output: Optional[str] = None
+
+        logger.info(f"DataAnalyserAgent 初始化完成，会话ID: {self.session_id}")
         logger.info(f"输出目录: {self.output_dir}")
 
     def create_agent(self) -> None:
@@ -170,9 +173,18 @@ class DeepAnalyseAgentService:
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
 
+            # 提取 LLM 输出
+            self.llm_output = self._extract_llm_output(result)
+
             # 检查是否生成了报告文件
             report_path = self.output_dir / "report.html"
             report_exists = report_path.exists()
+            report_content = None
+            if report_exists:
+                try:
+                    report_content = report_path.read_text(encoding="utf-8")
+                except Exception as e:
+                    logger.warning(f"读取报告文件失败: {e}")
 
             logger.info(f"分析完成，耗时: {duration:.2f}秒")
 
@@ -183,6 +195,8 @@ class DeepAnalyseAgentService:
                 "output_dir": str(self.output_dir),
                 "report_path": str(report_path) if report_exists else None,
                 "report_exists": report_exists,
+                "report_content": report_content,
+                "llm_output": self.llm_output,
                 "duration_seconds": duration,
                 "result": result,
             }
@@ -197,6 +211,27 @@ class DeepAnalyseAgentService:
                 "error": str(e),
             }
 
+    def _extract_llm_output(self, result: Dict[str, Any]) -> Optional[str]:
+        """从结果中提取 LLM 输出
+
+        Args:
+            result: Agent 返回的结果
+
+        Returns:
+            LLM 输出文本
+        """
+        try:
+            messages = result.get("messages", [])
+            if messages:
+                # 获取最后一条 AI 消息
+                for msg in reversed(messages):
+                    if hasattr(msg, "content") and msg.content:
+                        return str(msg.content)
+            return None
+        except Exception as e:
+            logger.warning(f"提取 LLM 输出失败: {e}")
+            return None
+
     async def run_analysis_stream(self, question: str):
         """流式运行数据分析
 
@@ -210,6 +245,7 @@ class DeepAnalyseAgentService:
             self.create_agent()
 
         logger.info(f"开始流式分析: {question[:100]}...")
+        llm_output_chunks = []
 
         try:
             async for event in self.agent.astream_events(
@@ -222,6 +258,7 @@ class DeepAnalyseAgentService:
                 if event_type == "on_chat_model_stream":
                     chunk = data.get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
+                        llm_output_chunks.append(chunk.content)
                         yield {
                             "event": "text",
                             "data": {"content": chunk.content}
@@ -244,6 +281,9 @@ class DeepAnalyseAgentService:
                             "output": str(data.get("output", ""))[:500]  # 截断输出
                         }
                     }
+
+            # 保存 LLM 输出
+            self.llm_output = "".join(llm_output_chunks)
 
             # 发送完成事件
             yield {
@@ -297,6 +337,14 @@ class DeepAnalyseAgentService:
                 return None
         return None
 
+    def get_report_content(self) -> Optional[str]:
+        """获取报告内容
+
+        Returns:
+            报告 HTML 内容或 None
+        """
+        return self.read_file("report.html")
+
     def cleanup(self) -> None:
         """清理会话资源"""
         self.agent = None
@@ -304,22 +352,27 @@ class DeepAnalyseAgentService:
 
 
 # 便捷函数：创建服务实例
-def create_deep_analyse_service(
+def create_data_analyser_agent(
     session_id: Optional[str] = None,
     output_base_dir: str = "./analysis_output"
-) -> DeepAnalyseAgentService:
-    """创建 DeepAgents 数据分析服务实例
+) -> DataAnalyserAgent:
+    """创建数据分析智能体实例
 
     Args:
         session_id: 会话ID，用于文件隔离
         output_base_dir: 输出基础目录
 
     Returns:
-        DeepAnalyseAgentService 实例
+        DataAnalyserAgent 实例
     """
-    service = DeepAnalyseAgentService(
+    agent = DataAnalyserAgent(
         session_id=session_id,
         output_base_dir=output_base_dir
     )
-    service.create_agent()
-    return service
+    agent.create_agent()
+    return agent
+
+
+# 向后兼容别名
+DeepAnalyseAgentService = DataAnalyserAgent
+create_deep_analyse_service = create_data_analyser_agent
