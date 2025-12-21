@@ -122,9 +122,15 @@ function getFallbackReasonText(reason: string): { text: string; color: string } 
 }
 
 // 版本降级信息卡片组件
-function VersionFallbackCard({ fallbacks }: { fallbacks: VersionFallback[] }) {
-  const [isExpanded, setIsExpanded] = useState(true);
-  
+function VersionFallbackCard({
+  fallbacks,
+  isOpen,
+  onOpenChange
+}: {
+  fallbacks: VersionFallback[];
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   if (!fallbacks || fallbacks.length === 0) return null;
 
   // 按宽表分组统计
@@ -138,7 +144,7 @@ function VersionFallbackCard({ fallbacks }: { fallbacks: VersionFallback[] }) {
 
   return (
     <Card className="border-blue-200 bg-blue-50/50">
-      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+      <Collapsible open={isOpen} onOpenChange={onOpenChange}>
         <CollapsibleTrigger asChild>
           <CardHeader className="cursor-pointer hover:bg-blue-100/50">
             <CardTitle className="flex items-center justify-between">
@@ -149,7 +155,7 @@ function VersionFallbackCard({ fallbacks }: { fallbacks: VersionFallback[] }) {
                   {fallbacks.length} 次降级
                 </Badge>
               </div>
-              {isExpanded ? (
+              {isOpen ? (
                 <ChevronUp className="h-5 w-5 text-blue-600" />
               ) : (
                 <ChevronDown className="h-5 w-5 text-blue-600" />
@@ -232,6 +238,9 @@ function VersionFallbackCard({ fallbacks }: { fallbacks: VersionFallback[] }) {
 
 export function ModelBacktestTemplate({ result, taskId }: ModelBacktestTemplateProps) {
   const [isLogOpen, setIsLogOpen] = useState(false);
+  const [isDailyDetailsOpen, setIsDailyDetailsOpen] = useState(false);
+  const [isVersionFallbackOpen, setIsVersionFallbackOpen] = useState(false);
+  const [isWarningsOpen, setIsWarningsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
 
@@ -283,70 +292,122 @@ export function ModelBacktestTemplate({ result, taskId }: ModelBacktestTemplateP
 
       {/* 每日执行详情表格 */}
       <Card>
-        <CardHeader>
-          <CardTitle>每日执行详情</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[120px]">日期</TableHead>
-                <TableHead className="w-[100px]">状态</TableHead>
-                <TableHead>消息</TableHead>
-                <TableHead className="w-[100px] text-right">命中数</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {result.daily_results.map((day, index) => (
-                <TableRow key={index}>
-                  <TableCell className="font-mono">{day.date}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <StatusIcon status={day.status} />
-                      <Badge variant={
-                        day.status === 'success' ? 'default' :
-                        day.status === 'failed' ? 'destructive' :
-                        'secondary'
-                      }>
-                        {day.status === 'success' ? '成功' :
-                         day.status === 'failed' ? '失败' :
-                         day.status === 'skipped' ? '跳过' : day.status}
+        <Collapsible open={isDailyDetailsOpen} onOpenChange={setIsDailyDetailsOpen}>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-muted/50">
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  每日执行详情
+                  <div className="flex gap-1 ml-2">
+                    {result.success_days > 0 && (
+                      <Badge variant="default" className="bg-green-600">
+                        成功 {result.success_days}
                       </Badge>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{day.message}</TableCell>
-                  <TableCell className="text-right font-semibold">{day.rows_matched}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
+                    )}
+                    {result.failed_days > 0 && (
+                      <Badge variant="destructive">
+                        失败 {result.failed_days}
+                      </Badge>
+                    )}
+                    {result.skipped_days > 0 && (
+                      <Badge variant="secondary">
+                        跳过 {result.skipped_days}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                {isDailyDetailsOpen ? (
+                  <ChevronUp className="h-5 w-5" />
+                ) : (
+                  <ChevronDown className="h-5 w-5" />
+                )}
+              </CardTitle>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[120px]">日期</TableHead>
+                    <TableHead className="w-[100px]">状态</TableHead>
+                    <TableHead>消息</TableHead>
+                    <TableHead className="w-[100px] text-right">命中数</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {result.daily_results.map((day, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-mono">{day.date}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <StatusIcon status={day.status} />
+                          <Badge variant={
+                            day.status === 'success' ? 'default' :
+                            day.status === 'failed' ? 'destructive' :
+                            'secondary'
+                          }>
+                            {day.status === 'success' ? '成功' :
+                             day.status === 'failed' ? '失败' :
+                             day.status === 'skipped' ? '跳过' : day.status}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{day.message}</TableCell>
+                      <TableCell className="text-right font-semibold">{day.rows_matched}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
 
       {/* 版本降级信息 */}
       {result.version_fallbacks && result.version_fallbacks.length > 0 && (
-        <VersionFallbackCard fallbacks={result.version_fallbacks} />
+        <VersionFallbackCard
+          fallbacks={result.version_fallbacks}
+          isOpen={isVersionFallbackOpen}
+          onOpenChange={setIsVersionFallbackOpen}
+        />
       )}
 
       {/* 警告信息 */}
       {result.warnings && result.warnings.length > 0 && (
         <Card className="border-yellow-200 bg-yellow-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-yellow-700">
-              <AlertTriangle className="h-5 w-5" />
-              警告信息
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {result.warnings.map((warning, index) => (
-                <li key={index} className="text-sm text-yellow-700 flex items-start gap-2">
-                  <span className="text-yellow-500">•</span>
-                  {warning}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
+          <Collapsible open={isWarningsOpen} onOpenChange={setIsWarningsOpen}>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-yellow-100/50">
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-yellow-700">
+                    <AlertTriangle className="h-5 w-5" />
+                    警告信息
+                    <Badge variant="secondary" className="ml-2">
+                      {result.warnings.length} 条警告
+                    </Badge>
+                  </div>
+                  {isWarningsOpen ? (
+                    <ChevronUp className="h-5 w-5 text-yellow-600" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-yellow-600" />
+                  )}
+                </CardTitle>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent>
+                <ul className="space-y-2">
+                  {result.warnings.map((warning, index) => (
+                    <li key={index} className="text-sm text-yellow-700 flex items-start gap-2">
+                      <span className="text-yellow-500">•</span>
+                      {warning}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
       )}
 
