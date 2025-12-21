@@ -1,1 +1,0 @@
-optimum-cli export onnx  --model C:\Users\Administrator\Desktop\淘沙打包\嵌入式模型\bge-small-zh   --task feature-extraction  --optimize O2  --device cpu .
