@@ -17,7 +17,6 @@
 | qdrant_vector_store_tool.py | `search_knowledge_base` | 知识库向量检索 | ✅ 可用 |
 | common_tools.py | `get_date_range` | 获取日期范围 | ✅ 可用 |
 | common_tools.py | `get_hotboard` | 获取平台热榜 | ✅ 可用 |
-| weather_tool.py | `get_weather` | 获取天气信息 | ✅ 可用 |
 | fine_report_tools.py | `get_report_sample` | 获取FineReport报表样例 | ✅ 可用 |
 | fine_report_tools.py | `batch_filter_report_and_get_data` | 批量获取报表数据 | ✅ 可用 |
 
@@ -43,7 +42,6 @@ tools = [
     # search_knowledge_base,      # 知识库检索工具 (已注释)
     # get_date_range,             # 日期范围工具 (已注释)
     # get_metrics,                # 指标数据工具 (已注释)
-    get_weather,                # 天气工具 (启用，用于测试)
 ]
 ```
 

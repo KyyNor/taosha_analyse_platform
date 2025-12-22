@@ -16,12 +16,11 @@ from langchain_core.messages import AIMessage
 
 from services.llm_service.base_llm_service import BaseLLMService
 from services.agents.tools.sql_query_tool import sql_query
-from services.agents.tools.code_execution_tool import execute_code
+from services.agents.tools.deepagents.code_execution_tool import execute_code
 from services.agents.tools.qdrant_vector_store_tool import search_knowledge_base
 from services.agents.tools.chart_tool import create_chart, create_chart_html
 from services.agents.tools.common_tools import get_date_range
 from services.agents.tools.metrics_tool import get_metrics
-from services.agents.tools.weather_tool import get_weather
 from utils.logger import logger
 
 
@@ -163,7 +162,6 @@ class DataAnalyserAgent:
                 search_knowledge_base,      # 知识库检索工具
                 # get_date_range,             # 日期范围工具
                 # get_metrics,                # 指标数据工具
-                # get_weather,
             ]
 
             # 创建 DeepAgent

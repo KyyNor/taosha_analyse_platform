@@ -16,7 +16,7 @@ from langfuse.decorators import observe
 from services.llm_service.base_llm_service import BaseLLMService
 from services.agents.tools.sql_query_tool import sql_query
 from services.agents.tools.common_tools import get_date_range
-from services.agents.deepagents.tools.history_analysis_tool import (
+from services.agents.tools.history_analysis_tool import (
     get_analysis_history,
     search_analysis_history
 )

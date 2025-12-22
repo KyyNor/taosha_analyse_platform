@@ -14,7 +14,7 @@ from langchain_core.messages import HumanMessage
 from langfuse.decorators import observe
 
 from services.llm_service.base_llm_service import BaseLLMService
-from services.agents.deepagents.tools.session_reader_tool import (
+from services.agents.tools.session_reader_tool import (
     read_session_info,
     read_session_report,
     read_session_llm_output,

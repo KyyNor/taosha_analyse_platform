@@ -23,7 +23,6 @@ from services.llm_service.base_llm_service import BaseLLMService
 from services.tracking_service.observability_service import get_langfuse_client, get_tracing_handler
 from services.agents.tools.common_tools import get_hotboard, get_programmer_story, get_date_range
 from services.agents.tools.fine_report_tools import get_report_sample, batch_filter_report_and_get_data
-from services.agents.tools.weather_tool import get_weather
 from services.agents.tools.chart_tool import create_chart
 from services.agents.tools.comparison_tool import create_comparison
 from services.agents.tools.metrics_tool import get_metrics
@@ -64,7 +63,6 @@ class AgentService:
                 # get_hotboard,
                 # get_programmer_story,
                 get_date_range,
-                get_weather,
                 create_chart,
                 create_comparison,
                 get_metrics,
