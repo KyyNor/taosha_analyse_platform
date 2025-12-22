@@ -21,7 +21,7 @@ def sql_query(
     sql: str,
     runtime: ToolRuntime["DataAnalysisContext"],
     limit: int = 1000,
-    save_to_file: bool = False
+    save_to_file: bool = True
 ) -> str:
     """
     执行 SQL 查询并返回结果
@@ -30,7 +30,7 @@ def sql_query(
     Args:
         sql: SQL 查询语句。支持标准 SQL 语法，可以进行 SELECT、JOIN、GROUP BY 等操作
         limit: 结果行数限制，默认 1000 行。设置为 0 则不限制
-        save_to_file: 是否将查询结果保存到文件，默认 False。如果为 True，结果会保存为 CSV 格式
+        save_to_file: 是否将查询结果保存到文件，默认 True。如果为 True，结果会保存为 CSV 格式
 
     Returns:
         JSON 格式的查询结果字符串，包含以下字段:
@@ -52,8 +52,8 @@ def sql_query(
         # 不限制行数
         sql_query("SELECT * FROM large_table WHERE ETL_DATE='2025-09-30' ", limit=0)
 
-        # 保存到文件
-        sql_query("SELECT * FROM large_table WHERE ETL_DATE='2025-09-30'", save_to_file=True)
+        # 不保存到文件
+        sql_query("SELECT * FROM large_table WHERE ETL_DATE='2025-09-30'", save_to_file=False)
     """
     # 从运行时上下文获取配置
     ctx = runtime.context
