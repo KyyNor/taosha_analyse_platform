@@ -245,7 +245,7 @@ dolphinscheduler:
 
   # 定时调度配置
   schedule:
-    cron_expression: "0 0 2 * * ?"  # 每天凌晨2点
+    cron_expression: "0 0 11 * * ?"
     online_schedule: true
 
   # 任务配置

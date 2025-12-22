@@ -453,7 +453,7 @@ ON
     dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id
 WHERE
     {where_clause}
-LIMIT 200
+LIMIT 10000
 """
         return sql
 

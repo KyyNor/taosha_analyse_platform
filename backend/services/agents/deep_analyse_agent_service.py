@@ -12,6 +12,7 @@ from datetime import datetime
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from langchain.agents.middleware import SummarizationMiddleware
+from langchain_core.messages import AIMessage
 
 from services.llm_service.base_llm_service import BaseLLMService
 from services.agents.tools.sql_query_tool import sql_query
@@ -214,6 +215,12 @@ class DeepAnalyseAgentService:
                     result = self.agent.invoke({
                         "messages": [{"role": "user", "content": question}]
                     })
+
+            for i, message in enumerate(result['messages']):
+                if isinstance(message, AIMessage):
+                    logger.info(f"第 {i+1} 条 AI 消息:")
+                    logger.info(message.content)
+                    logger.info("-" * 50)
 
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
