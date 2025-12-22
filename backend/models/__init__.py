@@ -38,6 +38,11 @@ from .fraudhunter import (
     FraudHunterDryRunExecution,
 )
 
+from .deepagents import (
+    AnalysisSession,
+    AnalysisScore,
+)
+
 __all__ = [
     # 基础配置
     "Base",
@@ -83,4 +88,8 @@ __all__ = [
     "FraudHunterModelDefinition",
     "FraudHunterModelHistory",
     "FraudHunterDryRunExecution",
+
+    # DeepAgents模块
+    "AnalysisSession",
+    "AnalysisScore",
 ]

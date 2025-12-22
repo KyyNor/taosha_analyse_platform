@@ -65,7 +65,9 @@
       "mcp__mysql__execute",
       "mcp__mysql__query",
       "Bash(python3:*)",
-      "Bash(source .venv/bin/activate)"
+      "Bash(source .venv/bin/activate)",
+      "mcp__tavily__tavily_extract",
+      "Bash(npm run build:charts:*)"
     ],
     "deny": [],
     "ask": [],

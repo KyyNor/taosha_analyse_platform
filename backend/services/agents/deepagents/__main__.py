@@ -84,11 +84,11 @@ def main():
         logging.basicConfig(level=logging.DEBUG)
 
     # 导入服务（延迟导入，避免启动时间过长）
-    from services.agents.deep_analyse_agent_service import DeepAnalyseAgentService
+    from services.agents.deepagents.data_analyser_agent import DataAnalyserAgent
     from utils.logger import logger
 
     # 创建服务实例
-    service = DeepAnalyseAgentService(
+    service = DataAnalyserAgent(
         session_id=args.session,
         output_base_dir=args.output
     )

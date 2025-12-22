@@ -1,11 +1,29 @@
 """
 图表生成工具
 提供生成图表数据的工具函数，支持折线图、饼图、柱状图和树图
+支持生成离线 HTML 图表（使用 Bokeh，不依赖 CDN）
 """
 import json
-from typing import Dict, Any, List, Union
+import math
+from typing import Dict, Any, List, Union, Optional
 from langfuse import observe
 from utils.logger import logger
+
+# Bokeh 导入（用于 create_chart_html）
+try:
+    from bokeh.plotting import figure
+    from bokeh.embed import file_html, components
+    from bokeh.resources import INLINE
+    from bokeh.models import (
+        HoverTool, ColumnDataSource, LabelSet, Legend,
+        FactorRange, Title
+    )
+    from bokeh.palettes import Category10, Category20
+    from bokeh.transform import cumsum
+    BOKEH_AVAILABLE = True
+except ImportError:
+    BOKEH_AVAILABLE = False
+    logger.warning("Bokeh 未安装，create_chart_html 功能不可用")
 
 
 def build_tree_structure(
@@ -351,3 +369,344 @@ def create_chart(
             "chart_type": chart_type,
             "title": title
         }, ensure_ascii=False)
+
+
+# ============ Bokeh HTML 图表生成 ============
+
+def _get_colors(n: int) -> List[str]:
+    """获取指定数量的颜色"""
+    if n <= 10:
+        return list(Category10[max(3, min(n, 10))])[:n]
+    else:
+        return list(Category20[max(3, min(n, 20))])[:n]
+
+
+def _create_bokeh_line(config: dict, width: int, height: int):
+    """创建 Bokeh 折线图"""
+    data = config["data"]
+    title = config.get("title", "")
+    x_key = config.get("x_key", "name")
+    y_keys = config.get("y_keys", ["value"])
+    colors = config.get("colors", _get_colors(len(y_keys)))
+
+    # 提取 x 轴数据
+    x_values = [item.get(x_key, "") for item in data]
+
+    # 创建图表
+    p = figure(
+        title=title,
+        x_range=x_values,
+        width=width,
+        height=height,
+        tools="pan,wheel_zoom,box_zoom,reset,save",
+        toolbar_location="above"
+    )
+
+    # 为每个 y_key 绑线
+    for i, y_key in enumerate(y_keys):
+        y_values = [item.get(y_key, 0) for item in data]
+        color = colors[i % len(colors)]
+
+        # 绑线
+        p.line(x_values, y_values, line_width=2, color=color, legend_label=y_key)
+        # 添加圆点
+        p.circle(x_values, y_values, size=6, color=color, legend_label=y_key)
+
+    # 添加悬停工具
+    hover = HoverTool(tooltips=[(x_key, "@x")] + [(y_key, f"@y") for y_key in y_keys])
+    p.add_tools(hover)
+
+    # 配置图例
+    if config.get("show_legend", True):
+        p.legend.location = "top_left"
+        p.legend.click_policy = "hide"
+    else:
+        p.legend.visible = False
+
+    # 配置坐标轴
+    p.xaxis.major_label_orientation = math.pi / 4
+    p.xgrid.grid_line_color = "lightgray" if config.get("show_grid", True) else None
+    p.ygrid.grid_line_color = "lightgray" if config.get("show_grid", True) else None
+
+    return p
+
+
+def _create_bokeh_bar(config: dict, width: int, height: int):
+    """创建 Bokeh 柱状图"""
+    data = config["data"]
+    title = config.get("title", "")
+    x_key = config.get("x_key", "name")
+    y_keys = config.get("y_keys", ["value"])
+    colors = config.get("colors", _get_colors(len(y_keys)))
+    stacked = config.get("stacked", False)
+    orientation = config.get("orientation", "vertical")
+
+    # 提取数据
+    x_values = [str(item.get(x_key, "")) for item in data]
+
+    if orientation == "vertical":
+        # 垂直柱状图
+        p = figure(
+            title=title,
+            x_range=x_values,
+            width=width,
+            height=height,
+            tools="pan,wheel_zoom,box_zoom,reset,save",
+            toolbar_location="above"
+        )
+
+        if stacked:
+            # 堆叠柱状图
+            bottom = [0] * len(data)
+            for i, y_key in enumerate(y_keys):
+                y_values = [item.get(y_key, 0) for item in data]
+                top = [b + v for b, v in zip(bottom, y_values)]
+                color = colors[i % len(colors)]
+                p.vbar(
+                    x=x_values, top=top, bottom=bottom,
+                    width=0.8, color=color, legend_label=y_key
+                )
+                bottom = top
+        else:
+            # 分组柱状图
+            bar_width = 0.8 / len(y_keys)
+            for i, y_key in enumerate(y_keys):
+                y_values = [item.get(y_key, 0) for item in data]
+                offset = (i - len(y_keys) / 2 + 0.5) * bar_width
+                x_positions = [j + offset for j in range(len(x_values))]
+                color = colors[i % len(colors)]
+                p.vbar(
+                    x=x_positions, top=y_values, width=bar_width * 0.9,
+                    color=color, legend_label=y_key
+                )
+
+        p.xaxis.major_label_orientation = math.pi / 4
+    else:
+        # 水平柱状图
+        p = figure(
+            title=title,
+            y_range=x_values,
+            width=width,
+            height=height,
+            tools="pan,wheel_zoom,box_zoom,reset,save",
+            toolbar_location="above"
+        )
+
+        for i, y_key in enumerate(y_keys):
+            y_values = [item.get(y_key, 0) for item in data]
+            color = colors[i % len(colors)]
+            p.hbar(y=x_values, right=y_values, height=0.8, color=color, legend_label=y_key)
+
+    # 配置图例
+    if config.get("show_legend", True) and len(y_keys) > 1:
+        p.legend.location = "top_right"
+        p.legend.click_policy = "hide"
+    else:
+        p.legend.visible = False
+
+    # 配置网格
+    p.xgrid.grid_line_color = "lightgray" if config.get("show_grid", True) else None
+    p.ygrid.grid_line_color = "lightgray" if config.get("show_grid", True) else None
+
+    return p
+
+
+def _create_bokeh_pie(config: dict, width: int, height: int):
+    """创建 Bokeh 饼图"""
+    data = config["data"]
+    title = config.get("title", "")
+    colors = config.get("colors", _get_colors(len(data)))
+
+    # 计算角度
+    total = sum(item.get("value", 0) for item in data)
+    if total == 0:
+        total = 1  # 避免除以零
+
+    # 准备数据
+    start_angle = 0
+    pie_data = {
+        "name": [],
+        "value": [],
+        "percentage": [],
+        "start_angle": [],
+        "end_angle": [],
+        "color": []
+    }
+
+    for i, item in enumerate(data):
+        value = item.get("value", 0)
+        angle = 2 * math.pi * value / total
+        percentage = value / total * 100
+
+        pie_data["name"].append(item.get("name", f"项目{i+1}"))
+        pie_data["value"].append(value)
+        pie_data["percentage"].append(f"{percentage:.1f}%")
+        pie_data["start_angle"].append(start_angle)
+        pie_data["end_angle"].append(start_angle + angle)
+        pie_data["color"].append(colors[i % len(colors)])
+
+        start_angle += angle
+
+    source = ColumnDataSource(pie_data)
+
+    # 创建图表
+    p = figure(
+        title=title,
+        width=width,
+        height=height,
+        tools="hover,save",
+        tooltips="@name: @value (@percentage)",
+        x_range=(-1.5, 1.5),
+        y_range=(-1.5, 1.5)
+    )
+
+    # 绘制饼图
+    p.wedge(
+        x=0, y=0, radius=0.8,
+        start_angle="start_angle", end_angle="end_angle",
+        color="color", legend_field="name", source=source
+    )
+
+    # 隐藏坐标轴
+    p.axis.visible = False
+    p.grid.visible = False
+
+    # 配置图例
+    if config.get("show_legend", True):
+        p.legend.location = "right"
+    else:
+        p.legend.visible = False
+
+    return p
+
+
+def _json_to_bokeh(config: dict, width: int, height: int):
+    """将 create_chart 的 JSON 配置转换为 Bokeh 图表对象"""
+    chart_type = config.get("chart_type", "line")
+
+    if chart_type == "line":
+        return _create_bokeh_line(config, width, height)
+    elif chart_type == "bar":
+        return _create_bokeh_bar(config, width, height)
+    elif chart_type == "pie":
+        return _create_bokeh_pie(config, width, height)
+    else:
+        # 不支持的类型，返回一个简单的空图表
+        logger.warning(f"Bokeh 不支持图表类型: {chart_type}，创建空图表")
+        p = figure(title=f"不支持的图表类型: {chart_type}", width=width, height=height)
+        return p
+
+
+@observe(name="create_chart_html")
+def create_chart_html(
+    chart_type: str,
+    data: Union[List[Dict[str, Any]], str],
+    title: str = "",
+    description: str = "",
+    width: int = 800,
+    height: int = 400,
+    embed_mode: str = "full",
+    **kwargs
+) -> str:
+    """
+    生成可直接嵌入 HTML 的离线图表代码块
+
+    内部复用 create_chart 生成 JSON 配置，然后转换为 Bokeh HTML。
+    生成的 HTML 完全离线，不依赖任何 CDN。
+
+    Args:
+        chart_type: 图表类型，支持 'line'（折线图）、'pie'（饼图）、'bar'（柱状图）
+        data: 图表数据，可以是字典列表或JSON字符串
+        title: 图表标题
+        description: 图表描述
+        width: 图表宽度（像素）
+        height: 图表高度（像素）
+        embed_mode: 嵌入模式
+            - "full": 返回完整的 HTML 文档（包含 <!DOCTYPE html>）
+            - "div": 只返回图表 div 和 script 标签（用于嵌入到现有 HTML）
+        **kwargs: 其他图表参数（与 create_chart 相同）
+
+    Returns:
+        包含完整 HTML 的字符串（内嵌所有 CSS/JS，不依赖 CDN）
+
+    Examples:
+        # 生成完整的 HTML 文件
+        html = create_chart_html(
+            chart_type="line",
+            data=[{"month": "1月", "sales": 100}, {"month": "2月", "sales": 150}],
+            title="月度销售趋势",
+            x_key="month",
+            y_keys=["sales"]
+        )
+
+        # 生成可嵌入的 HTML 片段
+        html_fragment = create_chart_html(
+            chart_type="bar",
+            data=[{"city": "北京", "population": 2100}],
+            title="城市人口",
+            embed_mode="div"
+        )
+    """
+    logger.info(f"开始创建{chart_type}图表HTML: {title}")
+
+    # 检查 Bokeh 是否可用
+    if not BOKEH_AVAILABLE:
+        error_html = f"""
+        <div class="chart-error" style="padding: 20px; border: 1px solid #ef4444; background: #fef2f2; color: #dc2626; border-radius: 4px;">
+            <strong>错误：</strong>Bokeh 库未安装。请运行 <code>pip install bokeh</code> 安装。
+        </div>
+        """
+        return error_html
+
+    try:
+        # 1. 复用 create_chart 生成 JSON 配置
+        chart_json = create_chart(
+            chart_type=chart_type,
+            data=data,
+            title=title,
+            description=description,
+            **kwargs
+        )
+        config = json.loads(chart_json)
+
+        # 2. 检查是否有错误
+        if "error" in config:
+            error_html = f"""
+            <div class="chart-error" style="padding: 20px; border: 1px solid #ef4444; background: #fef2f2; color: #dc2626; border-radius: 4px;">
+                <strong>图表生成错误：</strong>{config["error"]}
+            </div>
+            """
+            return error_html
+
+        # 3. 根据配置创建 Bokeh 图表
+        p = _json_to_bokeh(config, width, height)
+
+        # 4. 生成 HTML
+        if embed_mode == "full":
+            # 生成完整的 HTML 文档（使用 INLINE 资源，完全离线）
+            html = file_html(p, resources=INLINE, title=title or "图表")
+        else:
+            # 只生成 script 和 div 部分
+            script, div = components(p)
+            # 还需要包含 INLINE 资源
+            inline_resources = INLINE.render()
+            html = f"""
+            <!-- Bokeh 资源 -->
+            {inline_resources}
+            <!-- 图表容器 -->
+            {div}
+            <!-- 图表脚本 -->
+            {script}
+            """
+
+        logger.info(f"成功创建{chart_type}图表HTML，大小: {len(html)} 字节")
+        return html
+
+    except Exception as e:
+        logger.error(f"创建图表HTML时发生错误: {e}")
+        error_html = f"""
+        <div class="chart-error" style="padding: 20px; border: 1px solid #ef4444; background: #fef2f2; color: #dc2626; border-radius: 4px;">
+            <strong>图表生成错误：</strong>{str(e)}
+        </div>
+        """
+        return error_html
