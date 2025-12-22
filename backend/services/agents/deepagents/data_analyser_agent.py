@@ -8,6 +8,7 @@ import uuid
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+from dataclasses import dataclass
 
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
@@ -23,6 +24,27 @@ from services.agents.tools.chart_tool import create_chart, create_chart_html
 from services.agents.tools.common_tools import get_date_range
 from services.agents.tools.metrics_tool import get_metrics
 from utils.logger import logger
+
+
+# ==================== Context Schema ====================
+
+@dataclass
+class DataAnalysisContext:
+    """数据分析智能体的运行时上下文配置
+
+    这是不可变的上下文，在运行时传递给工具，使工具能够访问会话级别的配置信息
+    """
+    session_id: str
+    """会话ID，用于标识和隔离不同的分析会话"""
+
+    output_dir: str
+    """输出目录路径，用于保存分析结果和中间文件"""
+
+    code_execution_timeout: int
+    """代码执行的超时时间（秒）"""
+
+    user_id: str = "default"
+    """用户ID，用于权限控制和日志追踪"""
 
 
 # 数据分析系统提示词
@@ -169,8 +191,8 @@ class DataAnalyserAgent:
         try:
             # 准备工具列表
             tools = [
-                # sql_query,                  # SQL 查询工具
-                # execute_code,               # Python 代码执行工具
+                sql_query,                  # SQL 查询工具（支持 ToolRuntime）
+                execute_code,               # Python 代码执行工具（支持 ToolRuntime）
                 # search_knowledge_base,      # 知识库检索工具
                 # get_date_range,             # 日期范围工具
                 # get_metrics,                # 指标数据工具
@@ -182,6 +204,7 @@ class DataAnalyserAgent:
                 model=self.llm_service.client,
                 tools=tools,
                 system_prompt=DATA_ANALYSIS_SYSTEM_PROMPT,
+                context_schema=DataAnalysisContext,  # ✅ 添加上下文模式
                 backend=FilesystemBackend(
                     root_dir=str(self.output_dir),
                     virtual_mode=True
@@ -215,11 +238,12 @@ class DataAnalyserAgent:
             logger.error(f"DeepAgent 创建失败: {e}")
             raise
 
-    def run_analysis(self, question: str) -> Dict[str, Any]:
+    def run_analysis(self, question: str, user_id: str = "default") -> Dict[str, Any]:
         """运行数据分析
 
         Args:
             question: 用户的数据分析问题
+            user_id: 用户ID，用于权限控制和日志追踪
 
         Returns:
             包含分析结果的字典
@@ -242,11 +266,20 @@ class DataAnalyserAgent:
             os.environ["LANGFUSE_HOST"] = settings.langfuse_host
             _langfuse_client = get_client()
 
-            with _langfuse_client.start_as_current_span(name="deep_agent") as span:
-                with propagate_attributes(user_id='deep_agent_test', session_id=self.session_id):
-                    result = self.agent.invoke({
-                        "messages": [{"role": "user", "content": question}]
-                    })
+            # 创建运行时上下文
+            analysis_context = DataAnalysisContext(
+                session_id=self.session_id,
+                output_dir=str(self.output_dir),
+                code_execution_timeout=self._config["code_execution_timeout"],
+                user_id=user_id
+            )
+
+            with _langfuse_client.start_as_current_span(name="deep_agent"):
+                with propagate_attributes(user_id=user_id, session_id=self.session_id):
+                    result = self.agent.invoke(
+                        {"messages": [{"role": "user", "content": question}]},
+                        context=analysis_context  # ✅ 传递上下文
+                    )
 
             for i, message in enumerate(result['messages']):
                 if isinstance(message, AIMessage):
@@ -316,11 +349,12 @@ class DataAnalyserAgent:
             logger.warning(f"提取 LLM 输出失败: {e}")
             return None
 
-    async def run_analysis_stream(self, question: str):
+    async def run_analysis_stream(self, question: str, user_id: str = "default"):
         """流式运行数据分析
 
         Args:
             question: 用户的数据分析问题
+            user_id: 用户ID，用于权限控制和日志追踪
 
         Yields:
             分析过程中的事件
@@ -331,9 +365,18 @@ class DataAnalyserAgent:
         logger.info(f"开始流式分析: {question[:100]}...")
         llm_output_chunks = []
 
+        # 创建运行时上下文
+        analysis_context = DataAnalysisContext(
+            session_id=self.session_id,
+            output_dir=str(self.output_dir),
+            code_execution_timeout=self._config["code_execution_timeout"],
+            user_id=user_id
+        )
+
         try:
             async for event in self.agent.astream_events(
                 {"messages": [{"role": "user", "content": question}]},
+                context=analysis_context  # ✅ 传递上下文
             ):
                 event_type = event.get("event", "")
                 data = event.get("data", {})

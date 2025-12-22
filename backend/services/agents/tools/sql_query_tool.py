@@ -4,14 +4,20 @@ SQL 查询工具
 """
 
 import json
-from typing import Optional
+from typing import TYPE_CHECKING
 from langfuse import observe
+from langchain.tools import tool, ToolRuntime
 from utils.logger import logger
 
+if TYPE_CHECKING:
+    from services.agents.deepagents.data_analyser_agent import DataAnalysisContext
 
+
+@tool
 @observe(name="sql_query")
 def sql_query(
     sql: str,
+    runtime: ToolRuntime["DataAnalysisContext"],
     limit: int = 1000
 ) -> str:
     """
@@ -41,7 +47,11 @@ def sql_query(
         # 不限制行数
         sql_query("SELECT * FROM large_table WHERE ETL_DATE='2025-09-30' ", limit=0)
     """
-    logger.info(f"执行SQL查询: {sql[:100]}...")
+    # 从运行时上下文获取配置
+    ctx = runtime.context
+    session_id = ctx.session_id
+
+    logger.info(f"[会话 {session_id}] 执行SQL查询: {sql[:100]}...")
 
     try:
         # 延迟导入，避免循环依赖

@@ -9,7 +9,7 @@ import shutil
 import asyncio
 import tempfile
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 from contextlib import asynccontextmanager
 from datetime import datetime
 
@@ -19,6 +19,10 @@ from docker.errors import DockerException, ImageNotFound, ContainerError
 
 from utils.logger import logger
 from langfuse import observe
+from langchain.tools import tool, ToolRuntime
+
+if TYPE_CHECKING:
+    from services.agents.deepagents.data_analyser_agent import DataAnalysisContext
 
 
 # ==================== 配置 ====================
@@ -431,14 +435,14 @@ finally:
             session_manager.cleanup_session(session_path)
 
 
+@tool
 @observe(name="execute_code")
 def execute_code(
     code: str,
-    timeout: int = TIMEOUT_DEFAULT,
-    session_id: Optional[str] = None
+    runtime: ToolRuntime["DataAnalysisContext"]
 ) -> str:
     """
-    执行 Python 代码进行数据处理和分析（同步接口）
+    执行 Python 代码进行数据处理和分析
 
     使用 Docker 容器提供完全隔离的执行环境，具有以下安全特性：
     - 独立的文件系统（仅可访问 session 目录）
@@ -459,13 +463,6 @@ def execute_code(
               - plotly: 交互式可视化
 
               如果需要返回结果，请将结果赋值给名为 'result' 的变量
-
-        timeout: 执行超时时间（秒），默认 30 秒
-
-        session_id: 可选的会话 ID。如果提供：
-                   - 将使用持久化的会话目录（不会自动清理）
-                   - 可以在多次调用之间共享文件
-                   - 会话目录路径：/tmp/taosha_sessions/{session_id}/
 
     Returns:
         JSON 格式的执行结果字符串，包含以下字段:
@@ -490,26 +487,13 @@ def execute_code(
         df = pd.DataFrame(data)
         result = df.describe().to_dict()
         ''')
-
-        # 使用 session 持久化数据
-        session_id = "my-analysis-session"
-
-        # 第一次调用：生成并保存数据
-        execute_code('''
-        import pandas as pd
-        df = pd.DataFrame({"x": range(10), "y": range(10, 20)})
-        df.to_csv("/workspace/data.csv", index=False)
-        result = "数据已保存"
-        ''', session_id=session_id)
-
-        # 第二次调用：读取之前保存的数据
-        execute_code('''
-        import pandas as pd
-        df = pd.read_csv("/workspace/data.csv")
-        result = df.mean().to_dict()
-        ''', session_id=session_id)
     """
-    logger.info(f"执行 Python 代码（Docker 沙箱）: {code[:100]}...")
+    # 从运行时上下文获取配置
+    ctx = runtime.context
+    session_id = ctx.session_id
+    timeout = ctx.code_execution_timeout
+
+    logger.info(f"[会话 {session_id}] 执行 Python 代码（Docker 沙箱）: {code[:100]}...")
 
     # 在新的事件循环中执行异步代码
     try:
