@@ -149,9 +149,6 @@ tmp/
 temp/
 .tmp/
 
-backend/database/Qwen3-Embedding-0___6B/
-backend/database/bge-m3-onnx/
-
 .next
 
 # allow Next.js frontend libs
@@ -161,6 +158,11 @@ backend/database/bge-m3-onnx/
 # Embeddings model - ignore everything except specific files
 embeddings_model/*
 !embeddings_model/start_embeddings_models.sh
+!embeddings_model/pyproject.toml
+!embeddings_model/uv.lock
+!embeddings_model/xinference_start.sh
+!embeddings_model/main.py
+!embeddings_model/README.md
 
 .gemini/
 
