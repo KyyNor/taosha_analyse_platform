@@ -44,6 +44,19 @@ ENV PYTHONUNBUFFERED=1
 ENV VIRTUAL_ENV=/home/sandbox/.venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
+# 安装中文字体和系统依赖（使用清华镜像源）
+RUN sed -i 's|http://deb.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    fonts-wqy-zenhei \
+    fonts-wqy-microhei \
+    libfreetype6 \
+    libpng16-16 \
+    libjpeg62-turbo \
+    nano \
+    less \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # 创建 sandbox 用户
 RUN useradd -m -u 1000 sandbox
 

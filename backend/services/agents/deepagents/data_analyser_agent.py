@@ -117,6 +117,7 @@ SHELL_TOOL_DESCRIPTION = """
 除非确实需要，否则避免频繁使用 cd,以保持会话稳定。
 输出过大时可能被截断，长时间运行的命令在达到配置的超时时间后将被强制终止。
 本系统中包含Python3.11环境,并包含科学计算相关的库,如numpy、pandas、matplotlib等,你可以使用pip list来查看环境清单。
+系统已安装中文字体(WenQuanYi Micro Hei、WenQuanYi Zen Hei)。
 """
 
 class DataAnalyserAgent:
