@@ -17,13 +17,10 @@ def search_knowledge_base(
     score_threshold: Optional[float] = None
 ) -> str:
     """
-    在知识库中检索相关文档和知识
+    在知识库中检索相关文档和知识，知识库中包括表结构、关联关系等信息，如需确认可用表请使用本方法检索。
 
     Args:
-        query: 查询文本。描述你想要查找的内容，可以是：
-               - 关键词: "用户活跃度"
-               - 问题: "如何计算转化率？"
-               - 概念: "风控模型的评估指标"
+        query: 查询文本。描述你想要查找的内容。
 
         top_k: 返回结果数量，默认 5 条。建议范围 3-10
 
@@ -32,8 +29,7 @@ def search_knowledge_base(
                     - "fulltext_only": 纯全文关键词搜索，适合精确匹配
                     - "hybrid": 混合搜索（推荐），结合语义和关键词
 
-        score_threshold: 分数阈值，仅返回分数高于此值的结果。
-                        设置为 None 则不过滤。建议值: 0.5-0.8
+        score_threshold: 分数阈值，仅返回分数高于此值的结果。设置为 None 则不过滤。
 
     Returns:
         JSON 格式的检索结果字符串，包含以下字段:
