@@ -11,7 +11,7 @@ from datetime import datetime
 
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
-from langchain.agents.middleware import ToolRetryMiddleware, ShellToolMiddleware
+from langchain.agents.middleware import ToolRetryMiddleware, ShellToolMiddleware, FilesystemFileSearchMiddleware
 from langchain.agents.middleware._execution import DockerExecutionPolicy
 from langchain_core.messages import AIMessage
 
@@ -134,6 +134,8 @@ class DataAnalyserAgent:
             "default_query_limit": 1000,
             "max_tokens_before_summary": 50000,
             "messages_to_keep": 20,
+            "shell_tool_docker_mem_size": 4,
+            "shell_tool_docker_cpu_size": 2,
         }
 
         # 会话管理 - 按会话ID隔离文件
@@ -181,19 +183,19 @@ class DataAnalyserAgent:
                         on_failure="continue" # 会包装错误信息返回给LLM
                     ),
                     ShellToolMiddleware(
+                        workspace_root=self.output_dir.resolve(),
                         execution_policy=DockerExecutionPolicy(
                             image="taosha-sandbox:latest",  # 刚才 build 的镜像
                             user='sandbox',                  # 容器内用户名
                             read_only_rootfs=True,           # 根分区只读，写操作只能挂 volume
-                            cpus="2",
-                            memory_bytes=4 * 1024 * 1024 * 1024,  # 4GB内存
+                            cpus=self.shell_tool_docker_cpu_size,
+                            memory_bytes=self.shell_tool_docker_mem_size * 1024 * 1024 * 1024,  # 4GB内存
                             network_enabled=False,
-                            extra_run_args=[
-                                "-v", f"{self.output_dir.resolve()}:/home/sandbox/app:rw"
-                            ],
-                            remove_container_on_exit=False
                         ),   # 用 Docker 隔离
-                    )
+                    ),
+                    FilesystemFileSearchMiddleware(
+                        root_path=str(self.output_dir)
+                    ),
                 ],
             )
 
