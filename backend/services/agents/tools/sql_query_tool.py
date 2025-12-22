@@ -5,6 +5,8 @@ SQL 查询工具
 
 import json
 from typing import TYPE_CHECKING
+from pathlib import Path
+from datetime import datetime
 from langfuse import observe
 from langchain.tools import tool, ToolRuntime
 from utils.logger import logger
@@ -18,7 +20,8 @@ if TYPE_CHECKING:
 def sql_query(
     sql: str,
     runtime: ToolRuntime["DataAnalysisContext"],
-    limit: int = 1000
+    limit: int = 1000,
+    save_to_file: bool = False
 ) -> str:
     """
     执行 SQL 查询并返回结果
@@ -27,14 +30,16 @@ def sql_query(
     Args:
         sql: SQL 查询语句。支持标准 SQL 语法，可以进行 SELECT、JOIN、GROUP BY 等操作
         limit: 结果行数限制，默认 1000 行。设置为 0 则不限制
+        save_to_file: 是否将查询结果保存到文件，默认 False。如果为 True，结果会保存为 CSV 格式
 
     Returns:
         JSON 格式的查询结果字符串，包含以下字段:
         - success: bool, 是否成功
         - row_count: int, 返回的行数
         - columns: list, 列名列表
-        - data: list[dict], 查询结果数据
+        - data: list[dict], 查询结果数据（如果保存到文件，此字段为空列表）
         - sql: str, 实际执行的 SQL
+        - file_path: str, 保存的文件相对路径（仅在 save_to_file=True 时）
         - error: str, 错误信息（仅在失败时）
 
     Examples:
@@ -46,6 +51,9 @@ def sql_query(
 
         # 不限制行数
         sql_query("SELECT * FROM large_table WHERE ETL_DATE='2025-09-30' ", limit=0)
+
+        # 保存到文件
+        sql_query("SELECT * FROM large_table WHERE ETL_DATE='2025-09-30'", save_to_file=True)
     """
     # 从运行时上下文获取配置
     ctx = runtime.context
@@ -88,13 +96,46 @@ def sql_query(
 
         logger.info(f"SQL查询成功，返回 {len(data)} 行数据")
 
-        return json.dumps({
+        # 如果需要保存到文件
+        result = {
             "success": True,
             "row_count": len(data),
             "columns": columns,
-            "data": data,
             "sql": sql
-        }, ensure_ascii=False, default=str)
+        }
+
+        if save_to_file:
+            try:
+                # 获取输出目录
+                output_dir = Path(ctx.output_dir)
+                output_dir.mkdir(parents=True, exist_ok=True)
+
+                # 生成文件名（使用时间戳）
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"query_result_{timestamp}.csv"
+                file_path = output_dir / filename
+
+                # 保存为CSV
+                import pandas as pd
+                df = pd.DataFrame(data)
+                df.to_csv(file_path, index=False, encoding="utf-8-sig")
+
+                # 计算相对路径（相对于output_dir的父目录）
+                relative_path = file_path.name
+
+                logger.info(f"查询结果已保存到文件: {relative_path}")
+
+                result["file_path"] = relative_path
+                result["data"] = []  # 保存到文件时不返回数据，减少内存占用
+
+            except Exception as file_error:
+                logger.error(f"保存文件失败: {file_error}")
+                result["data"] = data
+                result["warning"] = f"保存文件失败: {str(file_error)}"
+        else:
+            result["data"] = data
+
+        return json.dumps(result, ensure_ascii=False, default=str)
 
     except Exception as e:
         logger.error(f"SQL查询失败: {e}")
