@@ -11,12 +11,11 @@ from datetime import datetime
 
 from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage
-from langfuse.decorators import observe
 
 from services.llm_service.base_llm_service import BaseLLMService
 from services.agents.tools.sql_query_tool import sql_query
 from services.agents.tools.common_tools import get_date_range
-from services.agents.tools.history_analysis_tool import (
+from services.agents.tools.deepagents.history_analysis_tool import (
     get_analysis_history,
     search_analysis_history
 )
@@ -106,7 +105,6 @@ class QuestionProposerAgent:
             logger.error(f"QuestionProposerAgent Agent 创建失败: {e}")
             raise
 
-    @observe(name="propose_topics")
     def propose_topics(self, context: Optional[str] = None) -> Dict[str, Any]:
         """提出分析主题
 

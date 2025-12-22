@@ -158,9 +158,9 @@ class DataAnalyserAgent:
         try:
             # 准备工具列表
             tools = [
-                sql_query,                  # SQL 查询工具
+                # sql_query,                  # SQL 查询工具
                 # execute_code,               # Python 代码执行工具
-                search_knowledge_base,      # 知识库检索工具
+                # search_knowledge_base,      # 知识库检索工具
                 # get_date_range,             # 日期范围工具
                 # get_metrics,                # 指标数据工具
             ]
@@ -181,7 +181,6 @@ class DataAnalyserAgent:
                         on_failure="continue" # 会包装错误信息返回给LLM
                     ),
                     ShellToolMiddleware(
-                        workspace_root="/workspace",      # 容器里会 cd 到这里
                         execution_policy=DockerExecutionPolicy(
                             image="taosha-sandbox:latest",  # 刚才 build 的镜像
                             user='sandbox',                  # 容器内用户名
@@ -189,12 +188,10 @@ class DataAnalyserAgent:
                             cpus="2",
                             memory_bytes=4 * 1024 * 1024 * 1024,  # 4GB内存
                             network_enabled=False,
-                            volumes={
-                                str(self.output_dir): {
-                                    "bind": "/workspace",
-                                    "mode": "rw"         # 读写模式
-                                }
-                            }
+                            extra_run_args=[
+                                "-v", f"{self.output_dir.resolve()}:/home/sandbox/app:rw"
+                            ],
+                            remove_container_on_exit=False
                         ),   # 用 Docker 隔离
                     )
                 ],

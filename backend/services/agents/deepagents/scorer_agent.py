@@ -11,10 +11,9 @@ from datetime import datetime
 
 from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage
-from langfuse.decorators import observe
 
 from services.llm_service.base_llm_service import BaseLLMService
-from services.agents.tools.session_reader_tool import (
+from services.agents.tools.deepagents.session_reader_tool import (
     read_session_info,
     read_session_report,
     read_session_llm_output,
@@ -153,7 +152,6 @@ class ScorerAgent:
             logger.error(f"ScorerAgent Agent 创建失败: {e}")
             raise
 
-    @observe(name="evaluate_session")
     def evaluate_session(self, session_id: str) -> Dict[str, Any]:
         """评估分析会话
 

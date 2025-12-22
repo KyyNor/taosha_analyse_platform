@@ -302,6 +302,7 @@ async def execute_code_async(
 
         # 创建执行结果文件路径
         result_file = session_path / "result.json"
+        c_file = {code.replace("'", "\\'")}
 
         # 包装代码以捕获结果
         wrapped_code = f"""
@@ -328,7 +329,7 @@ result_data = {{
 try:
     # 执行用户代码
     exec_globals = {{}}
-    exec('''{code.replace("'", "\\'")}''', exec_globals)
+    exec('''{c_file}''', exec_globals)
 
     # 获取 result 变量（如果存在）
     if 'result' in exec_globals:

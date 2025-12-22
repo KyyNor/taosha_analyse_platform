@@ -51,6 +51,7 @@ COPY --from=builder /app/.venv /home/sandbox/.venv
 
 # 设置虚拟环境权限
 RUN chown -R sandbox:sandbox /home/sandbox/.venv
+RUN mkdir -p /home/sandbox/workspace && chown 1000:1000 /home/sandbox/workspace
 
 # 设置工作目录
 WORKDIR /home/sandbox/app

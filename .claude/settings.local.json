@@ -67,7 +67,8 @@
       "Bash(python3:*)",
       "Bash(source .venv/bin/activate)",
       "mcp__tavily__tavily_extract",
-      "Bash(npm run build:charts:*)"
+      "Bash(npm run build:charts:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": [],

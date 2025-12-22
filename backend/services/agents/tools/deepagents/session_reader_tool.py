@@ -6,7 +6,6 @@
 
 from typing import Optional
 from langchain_core.tools import tool
-from langfuse.decorators import observe
 
 from models import SessionLocal
 from repositories.deepagents import AnalysisSessionRepository
@@ -14,7 +13,6 @@ from utils.logger import logger
 
 
 @tool
-@observe(name="read_session_info")
 def read_session_info(session_id: str) -> str:
     """读取分析会话的基本信息
 
@@ -65,7 +63,6 @@ def read_session_info(session_id: str) -> str:
 
 
 @tool
-@observe(name="read_session_report")
 def read_session_report(session_id: str) -> str:
     """读取分析会话的 HTML 报告内容
 
@@ -105,7 +102,6 @@ def read_session_report(session_id: str) -> str:
 
 
 @tool
-@observe(name="read_session_llm_output")
 def read_session_llm_output(session_id: str) -> str:
     """读取分析会话中大模型的完整输出
 

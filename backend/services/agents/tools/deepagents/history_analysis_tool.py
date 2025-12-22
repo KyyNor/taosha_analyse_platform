@@ -6,7 +6,6 @@
 
 from typing import List, Dict, Any, Optional
 from langchain_core.tools import tool
-from langfuse.decorators import observe
 
 from models import SessionLocal
 from repositories.deepagents import AnalysisSessionRepository
@@ -14,7 +13,6 @@ from utils.logger import logger
 
 
 @tool
-@observe(name="get_analysis_history")
 def get_analysis_history(limit: int = 10) -> str:
     """获取历史分析问题和评分摘要
 
@@ -62,7 +60,6 @@ def get_analysis_history(limit: int = 10) -> str:
 
 
 @tool
-@observe(name="search_analysis_history")
 def search_analysis_history(keyword: str) -> str:
     """根据关键词搜索历史分析记录
 
