@@ -237,6 +237,9 @@ class ConfigManager:
 
             scheduler_offline_wide_table_sync: int = self._config_data.get('scheduler', {}).get('offline_wide_table_sync', 60)
             scheduler_model_runner_interval: int = self._config_data.get('scheduler', {}).get('model_runner_interval', 600)
+            scheduler_metadata_sync_interval: int = self._config_data.get('scheduler', {}).get('metadata_sync_interval', 3600)
+            scheduler_fine_report_sync_interval: int = self._config_data.get('scheduler', {}).get('fine_report_sync_interval', 3600)
+            scheduler_vector_training_interval: int = self._config_data.get('scheduler', {}).get('vector_training_interval', 1800)
 
             class Config:
                 env_prefix = self._config_data.get('env_prefix', 'TAOSHA_')

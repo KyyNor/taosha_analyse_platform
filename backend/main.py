@@ -33,10 +33,7 @@ from api.fraudhunter import (
 from services.query_engine import get_query_engine
 from services.nlquery_service.async_query_service import get_async_query_service
 from models.db_base import get_db_session
-from services.vector_store.vector_training_service import VectorTrainingService
 from services.tracking_service.observability_service import initialize_observability
-from services.metadata_service.metadata_sync_service import MetadataSyncService
-from services.metadata_service.fine_report_sync_service import FineReportSyncService
 
 # 全局变量：实时数据消费者实例
 _realtime_consumer = None
@@ -204,31 +201,6 @@ async def _initialize_system_services():
         # 初始化PySpark服务（如果配置启用）
         await _initialize_pyspark()
 
-        # 初始化向量数据库训练服务和元数据同步
-        with get_db_session() as db:
-            vector_training_service = VectorTrainingService(db)
-
-            # 异步执行向量数据库训练
-            import asyncio
-            asyncio.create_task(_train_vector_database_async(vector_training_service))
-
-            logger.info("向量数据库训练服务初始化完成，开始后台训练...")
-
-            # 执行元数据同步
-            metadata_sync_service = MetadataSyncService(db)
-            sync_result = metadata_sync_service.sync_metadata()
-            if sync_result["success"]:
-                logger.info("元数据同步完毕")
-            else:
-                logger.error(f"元数据同步失败: {sync_result.get('error', 'Unknown error')}")
-
-            # 执行FineReport报表同步
-            fine_report_sync_service = FineReportSyncService(db)
-            fine_report_sync_result = fine_report_sync_service.sync_reports()
-            if fine_report_sync_result["success"]:
-                logger.info("FineReport报表同步完毕")
-            else:
-                logger.error(f"FineReport报表同步失败: {fine_report_sync_result.get('error', 'Unknown error')}")
 
         # 启动实时数据服务（如果配置启用）
         # 注意：在启动锁保护内启动，确保只有一个worker执行
@@ -254,7 +226,10 @@ async def _initialize_system_services():
             from services.scheduler import scheduler_service
             from services.scheduler.jobs import (
                 sync_all_wide_tables_job,
-                generate_realtime_wide_table_job
+                generate_realtime_wide_table_job,
+                metadata_sync_job,
+                fine_report_sync_job,
+                vector_training_job
             )
 
             # 注册离线宽表同步任务
@@ -271,6 +246,30 @@ async def _initialize_system_services():
                 seconds=settings.scheduler_model_runner_interval,
                 job_id='generate_realtime_wide_table_job',
                 job_name='实时指标宽表生成'
+            )
+
+            # 注册元数据同步任务
+            scheduler_service.add_interval_job(
+                func=metadata_sync_job,
+                seconds=settings.scheduler_metadata_sync_interval,
+                job_id='metadata_sync',
+                job_name='元数据同步'
+            )
+
+            # 注册FineReport报表同步任务
+            scheduler_service.add_interval_job(
+                func=fine_report_sync_job,
+                seconds=settings.scheduler_fine_report_sync_interval,
+                job_id='fine_report_sync',
+                job_name='FineReport报表同步'
+            )
+
+            # 注册向量数据库训练任务
+            scheduler_service.add_interval_job(
+                func=vector_training_job,
+                seconds=settings.scheduler_vector_training_interval,
+                job_id='vector_training',
+                job_name='向量数据库训练'
             )
 
             # 添加实时数据清理任务
@@ -301,23 +300,6 @@ async def _initialize_system_services():
         _release_startup_lock()
 
 
-async def _train_vector_database_async(vector_training_service: VectorTrainingService):
-    """异步执行向量数据库训练
-
-    Args:
-        vector_training_service: 向量训练服务实例
-    """
-    try:
-        logger.info("开始执行向量数据库训练...")
-        result = vector_training_service.train_vector_database("应用启动时的向量数据库初始化")
-
-        if result["success"]:
-            logger.info(f"向量数据库训练成功: {result}")
-        else:
-            logger.error(f"向量数据库训练失败: {result.get('error', 'Unknown error')}")
-
-    except Exception as e:
-        logger.error(f"异步向量数据库训练异常: {e}", exc_info=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

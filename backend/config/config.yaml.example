@@ -311,3 +311,6 @@ fraudhunter:
 scheduler:
   offline_wide_table_sync: 60 # 秒，检查是否可以同步的间隔
   model_runner_interval: 300  # 秒，实时指标生成间隔（5分钟）
+  metadata_sync_interval: 28800  # 秒，元数据同步间隔（8小时）
+  fine_report_sync_interval: 28800  # 秒，FineReport报表同步间隔（8小时）
+  vector_training_interval: 1800  # 秒，向量数据库训练间隔（30分钟）
