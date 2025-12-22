@@ -11,7 +11,8 @@ from datetime import datetime
 
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
-from langchain.agents.middleware import SummarizationMiddleware
+from langchain.agents.middleware import ToolRetryMiddleware, ShellToolMiddleware
+from langchain.agents.middleware._execution import DockerExecutionPolicy
 from langchain_core.messages import AIMessage
 
 from services.llm_service.base_llm_service import BaseLLMService
@@ -165,7 +166,7 @@ class DataAnalyserAgent:
             ]
 
             # 创建 DeepAgent
-            # deepagents 自动包含: TodoListMiddleware, FilesystemMiddleware, SubAgentMiddleware
+            # deepagents 自动包含: TodoListMiddleware, FilesystemMiddleware, SubAgentMiddleware， SummarizationMiddleware
             self.agent = create_deep_agent(
                 model=self.llm_service.client,
                 tools=tools,
@@ -175,6 +176,27 @@ class DataAnalyserAgent:
                     virtual_mode=True
                 ),
                 middleware=[
+                    ToolRetryMiddleware(
+                        max_retries=2, # 指的是重试的次数
+                        on_failure="continue" # 会包装错误信息返回给LLM
+                    ),
+                    ShellToolMiddleware(
+                        workspace_root="/workspace",      # 容器里会 cd 到这里
+                        execution_policy=DockerExecutionPolicy(
+                            image="taosha-sandbox:latest",  # 刚才 build 的镜像
+                            user='sandbox',                  # 容器内用户名
+                            read_only_rootfs=True,           # 根分区只读，写操作只能挂 volume
+                            cpus="2",
+                            memory_bytes=4 * 1024 * 1024 * 1024,  # 4GB内存
+                            network_enabled=False,
+                            volumes={
+                                str(self.output_dir): {
+                                    "bind": "/workspace",
+                                    "mode": "rw"         # 读写模式
+                                }
+                            }
+                        ),   # 用 Docker 隔离
+                    )
                 ],
             )
 

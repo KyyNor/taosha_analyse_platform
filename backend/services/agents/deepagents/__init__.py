@@ -13,9 +13,6 @@ DeepAgents 多智能体协作模块
 
     # 手动指定问题
     python -m services.agents.deepagents.multi_agent_pipeline -q "分析问题"
-
-    # 单独运行数据分析智能体（旧方式）
-    python -m services.agents.deepagents "分析问题"
 """
 
 from services.agents.deepagents.data_analyser_agent import (
