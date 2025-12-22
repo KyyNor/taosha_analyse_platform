@@ -111,6 +111,14 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
 - 报告要结构清晰，易于理解
 """
 
+SHELL_TOOL_DESCRIPTION = """
+在持久会话中执行 shell 命令。运行命令前，请确认当前工作目录正确（例如用 ls 或 pwd 检查），并确保所有父目录已存在。
+优先使用绝对路径；若路径包含空格，请用引号包裹，例如 cd "/path/with spaces"。多个命令请用 && 或 ; 串联，不要使用换行。
+除非确实需要，否则避免频繁使用 cd,以保持会话稳定。
+输出过大时可能被截断，长时间运行的命令在达到配置的超时时间后将被强制终止。
+本系统中包含Python3.11环境,并包含科学计算相关的库,如numpy、pandas、matplotlib等,你可以使用pip list来查看环境清单。
+"""
+
 class DataAnalyserAgent:
     """DeepAgents 数据分析智能体"""
 
@@ -183,6 +191,7 @@ class DataAnalyserAgent:
                         on_failure="continue" # 会包装错误信息返回给LLM
                     ),
                     ShellToolMiddleware(
+                        tool_description=SHELL_TOOL_DESCRIPTION,
                         workspace_root=self.output_dir.resolve(),
                         execution_policy=DockerExecutionPolicy(
                             image="taosha-sandbox:latest",  # 刚才 build 的镜像
