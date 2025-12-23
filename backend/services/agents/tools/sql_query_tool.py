@@ -108,7 +108,7 @@ def sql_query(
         if save_to_file:
             try:
                 # 获取输出目录
-                output_dir = Path(ctx.output_dir)
+                output_dir = Path(ctx.output_dir) / "data"
                 output_dir.mkdir(parents=True, exist_ok=True)
 
                 # 生成文件名（使用时间戳）
