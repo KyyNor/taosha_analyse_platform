@@ -163,6 +163,7 @@ embeddings_model/*
 !embeddings_model/xinference_start.sh
 !embeddings_model/main.py
 !embeddings_model/README.md
+!embeddings_model/requirements-lock.txt
 
 .gemini/
 
