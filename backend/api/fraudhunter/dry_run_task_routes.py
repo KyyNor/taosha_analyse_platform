@@ -110,17 +110,19 @@ async def cancel_task(
 async def list_task_executions(
     task_type: Optional[str] = Query(None, description="任务类型筛选（indicator/model）"),
     task_id: Optional[int] = Query(None, description="任务ID筛选"),
+    result_summary: Optional[str] = Query(None, description="结果摘要搜索（LIKE %%）"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     db: Session = Depends(get_db)
 ):
     """查询任务执行历史
 
-    支持按任务类型和任务ID筛选
+    支持按任务类型、任务ID和结果摘要筛选
 
     参数:
     - task_type: 任务类型（indicator/model）
     - task_id: 任务ID（指标组ID或模型ID）
+    - result_summary: 结果摘要搜索（支持模糊搜索）
     - page: 页码
     - page_size: 每页数量
 
@@ -133,6 +135,7 @@ async def list_task_executions(
             db=db,
             task_type=task_type,
             task_id=task_id,
+            result_summary=result_summary,
             page=page,
             page_size=page_size
         )

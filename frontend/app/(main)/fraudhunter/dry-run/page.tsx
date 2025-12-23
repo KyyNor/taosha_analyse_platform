@@ -29,6 +29,7 @@ export default function TasksPage() {
   const [taskTypeFilter, setTaskTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [taskIdFilter, setTaskIdFilter] = useState<string>("");
+  const [resultSummaryFilter, setResultSummaryFilter] = useState<string>("");
 
   // 加载任务列表
   const load = async () => {
@@ -41,6 +42,7 @@ export default function TasksPage() {
       if (taskTypeFilter !== "all") params.task_type = taskTypeFilter;
       if (statusFilter !== "all") params.status = statusFilter;
       if (taskIdFilter.trim()) params.task_id = Number(taskIdFilter);
+      if (resultSummaryFilter.trim()) params.result_summary = resultSummaryFilter;
 
       const response = await taskService.list(params);
       setData(response.items || []);
@@ -62,12 +64,12 @@ export default function TasksPage() {
   // 初始加载
   useEffect(() => {
     load();
-  }, [taskTypeFilter, statusFilter, taskIdFilter, currentPage]);
+  }, [taskTypeFilter, statusFilter, taskIdFilter, resultSummaryFilter, currentPage]);
 
   // 筛选条件变化时重置到第一页
   useEffect(() => {
     setCurrentPage(1);
-  }, [taskTypeFilter, statusFilter, taskIdFilter]);
+  }, [taskTypeFilter, statusFilter, taskIdFilter, resultSummaryFilter]);
 
   // 分页处理
   const handlePageChange = (page: number) => {
@@ -138,7 +140,7 @@ export default function TasksPage() {
       </div>
 
       {/* 筛选器 */}
-      <div className="flex gap-4 mb-4">
+      <div className="flex gap-4 mb-4 flex-wrap">
         <Select value={taskTypeFilter} onValueChange={setTaskTypeFilter}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="试运行任务类型筛选" />
@@ -171,6 +173,13 @@ export default function TasksPage() {
           onChange={(e) => setTaskIdFilter(e.target.value)}
           className="w-[200px]"
           type="number"
+        />
+
+        <Input
+          placeholder="按结果搜索..."
+          value={resultSummaryFilter}
+          onChange={(e) => setResultSummaryFilter(e.target.value)}
+          className="w-[200px]"
         />
       </div>
 
