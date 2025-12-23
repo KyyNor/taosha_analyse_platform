@@ -44,7 +44,6 @@ def sql_query(
         - success: bool
         - row_count: int
         - columns: list
-        - sql: str
         - data: list[dict] (save_to_file=True时为空)
         - file_path: str (仅save_to_file=True时存在)
         - error: str (仅失败时)
@@ -104,7 +103,6 @@ def sql_query(
             "success": True,
             "row_count": len(data),
             "columns": columns,
-            "sql": sql,
         }
 
         if save_to_file:
@@ -158,7 +156,49 @@ def sql_query(
         return json.dumps({
             "success": False,
             "error": str(e),
-            "sql": sql,
             "row_count": 0,
             "data": []
         }, ensure_ascii=False)
+
+
+@tool
+@observe(name="execute_sql_query")
+def execute_sql_query(
+    sql: str,
+    runtime: ToolRuntime["DataAnalysisContext"],
+    limit: int = 100
+) -> str:
+    """
+    执行 SQL 查询并直接返回数据结果
+    注意，查询除hxb_dh_data_dim外的表必须带ETL_DATE/CDATE查询条件
+
+    Args:
+        sql: SQL 查询语句
+        limit: 结果行数限制，默认100行。设置为0则不限制（谨慎使用）
+
+    Returns:
+        JSON格式字符串，包含：
+        - success: bool
+        - row_count: int
+        - columns: list
+        - data: list[dict] 查询结果数据
+        - error: str (仅失败时)
+
+    Examples:
+        # 聚合统计
+        execute_sql_query("SELECT status, COUNT(*) as cnt FROM orders WHERE ETL_DATE='2025-09-30' GROUP BY status")
+
+        # 小数据集查询
+        execute_sql_query("SELECT * FROM users WHERE ETL_DATE='2025-09-30' AND age > 60", limit=50)
+
+        # 数据质量检查
+        execute_sql_query("SELECT COUNT(*) as null_count FROM users WHERE email IS NULL AND ETL_DATE='2025-09-30'")
+    """
+    # 直接调用 sql_query，固定 save_to_file=False
+    return sql_query(
+        sql=sql,
+        runtime=runtime,
+        limit=limit,
+        save_to_file=False,
+        file_description=None
+    )
