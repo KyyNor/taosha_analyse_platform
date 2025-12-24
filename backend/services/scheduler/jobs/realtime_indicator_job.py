@@ -359,6 +359,15 @@ async def generate_realtime_wide_table_job():
 
             for _, row in matched_df.iterrows():
                 account_id = str(row.get('realtime_target_id', ''))
+                offline_cust_type = str(row.get('offline_cust_type', ''))
+                
+                if offline_cust_type == '个人':
+                    cust_type = '01'
+                elif offline_cust_type == '对公':
+                    cust_type = '02'
+                else:
+                    cust_type = '03'
+
                 hit_model_list = row.get('model_hit_array', [])
 
                 if not hit_model_list or len(hit_model_list) == 0:
@@ -405,7 +414,7 @@ async def generate_realtime_wide_table_job():
                 indicator_data = {}
 
                 for k, v in row.items():
-                    if k != 'model_hit_array':
+                    if k == 'model_hit_array':
                         continue
                     
                     if pd.isna(v):
@@ -428,7 +437,7 @@ async def generate_realtime_wide_table_job():
 
                 # 3.3 处理命中记录（生成告警管控记录）
                 # 白名单账号不触发告警和管控，但仍记录
-                manager.hit_record_processor(hit_record, is_whitelist=is_whitelist)
+                manager.hit_record_processor(hit_record, is_whitelist=is_whitelist, cust_type=cust_type)
 
                 whitelist_tag = "[白名单]" if is_whitelist else ""
                 logger.info(
@@ -550,8 +559,9 @@ def _build_model_matching_sql(
 
     # 构建 SELECT 字段列表
     select_fields = [
-        "dep_acct_realtime_indicator.target_id AS realtime_target_id",
-        "dep_acct_realtime_indicator.etl_date AS realtime_etl_date",
+        "dep_acct_realtime_indicator.target_id                  AS realtime_target_id",
+        "dep_acct_offline_indicator.i_dep_acct_no_offline_00007 AS offline_cust_type",
+        "dep_acct_realtime_indicator.etl_date                   AS realtime_etl_date",
         "dep_acct_realtime_indicator.*",  # 实时存款指标
         "dep_acct_offline_indicator.*",   # 离线存款指标
         "cust_offline_indicator.*",       # 离线客户指标

@@ -103,6 +103,7 @@ class ModelHitAlertManager:
     def hit_record_processor(
         self,
         hit_record: FraudHunterModelHitRecord,
+        cust_type: str,
         is_whitelist: bool = False
     ) -> FraudHunterModelAlertControlRecord:
         """处理命中记录，生成告警管控记录
@@ -168,7 +169,7 @@ class ModelHitAlertManager:
                 alert_control_record.control_status = 'duplicate'
             else:
                 # 首次管控，调用管控接口
-                control_resp = self._call_control_api(hit_record.account_id)
+                control_resp = self._call_control_api(hit_record.account_id, account_type=cust_type)
 
                 if control_resp:
                     # 管控接口调用成功，从响应中提取流水号
@@ -317,7 +318,7 @@ class ModelHitAlertManager:
         
         return existing_control is not None
 
-    def _call_control_api(self, account_id: str, account_type: str = "1") -> Optional[Dict[str, Any]]:
+    def _call_control_api(self, account_id: str, account_type: str = "01") -> Optional[Dict[str, Any]]:
         """调用管控接口
 
         Args:
@@ -338,7 +339,7 @@ class ModelHitAlertManager:
                         "body": {
                             "acctNo": account_id,
                             "acctType": account_type,
-                            "resAbs": "淘沙实时管控模型"
+                            "resAbs": "武汉分行监测系统"
                         }
                     }
                 }
