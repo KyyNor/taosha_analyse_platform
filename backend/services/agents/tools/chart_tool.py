@@ -5,9 +5,14 @@
 """
 import json
 import math
+from datetime import datetime
 from typing import Dict, Any, List, Union, Optional
+from pathlib import Path
 from langfuse import observe
+from langchain.tools import tool, ToolRuntime
 from utils.logger import logger
+
+from services.agents.models.deep_agent_context import DataAnalysisContext
 
 # Bokeh 导入（用于 create_chart_html）
 try:
@@ -600,19 +605,16 @@ def _json_to_bokeh(config: dict, width: int, height: int):
 @observe(name="create_chart_html")
 def create_chart_html(
     chart_type: str,
+    runtime: ToolRuntime["DataAnalysisContext"],
     data: Union[List[Dict[str, Any]], str],
     title: str = "",
     description: str = "",
     width: int = 800,
     height: int = 400,
-    embed_mode: str = "full",
     **kwargs
 ) -> str:
     """
-    生成可直接嵌入 HTML 的离线图表代码块
-
-    内部复用 create_chart 生成 JSON 配置，然后转换为 Bokeh HTML。
-    生成的 HTML 完全离线，不依赖任何 CDN。
+    生成可直接嵌入 HTML 的离线图表代码块，会返回带图表 div 和 script 标签的文件路径，读取文件时注意token消耗
 
     Args:
         chart_type: 图表类型，支持 'line'（折线图）、'pie'（饼图）、'bar'（柱状图）
@@ -621,23 +623,23 @@ def create_chart_html(
         description: 图表描述
         width: 图表宽度（像素）
         height: 图表高度（像素）
-        embed_mode: 嵌入模式
-            - "full": 返回完整的 HTML 文档（包含 <!DOCTYPE html>）
-            - "div": 只返回图表 div 和 script 标签（用于嵌入到现有 HTML）
-        **kwargs: 其他图表参数（与 create_chart 相同）
+        x_key: X轴数据字段名（用于折线图和柱状图）
+        y_keys: Y轴数据字段名，可以是单个字段名或字段名列表
+        **kwargs: 其他图表参数，如：
+            - colors: 颜色列表
+            - height: 图表高度
+            - show_legend: 是否显示图例
+            - show_grid: 是否显示网格（用于折线图和柱状图）
+            - stacked: 是否堆叠（仅用于柱状图）
+            - orientation: 方向，'vertical' 或 'horizontal'（仅用于柱状图）
+            - inner_radius: 内圆半径（用于饼图环形图）
+            - outer_radius: 外圆半径（用于饼图）
+            - show_percentage: 是否显示百分比（用于饼图）
 
     Returns:
-        包含完整 HTML 的字符串（内嵌所有 CSS/JS，不依赖 CDN）
+        包含图表div、script的可嵌入的 HTML 片段路径
 
     Examples:
-        # 生成完整的 HTML 文件
-        html = create_chart_html(
-            chart_type="line",
-            data=[{"month": "1月", "sales": 100}, {"month": "2月", "sales": 150}],
-            title="月度销售趋势",
-            x_key="month",
-            y_keys=["sales"]
-        )
 
         # 生成可嵌入的 HTML 片段
         html_fragment = create_chart_html(
@@ -682,25 +684,31 @@ def create_chart_html(
         p = _json_to_bokeh(config, width, height)
 
         # 4. 生成 HTML
-        if embed_mode == "full":
-            # 生成完整的 HTML 文档（使用 INLINE 资源，完全离线）
-            html = file_html(p, resources=INLINE, title=title or "图表")
-        else:
-            # 只生成 script 和 div 部分
-            script, div = components(p)
-            # 还需要包含 INLINE 资源
-            inline_resources = INLINE.render()
-            html = f"""
-            <!-- Bokeh 资源 -->
-            {inline_resources}
-            <!-- 图表容器 -->
-            {div}
-            <!-- 图表脚本 -->
-            {script}
-            """
+        # 只生成 script 和 div 部分
+        script, div = components(p)
+        # 还需要包含 INLINE 资源
+        inline_resources = INLINE.render()
+        html = f"""
+        <!-- Bokeh 资源 -->
+        {inline_resources}
+        <!-- 图表容器 -->
+        {div}
+        <!-- 图表脚本 -->
+        {script}
+        """
+
+        output_dir = Path(runtime.context.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"chart_html_{timestamp}.html"
+
+        file_path = output_dir / filename
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(html)
+        relative_path = file_path.name
 
         logger.info(f"成功创建{chart_type}图表HTML，大小: {len(html)} 字节")
-        return html
+        return "/analysis/" + relative_path
 
     except Exception as e:
         logger.error(f"创建图表HTML时发生错误: {e}")
