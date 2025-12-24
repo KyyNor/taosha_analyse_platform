@@ -18,8 +18,6 @@ DeepAgents 多智能体协作模块
 from services.agents.deepagents.data_analyser_agent import (
     DataAnalyserAgent,
     create_data_analyser_agent,
-    # 向后兼容别名
-    DeepAnalyseAgentService,
     create_deep_analyse_service,
 )
 from services.agents.deepagents.question_proposer_agent import (
@@ -41,7 +39,5 @@ __all__ = [
     # 评分智能体
     "ScorerAgent",
     "create_scorer_agent",
-    # 向后兼容
-    "DeepAnalyseAgentService",
     "create_deep_analyse_service",
 ]

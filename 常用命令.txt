@@ -38,3 +38,7 @@ export HIVE_CONF_DIR=$SPARK_HOME/conf
 export PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-*.zip:$PYTHONPATH
 4、拷贝jdk8到 ~/jdk8 目录
 注意：本机的hostname不能有下划线
+
+
+安装tar gz包的时候会尝试在独立环境中构建，但是因为未连接互联网因此无法构建独立环境，可以加--no-build-isolation直接使用当前环境构建
+uv pip install ../emb_wheels/* --no-build-isolation

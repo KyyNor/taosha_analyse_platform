@@ -90,6 +90,9 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
    - 完成所有 todos 后，将最终分析报告写入 /report.html
    - 报告应包含：分析背景、数据来源、分析过程、关键发现、结论建议
 
+   
+## 工具使用提示
+调用查询工具除hxb_dh_data_dim外的表必须带ETL_DATE/CDATE查询条件
 
 ## 文件系统使用
 - /data/ - 存放查询到的原始数据
@@ -141,7 +144,7 @@ class DataAnalyserAgent:
             "max_tokens_before_summary": 50000,
             "messages_to_keep": 20,
             "shell_tool_docker_mem_size": 4,
-            "shell_tool_docker_cpu_size": 2,
+            "shell_tool_docker_cpu_size": "2",
         }
 
         # 会话管理 - 按会话ID隔离文件
@@ -178,7 +181,7 @@ class DataAnalyserAgent:
                 model=self.llm_service.client,
                 tools=tools,
                 system_prompt=DATA_ANALYSIS_SYSTEM_PROMPT,
-                context_schema=DataAnalysisContext,  # ✅ 添加上下文模式
+                context_schema=DataAnalysisContext,  
                 backend=FilesystemBackend(
                     root_dir=str(self.output_dir),
                     virtual_mode=True
@@ -195,8 +198,8 @@ class DataAnalyserAgent:
                             image="taosha-sandbox:latest",  # 刚才 build 的镜像
                             user='sandbox',                  # 容器内用户名
                             read_only_rootfs=True,           # 根分区只读，写操作只能挂 volume
-                            cpus=self.config["shell_tool_docker_cpu_size"],
-                            memory_bytes=self.config["shell_tool_docker_mem_size"] * 1024 * 1024 * 1024,  # 4GB内存
+                            cpus=self._config["shell_tool_docker_cpu_size"],
+                            memory_bytes=self._config["shell_tool_docker_mem_size"] * 1024 * 1024 * 1024,  # 4GB内存
                             network_enabled=False,
                         ),   # 用 Docker 隔离
                     ),
@@ -205,6 +208,7 @@ class DataAnalyserAgent:
                     ),
                 ],
             )
+            self.agent
 
             logger.info("DeepAgent 创建成功")
 
@@ -234,11 +238,13 @@ class DataAnalyserAgent:
             from utils.config import settings
             from langfuse import get_client
             from langfuse import propagate_attributes
+            from langfuse.langchain import CallbackHandler
 
             os.environ["LANGFUSE_PUBLIC_KEY"] = settings.langfuse_public_key
             os.environ["LANGFUSE_SECRET_KEY"] = settings.langfuse_secret_key
             os.environ["LANGFUSE_HOST"] = settings.langfuse_host
             _langfuse_client = get_client()
+            _langfuse_handler = CallbackHandler()
 
             # 创建运行时上下文
             analysis_context = DataAnalysisContext(
@@ -252,7 +258,8 @@ class DataAnalyserAgent:
                 with propagate_attributes(user_id=user_id, session_id=self.session_id):
                     result = self.agent.invoke(
                         {"messages": [{"role": "user", "content": question}]},
-                        context=analysis_context  # ✅ 传递上下文
+                        context=analysis_context,
+                        config={"callbacks":[_langfuse_handler]}
                     )
 
             for i, message in enumerate(result['messages']):
@@ -475,5 +482,4 @@ def create_data_analyser_agent(
 
 
 # 向后兼容别名
-DeepAnalyseAgentService = DataAnalyserAgent
 create_deep_analyse_service = create_data_analyser_agent
