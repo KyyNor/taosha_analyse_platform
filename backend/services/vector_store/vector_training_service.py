@@ -429,6 +429,9 @@ class VectorTrainingService:
 
             columns = self.column_repo.get_by_table_id(table_id)
 
+            # 只保留可用的字段（is_available == 0）
+            available_columns = [col for col in columns if col.is_available == 0]
+
             # 构建表结构描述
 
             comment = ''
@@ -437,7 +440,7 @@ class VectorTrainingService:
 
             doc_lines = [f"表名: {table.name} {comment}", "字段信息:"]
 
-            for col in columns:
+            for col in available_columns:
                 col_name = col.name
                 col_type = col.business_type or col.type
                 col_comment = col.comment
@@ -457,7 +460,7 @@ class VectorTrainingService:
                 "resource_type": "table",
                 "resource_id": table_id,
                 "table_name": table.name,
-                "column_count": len(columns)
+                "column_count": len(available_columns)
             }
 
             return document, metadata

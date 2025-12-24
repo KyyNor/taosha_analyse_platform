@@ -264,6 +264,7 @@ class DryRunTaskManager:
         db: Session,
         task_type: Optional[str] = None,
         task_id: Optional[int] = None,
+        result_summary: Optional[str] = None,
         page: int = 1,
         page_size: int = 20
     ) -> tuple[list, int]:
@@ -273,12 +274,15 @@ class DryRunTaskManager:
             db: 数据库会话
             task_type: 任务类型筛选
             task_id: 任务ID筛选
+            result_summary: 结果摘要模糊搜索
             page: 页码
             page_size: 每页数量
 
         Returns:
             (任务列表, 总数)
         """
+        from sqlalchemy import cast, Text
+
         query = db.query(FraudHunterDryRunExecution)
 
         if task_type:
@@ -286,6 +290,12 @@ class DryRunTaskManager:
 
         if task_id:
             query = query.filter(FraudHunterDryRunExecution.task_id == task_id)
+
+        if result_summary:
+            # 将JSON字段转换为文本后进行LIKE搜索
+            query = query.filter(
+                cast(FraudHunterDryRunExecution.result_summary, Text).like(f'%{result_summary}%')
+            )
 
         total = query.count()
         offset = (page - 1) * page_size
