@@ -9,6 +9,51 @@ from langfuse import observe
 from utils.logger import logger
 
 
+def _get_available_table_vector_ids() -> List[str]:
+    """获取所有可用表的vector_id列表
+
+    从数据库中查询 is_available=0 的表，并获取其对应的训练记录vector_id
+
+    Returns:
+        可用表的vector_id列表
+    """
+    from models.training_models import TrainingRecord
+    from models import MetadataTable
+    from models.db_base import SessionLocal
+
+    vector_ids = []
+    db = None
+    try:
+        db = SessionLocal()
+
+        # 查询所有可用表的ID (is_available=0 表示可用)
+        available_tables = db.query(MetadataTable).filter(
+            MetadataTable.is_available == 0
+        ).all()
+        table_ids = [table.id for table in available_tables]
+
+        if table_ids:
+            # 查询这些表对应的训练记录
+            training_records = db.query(TrainingRecord).filter(
+                TrainingRecord.resource_type == "table",
+                TrainingRecord.resource_id.in_(table_ids),
+                TrainingRecord.vector_id != ""
+            ).all()
+
+            vector_ids = [record.vector_id for record in training_records]
+            logger.info(f"获取到 {len(vector_ids)} 个可用表的vector_id (共 {len(table_ids)} 个可用表)")
+        else:
+            logger.warning("未找到任何可用表")
+
+    except Exception as e:
+        logger.error(f"获取可用表vector_ids失败: {e}", exc_info=True)
+    finally:
+        if db:
+            db.close()
+
+    return vector_ids
+
+
 @observe(name="search_knowledge_base")
 def search_knowledge_base(
     query: str,
@@ -17,12 +62,13 @@ def search_knowledge_base(
     score_threshold: Optional[float] = None
 ) -> str:
     """
-    在知识库中检索相关文档和知识，知识库中包括表结构、关联关系等信息，如需确认可用表请使用本方法检索。
+    在知识库中检索相关文档和知识，知识库中包括表结构、业务术语、关联关系等信息。
 
     Args:
         query: 查询文本。描述你想要查找的内容。
 
-        top_k: 返回结果数量，默认 5 条。建议范围 3-10
+        top_k: 每类返回结果数量，默认 5 条。建议范围 3-10。
+               会分别返回最多 top_k 个表结构和 top_k 个其他文档。
 
         search_mode: 搜索模式，可选值:
                     - "vector_only": 纯向量语义搜索，适合概念理解和语义相似
@@ -35,17 +81,21 @@ def search_knowledge_base(
         JSON 格式的检索结果字符串，包含以下字段:
         - success: bool, 是否成功
         - query: str, 原始查询
-        - result_count: int, 返回的结果数量
+        - search_mode: str, 使用的搜索模式
+        - result_count: int, 返回的总结果数量
+        - table_count: int, 表结构结果数量
+        - other_count: int, 其他文档结果数量
         - results: list, 检索结果列表，每个结果包含:
             - id: str, 文档ID
             - content: str, 文档内容
             - score: float, 相似度分数
             - rerank_score: float, 重排序分数
+            - resource_type: str, 资源类型（table/glossary/relation/other）
             - metadata: dict, 元数据（如来源、标签等）
         - error: str, 错误信息（仅在失败时）
 
     Examples:
-        # 语义搜索
+        # 语义搜索 - 同时返回表结构和业务知识
         search_knowledge_base("什么是用户留存率", top_k=5)
 
         # 精确关键词搜索
@@ -59,150 +109,84 @@ def search_knowledge_base(
     try:
         # 延迟导入，避免循环依赖和启动时的初始化问题
         from services.vector_store.qdrant_vector_store import qdrant_vector_store
+        from qdrant_client.http.models import Filter, FieldCondition, MatchValue
 
-        # 执行检索
-        results = qdrant_vector_store.search(
+        # 步骤1：获取可用表的vector_ids
+        allowed_table_ids = _get_available_table_vector_ids()
+        if not allowed_table_ids:
+            logger.warning("未找到可用表的vector_id，将不过滤表结构")
+
+        # 步骤2：分离检索 - 先检索表结构
+        logger.info("执行表结构检索...")
+        table_results = qdrant_vector_store.search(
             query=query,
             top_k=top_k,
             search_mode=search_mode,
-            score_threshold=score_threshold
+            score_threshold=score_threshold,
+            filters=Filter(must=[
+                FieldCondition(key="resource_type", match=MatchValue(value="table"))
+            ]),
+            allowed_ids=allowed_table_ids  # 只返回可用表
         )
+        table_count = len(table_results)
+        logger.info(f"检索到 {table_count} 个表结构结果")
 
-        # 格式化结果
+        # 步骤3：检索其他文档（术语、关联关系等）
+        logger.info("执行其他文档检索...")
+        other_results = qdrant_vector_store.search(
+            query=query,
+            top_k=top_k,
+            search_mode=search_mode,
+            score_threshold=score_threshold,
+            filters=Filter(must_not=[
+                FieldCondition(key="resource_type", match=MatchValue(value="table"))
+            ])
+        )
+        other_count = len(other_results)
+        logger.info(f"检索到 {other_count} 个其他文档结果")
+
+        # 步骤4：合并结果（表在前，其他在后）
+        all_results = table_results + other_results
+
+        # 步骤5：格式化结果
         formatted_results = []
-        for item in results:
+        for item in all_results:
+            metadata = item.get("metadata", {})
+            resource_type = metadata.get("resource_type", "unknown")
+
             formatted_results.append({
                 "id": item.get("id", ""),
                 "content": item.get("content", ""),
                 "score": round(item.get("score", 0.0), 4),
                 "rerank_score": round(item.get("rerank_score", 0.0), 4),
+                "resource_type": resource_type,
                 "metadata": {
-                    k: v for k, v in item.get("metadata", {}).items()
+                    k: v for k, v in metadata.items()
                     if k not in ["content", "id"]  # 排除重复字段
                 }
             })
 
-        logger.info(f"知识库检索成功，返回 {len(formatted_results)} 条结果")
+        logger.info(f"知识库检索成功，返回 {len(formatted_results)} 条结果 "
+                   f"(表结构: {table_count}, 其他文档: {other_count})")
 
         return json.dumps({
             "success": True,
             "query": query,
             "search_mode": search_mode,
             "result_count": len(formatted_results),
+            "table_count": table_count,
+            "other_count": other_count,
             "results": formatted_results
         }, ensure_ascii=False)
 
     except Exception as e:
-        logger.error(f"知识库检索失败: {e}")
+        logger.error(f"知识库检索失败: {e}", exc_info=True)
         return json.dumps({
             "success": False,
             "query": query,
             "error": str(e),
             "result_count": 0,
-            "results": []
-        }, ensure_ascii=False)
-
-
-@observe(name="get_knowledge_base_stats")
-def get_knowledge_base_stats() -> str:
-    """
-    获取知识库统计信息
-
-    Returns:
-        JSON 格式的统计信息，包含:
-        - success: bool, 是否成功
-        - document_count: int, 文档总数
-        - collection_name: str, 集合名称
-        - health: bool, 健康状态
-    """
-    logger.info("获取知识库统计信息")
-
-    try:
-        from services.vector_store.qdrant_vector_store import qdrant_vector_store
-
-        count = qdrant_vector_store.count()
-        health = qdrant_vector_store.health_check()
-
-        return json.dumps({
-            "success": True,
-            "document_count": count,
-            "collection_name": qdrant_vector_store.collection_name,
-            "health": health
-        }, ensure_ascii=False)
-
-    except Exception as e:
-        logger.error(f"获取知识库统计信息失败: {e}")
-        return json.dumps({
-            "success": False,
-            "error": str(e)
-        }, ensure_ascii=False)
-
-
-@observe(name="search_similar_documents")
-def search_similar_documents(
-    document_id: str,
-    top_k: int = 5
-) -> str:
-    """
-    根据文档ID查找相似文档
-
-    Args:
-        document_id: 源文档的ID
-        top_k: 返回结果数量
-
-    Returns:
-        JSON 格式的相似文档列表
-    """
-    logger.info(f"查找相似文档: {document_id}")
-
-    try:
-        from services.vector_store.qdrant_vector_store import qdrant_vector_store
-
-        # 先获取源文档内容
-        # 使用ID过滤获取源文档
-        from qdrant_client.http.models import FieldCondition, MatchAny, Filter
-
-        # 获取源文档的内容作为查询
-        # 这里简化处理，实际可以直接用向量ID进行相似搜索
-        results = qdrant_vector_store.search(
-            query=document_id,  # 用ID作为关键词搜索
-            top_k=1,
-            search_mode="fulltext_only"
-        )
-
-        if not results:
-            return json.dumps({
-                "success": False,
-                "error": f"未找到文档: {document_id}",
-                "results": []
-            }, ensure_ascii=False)
-
-        # 用源文档内容进行语义搜索
-        source_content = results[0].get("content", "")
-        similar_results = qdrant_vector_store.search(
-            query=source_content,
-            top_k=top_k + 1,  # 多取一个，因为会包含自己
-            search_mode="vector_only"
-        )
-
-        # 排除源文档本身
-        filtered_results = [
-            r for r in similar_results
-            if r.get("id") != document_id
-        ][:top_k]
-
-        return json.dumps({
-            "success": True,
-            "source_document_id": document_id,
-            "result_count": len(filtered_results),
-            "results": filtered_results
-        }, ensure_ascii=False)
-
-    except Exception as e:
-        logger.error(f"查找相似文档失败: {e}")
-        return json.dumps({
-            "success": False,
-            "document_id": document_id,
-            "error": str(e),
+            "table_count": 0,
+            "other_count": 0,
             "results": []
         }, ensure_ascii=False)
