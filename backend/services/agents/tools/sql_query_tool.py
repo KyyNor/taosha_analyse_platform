@@ -11,8 +11,7 @@ from langfuse import observe
 from langchain.tools import tool, ToolRuntime
 from utils.logger import logger
 
-if TYPE_CHECKING:
-    from services.agents.deepagents.data_analyser_agent import DataAnalysisContext
+from services.agents.models.deep_agent_context import DataAnalysisContext
 
 
 @tool

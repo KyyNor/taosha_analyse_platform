@@ -8,7 +8,6 @@ import uuid
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from dataclasses import dataclass
 
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
@@ -18,34 +17,12 @@ from langchain_core.messages import AIMessage
 
 from services.llm_service.base_llm_service import BaseLLMService
 from services.agents.tools.sql_query_tool import sql_query
-from services.agents.tools.deepagents.code_execution_tool import execute_code
 from services.agents.tools.qdrant_vector_store_tool import search_knowledge_base
 from services.agents.tools.chart_tool import create_chart, create_chart_html
 from services.agents.tools.common_tools import get_date_range
 from services.agents.tools.metrics_tool import get_metrics
 from utils.logger import logger
-
-
-# ==================== Context Schema ====================
-
-@dataclass
-class DataAnalysisContext:
-    """数据分析智能体的运行时上下文配置
-
-    这是不可变的上下文，在运行时传递给工具，使工具能够访问会话级别的配置信息
-    """
-    session_id: str
-    """会话ID，用于标识和隔离不同的分析会话"""
-
-    output_dir: str
-    """输出目录路径，用于保存分析结果和中间文件"""
-
-    code_execution_timeout: int
-    """代码执行的超时时间（秒）"""
-
-    user_id: str = "default"
-    """用户ID，用于权限控制和日志追踪"""
-
+from services.agents.models.deep_agent_context import DataAnalysisContext
 
 # 数据分析系统提示词
 DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家。你的任务是帮助用户分析数据并生成可视化报告。
@@ -192,8 +169,7 @@ class DataAnalyserAgent:
             # 准备工具列表
             tools = [
                 sql_query,                  # SQL 查询工具（支持 ToolRuntime）
-                execute_code,               # Python 代码执行工具（支持 ToolRuntime）
-                # search_knowledge_base,      # 知识库检索工具
+                search_knowledge_base,      # 知识库检索工具
                 # get_date_range,             # 日期范围工具
                 # get_metrics,                # 指标数据工具
             ]
@@ -221,8 +197,8 @@ class DataAnalyserAgent:
                             image="taosha-sandbox:latest",  # 刚才 build 的镜像
                             user='sandbox',                  # 容器内用户名
                             read_only_rootfs=True,           # 根分区只读，写操作只能挂 volume
-                            cpus=self.shell_tool_docker_cpu_size,
-                            memory_bytes=self.shell_tool_docker_mem_size * 1024 * 1024 * 1024,  # 4GB内存
+                            cpus=self.config["shell_tool_docker_cpu_size"],
+                            memory_bytes=self.config["shell_tool_docker_mem_size"] * 1024 * 1024 * 1024,  # 4GB内存
                             network_enabled=False,
                         ),   # 用 Docker 隔离
                     ),
