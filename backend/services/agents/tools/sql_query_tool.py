@@ -107,7 +107,7 @@ def sql_query(
         if save_to_file:
             try:
                 # 获取输出目录
-                output_dir = Path(ctx.output_dir) / "data"
+                output_dir = Path(ctx.output_dir)
                 output_dir.mkdir(parents=True, exist_ok=True)
 
                 # 生成文件名（使用时间戳）
@@ -138,7 +138,7 @@ def sql_query(
 
                 logger.info(f"查询结果已保存到文件: {relative_path}")
 
-                result["file_path"] = relative_path
+                result["file_path"] = "/analysis/" + relative_path
                 result["data"] = []  # 保存到文件时不返回数据，减少内存占用
 
             except Exception as file_error:

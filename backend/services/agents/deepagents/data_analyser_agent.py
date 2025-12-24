@@ -10,9 +10,9 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 from deepagents import create_deep_agent
-from deepagents.backends import FilesystemBackend
+from deepagents.backends import FilesystemBackend, CompositeBackend, StateBackend
 from langchain.agents.middleware import ToolRetryMiddleware, ShellToolMiddleware, FilesystemFileSearchMiddleware
-from langchain.agents.middleware._execution import DockerExecutionPolicy
+from services.agents.deepagents.custom_docker_execution_policy import CustomDockerExecutionPolicy
 from langchain_core.messages import AIMessage
 
 from services.llm_service.base_llm_service import BaseLLMService
@@ -95,9 +95,10 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
 调用查询工具除hxb_dh_data_dim外的表必须带ETL_DATE/CDATE查询条件
 
 ## 文件系统使用
-- /data/ - 存放查询到的原始数据
-- /analysis/ - 存放分析过程和中间结果
-- /report.html - 最终的 HTML 分析报告
+禁止操作/analysis之外的目录
+- /analysis/data/ - 存放查询到的原始数据
+- /analysis/tmp/ - 存放分析过程和中间结果
+- /analysis/report.html - 最终的 HTML 分析报告
 
 ## HTML 报告格式要求
 生成的 report.html 应该是一个完整的、独立的 HTML 文件，包含：
@@ -151,6 +152,7 @@ class DataAnalyserAgent:
         self.session_id = session_id or str(uuid.uuid4())
         self.output_dir = Path(self._config["output_base_dir"]) / self.session_id
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir.chmod(0o777)
 
         # LLM 服务
         self.llm_service = BaseLLMService()
@@ -171,9 +173,17 @@ class DataAnalyserAgent:
             tools = [
                 sql_query,                  # SQL 查询工具（支持 ToolRuntime）
                 search_knowledge_base,      # 知识库检索工具
+                create_chart_html,
                 # get_date_range,             # 日期范围工具
                 # get_metrics,                # 指标数据工具
             ]
+
+            composite_backend = lambda rt: CompositeBackend(
+                    default=StateBackend(rt),
+                    routes={
+                        "/analysis/": FilesystemBackend(root_dir=str(self.output_dir.resolve()))
+                    }
+                )
 
             # 创建 DeepAgent
             # deepagents 自动包含: TodoListMiddleware, FilesystemMiddleware, SubAgentMiddleware， SummarizationMiddleware
@@ -182,10 +192,7 @@ class DataAnalyserAgent:
                 tools=tools,
                 system_prompt=DATA_ANALYSIS_SYSTEM_PROMPT,
                 context_schema=DataAnalysisContext,  
-                backend=FilesystemBackend(
-                    root_dir=str(self.output_dir),
-                    virtual_mode=True
-                ),
+                backend=composite_backend,
                 middleware=[
                     ToolRetryMiddleware(
                         max_retries=2, # 指的是重试的次数
@@ -194,19 +201,19 @@ class DataAnalyserAgent:
                     ShellToolMiddleware(
                         tool_description=SHELL_TOOL_DESCRIPTION,
                         workspace_root=self.output_dir.resolve(),
-                        execution_policy=DockerExecutionPolicy(
-                            image="taosha-sandbox:latest",  # 刚才 build 的镜像
-                            user='sandbox',                  # 容器内用户名
-                            read_only_rootfs=True,           # 根分区只读，写操作只能挂 volume
+                        execution_policy=CustomDockerExecutionPolicy(
+                            image="taosha-sandbox:latest",   # 刚才 build 的镜像
+                            user='root',                     # 容器内用户名
                             cpus=self._config["shell_tool_docker_cpu_size"],
                             memory_bytes=self._config["shell_tool_docker_mem_size"] * 1024 * 1024 * 1024,  # 4GB内存
                             network_enabled=False,
+                            target_workspace='/analysis',
                         ),   # 用 Docker 隔离
                     ),
                     FilesystemFileSearchMiddleware(
                         root_path=str(self.output_dir)
                     ),
-                ],
+                ]
             )
             self.agent
 
