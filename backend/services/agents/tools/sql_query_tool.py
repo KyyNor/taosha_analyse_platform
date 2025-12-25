@@ -26,7 +26,10 @@ def sql_query(
 ) -> str:
     """
     执行 SQL 查询并返回结果
-    注意，查询除hxb_dh_data_dim外的表必须带ETL_DATE/CDATE查询条件
+    注意：
+    1、查询除hxb_dh_data_dim外的表必须带ETL_DATE/CDATE查询条件
+    2、不要使用中文字段别名
+    3、查询全量数据需要将limit设置为0
 
     Args:
         sql: SQL 查询语句
@@ -46,6 +49,7 @@ def sql_query(
         - data: list[dict] (save_to_file=True时为空)
         - file_path: str (仅save_to_file=True时存在)
         - error: str (仅失败时)
+        - msg: str
 
     Examples:
         # 大数据集查询（推荐）
@@ -102,6 +106,7 @@ def sql_query(
             "success": True,
             "row_count": len(data),
             "columns": columns,
+            "msg": "请查看文件以获取查询结果",
         }
 
         if save_to_file:

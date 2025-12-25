@@ -14,23 +14,6 @@ from utils.logger import logger
 
 from services.agents.models.deep_agent_context import DataAnalysisContext
 
-# Bokeh 导入（用于 create_chart_html）
-try:
-    from bokeh.plotting import figure
-    from bokeh.embed import file_html, components
-    from bokeh.resources import INLINE
-    from bokeh.models import (
-        HoverTool, ColumnDataSource, LabelSet, Legend,
-        FactorRange, Title
-    )
-    from bokeh.palettes import Category10, Category20
-    from bokeh.transform import cumsum
-    BOKEH_AVAILABLE = True
-except ImportError:
-    BOKEH_AVAILABLE = False
-    logger.warning("Bokeh 未安装，create_chart_html 功能不可用")
-
-
 def build_tree_structure(
     data: List[Dict[str, Any]],
     name_key: str = "name",
@@ -376,345 +359,257 @@ def create_chart(
         }, ensure_ascii=False)
 
 
-# ============ Bokeh HTML 图表生成 ============
+@observe(name="create_chart_image")
+def create_chart_image(
+    chart_type: str,
+    runtime: ToolRuntime["DataAnalysisContext"],
+    data: Union[List[Dict[str, Any]], str],
+    title: str = "",
+    width: int = 800,
+    height: int = 400,
+    **kwargs
+) -> str:
+    """
+    使用 Matplotlib 生成图表图片并返回文件路径
 
-def _get_colors(n: int) -> List[str]:
-    """获取指定数量的颜色"""
-    if n <= 10:
-        return list(Category10[max(3, min(n, 10))])[:n]
-    else:
-        return list(Category20[max(3, min(n, 20))])[:n]
+    Args:
+        chart_type: 图表类型，支持 'line'（折线图）、'pie'（饼图）、'bar'（柱状图）
+        data: 图表数据，可以是字典列表或JSON字符串
+        title: 图表标题
+        width: 图表宽度（像素）
+        height: 图表高度（像素）
+        **kwargs: 其他图表参数
 
+    Returns:
+        图片文件路径
 
-def _create_bokeh_line(config: dict, width: int, height: int):
-    """创建 Bokeh 折线图"""
-    data = config["data"]
-    title = config.get("title", "")
-    x_key = config.get("x_key", "name")
-    y_keys = config.get("y_keys", ["value"])
-    colors = config.get("colors", _get_colors(len(y_keys)))
+    Examples:
+        创建双折线图
+        file_path = create_chart_image_matplotlib(
+            chart_type="line",
+            data=[
+                {"name": "Jan", "sales": 100, "profit": 50},
+                {"name": "Feb", "sales": 150, "profit": 75},
+                {"name": "Mar", "sales": 200, "profit": 100}
+            ],
+            title="月度销售与利润",
+            x_key="name",
+            y_keys=["sales", "profit"]
+        )
+    """
+    import matplotlib.pyplot as plt
+    import json
+    import os
+    from pathlib import Path
+    from datetime import datetime
 
-    # 提取 x 轴数据
+    logger.info(f"开始创建{chart_type}图表: {title}")
+
+    output_dir = Path(runtime.context.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"chart_image_{timestamp}.png"
+    file_path = output_dir / filename
+
+    try:
+        # 解析数据
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON解析错误: {e}")
+                return ""
+
+        if not isinstance(data, list):
+            logger.error("数据必须是列表格式")
+            return ""
+
+        # 设置图表尺寸
+        plt.figure(figsize=(width/100, height/100))
+
+        if chart_type == "line":
+            return _create_line_plot(data, title, width, height, filename, file_path, **kwargs)
+        elif chart_type == "bar":
+            return _create_bar_plot(data, title, width, height, filename, file_path, **kwargs)
+        elif chart_type == "pie":
+            return _create_pie_chart(data, title, width, height, filename, file_path, **kwargs)
+        else:
+            logger.error(f"不支持的图表类型: {chart_type}")
+            return ""
+
+    except Exception as e:
+        logger.error(f"创建图表时发生错误: {e}")
+        return ""
+
+def _create_line_plot(data: List[Dict], title: str, width: int, height: int, filename: str, file_path: Path, **kwargs):
+    """使用 Matplotlib 创建折线图"""
+    import matplotlib.pyplot as plt
+
+    x_key = kwargs.get("x_key", "name")
+    y_keys = kwargs.get("y_keys", ["value"])
+    colors = kwargs.get("colors", None)
+    show_legend = kwargs.get("show_legend", True)
+    show_grid = kwargs.get("show_grid", True)
+
+    # 准备数据
     x_values = [item.get(x_key, "") for item in data]
-
+    
     # 创建图表
-    p = figure(
-        title=title,
-        x_range=x_values,
-        width=width,
-        height=height,
-        tools="pan,wheel_zoom,box_zoom,reset,save",
-        toolbar_location="above"
-    )
-
-    # 为每个 y_key 绑线
+    plt.figure(figsize=(width/100, height/100))
+    
     for i, y_key in enumerate(y_keys):
         y_values = [item.get(y_key, 0) for item in data]
-        color = colors[i % len(colors)]
+        
+        color = None
+        if colors and i < len(colors):
+            color = colors[i]
+            
+        plt.plot(x_values, y_values, 
+                label=y_key,
+                color=color,
+                marker='o',
+                linewidth=2)
+    
+    # 设置标题
+    plt.title(title)
+    
+    # 设置坐标轴旋转
+    plt.xticks(rotation=45)
+    
+    # 设置网格
+    if show_grid:
+        plt.grid(True, linestyle='--', alpha=0.7)
+    
+    # 设置图例
+    if show_legend and len(y_keys) > 0:
+        plt.legend()
+    
+    # 保存图表
+    return _save_image_chart(title, "line", width, height, filename, file_path)
 
-        # 绑线
-        p.line(x_values, y_values, line_width=2, color=color, legend_label=y_key)
-        # 添加圆点
-        p.circle(x_values, y_values, size=6, color=color, legend_label=y_key)
+def _create_bar_plot(data: List[Dict], title: str, width: int, height: int, filename: str, file_path: Path, **kwargs):
+    """使用 Matplotlib 创建柱状图"""
+    import matplotlib.pyplot as plt
+    
+    x_key = kwargs.get("x_key", "name")
+    y_keys = kwargs.get("y_keys", ["value"])
+    colors = kwargs.get("colors", None)
+    stacked = kwargs.get("stacked", False)
+    orientation = kwargs.get("orientation", "vertical")
+    show_legend = kwargs.get("show_legend", True)
+    show_grid = kwargs.get("show_grid", True)
 
-    # 添加悬停工具
-    hover = HoverTool(tooltips=[(x_key, "@x")] + [(y_key, f"@y") for y_key in y_keys])
-    p.add_tools(hover)
-
-    # 配置图例
-    if config.get("show_legend", True):
-        p.legend.location = "top_left"
-        p.legend.click_policy = "hide"
-    else:
-        p.legend.visible = False
-
-    # 配置坐标轴
-    p.xaxis.major_label_orientation = math.pi / 4
-    p.xgrid.grid_line_color = "lightgray" if config.get("show_grid", True) else None
-    p.ygrid.grid_line_color = "lightgray" if config.get("show_grid", True) else None
-
-    return p
-
-
-def _create_bokeh_bar(config: dict, width: int, height: int):
-    """创建 Bokeh 柱状图"""
-    data = config["data"]
-    title = config.get("title", "")
-    x_key = config.get("x_key", "name")
-    y_keys = config.get("y_keys", ["value"])
-    colors = config.get("colors", _get_colors(len(y_keys)))
-    stacked = config.get("stacked", False)
-    orientation = config.get("orientation", "vertical")
-
-    # 提取数据
-    x_values = [str(item.get(x_key, "")) for item in data]
-
+    # 准备数据
+    x_values = [item.get(x_key, "") for item in data]
+    
+    # 创建图表
+    plt.figure(figsize=(width/100, height/100))
+    
     if orientation == "vertical":
         # 垂直柱状图
-        p = figure(
-            title=title,
-            x_range=x_values,
-            width=width,
-            height=height,
-            tools="pan,wheel_zoom,box_zoom,reset,save",
-            toolbar_location="above"
-        )
-
+        bar_width = 0.8
+        x_positions = range(len(x_values))
+        
         if stacked:
             # 堆叠柱状图
             bottom = [0] * len(data)
             for i, y_key in enumerate(y_keys):
                 y_values = [item.get(y_key, 0) for item in data]
-                top = [b + v for b, v in zip(bottom, y_values)]
-                color = colors[i % len(colors)]
-                p.vbar(
-                    x=x_values, top=top, bottom=bottom,
-                    width=0.8, color=color, legend_label=y_key
-                )
-                bottom = top
+                color = colors[i] if colors and i < len(colors) else None
+                plt.bar(x_positions, y_values, label=y_key, 
+                       bottom=bottom, width=bar_width, color=color)
+                bottom = [b + v for b, v in zip(bottom, y_values)]
         else:
             # 分组柱状图
             bar_width = 0.8 / len(y_keys)
             for i, y_key in enumerate(y_keys):
                 y_values = [item.get(y_key, 0) for item in data]
                 offset = (i - len(y_keys) / 2 + 0.5) * bar_width
-                x_positions = [j + offset for j in range(len(x_values))]
-                color = colors[i % len(colors)]
-                p.vbar(
-                    x=x_positions, top=y_values, width=bar_width * 0.9,
-                    color=color, legend_label=y_key
-                )
-
-        p.xaxis.major_label_orientation = math.pi / 4
+                x_pos = [x + offset for x in x_positions]
+                color = colors[i] if colors and i < len(colors) else None
+                plt.bar(x_pos, y_values, label=y_key, 
+                       width=bar_width * 0.9, color=color)
+        
+        plt.xticks(x_positions, x_values)
+        plt.xticks(rotation=45)
     else:
         # 水平柱状图
-        p = figure(
-            title=title,
-            y_range=x_values,
-            width=width,
-            height=height,
-            tools="pan,wheel_zoom,box_zoom,reset,save",
-            toolbar_location="above"
-        )
-
         for i, y_key in enumerate(y_keys):
             y_values = [item.get(y_key, 0) for item in data]
-            color = colors[i % len(colors)]
-            p.hbar(y=x_values, right=y_values, height=0.8, color=color, legend_label=y_key)
+            color = colors[i] if colors and i < len(colors) else None
+            plt.barh(x_values, y_values, label=y_key, color=color)
+    
+    # 设置标题
+    plt.title(title)
+    
+    # 设置网格
+    if show_grid:
+        plt.grid(True, linestyle='--', alpha=0.7)
+    
+    # 设置图例
+    if show_legend and len(y_keys) > 0:
+        plt.legend()
+    
+    # 保存图表
+    return _save_image_chart(title, "bar", width, height, filename, file_path)
 
-    # 配置图例
-    if config.get("show_legend", True) and len(y_keys) > 1:
-        p.legend.location = "top_right"
-        p.legend.click_policy = "hide"
-    else:
-        p.legend.visible = False
-
-    # 配置网格
-    p.xgrid.grid_line_color = "lightgray" if config.get("show_grid", True) else None
-    p.ygrid.grid_line_color = "lightgray" if config.get("show_grid", True) else None
-
-    return p
-
-
-def _create_bokeh_pie(config: dict, width: int, height: int):
-    """创建 Bokeh 饼图"""
-    data = config["data"]
-    title = config.get("title", "")
-    colors = config.get("colors", _get_colors(len(data)))
-
-    # 计算角度
-    total = sum(item.get("value", 0) for item in data)
-    if total == 0:
-        total = 1  # 避免除以零
-
+def _create_pie_chart(data: List[Dict], title: str, width: int, height: int, filename: str, file_path: Path, **kwargs):
+    """使用 Matplotlib 创建饼图"""
+    import matplotlib.pyplot as plt
+    
+    colors = kwargs.get("colors", None)
+    show_legend = kwargs.get("show_legend", True)
+    show_percentage = kwargs.get("show_percentage", True)
+    
     # 准备数据
-    start_angle = 0
-    pie_data = {
-        "name": [],
-        "value": [],
-        "percentage": [],
-        "start_angle": [],
-        "end_angle": [],
-        "color": []
-    }
-
-    for i, item in enumerate(data):
-        value = item.get("value", 0)
-        angle = 2 * math.pi * value / total
-        percentage = value / total * 100
-
-        pie_data["name"].append(item.get("name", f"项目{i+1}"))
-        pie_data["value"].append(value)
-        pie_data["percentage"].append(f"{percentage:.1f}%")
-        pie_data["start_angle"].append(start_angle)
-        pie_data["end_angle"].append(start_angle + angle)
-        pie_data["color"].append(colors[i % len(colors)])
-
-        start_angle += angle
-
-    source = ColumnDataSource(pie_data)
-
+    labels = [item.get("name", f"Item {i+1}") for i, item in enumerate(data)]
+    sizes = [item.get("value", 0) for item in data]
+    
+    # 自动计算百分比
+    if show_percentage:
+        def make_autopct(values):
+            def my_autopct(pct):
+                total = sum(values)
+                val = int(round(pct*total/100.0))
+                return '{p:.1f}%  ({v:d})'.format(p=pct,v=val)
+            return my_autopct
+        autopct = make_autopct(sizes)
+    else:
+        autopct = '%1.1f%%'
+    
     # 创建图表
-    p = figure(
-        title=title,
-        width=width,
-        height=height,
-        tools="hover,save",
-        tooltips="@name: @value (@percentage)",
-        x_range=(-1.5, 1.5),
-        y_range=(-1.5, 1.5)
-    )
-
+    plt.figure(figsize=(width/100, height/100))
+    
     # 绘制饼图
-    p.wedge(
-        x=0, y=0, radius=0.8,
-        start_angle="start_angle", end_angle="end_angle",
-        color="color", legend_field="name", source=source
-    )
+    plt.pie(sizes, 
+            labels=labels,
+            colors=colors[:len(data)] if colors else None,
+            autopct=autopct,
+            startangle=90)
+    
+    # 设置标题
+    plt.title(title)
+    
+    # 设置相等的比例
+    plt.axis('equal')
+    
+    # 设置图例
+    if show_legend:
+        plt.legend(labels=labels, loc='center left', bbox_to_anchor=(1, 0.5))
+    
+    # 调整布局
+    plt.tight_layout()
+    
+    # 保存图表
+    return _save_image_chart(title, "pie", width, height, filename, file_path)
 
-    # 隐藏坐标轴
-    p.axis.visible = False
-    p.grid.visible = False
+def _save_image_chart(title: str, chart_type: str, width: int, height: int, filename: str, file_path: Path) -> str:
+    """保存 Matplotlib 图表并返回文件路径"""
+    import matplotlib.pyplot as plt
+    
+    # 保存图表
+    plt.savefig(file_path, dpi=100, bbox_inches='tight')
+    plt.close()  # 关闭图表以释放内存
+    
+    return str("/analysis/" + filename)
 
-    # 配置图例
-    if config.get("show_legend", True):
-        p.legend.location = "right"
-    else:
-        p.legend.visible = False
-
-    return p
-
-
-def _json_to_bokeh(config: dict, width: int, height: int):
-    """将 create_chart 的 JSON 配置转换为 Bokeh 图表对象"""
-    chart_type = config.get("chart_type", "line")
-
-    if chart_type == "line":
-        return _create_bokeh_line(config, width, height)
-    elif chart_type == "bar":
-        return _create_bokeh_bar(config, width, height)
-    elif chart_type == "pie":
-        return _create_bokeh_pie(config, width, height)
-    else:
-        # 不支持的类型，返回一个简单的空图表
-        logger.warning(f"Bokeh 不支持图表类型: {chart_type}，创建空图表")
-        p = figure(title=f"不支持的图表类型: {chart_type}", width=width, height=height)
-        return p
-
-
-@observe(name="create_chart_html")
-def create_chart_html(
-    chart_type: str,
-    runtime: ToolRuntime["DataAnalysisContext"],
-    data: Union[List[Dict[str, Any]], str],
-    title: str = "",
-    description: str = "",
-    width: int = 800,
-    height: int = 400,
-    **kwargs
-) -> str:
-    """
-    生成可直接嵌入 HTML 的离线图表代码块，会返回带图表 div 和 script 标签的文件路径，读取文件时注意token消耗
-
-    Args:
-        chart_type: 图表类型，支持 'line'（折线图）、'pie'（饼图）、'bar'（柱状图）
-        data: 图表数据，可以是字典列表或JSON字符串
-        title: 图表标题
-        description: 图表描述
-        width: 图表宽度（像素）
-        height: 图表高度（像素）
-        x_key: X轴数据字段名（用于折线图和柱状图）
-        y_keys: Y轴数据字段名，可以是单个字段名或字段名列表
-        **kwargs: 其他图表参数，如：
-            - colors: 颜色列表
-            - height: 图表高度
-            - show_legend: 是否显示图例
-            - show_grid: 是否显示网格（用于折线图和柱状图）
-            - stacked: 是否堆叠（仅用于柱状图）
-            - orientation: 方向，'vertical' 或 'horizontal'（仅用于柱状图）
-            - inner_radius: 内圆半径（用于饼图环形图）
-            - outer_radius: 外圆半径（用于饼图）
-            - show_percentage: 是否显示百分比（用于饼图）
-
-    Returns:
-        包含图表div、script的可嵌入的 HTML 片段路径
-
-    Examples:
-
-        # 生成可嵌入的 HTML 片段
-        html_fragment = create_chart_html(
-            chart_type="bar",
-            data=[{"city": "北京", "population": 2100}],
-            title="城市人口",
-            embed_mode="div"
-        )
-    """
-    logger.info(f"开始创建{chart_type}图表HTML: {title}")
-
-    # 检查 Bokeh 是否可用
-    if not BOKEH_AVAILABLE:
-        error_html = f"""
-        <div class="chart-error" style="padding: 20px; border: 1px solid #ef4444; background: #fef2f2; color: #dc2626; border-radius: 4px;">
-            <strong>错误：</strong>Bokeh 库未安装。请运行 <code>pip install bokeh</code> 安装。
-        </div>
-        """
-        return error_html
-
-    try:
-        # 1. 复用 create_chart 生成 JSON 配置
-        chart_json = create_chart(
-            chart_type=chart_type,
-            data=data,
-            title=title,
-            description=description,
-            **kwargs
-        )
-        config = json.loads(chart_json)
-
-        # 2. 检查是否有错误
-        if "error" in config:
-            error_html = f"""
-            <div class="chart-error" style="padding: 20px; border: 1px solid #ef4444; background: #fef2f2; color: #dc2626; border-radius: 4px;">
-                <strong>图表生成错误：</strong>{config["error"]}
-            </div>
-            """
-            return error_html
-
-        # 3. 根据配置创建 Bokeh 图表
-        p = _json_to_bokeh(config, width, height)
-
-        # 4. 生成 HTML
-        # 只生成 script 和 div 部分
-        script, div = components(p)
-        # 还需要包含 INLINE 资源
-        inline_resources = INLINE.render()
-        html = f"""
-        <!-- Bokeh 资源 -->
-        {inline_resources}
-        <!-- 图表容器 -->
-        {div}
-        <!-- 图表脚本 -->
-        {script}
-        """
-
-        output_dir = Path(runtime.context.output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"chart_html_{timestamp}.html"
-
-        file_path = output_dir / filename
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(html)
-        relative_path = file_path.name
-
-        logger.info(f"成功创建{chart_type}图表HTML，大小: {len(html)} 字节")
-        return "/analysis/" + relative_path
-
-    except Exception as e:
-        logger.error(f"创建图表HTML时发生错误: {e}")
-        error_html = f"""
-        <div class="chart-error" style="padding: 20px; border: 1px solid #ef4444; background: #fef2f2; color: #dc2626; border-radius: 4px;">
-            <strong>图表生成错误：</strong>{str(e)}
-        </div>
-        """
-        return error_html

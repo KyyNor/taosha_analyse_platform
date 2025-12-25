@@ -18,7 +18,7 @@ from langchain_core.messages import AIMessage
 from services.llm_service.base_llm_service import BaseLLMService
 from services.agents.tools.sql_query_tool import sql_query
 from services.agents.tools.qdrant_vector_store_tool import search_knowledge_base
-from services.agents.tools.chart_tool import create_chart, create_chart_html
+from services.agents.tools.chart_tool import create_chart, create_chart_image
 from services.agents.tools.common_tools import get_date_range
 from services.agents.tools.metrics_tool import get_metrics
 from utils.logger import logger
@@ -37,7 +37,7 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
    - 使用 execute_code 工具执行 Python 代码进行数据处理和统计分析
    - 可以使用 pandas、numpy 等库
 5. **可视化**：
-   - 使用 create_chart_html 工具生成离线 HTML 图表（完全不依赖 CDN）
+   - 使用 create_chart_image 工具生成离线 HTML 图表（完全不依赖 CDN）
    - 支持 line/bar/pie 图表类型
 6. **保存结果**：
    - 将分析过程和中间结果写入文件系统
@@ -50,7 +50,7 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
 - **sql_query**: 执行 SQL 查询，支持 DuckDB 和 Spark
 - **execute_code**: 执行 Python 代码进行数据处理（支持 pandas、numpy）
 - **search_knowledge_base**: 检索知识库获取相关文档和知识
-- **create_chart_html**: 创建离线 HTML 图表（line/bar/pie），可直接嵌入报告
+- **create_chart_image**: 创建图表文件，可嵌入报告
 - **get_date_range**: 获取日期范围
 - **get_metrics**: 获取指标数据
 
@@ -64,7 +64,7 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
 1. 完整的 HTML 结构（<!DOCTYPE html>, <html>, <head>, <body>）
 2. 内嵌 CSS 样式（不依赖外部 CSS）
 3. 清晰的报告结构：标题、摘要、数据分析、图表、结论
-4. 图表使用 create_chart_html 工具生成的 HTML 代码块直接嵌入
+4. 图表使用 create_chart_image 工具生成的 HTML 代码块直接嵌入
 5. 所有资源完全离线，不依赖任何外部 CDN
 
 ## 输出要求
@@ -92,7 +92,9 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
 
    
 ## 工具使用提示
-调用查询工具除hxb_dh_data_dim外的表必须带ETL_DATE/CDATE查询条件
+1、调用查询工具除hxb_dh_data_dim外的表必须带ETL_DATE/CDATE查询条件
+2、进行数据分析时务必基于全量数据分析，避免基于带limit的查询结果分析
+3、查看文件时在未知文件大小/条数的情况下切勿直接直接查看全部内容，以防token爆炸
 
 ## 文件系统使用
 禁止操作/analysis之外的目录
@@ -105,6 +107,7 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
 1. 完整的 HTML 结构（<!DOCTYPE html>, <html>, <head>, <body>）
 2. 内嵌 CSS 样式（不依赖外部 CSS/JS）
 3. 清晰的报告结构：标题、摘要、数据分析、图表、结论
+4. 嵌入图片时使用相对路径
 
 ## 输出要求
 - 分析要有理有据，结论要基于数据
@@ -173,7 +176,7 @@ class DataAnalyserAgent:
             tools = [
                 sql_query,                  # SQL 查询工具（支持 ToolRuntime）
                 search_knowledge_base,      # 知识库检索工具
-                create_chart_html,
+                create_chart_image,
                 # get_date_range,             # 日期范围工具
                 # get_metrics,                # 指标数据工具
             ]
@@ -181,7 +184,7 @@ class DataAnalyserAgent:
             composite_backend = lambda rt: CompositeBackend(
                     default=StateBackend(rt),
                     routes={
-                        "/analysis/": FilesystemBackend(root_dir=str(self.output_dir.resolve()))
+                        "/analysis/": FilesystemBackend(root_dir=str(self.output_dir.resolve()), virtual_mode=True)
                     }
                 )
 
