@@ -95,6 +95,7 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
 1、调用查询工具除hxb_dh_data_dim外的表必须带ETL_DATE/CDATE查询条件
 2、进行数据分析时务必基于全量数据分析，避免基于带limit的查询结果分析
 3、查看文件时在未知文件大小/条数的情况下切勿直接直接查看全部内容，以防token爆炸
+4、如需绘制图表，请使用shell工具编写seaborn的python脚本来生成图片，使用中文字体（WenQuanYi Micro Hei、WenQuanYi Zen Hei）
 
 ## 文件系统使用
 禁止操作/analysis之外的目录
@@ -106,13 +107,15 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
 生成的 report.html 应该是一个完整的、独立的 HTML 文件，包含：
 1. 完整的 HTML 结构（<!DOCTYPE html>, <html>, <head>, <body>）
 2. 内嵌 CSS 样式（不依赖外部 CSS/JS）
-3. 清晰的报告结构：标题、摘要、数据分析、图表、结论
+3. 清晰的报告结构：标题、摘要、数据分析、图表、结论，优先使用图表展示数据
 4. 嵌入图片时使用相对路径
+5. 当金额大于一万元时，请选择合适的单位（万，亿）
 
 ## 输出要求
 - 分析要有理有据，结论要基于数据
 - 图表要清晰展示数据特征
 - 报告要结构清晰，易于理解
+- 禁止引用不存在的图片
 """
 
 SHELL_TOOL_DESCRIPTION = """
@@ -176,7 +179,7 @@ class DataAnalyserAgent:
             tools = [
                 sql_query,                  # SQL 查询工具（支持 ToolRuntime）
                 search_knowledge_base,      # 知识库检索工具
-                create_chart_image,
+                # create_chart_image,
                 # get_date_range,             # 日期范围工具
                 # get_metrics,                # 指标数据工具
             ]
