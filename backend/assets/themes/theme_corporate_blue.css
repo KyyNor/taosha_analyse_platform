@@ -1,0 +1,37 @@
+/* Theme: Corporate Blue (稳重蓝) */
+/* 基础重置 */
+body { font-family: "Microsoft YaHei", "Segoe UI", sans-serif; margin: 0; padding: 0; background-color: #f5f7fa; color: #333; }
+
+/* 容器 */
+.report-container { max-width: 1000px; margin: 40px auto; background: #fff; padding: 50px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border-radius: 8px; }
+
+/* 头部 */
+.report-header { text-align: center; border-bottom: 2px solid #eef1f6; padding-bottom: 30px; margin-bottom: 40px; }
+.report-title { color: #2c3e50; font-size: 32px; margin-bottom: 10px; font-weight: 600; }
+.report-meta { color: #7f8c8d; font-size: 14px; }
+
+/* 章节 */
+.section-container { margin-bottom: 50px; }
+.section-title { color: #2980b9; font-size: 24px; border-left: 5px solid #2980b9; padding-left: 15px; margin-bottom: 25px; margin-top: 40px; }
+.subsection-title { color: #34495e; font-size: 18px; margin-top: 25px; margin-bottom: 15px; font-weight: 600; }
+
+/* 内容 */
+.content-text { line-height: 1.8; color: #444; margin-bottom: 16px; text-align: justify; font-size: 16px; }
+.content-list { margin-bottom: 16px; line-height: 1.8; color: #444; }
+
+/* 摘要/结论框 */
+.summary-card, .insight-box { background: #f0f7ff; border: 1px solid #d6eaf8; border-radius: 6px; padding: 25px; margin: 30px 0; }
+.insight-box { border-left: 4px solid #3498db; }
+
+/* 表格 */
+.table-wrapper { overflow-x: auto; margin: 30px 0; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 600px; }
+.data-table th { background-color: #f8f9fa; color: #2c3e50; padding: 15px; text-align: left; border-bottom: 2px solid #3498db; font-weight: 600; }
+.data-table td { padding: 12px 15px; border-bottom: 1px solid #eee; }
+.data-table tr:nth-child(even) { background-color: #fafbfc; }
+.data-table tr:hover { background-color: #f1f1f1; }
+
+/* 图表 */
+.chart-wrapper { text-align: center; margin: 40px 0; padding: 20px; background: #fafafa; border-radius: 8px; border: 1px solid #eee; }
+.chart-img { max-width: 100%; height: auto; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.chart-caption { margin-top: 15px; color: #666; font-size: 14px; font-style: italic; }

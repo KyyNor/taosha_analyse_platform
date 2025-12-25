@@ -5,9 +5,11 @@ DeepAgents 数据分析智能体服务
 """
 
 import uuid
+import random
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+from bs4 import BeautifulSoup
 
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend, CompositeBackend, StateBackend
@@ -40,9 +42,9 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
    - 使用 shell 工具编写 Python 脚本（优先使用 seaborn/matplotlib）生成图片。
    - 必须配置中文字体：`plt.rcParams['font.sans-serif'] = ['WenQuanYi Micro Hei']`。
    - 图片统一保存至 `/analysis/tmp/` 目录下。
-6. **生成报告**：
-   - 完成所有任务后，将最终分析报告写入 `/analysis/report.html`。
-   - 报告应包含：分析背景、数据来源、分析过程、可视化图表、结论建议。
+6. **生成报告内容**：
+   - 完成所有任务后，将分析结果的主体内容写入 `/analysis/report_content.html`。
+   - 注意：该文件 **不应** 包含 `<html>`, `<head>`, `<body>`, `<style>` 等标签，只需包含语义化的 HTML 内容结构（如 h1, h2, p, table, img 等）。
 
 ## 工具使用规范
 1. **查询限制**：调用查询工具（除维表 hxb_dh_data_dim 外）必须带 ETL_DATE 或 CDATE 过滤条件。
@@ -50,11 +52,15 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
 3. **文件查看**：在未知文件大小时，切勿直接读取全部内容，防止 Token 溢出。
 4. **单位换算**：涉及大额金额（>10000）时，请使用“万”或“亿”作为单位。
 
-## HTML 报告格式要求
-生成的 report.html 必须是自包含的完整 HTML 文件：
-1. 包含标准的 HTML5 结构和内联 CSS 样式（不依赖外部 CDN）。
-2. 使用图表（图片形式）直观展示数据，嵌入图片时使用相对路径。
-3. 结构清晰：标题 -> 摘要 -> 数据深度分析（图文并茂） -> 结论。
+## HTML 报告内容要求
+生成的 report_content.html 仅需包含以下语义化结构：
+1. **主标题**：使用 `h1` 标签。
+2. **章节标题**：使用 `h2` 标签。
+3. **子标题**：使用 `h3` 标签。
+4. **正文**：使用 `p` 标签。
+5. **列表**：使用 `ul`/`ol` 和 `li` 标签。
+6. **表格**：使用 `table` 标签（无需添加 class，系统会自动处理）。
+7. **图片**：使用 `img` 标签（src使用相对路径，必须填写 `alt` 属性作为图注）。
 
 ## 输出质量要求
 - 结论必须基于客观数据，禁止臆造。
@@ -224,6 +230,9 @@ class DataAnalyserAgent:
                     logger.info(message.content)
                     logger.info("-" * 50)
 
+            # 生成最终报告（样式注入 + 归一化）
+            self._inject_styles_and_generate_final_report()
+
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
 
@@ -285,6 +294,129 @@ class DataAnalyserAgent:
         except Exception as e:
             logger.warning(f"提取 LLM 输出失败: {e}")
             return None
+    
+    def _inject_styles_and_generate_final_report(self) -> None:
+        """注入样式并生成最终的 report.html (包含归一化逻辑)"""
+        try:
+            content_path = self.output_dir / "report_content.html"
+            if not content_path.exists():
+                logger.warning(f"未找到报告内容文件: {content_path}")
+                return
+
+            # 读取原始内容
+            raw_html = content_path.read_text(encoding="utf-8")
+            
+            # 使用 BeautifulSoup 进行归一化处理
+            soup = BeautifulSoup(raw_html, "html.parser")
+
+            # 1. 标题类名注入
+            for h1 in soup.find_all("h1"):
+                h1['class'] = h1.get('class', []) + ['report-title']
+            for h2 in soup.find_all("h2"):
+                h2['class'] = h2.get('class', []) + ['section-title']
+            for h3 in soup.find_all("h3"):
+                h3['class'] = h3.get('class', []) + ['subsection-title']
+            for h4 in soup.find_all("h4"):
+                h4['class'] = h4.get('class', []) + ['subsection-title']
+
+            # 2. 正文类名注入
+            for p in soup.find_all("p"):
+                # 如果 p 是 img 的直接容器，不添加 content-text
+                if not p.find("img"):
+                    p['class'] = p.get('class', []) + ['content-text']
+            
+            # 3. 列表类名注入
+            for ul in soup.find_all(["ul", "ol"]):
+                ul['class'] = ul.get('class', []) + ['content-list']
+
+            # 4. 表格处理 (添加类名 + 外部包裹 div)
+            for table in soup.find_all("table"):
+                table['class'] = table.get('class', []) + ['data-table']
+                # 检查是否已经被 wrap (防止重复运行)
+                if table.parent and "table-wrapper" in table.parent.get("class", []):
+                    continue
+                # 创建 wrapper
+                wrapper = soup.new_tag("div", attrs={"class": "table-wrapper"})
+                table.wrap(wrapper)
+
+            # 5. 图片处理 (添加类名 + 外部包裹 div + 图注)
+            for img in soup.find_all("img"):
+                img['class'] = img.get('class', []) + ['chart-img']
+                
+                # 检查父级是否已经是 chart-wrapper
+                parent = img.parent
+                if parent and "chart-wrapper" in parent.get("class", []):
+                    # 已经处理过，可能只需要检查 caption
+                    continue
+                
+                # 如果父级是 p 标签且只包含这个 img，可以将 p 转换为 div.chart-wrapper
+                if parent.name == 'p' and len(parent.contents) == 1:
+                    parent.name = 'div'
+                    parent['class'] = ['chart-wrapper']
+                    # 添加 caption
+                    if img.get('alt'):
+                        caption = soup.new_tag("p", attrs={"class": "chart-caption"})
+                        caption.string = img.get('alt')
+                        parent.append(caption)
+                else:
+                    # 创建新的 wrapper
+                    wrapper = soup.new_tag("div", attrs={"class": "chart-wrapper"})
+                    img.wrap(wrapper)
+                    # 添加 caption
+                    if img.get('alt'):
+                        caption = soup.new_tag("p", attrs={"class": "chart-caption"})
+                        caption.string = img.get('alt')
+                        wrapper.append(caption)
+
+            # 获取处理后的 body 内容
+            # 如果 raw_html 本身包含了 body，则取 body 内部，否则直接取 soup
+            body_content = soup.body.encode_contents().decode('utf-8') if soup.body else soup.encode_contents().decode('utf-8')
+
+            # 随机选择主题
+            theme_dir = Path("backend/assets/themes")
+            if not theme_dir.exists(): # fallback if running from wrong pwd?
+                 theme_dir = Path("/home/kyynor/code/taosha_workspace/taosha_analyse_platform/backend/assets/themes")
+            
+            themes = list(theme_dir.glob("*.css"))
+            if themes:
+                selected_theme = random.choice(themes)
+                css_content = selected_theme.read_text(encoding="utf-8")
+                theme_name = selected_theme.stem
+            else:
+                css_content = ""
+                theme_name = "default"
+                logger.warning("未找到 CSS 主题文件，将生成无样式报告")
+
+            # 构建最终 HTML
+            final_html = f"""
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据分析报告</title>
+    <style>
+    {css_content}
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <div class="report-header">
+            <h1 class="report-title">数据分析报告</h1>
+            <p class="report-meta">生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 主题: {theme_name}</p>
+        </div>
+        {body_content}
+    </div>
+</body>
+</html>
+"""
+            # 写入 report.html
+            report_path = self.output_dir / "report.html"
+            report_path.write_text(final_html, encoding="utf-8")
+            logger.info(f"已生成最终报告: {report_path} (主题: {theme_name})")
+
+        except Exception as e:
+            logger.error(f"生成最终报告失败: {e}", exc_info=True)
 
     async def run_analysis_stream(self, question: str, user_id: str = "default"):
         """流式运行数据分析
@@ -348,6 +480,9 @@ class DataAnalyserAgent:
 
             # 保存 LLM 输出
             self.llm_output = "".join(llm_output_chunks)
+            
+            # 生成最终报告（样式注入 + 归一化）
+            self._inject_styles_and_generate_final_report()
 
             # 发送完成事件
             yield {

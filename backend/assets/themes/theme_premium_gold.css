@@ -1,0 +1,36 @@
+/* Theme: Premium Gold (黑金/雅致金) */
+/* 基础重置 */
+body { font-family: "Georgia", "Microsoft YaHei", serif; margin: 0; padding: 0; background-color: #1a1a1a; color: #e0e0e0; }
+
+/* 容器 */
+.report-container { max-width: 900px; margin: 40px auto; background: #252525; padding: 60px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #333; }
+
+/* 头部 */
+.report-header { text-align: center; border-bottom: 1px solid #d4af37; padding-bottom: 30px; margin-bottom: 50px; }
+.report-title { color: #d4af37; font-size: 36px; margin-bottom: 15px; font-weight: normal; letter-spacing: 2px; }
+.report-meta { color: #888; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+
+/* 章节 */
+.section-container { margin-bottom: 60px; }
+.section-title { color: #f1c40f; font-size: 26px; border-bottom: 1px solid #444; padding-bottom: 10px; margin-bottom: 30px; font-weight: normal; }
+.subsection-title { color: #d4af37; font-size: 20px; margin-top: 30px; margin-bottom: 20px; font-weight: normal; }
+
+/* 内容 */
+.content-text { line-height: 1.9; color: #ccc; margin-bottom: 20px; text-align: justify; font-size: 17px; font-weight: 300; }
+.content-list { margin-bottom: 20px; line-height: 1.9; color: #ccc; }
+
+/* 摘要/结论框 */
+.summary-card, .insight-box { background: #2a2a2a; border: 1px solid #d4af37; padding: 30px; margin: 40px 0; box-shadow: inset 0 0 20px rgba(212, 175, 55, 0.05); }
+.insight-box { border-left: 4px solid #d4af37; }
+
+/* 表格 */
+.table-wrapper { overflow-x: auto; margin: 40px 0; border: 1px solid #444; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 600px; }
+.data-table th { background-color: #333; color: #d4af37; padding: 18px; text-align: center; border-bottom: 1px solid #d4af37; font-weight: normal; letter-spacing: 1px; }
+.data-table td { padding: 15px; border-bottom: 1px solid #333; color: #bbb; text-align: center; }
+.data-table tr:nth-child(even) { background-color: #2a2a2a; }
+
+/* 图表 */
+.chart-wrapper { text-align: center; margin: 50px 0; padding: 10px; background: transparent; }
+.chart-img { max-width: 100%; height: auto; border: 1px solid #444; box-shadow: 0 5px 15px rgba(0,0,0,0.3); opacity: 0.9; }
+.chart-caption { margin-top: 20px; color: #888; font-size: 14px; font-style: italic; letter-spacing: 1px; }
