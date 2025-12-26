@@ -13,7 +13,7 @@ from bs4 import BeautifulSoup
 
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend, CompositeBackend, StateBackend
-from langchain.agents.middleware import ToolRetryMiddleware, ShellToolMiddleware, FilesystemFileSearchMiddleware
+from langchain.agents.middleware import ToolRetryMiddleware, ShellToolMiddleware, FilesystemFileSearchMiddleware, ModelCallLimitMiddleware
 from services.agents.deepagents.custom_docker_execution_policy import CustomDockerExecutionPolicy
 from langchain_core.messages import AIMessage
 
@@ -194,6 +194,10 @@ class DataAnalyserAgent:
                 context_schema=DataAnalysisContext,
                 backend=composite_backend,
                 middleware=[
+                    ModelCallLimitMiddleware(
+                        run_limit=100,        # 单次运行最多调用模型100次
+                        exit_behavior='end'   # 达到限制后正常结束
+                    ),
                     ToolRetryMiddleware(
                         max_retries=2, # 指的是重试的次数
                         on_failure="continue" # 会包装错误信息返回给LLM
@@ -260,7 +264,7 @@ class DataAnalyserAgent:
                 code_execution_timeout=self._config["code_execution_timeout"],
                 user_id=user_id
             )
-
+            
             with _langfuse_client.start_as_current_span(name="deep_agent"):
                 with propagate_attributes(user_id=user_id, session_id=self.session_id):
                     result = self.agent.invoke(
