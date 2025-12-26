@@ -420,7 +420,7 @@ class DataAnalyserAgent:
             # 随机选择主题
             theme_dir = Path("backend/assets/themes")
             if not theme_dir.exists(): # fallback if running from wrong pwd?
-                 theme_dir = Path("/home/kyynor/code/taosha_workspace/taosha_analyse_platform/backend/assets/themes")
+                 theme_dir = Path("/data/taosha/taosha_analyse_platform/backend/assets/themes")
             
             themes = list(theme_dir.glob("*.css"))
             if themes:

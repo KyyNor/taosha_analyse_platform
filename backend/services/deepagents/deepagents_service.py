@@ -20,10 +20,57 @@ from utils.logger import logger
 
 
 # 任务超时时间（秒）
-TASK_TIMEOUT_SECONDS = 20 * 60  # 20分钟
+TASK_TIMEOUT_SECONDS = 25 * 60  # 20分钟
 
 # 轮询间隔（秒）
-POLL_INTERVAL_SECONDS = 5
+POLL_INTERVAL_SECONDS = 10
+
+
+def _save_session_to_db(
+    session_id: str,
+    question: str,
+    question_source: str,
+    result: Dict[str, Any],
+    llm_output: Optional[str] = None
+):
+    """保存会话到数据库"""
+    try:
+        from models import SessionLocal
+        from models.deepagents import AnalysisSession
+        from datetime import datetime
+
+        db = SessionLocal()
+        try:
+            s = db.query(AnalysisSession).filter(AnalysisSession.session_id == session_id).first()
+            if s:
+                logger.info(f"更新会话已有信息 {session_id}")
+                s.status="completed" if result.get("success") else "failed"
+                s.end_time=datetime.now()
+                s.duration_seconds=result.get("duration_seconds")
+                s.report_path=result.get("report_path")
+                s.report_content=result.get("report_content")
+                s.llm_output=llm_output
+            else:
+                logger.info(f"新建会话 {session_id}")
+                session = AnalysisSession(
+                    session_id=session_id,
+                    question=question,
+                    question_source=question_source,
+                    status="completed" if result.get("success") else "failed",
+                    start_time=datetime.now(),
+                    end_time=datetime.now(),
+                    duration_seconds=result.get("duration_seconds"),
+                    report_path=result.get("report_path"),
+                    report_content=result.get("report_content"),
+                    llm_output=llm_output,
+                )
+                db.add(session)
+            db.commit()
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"保存会话到数据库失败: {e}")
+
 
 
 def _run_analysis_task(session_id: str, question: str, result_queue: multiprocessing.Queue):
@@ -41,20 +88,42 @@ def _run_analysis_task(session_id: str, question: str, result_queue: multiproces
         # 创建并运行分析
         analyser = DataAnalyserAgent(session_id=session_id)
         analyser.create_agent()
-        result = analyser.run_analysis(question)
+        analyse_result = analyser.run_analysis(question)
 
-        # 如果成功，运行评分
-        if result.get("success"):
-            try:
-                from services.agents.deepagents.scorer_agent import ScorerAgent
-                scorer = ScorerAgent()
-                score_result = scorer.evaluate_and_save(session_id)
-                result["score_result"] = score_result
-            except Exception as e:
-                logger.warning(f"评分失败: {e}")
-                result["score_error"] = str(e)
+        logger.info(f"会话ID: {session_id}")
+        logger.info(f"耗时: {analyse_result.get('duration_seconds', 0):.1f} 秒")
 
-        result_queue.put(result)
+        if analyse_result.get("success"):
+            logger.info(f"输出目录: {analyse_result.get('output_dir')}")
+            if analyse_result.get("report_exists"):
+                logger.info(f"报告文件: {analyse_result.get('report_path')}")
+
+            # 保存会话到数据库
+            _save_session_to_db(
+                session_id=session_id,
+                question=question,
+                question_source="manual",
+                result=analyse_result,
+                llm_output=analyser.llm_output
+            )
+            
+        else:
+            logger.info(f"分析失败: {analyse_result.get('error')}")
+
+        from services.agents.deepagents.scorer_agent import ScorerAgent
+        scorer = ScorerAgent()
+        score_result = scorer.evaluate_and_save(session_id)
+
+        if score_result.get("success"):
+            logger.info(f"过程评分: {score_result.get('process_score', {}).get('score', 0)}")
+            logger.info(f"报告评分: {score_result.get('report_score', {}).get('score', 0)}")
+            logger.info(f"结论评分: {score_result.get('conclusion_score', {}).get('score', 0)}")
+            logger.info(f"综合评分: {score_result.get('overall_score', 0)}")
+        else:
+            logger.info(f"评分失败: {score_result.get('error')}")
+
+        result_queue.put(analyse_result)
+        logger.info(f"分析任务执行完毕： {session_id}")
 
     except Exception as e:
         logger.error(f"分析任务执行失败: {e}", exc_info=True)
@@ -157,7 +226,7 @@ class DeepAgentsTaskExecutor:
                 # 首先检查是否已有正在运行的任务（全局只允许一个）
                 running_session = db.query(AnalysisSession).filter(
                     AnalysisSession.status == "running"
-                ).with_for_update(skip_locked=True).first()
+                ).first()
 
                 if running_session:
                     # 已有任务在运行，不领取新任务
@@ -172,6 +241,7 @@ class DeepAgentsTaskExecutor:
                 ).with_for_update(skip_locked=True).first()
 
                 if not session:
+                    db.commit()
                     return  # 无待处理任务
 
                 # 标记为执行中
@@ -232,19 +302,6 @@ class DeepAgentsTaskExecutor:
                     "failed",
                     llm_output="任务执行超时（超过20分钟），已强制终止"
                 )
-            else:
-                # 正常完成，获取结果
-                if not result_queue.empty():
-                    result = result_queue.get_nowait()
-                    self._save_task_result(session_id, result)
-                else:
-                    # 进程结束但没有结果（可能是异常退出）
-                    exit_code = self._current_process.exitcode
-                    self._update_session_status(
-                        session_id,
-                        "failed",
-                        llm_output=f"任务异常退出，退出码: {exit_code}"
-                    )
 
         except Exception as e:
             logger.error(f"执行任务失败: {e}", exc_info=True)
@@ -258,49 +315,6 @@ class DeepAgentsTaskExecutor:
             with self._lock:
                 self._current_process = None
                 self._current_session_id = None
-
-    def _save_task_result(self, session_id: str, result: Dict[str, Any]):
-        """保存任务结果到数据库
-
-        Args:
-            session_id: 会话ID
-            result: 任务结果
-        """
-        try:
-            from models.db_base import get_db_session
-            from models.deepagents.analysis_tracking_models import AnalysisSession
-
-            with get_db_session() as db:
-                session = db.query(AnalysisSession).filter(
-                    AnalysisSession.session_id == session_id
-                ).first()
-
-                if not session:
-                    logger.error(f"会话不存在: {session_id}")
-                    return
-
-                # 更新状态
-                session.status = "completed" if result.get("success") else "failed"
-                session.end_time = datetime.now()
-
-                if session.start_time:
-                    session.duration_seconds = (session.end_time - session.start_time).total_seconds()
-
-                # 保存结果
-                if result.get("report_path"):
-                    session.report_path = result.get("report_path")
-                if result.get("report_content"):
-                    session.report_content = result.get("report_content")
-                if result.get("llm_output"):
-                    session.llm_output = result.get("llm_output")
-                elif result.get("error"):
-                    session.llm_output = f"错误: {result.get('error')}"
-
-                db.commit()
-                logger.info(f"任务结果已保存: {session_id}, 状态: {session.status}")
-
-        except Exception as e:
-            logger.error(f"保存任务结果失败: {e}", exc_info=True)
 
     def _update_session_status(
         self,
