@@ -1,0 +1,36 @@
+/* Theme: SOE Red (红头风 - 权威) */
+/* 基础重置 */
+body { font-family: "SimSun", "Songti SC", "Microsoft YaHei", serif; margin: 0; padding: 0; background-color: #fff; color: #2c3e50; }
+
+/* 容器 */
+.report-container { max-width: 800px; margin: 0 auto; padding: 50px 60px; background-color: #fff; }
+
+/* 头部 */
+.report-header { text-align: center; margin-bottom: 50px; padding-bottom: 20px; border-bottom: 3px solid #b71c1c; }
+.report-title { color: #b71c1c; font-size: 38px; margin-bottom: 15px; font-family: "SimHei", "Heiti SC", sans-serif; font-weight: 700; letter-spacing: 2px; }
+.report-meta { color: #555; font-size: 15px; margin-top: 0; font-family: "KaiTi", "KaiTi_GB2312", serif; }
+
+/* 章节 */
+.section-container { margin-bottom: 40px; }
+.section-title { color: #b71c1c; font-size: 24px; font-weight: 700; margin-bottom: 20px; font-family: "SimHei", "Heiti SC", sans-serif; padding-left: 10px; border-left: 5px solid #b71c1c; background-color: #fff5f5; padding-top: 5px; padding-bottom: 5px;}
+.subsection-title { color: #333; font-size: 18px; margin-top: 25px; margin-bottom: 12px; font-weight: 700; font-family: "SimHei", "Heiti SC", sans-serif; }
+
+/* 内容 */
+.content-text { line-height: 2.0; color: #333; margin-bottom: 20px; text-align: justify; font-size: 16px; text-indent: 2em; }
+.content-list { margin-bottom: 20px; line-height: 1.8; color: #333; margin-left: 1em; }
+
+/* 摘要/结论框 */
+.summary-card, .insight-box { background: #fff; border: 1px solid #e57373; padding: 25px; margin: 30px 0; border-radius: 2px; }
+.insight-box { border-left: 5px solid #d32f2f; background-color: #fffafb; font-family: "KaiTi", "KaiTi_GB2312", serif; font-size: 17px; }
+
+/* 表格 */
+.table-wrapper { overflow-x: auto; margin: 30px 0; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 14px; border: 1px solid #333; }
+.data-table th { background-color: #fce4ec; color: #b71c1c; padding: 12px; text-align: center; border: 1px solid #333; font-weight: 700; }
+.data-table td { padding: 12px; border: 1px solid #333; text-align: center; }
+.data-table tr:nth-child(even) { background-color: #fff; }
+
+/* 图表 */
+.chart-wrapper { text-align: center; margin: 35px 0; }
+.chart-img { max-width: 100%; height: auto; border: 1px solid #ddd; padding: 5px; background: #fff; }
+.chart-caption { margin-top: 10px; color: #666; font-size: 14px; font-family: "KaiTi", "KaiTi_GB2312", serif; }

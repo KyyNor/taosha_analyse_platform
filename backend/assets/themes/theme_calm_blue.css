@@ -1,0 +1,36 @@
+/* Theme: Calm Blue (政务蓝 - 清新) */
+/* 基础重置 */
+body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; margin: 0; padding: 0; background-color: #f7f9fc; color: #32325d; }
+
+/* 容器 */
+.report-container { max-width: 850px; margin: 30px auto; padding: 50px; background-color: #fff; border-radius: 8px; box-shadow: 0 5px 15px rgba(50, 50, 93, 0.05); }
+
+/* 头部 */
+.report-header { text-align: center; margin-bottom: 45px; }
+.report-title { color: #1e3a8a; font-size: 30px; margin-bottom: 12px; font-weight: 700; letter-spacing: 0.5px; }
+.report-meta { color: #64748b; font-size: 14px; background: #f1f5f9; display: inline-block; padding: 5px 15px; border-radius: 20px; }
+
+/* 章节 */
+.section-container { margin-bottom: 40px; }
+.section-title { color: #2563eb; font-size: 22px; font-weight: 600; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0; }
+.subsection-title { color: #3b82f6; font-size: 18px; margin-top: 25px; margin-bottom: 15px; font-weight: 600; }
+
+/* 内容 */
+.content-text { line-height: 1.8; color: #475569; margin-bottom: 15px; text-align: justify; font-size: 15px; }
+.content-list { margin-bottom: 15px; line-height: 1.8; color: #475569; }
+
+/* 摘要/结论框 */
+.summary-card, .insight-box { background: #eff6ff; border: 1px solid #bfdbfe; padding: 20px; margin: 25px 0; border-radius: 6px; }
+.insight-box { border-left: 4px solid #3b82f6; color: #1e40af; font-weight: 500; }
+
+/* 表格 */
+.table-wrapper { overflow-x: auto; margin: 30px 0; border-radius: 6px; border: 1px solid #e2e8f0; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.data-table th { background-color: #f8fafc; color: #334155; padding: 12px 15px; text-align: left; border-bottom: 1px solid #cbd5e1; font-weight: 600; }
+.data-table td { padding: 12px 15px; border-bottom: 1px solid #e2e8f0; color: #64748b; }
+.data-table tr:last-child td { border-bottom: none; }
+
+/* 图表 */
+.chart-wrapper { text-align: center; margin: 35px 0; }
+.chart-img { max-width: 100%; height: auto; border-radius: 6px; border: 1px solid #f1f5f9; }
+.chart-caption { margin-top: 12px; color: #94a3b8; font-size: 13px; }
