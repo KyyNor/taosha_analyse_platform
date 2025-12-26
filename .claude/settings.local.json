@@ -70,7 +70,8 @@
       "Bash(npm run build:charts:*)",
       "Bash(git rm:*)",
       "Bash(head:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "mcp__tavily__tavily_crawl"
     ],
     "deny": [],
     "ask": [],

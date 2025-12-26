@@ -179,6 +179,40 @@ services:
       retries: 10
       start_period: 5s
 
+  # Browserless - Headless Chrome for browser automation
+  browserless:
+    image: docker.io/browserless/chrome:latest
+    restart: always
+    ports:
+      - 3001:3000  # WebSocket/HTTP API
+    environment:
+      # 并发会话数限制
+      MAX_CONCURRENT_SESSIONS: ${BROWSERLESS_MAX_SESSIONS:-10}
+      # 连接超时（毫秒）
+      CONNECTION_TIMEOUT: ${BROWSERLESS_CONNECTION_TIMEOUT:-60000}
+      # 队列长度
+      MAX_QUEUE_LENGTH: ${BROWSERLESS_MAX_QUEUE:-20}
+      # 预启动 Chrome 实例以加快首次连接
+      PREBOOT_CHROME: ${BROWSERLESS_PREBOOT:-true}
+      # 禁用调试器（生产环境推荐）
+      ENABLE_DEBUGGER: ${BROWSERLESS_ENABLE_DEBUGGER:-false}
+      # Token 认证（可选，设置后需要在连接 URL 中带上 ?token=xxx）
+      TOKEN: ${BROWSERLESS_TOKEN:-}
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # MySQL database
   mysql:
     image: docker.io/mysql:8.0
