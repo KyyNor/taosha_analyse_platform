@@ -17,6 +17,7 @@ body { font-family: "Consolas", "Monaco", "Microsoft YaHei", monospace; margin: 
 
 /* 内容 */
 .content-text { line-height: 1.6; color: #ccc; margin-bottom: 15px; text-align: justify; font-size: 14px; }
+.content-text strong { color: #b71c1c; font-weight: 700; }
 .content-list { margin-bottom: 15px; line-height: 1.6; color: #ccc; }
 
 /* 摘要/结论框 */

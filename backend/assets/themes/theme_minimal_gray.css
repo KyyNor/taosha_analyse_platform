@@ -17,6 +17,7 @@ body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; margin: 0; pad
 
 /* 内容 */
 .content-text { line-height: 1.8; color: #424242; margin-bottom: 18px; text-align: justify; font-size: 15px; }
+.content-text strong { color: #000; font-weight: 600; text-decoration: underline; }
 .content-list { margin-bottom: 18px; line-height: 1.8; color: #424242; }
 
 /* 摘要/结论框 */

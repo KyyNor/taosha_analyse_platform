@@ -18,6 +18,7 @@ body { font-family: "Microsoft YaHei", "Segoe UI", sans-serif; margin: 0; paddin
 
 /* 内容 */
 .content-text { line-height: 1.8; color: #dddddd; margin-bottom: 18px; text-align: justify; font-size: 16px; font-weight: 300; }
+.content-text strong { color: #fff; font-weight: 700; text-shadow: 0 0 2px #39cccc; }
 .content-list { margin-bottom: 18px; line-height: 1.8; color: #dddddd; }
 
 /* 摘要/结论框 */

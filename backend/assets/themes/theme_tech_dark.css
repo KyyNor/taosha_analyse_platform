@@ -17,6 +17,7 @@ body { font-family: "Roboto", "Segoe UI", sans-serif; margin: 0; padding: 0; bac
 
 /* 内容 */
 .content-text { line-height: 1.7; color: #cbd5e1; margin-bottom: 16px; text-align: justify; }
+.content-text strong { color: #60a5fa; font-weight: 700; }
 .content-list { margin-bottom: 16px; line-height: 1.7; color: #cbd5e1; }
 
 /* 摘要/结论框 */
