@@ -139,7 +139,13 @@ class DeepAgentsTaskExecutor:
             self._stop_event.wait(timeout=POLL_INTERVAL_SECONDS)
 
     def _claim_and_execute_task(self):
-        """尝试从数据库领取并执行一个任务"""
+        """尝试从数据库领取并执行一个任务
+
+        保证全局同一时间只有一个任务在运行：
+        1. 先检查是否已有 running 状态的任务
+        2. 如果有，直接返回不领取新任务
+        3. 如果没有，再领取 pending 任务
+        """
         from models.db_base import get_db_session
         from models.deepagents.analysis_tracking_models import AnalysisSession
         from sqlalchemy import asc
@@ -148,6 +154,15 @@ class DeepAgentsTaskExecutor:
 
         try:
             with get_db_session() as db:
+                # 首先检查是否已有正在运行的任务（全局只允许一个）
+                running_session = db.query(AnalysisSession).filter(
+                    AnalysisSession.status == "running"
+                ).with_for_update(skip_locked=True).first()
+
+                if running_session:
+                    # 已有任务在运行，不领取新任务
+                    return
+
                 # 使用 FOR UPDATE SKIP LOCKED 确保并发安全
                 # 这样多个 worker 可以同时查询，但只有一个能领取到任务
                 session = db.query(AnalysisSession).filter(
