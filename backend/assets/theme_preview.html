@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>主题预览 - 淘沙分析平台</title>
+    <link id="theme-css" rel="stylesheet" href="themes/theme_corporate_blue.css">
+    <style>
+        /* 主题选择器样式 - 不受主题CSS影响 */
+        #theme-selector {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        #theme-selector label {
+            color: #fff;
+            font-size: 14px;
+            font-weight: 500;
+            display: block;
+            margin-bottom: 8px;
+        }
+        #theme-selector select {
+            width: 200px;
+            padding: 8px 12px;
+            font-size: 14px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            background: #222;
+            color: #fff;
+            cursor: pointer;
+            outline: none;
+        }
+        #theme-selector select:hover {
+            border-color: #666;
+        }
+        #theme-selector select:focus {
+            border-color: #3b82f6;
+        }
+        #theme-selector .hint {
+            color: #888;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 主题选择器 -->
+    <div id="theme-selector">
+        <label for="theme-select">选择主题</label>
+        <select id="theme-select" onchange="switchTheme(this.value)">
+            <!-- 由 JavaScript 动态生成，或由脚本更新 -->
+        </select>
+        <div class="hint">修改CSS后刷新即可预览</div>
+    </div>
+
+    <!-- 报告内容 -->
+    <div class="report-container">
+        <div class="report-header">
+            <h1 class="report-title">数据分析报告示例</h1>
+            <p class="report-meta">生成时间: 2024-01-15 14:30:00 | 当前主题: <span id="current-theme">theme_corporate_blue</span></p>
+        </div>
+
+        <h2 class="section-title">1. 分析背景</h2>
+        <p class="content-text">本次分析旨在通过对最近一个季度的交易数据进行深入挖掘，识别潜在的异常交易模式，并评估其对整体风险控制策略的影响。数据来源覆盖了核心交易系统及外围渠道。</p>
+
+        <h2 class="section-title">2. 关键指标概览</h2>
+        <div class="insight-box">
+            <p class="content-text"><strong>核心发现：</strong> 本季度高风险交易占比环比上升了 <strong>12.5%</strong>，主要集中在非工作时段的跨境转账业务中。</p>
+        </div>
+
+        <h2 class="section-title">3. 交易趋势分析</h2>
+        <p class="content-text">下图展示了近三个月的日均交易量变化趋势。可以明显观察到，每逢月末均会出现交易峰值。</p>
+
+        <div class="chart-wrapper">
+            <img src="https://placehold.co/800x400/png?text=Transaction+Trend+Chart" alt="图1：季度交易量趋势图" class="chart-img">
+            <p class="chart-caption">图1：季度交易量趋势图</p>
+        </div>
+
+        <h2 class="section-title">4. 详细数据统计</h2>
+        <p class="content-text">以下是各分行的风险交易统计明细：</p>
+
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>分行名称</th>
+                        <th>总交易量 (万)</th>
+                        <th>异常交易数</th>
+                        <th>风险占比</th>
+                        <th>环比变化</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>北京分行</td>
+                        <td>45,230</td>
+                        <td>125</td>
+                        <td>0.28%</td>
+                        <td><span style="color:red">↑ 2.1%</span></td>
+                    </tr>
+                    <tr>
+                        <td>上海分行</td>
+                        <td>51,020</td>
+                        <td>98</td>
+                        <td>0.19%</td>
+                        <td><span style="color:green">↓ 0.5%</span></td>
+                    </tr>
+                    <tr>
+                        <td>深圳分行</td>
+                        <td>38,900</td>
+                        <td>156</td>
+                        <td>0.40%</td>
+                        <td><span style="color:red">↑ 5.2%</span></td>
+                    </tr>
+                    <tr>
+                        <td>广州分行</td>
+                        <td>32,100</td>
+                        <td>88</td>
+                        <td>0.27%</td>
+                        <td>-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h2 class="section-title">5. 结论与建议</h2>
+        <ul class="content-list">
+            <li>建议加强对非工作时段大额跨境交易的实时监控规则。</li>
+            <li>针对深圳分行的异常增长情况，建议开展专项合规检查。</li>
+            <li>优化现有风控模型，引入更多维度的用户行为特征。</li>
+        </ul>
+    </div>
+
+    <script>
+        // ============================================================
+        // 主题列表 - 新增/删除CSS后运行 update_theme_list.py 更新此处
+        // ============================================================
+        const themes = [
+            { name: "theme_clean_light", label: "简约白 (Clean Light)" },
+            { name: "theme_corporate_blue", label: "稳重蓝 (Corporate Blue)" },
+            { name: "theme_premium_gold", label: "黑金 (Premium Gold)" },
+            { name: "theme_tech_dark", label: "科技黑 (Tech Dark)" }
+        ];
+        // ============================================================
+
+        // 初始化下拉框
+        function initThemeSelector() {
+            const select = document.getElementById('theme-select');
+            const currentTheme = getCurrentTheme();
+
+            themes.forEach(theme => {
+                const option = document.createElement('option');
+                option.value = theme.name;
+                option.textContent = theme.label;
+                if (theme.name === currentTheme) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+        }
+
+        // 获取当前主题名称
+        function getCurrentTheme() {
+            const link = document.getElementById('theme-css');
+            const href = link.getAttribute('href');
+            const match = href.match(/themes\/(.+)\.css/);
+            return match ? match[1] : 'theme_corporate_blue';
+        }
+
+        // 切换主题
+        function switchTheme(themeName) {
+            const link = document.getElementById('theme-css');
+            link.href = `themes/${themeName}.css`;
+            document.getElementById('current-theme').textContent = themeName;
+        }
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', initThemeSelector);
+    </script>
+</body>
+</html>
