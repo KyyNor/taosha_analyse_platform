@@ -26,8 +26,12 @@ from services.agents.tools.metrics_tool import get_metrics
 from utils.logger import logger
 from services.agents.models.deep_agent_context import DataAnalysisContext
 
-# 数据分析系统提示词
-DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家。你的任务是帮助用户分析数据并生成可视化报告。
+# 提示词模板名称常量
+PROMPT_TEMPLATE_DATA_ANALYSIS = "deepagents_data_analysis_system_prompt"
+PROMPT_TEMPLATE_SHELL_TOOL = "deepagents_shell_tool_description"
+
+# 数据分析系统提示词 (默认值，当数据库中不存在时使用)
+DEFAULT_DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家。你的任务是帮助用户分析数据并生成可视化报告。
 
 ## 工作流程
 1. **理解问题**：仔细理解用户的分析需求。
@@ -68,7 +72,8 @@ DATA_ANALYSIS_SYSTEM_PROMPT = """你是淘沙分析平台的数据分析专家�
 - 报告应具备专业度，逻辑严密。
 """
 
-SHELL_TOOL_DESCRIPTION = """
+# Shell 工具描述 (默认值，当数据库中不存在时使用)
+DEFAULT_SHELL_TOOL_DESCRIPTION = """
 在持久会话中执行 shell 命令。运行命令前，请确认当前工作目录正确（例如用 ls 或 pwd 检查），并确保所有父目录已存在。
 优先使用绝对路径；若路径包含空格，请用引号包裹，例如 cd "/path/with spaces"。多个命令请用 && 或 ; 串联，不要使用换行。
 除非确实需要，否则避免频繁使用 cd,以保持会话稳定。
@@ -122,9 +127,46 @@ class DataAnalyserAgent:
         logger.info(f"DataAnalyserAgent 初始化完成，会话ID: {self.session_id}")
         logger.info(f"输出目录: {self.output_dir}")
 
+    def _get_prompt_template(self, template_name: str, default_value: str) -> str:
+        """从数据库获取提示词模板，不存在则使用默认值
+
+        Args:
+            template_name: 模板名称
+            default_value: 默认值
+
+        Returns:
+            模板内容
+        """
+        try:
+            from models.db_base import get_db_session
+            from services.metadata_service.metadata_service import PromptTemplateService
+
+            with get_db_session() as db:
+                service = PromptTemplateService(db)
+                template = service.get_template_by_name(template_name)
+                if template and template.get("template"):
+                    logger.info(f"从数据库加载提示词模板: {template_name}")
+                    return template.get("template")
+                else:
+                    logger.warning(f"提示词模板 {template_name} 不存在，使用默认值")
+                    return default_value
+        except Exception as e:
+            logger.error(f"获取提示词模板失败: {e}，使用默认值")
+            return default_value
+
     def create_agent(self) -> None:
         """创建 DeepAgent 实例"""
         try:
+            # 从数据库加载提示词模板
+            system_prompt = self._get_prompt_template(
+                PROMPT_TEMPLATE_DATA_ANALYSIS,
+                DEFAULT_DATA_ANALYSIS_SYSTEM_PROMPT
+            )
+            shell_tool_description = self._get_prompt_template(
+                PROMPT_TEMPLATE_SHELL_TOOL,
+                DEFAULT_SHELL_TOOL_DESCRIPTION
+            )
+
             # 准备工具列表
             tools = [
                 sql_query,                  # SQL 查询工具（支持 ToolRuntime）
@@ -145,8 +187,8 @@ class DataAnalyserAgent:
             self.agent = create_deep_agent(
                 model=self.llm_service.client,
                 tools=tools,
-                system_prompt=DATA_ANALYSIS_SYSTEM_PROMPT,
-                context_schema=DataAnalysisContext,  
+                system_prompt=system_prompt,
+                context_schema=DataAnalysisContext,
                 backend=composite_backend,
                 middleware=[
                     ToolRetryMiddleware(
@@ -154,7 +196,7 @@ class DataAnalyserAgent:
                         on_failure="continue" # 会包装错误信息返回给LLM
                     ),
                     ShellToolMiddleware(
-                        tool_description=SHELL_TOOL_DESCRIPTION,
+                        tool_description=shell_tool_description,
                         workspace_root=self.output_dir.resolve(),
                         execution_policy=CustomDockerExecutionPolicy(
                             image="taosha-sandbox:latest",   # 刚才 build 的镜像

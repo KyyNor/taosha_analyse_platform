@@ -19,6 +19,7 @@ from api.nlquey_routes import router as nlquey_router
 from api.metadata_routes import router as metadata_router
 from api.user_routes import router as user_router
 from api.agents_routes import router as agents_router
+from api.deepagents_routes import router as deepagents_router
 from api.fraudhunter import (
     indicator_task_router,
     indicator_router,
@@ -332,6 +333,15 @@ async def lifespan(app: FastAPI):
         # 这些服务在多worker环境下只需要运行一次
         await _initialize_system_services()
 
+        # 启动 DeepAgents 任务执行器（每个 worker 都需要启动）
+        try:
+            from services.deepagents import get_task_executor
+            deepagents_executor = get_task_executor()
+            deepagents_executor.start()
+            logger.info("DeepAgents 任务执行器已启动")
+        except Exception as e:
+            logger.error(f"DeepAgents 任务执行器启动失败: {e}", exc_info=True)
+
         # from services.agents.agent_service import agent_service
         # async with agent_service.lifespan():
         #     logger.info("=== 淘沙分析平台启动成功 ===")
@@ -346,6 +356,15 @@ async def lifespan(app: FastAPI):
     # 关闭时的清理
     logger.info("=== 淘沙分析平台关闭中 ===")
     try:
+        # 停止 DeepAgents 任务执行器
+        try:
+            from services.deepagents import get_task_executor
+            deepagents_executor = get_task_executor()
+            deepagents_executor.stop()
+            logger.info("DeepAgents 任务执行器已停止")
+        except Exception as e:
+            logger.error(f"DeepAgents 任务执行器停止失败: {e}", exc_info=True)
+
         # 关闭统一调度服务
         try:
             from services.scheduler import scheduler_service
@@ -408,6 +427,7 @@ app.include_router(nlquey_router, prefix=api_prefix)
 app.include_router(metadata_router, prefix=api_prefix)
 app.include_router(user_router, prefix=api_prefix)
 app.include_router(agents_router, prefix=api_prefix)
+app.include_router(deepagents_router, prefix=api_prefix)
 
 # 注册 FraudHunter 路由
 fraudhunter_prefix = f"{api_prefix}/fraudhunter"
