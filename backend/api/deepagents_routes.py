@@ -23,7 +23,7 @@ from sqlalchemy import desc, asc
 
 from models.db_base import get_db
 from models.deepagents.analysis_tracking_models import AnalysisSession, AnalysisScore
-from services.deepagents import get_task_executor
+from services.agents.deepagents import get_task_runner
 from utils.logger import logger
 
 
@@ -300,8 +300,8 @@ async def download_session_output(
 async def get_queue_status():
     """获取当前任务队列状态"""
     try:
-        executor = get_task_executor()
-        status = executor.get_queue_status()
+        runner = get_task_runner()
+        status = runner.get_queue_status()
         return QueueStatusResponse(**status)
     except Exception as e:
         logger.error(f"获取队列状态失败: {e}", exc_info=True)
@@ -312,8 +312,8 @@ async def get_queue_status():
 async def start_queue():
     """启动任务队列处理器（仅用于手动控制）"""
     try:
-        executor = get_task_executor()
-        executor.start()
+        runner = get_task_runner()
+        runner.start()
         return {"status": "success", "message": "任务队列已启动"}
     except Exception as e:
         logger.error(f"启动队列失败: {e}", exc_info=True)
@@ -324,8 +324,8 @@ async def start_queue():
 async def stop_queue():
     """停止任务队列处理器（仅用于手动控制）"""
     try:
-        executor = get_task_executor()
-        executor.stop()
+        runner = get_task_runner()
+        runner.stop()
         return {"status": "success", "message": "任务队列已停止"}
     except Exception as e:
         logger.error(f"停止队列失败: {e}", exc_info=True)

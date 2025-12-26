@@ -335,9 +335,9 @@ async def lifespan(app: FastAPI):
 
         # 启动 DeepAgents 任务执行器（每个 worker 都需要启动）
         try:
-            from services.deepagents import get_task_executor
-            deepagents_executor = get_task_executor()
-            deepagents_executor.start()
+            from services.agents.deepagents import get_task_runner
+            deepagents_runner = get_task_runner()
+            deepagents_runner.start()
             logger.info("DeepAgents 任务执行器已启动")
         except Exception as e:
             logger.error(f"DeepAgents 任务执行器启动失败: {e}", exc_info=True)
@@ -358,9 +358,9 @@ async def lifespan(app: FastAPI):
     try:
         # 停止 DeepAgents 任务执行器
         try:
-            from services.deepagents import get_task_executor
-            deepagents_executor = get_task_executor()
-            deepagents_executor.stop()
+            from services.agents.deepagents import get_task_runner
+            deepagents_runner = get_task_runner()
+            deepagents_runner.stop()
             logger.info("DeepAgents 任务执行器已停止")
         except Exception as e:
             logger.error(f"DeepAgents 任务执行器停止失败: {e}", exc_info=True)

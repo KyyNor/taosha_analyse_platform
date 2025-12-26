@@ -29,6 +29,11 @@ from services.agents.deepagents.scorer_agent import (
     create_scorer_agent,
 )
 
+from backend.services.agents.deepagents.deepagents_runner import (
+    DeepAgentsRunner,
+    get_task_runner,
+)
+
 __all__ = [
     # 数据分析智能体
     "DataAnalyserAgent",
@@ -40,4 +45,7 @@ __all__ = [
     "ScorerAgent",
     "create_scorer_agent",
     "create_deep_analyse_service",
+    "DeepAgentsRunner",
+    "get_task_runner",
 ]
+

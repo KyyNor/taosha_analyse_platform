@@ -134,7 +134,7 @@ def _run_analysis_task(session_id: str, question: str, result_queue: multiproces
         })
 
 
-class DeepAgentsTaskExecutor:
+class DeepAgentsRunner:
     """DeepAgents 任务执行器
 
     基于数据库队列的任务执行器，支持多 worker 环境。
@@ -391,21 +391,21 @@ class DeepAgentsTaskExecutor:
 
 
 # 全局实例（每个 worker 进程一个）
-_task_executor: Optional[DeepAgentsTaskExecutor] = None
+_task_runner: Optional[DeepAgentsRunner] = None
 _executor_lock = Lock()
 
 
-def get_task_executor() -> DeepAgentsTaskExecutor:
+def get_task_runner() -> DeepAgentsRunner:
     """获取任务执行器实例（单例）
 
     Returns:
         DeepAgentsTaskExecutor 实例
     """
-    global _task_executor
+    global _task_runner
 
-    if _task_executor is None:
+    if _task_runner is None:
         with _executor_lock:
-            if _task_executor is None:
-                _task_executor = DeepAgentsTaskExecutor()
+            if _task_runner is None:
+                _task_runner = DeepAgentsRunner()
 
-    return _task_executor
+    return _task_runner
