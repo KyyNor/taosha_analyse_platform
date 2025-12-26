@@ -3,14 +3,16 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { MetadataTable } from "@/components/ui/MetadataTable";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { getTableById, getColumnsByTable, batchUpdateTableAndColumns } from "@/lib/services/metadataService";
-import { ArrowLeft, Edit, Database, Save, X } from "lucide-react";
+import { getTableById, getColumnsByTable, batchUpdateTableAndColumns, getRelations } from "@/lib/services/metadataService";
+import { ArrowLeft, Edit, Database, Save, X, Trash2 } from "lucide-react";
 import { formatDateTime, formatBoolean } from "@/lib/utils/formatUtils";
 import { toast } from "sonner";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -32,6 +34,7 @@ export default function TableDetailPage() {
   const [isEditMode, setIsEditMode] = useState(mode === 'edit');
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [relationConfigs, setRelationConfigs] = useState<any[]>([]);
 
   // 加载表基本信息
   const loadTableData = async () => {
@@ -63,10 +66,22 @@ export default function TableDetailPage() {
     }
   };
 
+  // 加载关系配置列表
+  const loadRelationConfigs = async () => {
+    try {
+      const res = await getRelations({ page: 1, page_size: 1000 });
+      const configs = Array.isArray(res?.data) ? res.data : [];
+      setRelationConfigs(configs);
+    } catch (error) {
+      console.error('Failed to load relation configs:', error);
+    }
+  };
+
   useEffect(() => {
     if (tableId) {
       loadTableData();
       loadColumnsData();
+      loadRelationConfigs();
     }
   }, [tableId]);
 
@@ -482,85 +497,114 @@ export default function TableDetailPage() {
                   暂无字段信息，点击上方按钮添加字段
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {columnsData.map((column, index) => (
-                    <Card key={column.id || index} className="p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div>
-                          <Label htmlFor={`column-name-${index}`}>字段名 *</Label>
-                          <Input
-                            id={`column-name-${index}`}
-                            value={column.name || ''}
-                            onChange={(e) => handleColumnDataChange(index, 'name', e.target.value)}
-                            placeholder="请输入字段名"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`column-type-${index}`}>字段类型 *</Label>
-                          <select
-                            id={`column-type-${index}`}
-                            value={column.type || 'VARCHAR'}
-                            onChange={(e) => handleColumnDataChange(index, 'type', e.target.value)}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                          >
-                            <option value="VARCHAR">VARCHAR</option>
-                            <option value="INT">INT</option>
-                            <option value="BIGINT">BIGINT</option>
-                            <option value="DECIMAL">DECIMAL</option>
-                            <option value="TEXT">TEXT</option>
-                            <option value="DATETIME">DATETIME</option>
-                            <option value="DATE">DATE</option>
-                            <option value="BOOLEAN">BOOLEAN</option>
-                            <option value="JSON">JSON</option>
-                          </select>
-                        </div>
-                        <div>
-                          <Label htmlFor={`column-business-type-${index}`}>业务类型</Label>
-                          <Input
-                            id={`column-business-type-${index}`}
-                            value={column.business_type || ''}
-                            onChange={(e) => handleColumnDataChange(index, 'business_type', e.target.value)}
-                            placeholder="请输入业务类型"
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <Label htmlFor={`column-comment-${index}`}>字段描述</Label>
-                          <Input
-                            id={`column-comment-${index}`}
-                            value={column.comment || ''}
-                            onChange={(e) => handleColumnDataChange(index, 'comment', e.target.value)}
-                            placeholder="请输入字段描述"
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <Label htmlFor={`column-remark-${index}`}>备注</Label>
-                          <Input
-                            id={`column-remark-${index}`}
-                            value={column.remark || ''}
-                            onChange={(e) => handleColumnDataChange(index, 'remark', e.target.value)}
-                            placeholder="请输入备注"
-                          />
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Switch
-                            id={`column-available-${index}`}
-                            checked={column.is_available === 0}
-                            onCheckedChange={(checked) => handleColumnDataChange(index, 'is_available', checked ? 0 : 1)}
-                          />
-                          <Label htmlFor={`column-available-${index}`}>可用</Label>
-                        </div>
-                        <div className="flex items-end">
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDeleteColumn(index)}
-                          >
-                            删除
-                          </Button>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
+                <div className="border rounded-md overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[140px]">字段名 *</TableHead>
+                        <TableHead className="w-[100px]">类型 *</TableHead>
+                        <TableHead className="w-[100px]">业务类型</TableHead>
+                        <TableHead className="w-[160px]">字段描述</TableHead>
+                        <TableHead className="w-[120px]">备注</TableHead>
+                        <TableHead className="w-[180px]">关系配置</TableHead>
+                        <TableHead className="w-[60px]">可用</TableHead>
+                        <TableHead className="w-[60px]">操作</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {columnsData.map((column, index) => (
+                        <TableRow key={column.id || index}>
+                          <TableCell>
+                            <Input
+                              value={column.name || ''}
+                              onChange={(e) => handleColumnDataChange(index, 'name', e.target.value)}
+                              placeholder="字段名"
+                              className="h-8"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={column.type || 'VARCHAR'}
+                              onValueChange={(value) => handleColumnDataChange(index, 'type', value)}
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="VARCHAR">VARCHAR</SelectItem>
+                                <SelectItem value="INT">INT</SelectItem>
+                                <SelectItem value="BIGINT">BIGINT</SelectItem>
+                                <SelectItem value="DECIMAL">DECIMAL</SelectItem>
+                                <SelectItem value="TEXT">TEXT</SelectItem>
+                                <SelectItem value="DATETIME">DATETIME</SelectItem>
+                                <SelectItem value="DATE">DATE</SelectItem>
+                                <SelectItem value="BOOLEAN">BOOLEAN</SelectItem>
+                                <SelectItem value="JSON">JSON</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              value={column.business_type || ''}
+                              onChange={(e) => handleColumnDataChange(index, 'business_type', e.target.value)}
+                              placeholder="业务类型"
+                              className="h-8"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              value={column.comment || ''}
+                              onChange={(e) => handleColumnDataChange(index, 'comment', e.target.value)}
+                              placeholder="字段描述"
+                              className="h-8"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              value={column.remark || ''}
+                              onChange={(e) => handleColumnDataChange(index, 'remark', e.target.value)}
+                              placeholder="备注"
+                              className="h-8"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={column.relation_config_id?.toString() || '__none__'}
+                              onValueChange={(value) => handleColumnDataChange(index, 'relation_config_id', value === '__none__' ? null : Number(value))}
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue placeholder="选择关系配置" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">无</SelectItem>
+                                {relationConfigs.map((config) => (
+                                  <SelectItem key={config.id} value={config.id.toString()}>
+                                    {config.relation_family}{config.relation_subfamily ? `|${config.relation_subfamily}` : ''}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Switch
+                              checked={column.is_available === 0}
+                              onCheckedChange={(checked) => handleColumnDataChange(index, 'is_available', checked ? 0 : 1)}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteColumn(index)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </div>
