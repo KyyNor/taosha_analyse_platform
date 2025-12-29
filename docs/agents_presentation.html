@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>淘沙分析平台 - 智能体架构汇报</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -15,24 +12,27 @@
         }
 
         :root {
-            --bg-primary: #0a0e1a;
-            --bg-secondary: #111827;
-            --accent-cyan: #00d4ff;
-            --accent-green: #00ff88;
-            --accent-purple: #a855f7;
-            --accent-pink: #ff006e;
-            --text-primary: #ffffff;
-            --text-secondary: #9ca3af;
-            --text-muted: #6b7280;
-            --glass-bg: rgba(255, 255, 255, 0.03);
-            --glass-border: rgba(255, 255, 255, 0.08);
-            --glow-cyan: 0 0 30px rgba(0, 212, 255, 0.3);
-            --glow-green: 0 0 30px rgba(0, 255, 136, 0.3);
-            --transition-smooth: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-tertiary: #f1f5f9;
+            --accent-blue: #2563eb;
+            --accent-cyan: #0891b2;
+            --accent-green: #059669;
+            --accent-purple: #7c3aed;
+            --accent-pink: #db2777;
+            --text-primary: #1e293b;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --border-color: #e2e8f0;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         body {
-            font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
             line-height: 1.7;
@@ -48,6 +48,7 @@
             height: 100%;
             z-index: 0;
             pointer-events: none;
+            opacity: 0.6;
         }
 
         /* Container */
@@ -69,6 +70,7 @@
             text-align: center;
             padding: 80px 20px;
             position: relative;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
         }
 
         .hero-badge {
@@ -76,35 +78,35 @@
             align-items: center;
             gap: 8px;
             padding: 8px 20px;
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
             border-radius: 50px;
             font-size: 0.85rem;
-            color: var(--accent-cyan);
+            color: var(--accent-blue);
             margin-bottom: 30px;
-            backdrop-filter: blur(10px);
+            font-weight: 600;
         }
 
         .hero-badge::before {
             content: '';
             width: 8px;
             height: 8px;
-            background: var(--accent-cyan);
+            background: var(--accent-blue);
             border-radius: 50%;
             animation: pulse 2s ease-in-out infinite;
         }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(1.2); }
+            50% { opacity: 0.6; transform: scale(1.2); }
         }
 
         .hero h1 {
             font-size: clamp(3rem, 8vw, 6rem);
-            font-weight: 700;
+            font-weight: 800;
             line-height: 1.1;
             margin-bottom: 20px;
-            background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-cyan) 50%, var(--accent-green) 100%);
+            background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-cyan) 50%, var(--accent-green) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -131,9 +133,9 @@
 
         .stat-value {
             font-size: 3rem;
-            font-weight: 700;
+            font-weight: 800;
             color: var(--accent-green);
-            font-family: 'JetBrains Mono', monospace;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
         }
 
         .stat-label {
@@ -142,6 +144,7 @@
             text-transform: uppercase;
             letter-spacing: 0.1em;
             margin-top: 5px;
+            font-weight: 600;
         }
 
         /* Section */
@@ -152,19 +155,21 @@
 
         .section-label {
             display: inline-block;
-            font-family: 'JetBrains Mono', monospace;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
             font-size: 0.75rem;
-            color: var(--accent-cyan);
+            color: var(--accent-blue);
             text-transform: uppercase;
             letter-spacing: 0.2em;
             margin-bottom: 20px;
+            font-weight: 700;
         }
 
         .section-title {
             font-size: clamp(2.5rem, 5vw, 4rem);
-            font-weight: 700;
+            font-weight: 800;
             margin-bottom: 20px;
             letter-spacing: -0.02em;
+            color: var(--text-primary);
         }
 
         .section-desc {
@@ -174,38 +179,21 @@
             line-height: 1.8;
         }
 
-        /* Glass Card */
-        .glass-card {
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
+        /* Card */
+        .card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
             border-radius: 24px;
             padding: 40px;
-            backdrop-filter: blur(20px);
             transition: var(--transition-smooth);
             position: relative;
-            overflow: hidden;
+            box-shadow: var(--shadow-md);
         }
 
-        .glass-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
-            opacity: 0;
-            transition: var(--transition-smooth);
-        }
-
-        .glass-card:hover {
-            transform: translateY(-8px);
-            border-color: rgba(0, 212, 255, 0.2);
-            box-shadow: var(--glow-cyan);
-        }
-
-        .glass-card:hover::before {
-            opacity: 1;
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-xl);
+            border-color: var(--accent-blue);
         }
 
         /* Grid Layouts */
@@ -227,24 +215,25 @@
         .agent-card {
             position: relative;
             padding: 50px 40px;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
         }
 
         .agent-card.agent-a {
-            border-color: rgba(0, 212, 255, 0.2);
+            border: 2px solid var(--accent-cyan);
         }
 
         .agent-card.agent-a:hover {
-            border-color: var(--accent-cyan);
-            box-shadow: var(--glow-cyan);
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
         }
 
         .agent-card.agent-d {
-            border-color: rgba(0, 255, 136, 0.2);
+            border: 2px solid var(--accent-green);
         }
 
         .agent-card.agent-d:hover {
             border-color: var(--accent-green);
-            box-shadow: var(--glow-green);
+            box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
         }
 
         .agent-icon {
@@ -257,22 +246,24 @@
             font-size: 2rem;
             margin-bottom: 25px;
             position: relative;
+            font-weight: 800;
         }
 
         .agent-card.agent-a .agent-icon {
-            background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 212, 255, 0.05));
-            border: 2px solid rgba(0, 212, 255, 0.3);
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(8, 145, 178, 0.1));
+            color: var(--accent-blue);
         }
 
         .agent-card.agent-d .agent-icon {
-            background: linear-gradient(135deg, rgba(0, 255, 136, 0.2), rgba(0, 255, 136, 0.05));
-            border: 2px solid rgba(0, 255, 136, 0.3);
+            background: linear-gradient(135deg, rgba(5, 150, 105, 0.15), rgba(8, 145, 178, 0.1));
+            color: var(--accent-green);
         }
 
         .agent-title {
             font-size: 2rem;
-            font-weight: 700;
+            font-weight: 800;
             margin-bottom: 10px;
+            color: var(--text-primary);
         }
 
         .agent-badge {
@@ -280,17 +271,17 @@
             padding: 6px 14px;
             border-radius: 8px;
             font-size: 0.8rem;
-            font-weight: 600;
+            font-weight: 700;
             margin-bottom: 20px;
         }
 
         .agent-card.agent-a .agent-badge {
-            background: rgba(0, 212, 255, 0.15);
-            color: var(--accent-cyan);
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--accent-blue);
         }
 
         .agent-card.agent-d .agent-badge {
-            background: rgba(0, 255, 136, 0.15);
+            background: rgba(5, 150, 105, 0.1);
             color: var(--accent-green);
         }
 
@@ -310,7 +301,7 @@
             align-items: flex-start;
             gap: 15px;
             padding: 15px 0;
-            border-bottom: 1px solid var(--glass-border);
+            border-bottom: 1px solid var(--border-color);
         }
 
         .feature-item:last-child {
@@ -324,25 +315,26 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 700;
+            font-weight: 800;
             font-size: 0.9rem;
             flex-shrink: 0;
         }
 
         .agent-card.agent-a .feature-number {
-            background: rgba(0, 212, 255, 0.15);
-            color: var(--accent-cyan);
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--accent-blue);
         }
 
         .agent-card.agent-d .feature-number {
-            background: rgba(0, 255, 136, 0.15);
+            background: rgba(5, 150, 105, 0.1);
             color: var(--accent-green);
         }
 
         .feature-content h4 {
             font-size: 1.1rem;
-            font-weight: 600;
+            font-weight: 700;
             margin-bottom: 5px;
+            color: var(--text-primary);
         }
 
         .feature-content p {
@@ -352,11 +344,11 @@
 
         /* Collapsible */
         .collapsible {
-            border: 1px solid var(--glass-border);
+            border: 1px solid var(--border-color);
             border-radius: 16px;
             margin: 20px 0;
             overflow: hidden;
-            background: var(--glass-bg);
+            background: var(--bg-primary);
         }
 
         .collapsible-header {
@@ -366,14 +358,15 @@
             justify-content: space-between;
             align-items: center;
             transition: var(--transition-smooth);
+            background: var(--bg-secondary);
         }
 
         .collapsible-header:hover {
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--bg-tertiary);
         }
 
         .collapsible-title {
-            font-weight: 600;
+            font-weight: 700;
             display: flex;
             align-items: center;
             gap: 12px;
@@ -383,15 +376,16 @@
             padding: 4px 12px;
             border-radius: 6px;
             font-size: 0.75rem;
-            font-weight: 600;
+            font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
 
-        .tag-cyan { background: rgba(0, 212, 255, 0.15); color: var(--accent-cyan); }
-        .tag-green { background: rgba(0, 255, 136, 0.15); color: var(--accent-green); }
-        .tag-purple { background: rgba(168, 85, 247, 0.15); color: var(--accent-purple); }
-        .tag-pink { background: rgba(255, 0, 110, 0.15); color: var(--accent-pink); }
+        .tag-blue { background: rgba(37, 99, 235, 0.1); color: var(--accent-blue); }
+        .tag-cyan { background: rgba(8, 145, 178, 0.1); color: var(--accent-cyan); }
+        .tag-green { background: rgba(5, 150, 105, 0.1); color: var(--accent-green); }
+        .tag-purple { background: rgba(124, 58, 237, 0.1); color: var(--accent-purple); }
+        .tag-pink { background: rgba(219, 39, 119, 0.1); color: var(--accent-pink); }
 
         .collapsible-icon {
             width: 24px;
@@ -429,19 +423,20 @@
         }
 
         .arch-box {
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
+            background: var(--bg-primary);
+            border: 2px solid var(--border-color);
             border-radius: 20px;
             padding: 30px 40px;
             text-align: center;
             min-width: 200px;
             transition: var(--transition-smooth);
+            box-shadow: var(--shadow-md);
         }
 
         .arch-box:hover {
             transform: scale(1.05);
             border-color: var(--accent-purple);
-            box-shadow: 0 0 40px rgba(168, 85, 247, 0.3);
+            box-shadow: var(--shadow-xl);
         }
 
         .arch-icon {
@@ -453,12 +448,13 @@
             font-weight: 700;
             font-size: 1.1rem;
             margin-bottom: 8px;
+            color: var(--text-primary);
         }
 
         .arch-subtitle {
             font-size: 0.85rem;
             color: var(--text-muted);
-            font-family: 'JetBrains Mono', monospace;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
         }
 
         .arch-arrow {
@@ -472,10 +468,14 @@
             border-collapse: separate;
             border-spacing: 0;
             margin-top: 40px;
+            background: var(--bg-primary);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
         }
 
         .comparison-table thead tr {
-            background: var(--glass-bg);
+            background: var(--bg-secondary);
         }
 
         .comparison-table th {
@@ -486,33 +486,21 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
             color: var(--text-secondary);
-            border-bottom: 1px solid var(--glass-border);
-        }
-
-        .comparison-table th:first-child {
-            border-radius: 12px 0 0 0;
-        }
-
-        .comparison-table th:last-child {
-            border-radius: 0 12px 0 0;
+            border-bottom: 2px solid var(--border-color);
         }
 
         .comparison-table td {
             padding: 25px;
-            border-bottom: 1px solid var(--glass-border);
+            border-bottom: 1px solid var(--border-color);
             color: var(--text-primary);
         }
 
-        .comparison-table tr:last-child td:first-child {
-            border-radius: 0 0 0 12px;
-        }
-
-        .comparison-table tr:last-child td:last-child {
-            border-radius: 0 0 12px 0;
+        .comparison-table tr:last-child td {
+            border-bottom: none;
         }
 
         .comparison-table tr:hover td {
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--bg-secondary);
         }
 
         .comparison-label {
@@ -527,15 +515,16 @@
         .footer {
             padding: 80px 0;
             text-align: center;
-            border-top: 1px solid var(--glass-border);
+            border-top: 1px solid var(--border-color);
             margin-top: 120px;
+            background: var(--bg-secondary);
         }
 
         .footer-logo {
             font-size: 1.5rem;
-            font-weight: 700;
+            font-weight: 800;
             margin-bottom: 20px;
-            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-green));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
@@ -602,7 +591,7 @@
             <p class="section-desc">淘沙分析平台采用双智能体架构，分别针对实时对话和深度分析场景提供专业解决方案</p>
 
             <div class="grid-2">
-                <div class="glass-card agent-card agent-a reveal">
+                <div class="card agent-card agent-a reveal">
                     <div class="agent-icon">A</div>
                     <div class="agent-title">Agent 智能助手</div>
                     <span class="agent-badge">实时对话式交互</span>
@@ -632,7 +621,7 @@
                     </ul>
                 </div>
 
-                <div class="glass-card agent-card agent-d reveal">
+                <div class="card agent-card agent-d reveal">
                     <div class="agent-icon">D</div>
                     <div class="agent-title">DeepAgents 分析</div>
                     <span class="agent-badge">自动化深度分析</span>
@@ -672,7 +661,7 @@
             <h2 class="section-title">Agent 智能助手核心能力</h2>
             <p class="section-desc">对话式AI助手的核心技术栈与能力展示</p>
 
-            <div class="glass-card reveal">
+            <div class="card reveal">
                 <div class="collapsible">
                     <div class="collapsible-header" onclick="toggleCollapse(this)">
                         <div class="collapsible-title">
@@ -689,17 +678,17 @@
                                 Agent能够根据对话上下文动态生成和渲染UI组件，提供直观的交互体验
                             </p>
                             <div class="grid-3" style="margin-top: 0;">
-                                <div class="glass-card" style="padding: 25px;">
+                                <div class="card" style="padding: 25px;">
                                     <div style="font-size: 2rem; margin-bottom: 10px;">📊</div>
                                     <h4 style="margin-bottom: 8px;">图表组件</h4>
                                     <p style="color: var(--text-muted); font-size: 0.9rem;">折线图、饼图、柱状图、树图等</p>
                                 </div>
-                                <div class="glass-card" style="padding: 25px;">
+                                <div class="card" style="padding: 25px;">
                                     <div style="font-size: 2rem; margin-bottom: 10px;">📋</div>
                                     <h4 style="margin-bottom: 8px;">对比表格</h4>
                                     <p style="color: var(--text-muted); font-size: 0.9rem;">多维度数据对比展示</p>
                                 </div>
-                                <div class="glass-card" style="padding: 25px;">
+                                <div class="card" style="padding: 25px;">
                                     <div style="font-size: 2rem; margin-bottom: 10px;">✅</div>
                                     <h4 style="margin-bottom: 8px;">TodoList</h4>
                                     <p style="color: var(--text-muted); font-size: 0.9rem;">动态任务进度追踪</p>
@@ -734,22 +723,22 @@
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td style="font-family: 'JetBrains Mono', monospace;">create_chart</td>
+                                        <td style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace;">create_chart</td>
                                         <td>生成各类交互式图表</td>
                                         <td>数据可视化、趋势分析</td>
                                     </tr>
                                     <tr>
-                                        <td style="font-family: 'JetBrains Mono', monospace;">create_comparison</td>
+                                        <td style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace;">create_comparison</td>
                                         <td>创建数据对比表格</td>
                                         <td>多维度数据对比</td>
                                     </tr>
                                     <tr>
-                                        <td style="font-family: 'JetBrains Mono', monospace;">get_metrics</td>
+                                        <td style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace;">get_metrics</td>
                                         <td>获取业务指标数据</td>
                                         <td>指标查询与监控</td>
                                     </tr>
                                     <tr>
-                                        <td style="font-family: 'JetBrains Mono', monospace;">get_date_range</td>
+                                        <td style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace;">get_date_range</td>
                                         <td>智能日期范围计算</td>
                                         <td>时间维度分析</td>
                                     </tr>
@@ -773,21 +762,21 @@
                         <div class="collapsible-inner">
                             <div class="feature-list">
                                 <li class="feature-item">
-                                    <div class="feature-number" style="background: rgba(168, 85, 247, 0.15); color: var(--accent-purple);">S</div>
+                                    <div class="feature-number" style="background: rgba(124, 58, 237, 0.1); color: var(--accent-purple);">S</div>
                                     <div class="feature-content">
                                         <h4>SummarizationMiddleware</h4>
                                         <p style="color: var(--text-muted);">智能摘要机制，当Token超过50000时自动压缩历史对话，保持上下文连贯</p>
                                     </div>
                                 </li>
                                 <li class="feature-item">
-                                    <div class="feature-number" style="background: rgba(168, 85, 247, 0.15); color: var(--accent-purple);">P</div>
+                                    <div class="feature-number" style="background: rgba(124, 58, 237, 0.1); color: var(--accent-purple);">P</div>
                                     <div class="feature-content">
                                         <h4>PIIMiddleware</h4>
                                         <p style="color: var(--text-muted);">敏感信息保护层，自动屏蔽信用卡号、身份证号等PII数据</p>
                                     </div>
                                 </li>
                                 <li class="feature-item">
-                                    <div class="feature-number" style="background: rgba(168, 85, 247, 0.15); color: var(--accent-purple);">T</div>
+                                    <div class="feature-number" style="background: rgba(124, 58, 237, 0.1); color: var(--accent-purple);">T</div>
                                     <div class="feature-content">
                                         <h4>TodoListMiddleware</h4>
                                         <p style="color: var(--text-muted);">任务清单管理器，动态追踪和更新任务执行状态</p>
@@ -829,20 +818,20 @@
             </div>
 
             <div class="grid-2">
-                <div class="glass-card reveal">
+                <div class="card reveal">
                     <div style="font-size: 2.5rem; margin-bottom: 20px;">🔒</div>
                     <h3 style="font-size: 1.5rem; margin-bottom: 15px;">Docker沙箱执行</h3>
                     <p style="color: var(--text-secondary); margin-bottom: 25px;">完全隔离的安全代码执行环境</p>
                     <ul class="feature-list">
                         <li class="feature-item">
-                            <div class="feature-number" style="background: rgba(0, 255, 136, 0.15); color: var(--accent-green);">✓</div>
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">✓</div>
                             <div class="feature-content">
                                 <h4>完全隔离</h4>
                                 <p style="color: var(--text-muted);">独立文件系统、禁用网络、资源限制</p>
                             </div>
                         </li>
                         <li class="feature-item">
-                            <div class="feature-number" style="background: rgba(0, 255, 136, 0.15); color: var(--accent-green);">⏱</div>
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">⏱</div>
                             <div class="feature-content">
                                 <h4>超时控制</h4>
                                 <p style="color: var(--text-muted);">30秒默认超时，防止无限循环</p>
@@ -851,27 +840,27 @@
                     </ul>
                 </div>
 
-                <div class="glass-card reveal">
+                <div class="card reveal">
                     <div style="font-size: 2.5rem; margin-bottom: 20px;">🔍</div>
                     <h3 style="font-size: 1.5rem; margin-bottom: 15px;">混合向量检索</h3>
                     <p style="color: var(--text-secondary); margin-bottom: 25px;">基于Qdrant的智能知识库，支持多种检索模式</p>
                     <ul class="feature-list">
                         <li class="feature-item">
-                            <div class="feature-number" style="background: rgba(0, 255, 136, 0.15); color: var(--accent-green);">🎯</div>
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">🎯</div>
                             <div class="feature-content">
                                 <h4>语义检索</h4>
                                 <p style="color: var(--text-muted);">基于embeddings的向量相似度搜索</p>
                             </div>
                         </li>
                         <li class="feature-item">
-                            <div class="feature-number" style="background: rgba(0, 255, 136, 0.15); color: var(--accent-green);">📝</div>
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">📝</div>
                             <div class="feature-content">
                                 <h4>全文检索</h4>
                                 <p style="color: var(--text-muted);">基于BM25的关键词精确匹配</p>
                             </div>
                         </li>
                         <li class="feature-item">
-                            <div class="feature-number" style="background: rgba(0, 255, 136, 0.15); color: var(--accent-green);">⚡</div>
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">⚡</div>
                             <div class="feature-content">
                                 <h4>混合检索+重排序</h4>
                                 <p style="color: var(--text-muted);">语义+全文融合，智能重排序提升精准度</p>
@@ -880,20 +869,20 @@
                     </ul>
                 </div>
 
-                <div class="glass-card reveal">
+                <div class="card reveal">
                     <div style="font-size: 2.5rem; margin-bottom: 20px;">📋</div>
                     <h3 style="font-size: 1.5rem; margin-bottom: 15px;">元数据维护</h3>
                     <p style="color: var(--text-secondary); margin-bottom: 25px;">完整的数据资产管理体系</p>
                     <ul class="feature-list">
                         <li class="feature-item">
-                            <div class="feature-number" style="background: rgba(0, 255, 136, 0.15); color: var(--accent-green);">T</div>
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">T</div>
                             <div class="feature-content">
                                 <h4>表结构管理</h4>
                                 <p style="color: var(--text-muted);">表、列、关系、主题元数据</p>
                             </div>
                         </li>
                         <li class="feature-item">
-                            <div class="feature-number" style="background: rgba(0, 255, 136, 0.15); color: var(--accent-green);">↻</div>
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">↻</div>
                             <div class="feature-content">
                                 <h4>自动同步</h4>
                                 <p style="color: var(--text-muted);">从数据源自动同步表结构</p>
@@ -902,20 +891,20 @@
                     </ul>
                 </div>
 
-                <div class="glass-card reveal">
+                <div class="card reveal">
                     <div style="font-size: 2.5rem; margin-bottom: 20px;">📄</div>
                     <h3 style="font-size: 1.5rem; margin-bottom: 15px;">自动报告生成</h3>
                     <p style="color: var(--text-secondary); margin-bottom: 25px;">AI驱动的专业分析报告</p>
                     <ul class="feature-list">
                         <li class="feature-item">
-                            <div class="feature-number" style="background: rgba(0, 255, 136, 0.15); color: var(--accent-green);">🎨</div>
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">🎨</div>
                             <div class="feature-content">
                                 <h4>多主题支持</h4>
                                 <p style="color: var(--text-muted);">随机主题选择，丰富CSS样式</p>
                             </div>
                         </li>
                         <li class="feature-item">
-                            <div class="feature-number" style="background: rgba(0, 255, 136, 0.15); color: var(--accent-green);">📊</div>
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">📊</div>
                             <div class="feature-content">
                                 <h4>图表嵌入</h4>
                                 <p style="color: var(--text-muted);">matplotlib/seaborn自动生成</p>
@@ -934,7 +923,7 @@
             <h2 class="section-title">能力对比</h2>
             <p class="section-desc">两大智能体的详细能力对比</p>
 
-            <div class="glass-card reveal">
+            <div class="card reveal">
                 <table class="comparison-table">
                     <thead>
                         <tr>
@@ -953,7 +942,7 @@
 
                         <!-- Shared Capabilities -->
                         <tr>
-                            <td colspan="3" style="background: rgba(0, 212, 255, 0.05); color: var(--accent-cyan); font-weight: 700; padding: 15px 25px;">
+                            <td colspan="3" style="background: rgba(37, 99, 235, 0.08); color: var(--accent-blue); font-weight: 700; padding: 15px 25px;">
                                 共享能力
                             </td>
                         </tr>
@@ -979,7 +968,7 @@
 
                         <!-- Different Capabilities -->
                         <tr>
-                            <td colspan="3" style="background: rgba(0, 255, 136, 0.05); color: var(--accent-green); font-weight: 700; padding: 15px 25px;">
+                            <td colspan="3" style="background: rgba(5, 150, 105, 0.08); color: var(--accent-green); font-weight: 700; padding: 15px 25px;">
                                 差异化能力
                             </td>
                         </tr>
@@ -1040,7 +1029,7 @@
     </footer>
 
     <script>
-        // Canvas Background Animation
+        // Canvas Background Animation - Light Theme
         const canvas = document.getElementById('bgCanvas');
         const ctx = canvas.getContext('2d');
         let particles = [];
@@ -1055,8 +1044,8 @@
             constructor() {
                 this.x = Math.random() * canvas.width;
                 this.y = Math.random() * canvas.height;
-                this.vx = (Math.random() - 0.5) * 0.5;
-                this.vy = (Math.random() - 0.5) * 0.5;
+                this.vx = (Math.random() - 0.5) * 0.3;
+                this.vy = (Math.random() - 0.5) * 0.3;
                 this.radius = Math.random() * 2;
             }
 
@@ -1071,14 +1060,14 @@
             draw() {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(0, 212, 255, 0.3)';
+                ctx.fillStyle = 'rgba(37, 99, 235, 0.2)';
                 ctx.fill();
             }
         }
 
         function initParticles() {
             particles = [];
-            const particleCount = Math.floor((canvas.width * canvas.height) / 15000);
+            const particleCount = Math.floor((canvas.width * canvas.height) / 20000);
             for (let i = 0; i < particleCount; i++) {
                 particles.push(new Particle());
             }
@@ -1091,9 +1080,9 @@
                     const dy = particles[i].y - particles[j].y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
 
-                    if (distance < 120) {
+                    if (distance < 150) {
                         ctx.beginPath();
-                        ctx.strokeStyle = `rgba(0, 212, 255, ${0.15 * (1 - distance / 120)})`;
+                        ctx.strokeStyle = `rgba(37, 99, 235, ${0.08 * (1 - distance / 150)})`;
                         ctx.lineWidth = 0.5;
                         ctx.moveTo(particles[i].x, particles[i].y);
                         ctx.lineTo(particles[j].x, particles[j].y);
