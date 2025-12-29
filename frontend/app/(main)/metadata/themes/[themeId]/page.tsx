@@ -86,7 +86,7 @@ export default function DataThemeDetailPage() {
     try {
       const res = await getTables({ fields: false });
       if (res.success) {
-        setAllTables(res.data);
+        setAllTables(res.items || []);
       }
     } catch (error) {
       console.error("Failed to load all tables:", error);

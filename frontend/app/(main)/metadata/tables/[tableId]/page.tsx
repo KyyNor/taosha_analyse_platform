@@ -70,7 +70,7 @@ export default function TableDetailPage() {
   const loadRelationConfigs = async () => {
     try {
       const res = await getRelations({ page: 1, page_size: 1000 });
-      const configs = Array.isArray(res?.data) ? res.data : [];
+      const configs = Array.isArray(res?.items) ? res.items : [];
       setRelationConfigs(configs);
     } catch (error) {
       console.error('Failed to load relation configs:', error);
