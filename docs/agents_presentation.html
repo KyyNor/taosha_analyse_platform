@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>淘沙分析平台 - 智能体架构汇报</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #dc2626;
+            --primary-light: #fecaca;
+            --primary-dark: #991b1b;
+            --bg-color: #fef2f2;
+            --card-bg: #ffffff;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #fef2f2 0%, #fff1f2 50%, #fff7ed 100%);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 60px 0;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: drift 20s linear infinite;
+        }
+
+        @keyframes drift {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 1.25rem;
+            opacity: 0.95;
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin: 10px 5px 0;
+            backdrop-filter: blur(10px);
+        }
+
+        /* Navigation */
+        .nav {
+            background: var(--card-bg);
+            padding: 20px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: var(--shadow-md);
+        }
+
+        .nav-list {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            list-style: none;
+            flex-wrap: wrap;
+        }
+
+        .nav-item a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            padding: 10px 20px;
+            border-radius: 8px;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-item a:hover {
+            color: var(--primary-color);
+            background: var(--bg-color);
+        }
+
+        /* Section */
+        .section {
+            padding: 80px 0;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .section-title::after {
+            content: '';
+            display: block;
+            width: 60px;
+            height: 4px;
+            background: var(--primary-color);
+            margin: 15px auto 0;
+            border-radius: 2px;
+        }
+
+        .section-subtitle {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            max-width: 700px;
+            margin: 0 auto 50px;
+        }
+
+        /* Cards Grid */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: var(--shadow-md);
+            transition: var(--transition);
+            border: 1px solid var(--border-color);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .card-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .card-badge {
+            background: var(--primary-light);
+            color: var(--primary-dark);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        /* Features List */
+        .feature-list {
+            list-style: none;
+            margin: 20px 0;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .feature-item:last-child {
+            border-bottom: none;
+        }
+
+        .feature-icon {
+            width: 24px;
+            height: 24px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.75rem;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .feature-text {
+            flex: 1;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .feature-desc {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* Collapsible */
+        .collapsible {
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+
+        .collapsible-header {
+            background: var(--bg-color);
+            padding: 15px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: var(--transition);
+        }
+
+        .collapsible-header:hover {
+            background: var(--primary-light);
+        }
+
+        .collapsible-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .collapsible-icon {
+            transition: transform 0.3s ease;
+        }
+
+        .collapsible.open .collapsible-icon {
+            transform: rotate(180deg);
+        }
+
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .collapsible.open .collapsible-content {
+            max-height: 2000px;
+        }
+
+        .collapsible-inner {
+            padding: 20px;
+        }
+
+        /* Architecture Diagram */
+        .arch-diagram {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: var(--shadow-md);
+            margin: 40px 0;
+        }
+
+        .arch-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .arch-box {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            text-align: center;
+            min-width: 150px;
+            box-shadow: var(--shadow-md);
+        }
+
+        .arch-arrow {
+            font-size: 2rem;
+            color: var(--primary-color);
+        }
+
+        /* Comparison Table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 15px 20px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .comparison-table th {
+            background: var(--bg-color);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .comparison-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .comparison-table tr:hover {
+            background: var(--bg-color);
+        }
+
+        .check-icon {
+            color: #10b981;
+            font-weight: bold;
+        }
+
+        .cross-icon {
+            color: #ef4444;
+            font-weight: bold;
+        }
+
+        /* Tags */
+        .tag {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin: 3px;
+        }
+
+        .tag-red {
+            background: var(--primary-light);
+            color: var(--primary-dark);
+        }
+
+        .tag-blue {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .tag-green {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .tag-purple {
+            background: #e9d5ff;
+            color: #6b21a8;
+        }
+
+        .tag-gray {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        /* Footer */
+        .footer {
+            background: var(--card-bg);
+            padding: 40px 0;
+            text-align: center;
+            border-top: 1px solid var(--border-color);
+            margin-top: 60px;
+        }
+
+        .footer p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .cards-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .arch-flow {
+                flex-direction: column;
+            }
+
+            .arch-arrow {
+                transform: rotate(90deg);
+            }
+
+            .nav-list {
+                gap: 10px;
+            }
+
+            .nav-item a {
+                padding: 8px 12px;
+                font-size: 0.9rem;
+            }
+        }
+
+        /* Animation */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.2s; }
+        .delay-3 { animation-delay: 0.3s; }
+        .delay-4 { animation-delay: 0.4s; }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container header-content">
+            <h1>淘沙分析平台</h1>
+            <p>AI驱动的智能数据分析系统</p>
+            <div>
+                <span class="badge">Agent 智能对话助手</span>
+                <span class="badge">DeepAgents 深度数据分析</span>
+                <span class="badge">多智能体协作</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="container">
+            <ul class="nav-list">
+                <li class="nav-item"><a href="#overview">系统概览</a></li>
+                <li class="nav-item"><a href="#agent">Agent助手</a></li>
+                <li class="nav-item"><a href="#deepagents">DeepAgents分析</a></li>
+                <li class="nav-item"><a href="#architecture">技术架构</a></li>
+                <li class="nav-item"><a href="#comparison">能力对比</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Overview Section -->
+    <section id="overview" class="section">
+        <div class="container">
+            <h2 class="section-title">系统概览</h2>
+            <p class="section-subtitle">淘沙分析平台提供两大智能体系统，分别针对不同场景提供AI驱动的数据分析能力</p>
+
+            <div class="cards-grid">
+                <!-- Agent Card -->
+                <div class="card animate-in">
+                    <div class="card-header">
+                        <div class="card-icon">A</div>
+                        <div>
+                            <div class="card-title">Agent 智能助手</div>
+                            <span class="card-badge">对话式交互</span>
+                        </div>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                        基于LangChain ReAct框架的对话式智能助手，专注于实时交互和生成式UI展示
+                    </p>
+                    <ul class="feature-list">
+                        <li class="feature-item">
+                            <div class="feature-icon">1</div>
+                            <div class="feature-text">
+                                <div class="feature-title">流式对话</div>
+                                <div class="feature-desc">SSE实时流式响应，支持长上下文对话</div>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-icon">2</div>
+                            <div class="feature-text">
+                                <div class="feature-title">生成式UI</div>
+                                <div class="feature-desc">动态渲染图表、天气卡片、TodoList等组件</div>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-icon">3</div>
+                            <div class="feature-text">
+                                <div class="feature-title">工具调用</div>
+                                <div class="feature-desc">支持图表生成、数据对比、指标查询等工具</div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- DeepAgents Card -->
+                <div class="card animate-in delay-1">
+                    <div class="card-header">
+                        <div class="card-icon">D</div>
+                        <div>
+                            <div class="card-title">DeepAgents 分析</div>
+                            <span class="card-badge">任务式分析</span>
+                        </div>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                        基于多智能体协作的深度数据分析系统，专注于自动化报告生成和代码执行
+                    </p>
+                    <ul class="feature-list">
+                        <li class="feature-item">
+                            <div class="feature-icon">1</div>
+                            <div class="feature-text">
+                                <div class="feature-title">多智能体协作</div>
+                                <div class="feature-desc">问题提出+数据分析+评分的三阶段流水线</div>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-icon">2</div>
+                            <div class="feature-text">
+                                <div class="feature-title">Docker沙箱</div>
+                                <div class="feature-desc">安全隔离的代码执行环境，支持Python数据分析</div>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-icon">3</div>
+                            <div class="feature-text">
+                                <div class="feature-title">向量检索</div>
+                                <div class="feature-desc">基于Qdrant的混合向量知识库检索</div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Agent Section -->
+    <section id="agent" class="section" style="background: var(--bg-color);">
+        <div class="container">
+            <h2 class="section-title">Agent 智能助手</h2>
+            <p class="section-subtitle">实时对话式AI助手，支持生成式UI组件和多工具协作</p>
+
+            <div class="card animate-in">
+                <div class="card-header">
+                    <div class="card-icon">A</div>
+                    <div class="card-title">核心能力详情</div>
+                </div>
+
+                <!-- 生成式UI -->
+                <div class="collapsible">
+                    <div class="collapsible-header" onclick="toggleCollapse(this)">
+                        <div class="collapsible-title">
+                            <span>生成式UI (Generative UI)</span>
+                            <span class="tag tag-purple">特色</span>
+                        </div>
+                        <span class="collapsible-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="collapsible-inner">
+                            <p style="margin-bottom: 15px; color: var(--text-secondary);">
+                                Agent能够根据对话上下文动态生成和渲染UI组件，提供直观的交互体验
+                            </p>
+                            <div class="cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                <div style="background: var(--bg-color); padding: 15px; border-radius: 8px;">
+                                    <div style="font-weight: 600; margin-bottom: 8px;">图表组件</div>
+                                    <div style="font-size: 0.85rem; color: var(--text-secondary);">支持折线图、饼图、柱状图、树图等多种可视化类型</div>
+                                </div>
+                                <div style="background: var(--bg-color); padding: 15px; border-radius: 8px;">
+                                    <div style="font-weight: 600; margin-bottom: 8px;">天气卡片</div>
+                                    <div style="font-size: 0.85rem; color: var(--text-secondary);">实时天气信息展示，包含温度、湿度、风速等数据</div>
+                                </div>
+                                <div style="background: var(--bg-color); padding: 15px; border-radius: 8px;">
+                                    <div style="font-weight: 600; margin-bottom: 8px;">对比表格</div>
+                                    <div style="font-size: 0.85rem; color: var(--text-secondary);">多维度数据对比展示，支持高亮差异项</div>
+                                </div>
+                                <div style="background: var(--bg-color); padding: 15px; border-radius: 8px;">
+                                    <div style="font-weight: 600; margin-bottom: 8px;">TodoList</div>
+                                    <div style="font-size: 0.85rem; color: var(--text-secondary);">动态任务清单，实时追踪任务进度</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 工具操作 -->
+                <div class="collapsible">
+                    <div class="collapsible-header" onclick="toggleCollapse(this)">
+                        <div class="collapsible-title">
+                            <span>工具调用 (Tool Calling)</span>
+                            <span class="tag tag-blue">ReAct</span>
+                        </div>
+                        <span class="collapsible-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="collapsible-inner">
+                            <p style="margin-bottom: 15px; color: var(--text-secondary);">
+                                基于LangChain ReAct框架，Agent可以自主决策并调用多种工具完成任务
+                            </p>
+                            <table class="comparison-table">
+                                <thead>
+                                    <tr>
+                                        <th>工具名称</th>
+                                        <th>功能描述</th>
+                                        <th>应用场景</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>create_chart</code></td>
+                                        <td>生成各类图表</td>
+                                        <td>数据可视化、趋势分析</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>create_comparison</code></td>
+                                        <td>创建对比表格</td>
+                                        <td>多维度数据对比</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>get_metrics</code></td>
+                                        <td>获取指标数据</td>
+                                        <td>业务指标查询</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>get_date_range</code></td>
+                                        <td>日期范围计算</td>
+                                        <td>时间维度分析</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 中间件系统 -->
+                <div class="collapsible">
+                    <div class="collapsible-header" onclick="toggleCollapse(this)">
+                        <div class="collapsible-title">
+                            <span>中间件系统 (Middleware)</span>
+                            <span class="tag tag-green">安全</span>
+                        </div>
+                        <span class="collapsible-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="collapsible-inner">
+                            <ul class="feature-list">
+                                <li class="feature-item">
+                                    <div class="feature-icon">S</div>
+                                    <div class="feature-text">
+                                        <div class="feature-title">SummarizationMiddleware</div>
+                                        <div class="feature-desc">智能摘要，当Token超过50000时自动压缩历史对话</div>
+                                    </div>
+                                </li>
+                                <li class="feature-item">
+                                    <div class="feature-icon">P</div>
+                                    <div class="feature-text">
+                                        <div class="feature-title">PIIMiddleware</div>
+                                        <div class="feature-desc">敏感信息保护，自动屏蔽信用卡号等PII数据</div>
+                                    </div>
+                                </li>
+                                <li class="feature-item">
+                                    <div class="feature-icon">T</div>
+                                    <div class="feature-text">
+                                        <div class="feature-title">TodoListMiddleware</div>
+                                        <div class="feature-desc">任务清单管理，动态追踪和更新任务状态</div>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- DeepAgents Section -->
+    <section id="deepagents" class="section">
+        <div class="container">
+            <h2 class="section-title">DeepAgents 深度数据分析</h2>
+            <p class="section-subtitle">多智能体协作的自动化数据分析系统，支持代码执行和报告生成</p>
+
+            <!-- Multi-Agent Pipeline -->
+            <div class="arch-diagram animate-in">
+                <h3 style="text-align: center; margin-bottom: 30px; font-size: 1.5rem;">多智能体协作流程</h3>
+                <div class="arch-flow">
+                    <div class="arch-box">
+                        <div style="font-size: 2rem; margin-bottom: 10px;">💡</div>
+                        <div style="font-weight: 600;">问题提出智能体</div>
+                        <div style="font-size: 0.85rem; opacity: 0.9;">QuestionProposerAgent</div>
+                    </div>
+                    <div class="arch-arrow">→</div>
+                    <div class="arch-box">
+                        <div style="font-size: 2rem; margin-bottom: 10px;">📊</div>
+                        <div style="font-weight: 600;">数据分析智能体</div>
+                        <div style="font-size: 0.85rem; opacity: 0.9;">DataAnalyserAgent</div>
+                    </div>
+                    <div class="arch-arrow">→</div>
+                    <div class="arch-box">
+                        <div style="font-size: 2rem; margin-bottom: 10px;">⭐</div>
+                        <div style="font-weight: 600;">评分智能体</div>
+                        <div style="font-size: 0.85rem; opacity: 0.9;">ScorerAgent</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cards-grid">
+                <!-- Docker Sandbox -->
+                <div class="card animate-in">
+                    <div class="card-header">
+                        <div class="card-icon">D</div>
+                        <div class="card-title">Docker沙箱执行环境</div>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                        安全隔离的代码执行环境，支持Python数据分析库
+                    </p>
+                    <ul class="feature-list">
+                        <li class="feature-item">
+                            <div class="feature-icon">🔒</div>
+                            <div class="feature-text">
+                                <div class="feature-title">完全隔离</div>
+                                <div class="feature-desc">独立文件系统、禁用网络、资源限制</div>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-icon">⏱️</div>
+                            <div class="feature-text">
+                                <div class="feature-title">超时控制</div>
+                                <div class="feature-desc">默认30秒超时，防止无限循环</div>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-icon">📦</div>
+                            <div class="feature-text">
+                                <div class="feature-title">科学计算库</div>
+                                <div class="feature-desc">pandas、numpy、matplotlib、seaborn等</div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Vector Search -->
+                <div class="card animate-in delay-1">
+                    <div class="card-header">
+                        <div class="card-icon">V</div>
+                        <div class="card-title">混合向量检索</div>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                        基于Qdrant的向量数据库，支持语义检索和知识库查询
+                    </p>
+                    <ul class="feature-list">
+                        <li class="feature-item">
+                            <div class="feature-icon">🔍</div>
+                            <div class="feature-text">
+                                <div class="feature-title">语义检索</div>
+                                <div class="feature-desc">基于embeddings的相似度搜索</div>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-icon">📚</div>
+                            <div class="feature-text">
+                                <div class="feature-title">知识库管理</div>
+                                <div class="feature-desc">元数据、术语表、文档向量化</div>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-icon">🎯</div>
+                            <div class="feature-text">
+                                <div class="feature-title">精准匹配</div>
+                                <div class="feature-desc">混合检索+重排序算法</div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Metadata Maintenance -->
+                <div class="card animate-in delay-2">
+                    <div class="card-header">
+                        <div class="card-icon">M</div>
+                        <div class="card-title">元数据维护</div>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                        完整的数据元数据管理体系，支持表结构和业务术语管理
+                    </p>
+                    <ul class="feature-list">
+                        <li class="feature-item">
+                            <div class="feature-icon">📋</div>
+                            <div class="feature-text">
+                                <div class="feature-title">表结构管理</div>
+                                <div class="feature-desc">表、列、关系、主题的完整元数据</div>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-icon">📖</div>
+                            <div class="feature-text">
+                                <div class="feature-title">术语表</div>
+                                <div class="feature-desc">业务术语定义和知识沉淀</div>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-icon">🔄</div>
+                            <div class="feature-text">
+                                <div class="feature-title">自动同步</div>
+                                <div class="feature-desc">从数据源自动同步表结构</div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Report Generation -->
+                <div class="card animate-in delay-3">
+                    <div class="card-header">
+                        <div class="card-icon">R</div>
+                        <div class="card-title">自动报告生成</div>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                        AI驱动的数据分析报告自动生成，支持HTML格式和多种主题
+                    </p>
+                    <ul class="feature-list">
+                        <li class="feature-item">
+                            <div class="feature-icon">📄</div>
+                            <div class="feature-text">
+                                <div class="feature-title">HTML报告</div>
+                                <div class="feature-desc">语义化HTML结构，支持样式注入</div>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-icon">🎨</div>
+                            <div class="feature-text">
+                                <div class="feature-title">多主题支持</div>
+                                <div class="feature-desc">随机主题选择，丰富的CSS样式</div>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-icon">📊</div>
+                            <div class="feature-text">
+                                <div class="feature-title">图表嵌入</div>
+                                <div class="feature-desc">自动生成的matplotlib/seaborn图表</div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section id="architecture" class="section" style="background: var(--bg-color);">
+        <div class="container">
+            <h2 class="section-title">技术架构</h2>
+            <p class="section-subtitle">两大智能体共享的技术能力</p>
+
+            <div class="card animate-in">
+                <div class="card-header">
+                    <div class="card-icon">🏗️</div>
+                    <div class="card-title">共享技术栈</div>
+                </div>
+
+                <div class="cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="font-size: 3rem; margin-bottom: 10px;">🤖</div>
+                        <div style="font-weight: 600; margin-bottom: 8px;">LLM层</div>
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">
+                            <span class="tag tag-gray">OpenAI</span>
+                            <span class="tag tag-gray">Qwen</span>
+                            <span class="tag tag-gray">LocalAI</span>
+                        </div>
+                    </div>
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="font-size: 3rem; margin-bottom: 10px;">⚙️</div>
+                        <div style="font-weight: 600; margin-bottom: 8px;">框架层</div>
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">
+                            <span class="tag tag-gray">LangChain</span>
+                            <span class="tag tag-gray">LangGraph</span>
+                            <span class="tag tag-gray">deepagents</span>
+                        </div>
+                    </div>
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="font-size: 3rem; margin-bottom: 10px;">🔧</div>
+                        <div style="font-weight: 600; margin-bottom: 8px;">工具层</div>
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">
+                            <span class="tag tag-gray">SQL工具</span>
+                            <span class="tag tag-gray">向量检索</span>
+                            <span class="tag tag-gray">代码执行</span>
+                        </div>
+                    </div>
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="font-size: 3rem; margin-bottom: 10px;">💾</div>
+                        <div style="font-weight: 600; margin-bottom: 8px;">存储层</div>
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">
+                            <span class="tag tag-gray">MySQL</span>
+                            <span class="tag tag-gray">Qdrant</span>
+                            <span class="tag tag-gray">Checkpoint</span>
+                        </div>
+                    </div>
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="font-size: 3rem; margin-bottom: 10px;">📡</div>
+                        <div style="font-weight: 600; margin-bottom: 8px;">通信层</div>
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">
+                            <span class="tag tag-gray">SSE流式</span>
+                            <span class="tag tag-gray">WebSocket</span>
+                            <span class="tag tag-gray">REST API</span>
+                        </div>
+                    </div>
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="font-size: 3rem; margin-bottom: 10px;">🔍</div>
+                        <div style="font-weight: 600; margin-bottom: 8px;">可观测性</div>
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">
+                            <span class="tag tag-gray">Langfuse</span>
+                            <span class="tag tag-gray">Loguru</span>
+                            <span class="tag tag-gray">结构化日志</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Comparison Section -->
+    <section id="comparison" class="section">
+        <div class="container">
+            <h2 class="section-title">能力对比</h2>
+            <p class="section-subtitle">两大智能体的能力差异对比</p>
+
+            <div class="card animate-in">
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 25%;">能力维度</th>
+                            <th style="width: 37.5%;">Agent 智能助手</th>
+                            <th style="width: 37.5%;">DeepAgents 深度分析</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>交互模式</strong></td>
+                            <td><span class="tag tag-blue">实时对话</span> SSE流式响应</td>
+                            <td><span class="tag tag-purple">任务队列</span> 异步批处理</td>
+                        </tr>
+                        <tr>
+                            <td><strong>生成式UI</strong></td>
+                            <td><span class="check-icon">✓</span> 图表、天气、对比表、TodoList</td>
+                            <td><span class="cross-icon">✗</span> 专注于报告生成</td>
+                        </tr>
+                        <tr>
+                            <td><strong>代码执行</strong></td>
+                            <td><span class="cross-icon">✗</span> 不支持代码执行</td>
+                            <td><span class="check-icon">✓</span> Docker沙箱Python执行</td>
+                        </tr>
+                        <tr>
+                            <td><strong>向量检索</strong></td>
+                            <td><span class="tag tag-gray">可选</span> 基础知识库查询</td>
+                            <td><span class="check-icon">✓</span> 混合向量检索+重排序</td>
+                        </tr>
+                        <tr>
+                            <td><strong>元数据维护</strong></td>
+                            <td><span class="tag tag-gray">共享</span> 统一的元数据服务</td>
+                            <td><span class="tag tag-gray">共享</span> 统一的元数据服务</td>
+                        </tr>
+                        <tr>
+                            <td><strong>多智能体协作</strong></td>
+                            <td><span class="cross-icon">✗</span> 单智能体架构</td>
+                            <td><span class="check-icon">✓</span> 三阶段流水线协作</td>
+                        </tr>
+                        <tr>
+                            <td><strong>安全沙箱</strong></td>
+                            <td><span class="tag tag-gray">N/A</span> 无需代码执行</td>
+                            <td><span class="check-icon">✓</span> Docker完全隔离</td>
+                        </tr>
+                        <tr>
+                            <td><strong>会话管理</strong></td>
+                            <td><span class="check-icon">✓</span> Checkpoint内存持久化</td>
+                            <td><span class="check-icon">✓</span> 数据库会话记录</td>
+                        </tr>
+                        <tr>
+                            <td><strong>PII保护</strong></td>
+                            <td><span class="check-icon">✓</span> 自动屏蔽敏感信息</td>
+                            <td><span class="tag tag-gray">N/A</span> 分析场景不涉及</td>
+                        </tr>
+                        <tr>
+                            <td><strong>结果评分</strong></td>
+                            <td><span class="cross-icon">✗</span> 无评分机制</td>
+                            <td><span class="check-icon">✓</span> AI自动评分+改进建议</td>
+                        </tr>
+                        <tr>
+                            <td><strong>报告生成</strong></td>
+                            <td><span class="cross-icon">✗</span> 实时响应展示</td>
+                            <td><span class="check-icon">✓</span> HTML格式完整报告</td>
+                        </tr>
+                        <tr>
+                            <td><strong>典型场景</strong></td>
+                            <td>日常问答、快速查询、实时交互</td>
+                            <td>深度分析、报告生成、数据挖掘</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p style="font-size: 1.1rem; margin-bottom: 10px;">淘沙分析平台 - AI驱动的智能数据分析系统</p>
+            <p>基于 LangChain · LangGraph · DeepAgents · FastAPI · Next.js 构建</p>
+            <p style="margin-top: 20px; font-size: 0.85rem;">© 2025 淘沙分析平台 | 内部汇报材料</p>
+        </div>
+    </footer>
+
+    <script>
+        // Collapsible toggle function
+        function toggleCollapse(element) {
+            const parent = element.closest('.collapsible');
+            parent.classList.toggle('open');
+        }
+
+        // Smooth scroll for navigation
+        document.querySelectorAll('.nav-item a').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Intersection Observer for animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.animate-in').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(30px)';
+            el.style.transition = 'all 0.6s ease';
+            observer.observe(el);
+        });
+
+        // Active navigation highlight
+        const sections = document.querySelectorAll('.section');
+        const navLinks = document.querySelectorAll('.nav-item a');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                if (scrollY >= sectionTop - 200) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.style.color = '';
+                link.style.background = '';
+                if (link.getAttribute('href') === '#' + current) {
+                    link.style.color = 'var(--primary-color)';
+                    link.style.background = 'var(--bg-color)';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
