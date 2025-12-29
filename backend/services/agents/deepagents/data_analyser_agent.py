@@ -21,6 +21,7 @@ from services.llm_service.base_llm_service import BaseLLMService
 from services.agents.tools.sql_query_tool import sql_query
 from services.agents.tools.table_info_tool import get_table_sample_data, get_table_statistics, get_column_statistics
 from services.agents.tools.qdrant_vector_store_tool import search_knowledge_base
+from services.agents.tools.common_tools import add, subtract, divide, multiply
 from utils.logger import logger
 from services.agents.models.deep_agent_context import DataAnalysisContext
 
@@ -175,6 +176,10 @@ class DataAnalyserAgent:
                 get_table_sample_data,      # 获取表样例数据
                 get_table_statistics,       # 获取表统计信息
                 get_column_statistics,      # 获取字段统计信息
+                add, 
+                subtract, 
+                divide, 
+                multiply,
                 # browse_website,  
             ]
 
