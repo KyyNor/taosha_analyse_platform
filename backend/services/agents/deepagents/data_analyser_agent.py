@@ -19,10 +19,8 @@ from langchain_core.messages import AIMessage
 
 from services.llm_service.base_llm_service import BaseLLMService
 from services.agents.tools.sql_query_tool import sql_query
+from services.agents.tools.table_info_tool import get_table_sample_data, get_table_statistics, get_column_statistics
 from services.agents.tools.qdrant_vector_store_tool import search_knowledge_base
-from services.agents.tools.chart_tool import create_chart
-from services.agents.tools.common_tools import get_date_range
-from services.agents.tools.metrics_tool import get_metrics
 from utils.logger import logger
 from services.agents.models.deep_agent_context import DataAnalysisContext
 
@@ -174,8 +172,10 @@ class DataAnalyserAgent:
             tools = [
                 sql_query,                  # SQL 查询工具（支持 ToolRuntime）
                 search_knowledge_base,      # 知识库检索工具
-                # get_date_range,             # 日期范围工具
-                # get_metrics,                # 指标数据工具
+                get_table_sample_data,      # 获取表样例数据
+                get_table_statistics,       # 获取表统计信息
+                get_column_statistics,      # 获取字段统计信息
+                # browse_website,  
             ]
 
             composite_backend = lambda rt: CompositeBackend(
@@ -335,10 +335,16 @@ class DataAnalyserAgent:
         try:
             messages = result.get("messages", [])
             if messages:
-                # 获取最后一条 AI 消息
-                for msg in reversed(messages):
-                    if hasattr(msg, "content") and msg.content:
-                        return str(msg.content)
+                ai_msg_list = []
+
+                for i, message in enumerate(result['messages']):
+                    if isinstance(message, AIMessage):
+                        ai_msg_list.append(f"第 {i+1} 条 AI 消息:")
+                        ai_msg_list.append(message.content)
+                        ai_msg_list.append("-" * 50)
+
+                ai_msg_str = '\n'.join(ai_msg_list)
+                return ai_msg_str
             return None
         except Exception as e:
             logger.warning(f"提取 LLM 输出失败: {e}")

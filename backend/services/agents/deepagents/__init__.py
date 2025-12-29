@@ -29,7 +29,7 @@ from services.agents.deepagents.scorer_agent import (
     create_scorer_agent,
 )
 
-from backend.services.agents.deepagents.deepagents_runner import (
+from services.agents.deepagents.deepagents_runner import (
     DeepAgentsRunner,
     get_task_runner,
 )

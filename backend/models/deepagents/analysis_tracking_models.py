@@ -73,6 +73,7 @@ class AnalysisSession(Base):
             "end_time": self.end_time.isoformat() if self.end_time else None,
             "duration_seconds": self.duration_seconds,
             "report_path": self.report_path,
+            "llm_output": self.llm_output,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
