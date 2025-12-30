@@ -343,11 +343,8 @@ async def lifespan(app: FastAPI):
             logger.error(f"DeepAgents 任务执行器启动失败: {e}", exc_info=True)
 
         from services.agents.agent_service import agent_service
-        async with agent_service.lifespan():
-            logger.info("=== 淘沙分析平台启动成功 ===")
-            yield
-        # logger.info("=== 淘沙分析平台启动成功 ===")
-        # yield
+        logger.info("=== 淘沙分析平台启动成功 ===")
+        yield
 
     except Exception as e:
         logger.error(f"应用启动失败: {e}", exc_info=True)
