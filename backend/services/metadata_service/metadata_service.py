@@ -93,11 +93,14 @@ class MetadataService:
         is_available: Optional[str] = None,
         include_fields: Optional[bool] = True,
         table_name_filter: Optional[str] = None,
-        search_query: Optional[str] = None
+        search_query: Optional[str] = None,
+        order_by: Optional[str] = None,
+        order_direction: Optional[str] = "asc"
     ) -> Dict[str, Any]:
         """分页获取表信息列表"""
         try:
             from models.metadata_models import MetadataTable
+            from sqlalchemy import asc, desc
             query = self.db.query(MetadataTable)
 
             # 应用过滤条件
@@ -115,6 +118,14 @@ class MetadataService:
                     MetadataTable.remark.like(f"%{search_query}%")
                 )
                 query = query.filter(search_filter)
+
+            # 应用排序
+            if order_by and hasattr(MetadataTable, order_by):
+                order_column = getattr(MetadataTable, order_by)
+                if order_direction and order_direction.lower() == "desc":
+                    query = query.order_by(desc(order_column))
+                else:
+                    query = query.order_by(asc(order_column))
 
             # 计算总数
             total = query.count()

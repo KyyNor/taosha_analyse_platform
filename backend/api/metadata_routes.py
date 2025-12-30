@@ -31,9 +31,11 @@ async def get_all_table_metadata(
         fields: Optional[bool] = False,  # 默认不返回字段信息以提升性能
         table_name: Optional[str] = None,
         search: Optional[str] = None,  # 新增：搜索参数（搜索表名和描述）
+        order_by: Optional[str] = None,  # 新增：排序字段
+        order_direction: Optional[str] = "asc",  # 新增：排序方向（asc/desc）
         db: Session = Depends(get_db)
 ):
-    """获取所有表元数据（支持分页）"""
+    """获取所有表元数据（支持分页和排序）"""
     try:
         metadata_service = get_metadata_service(db)
 
@@ -43,7 +45,9 @@ async def get_all_table_metadata(
             is_available=isAvailable,
             include_fields=fields,
             table_name_filter=table_name,
-            search_query=search
+            search_query=search,
+            order_by=order_by,
+            order_direction=order_direction
         )
 
         return {"success": True, **result}
