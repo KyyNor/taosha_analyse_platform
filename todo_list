@@ -40,3 +40,6 @@
 
 
 为什么每次都是超时了，而不是正常结束
+
+@backend\services\agents\deepagents\data_analyser_agent.py 我设计了一个内网深度检索的数据分析智能体，请你阅读我的实现，并使用docs-langchain mcp查询关于多智能体，
+skill，路由，子代理等内容，帮我评估一下，我的数据分析智能体是否需要使用某个架构来细化分工，提升整体性能和指令遵循能力，如果需要，那么哪种结构更合适。
