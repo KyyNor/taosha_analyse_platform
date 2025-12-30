@@ -165,11 +165,9 @@ def sql_query(
         }, ensure_ascii=False)
 
 
-@tool
 @observe(name="execute_sql_query")
 def execute_sql_query(
     sql: str,
-    runtime: ToolRuntime["DataAnalysisContext"],
     limit: int = 100
 ) -> str:
     """
@@ -198,11 +196,56 @@ def execute_sql_query(
         # 数据质量检查
         execute_sql_query("SELECT COUNT(*) as null_count FROM users WHERE email IS NULL AND ETL_DATE='2025-09-30'")
     """
-    # 直接调用 sql_query，固定 save_to_file=False
-    return sql_query(
-        sql=sql,
-        runtime=runtime,
-        limit=limit,
-        save_to_file=False,
-        file_description=None
-    )
+    try:
+        # 延迟导入，避免循环依赖
+        from services.query_engine import get_query_engine
+
+        # 获取查询引擎
+        engine = get_query_engine()
+
+        # 处理 LIMIT 子句
+        sql_upper = sql.upper().strip()
+        if limit > 0 and "LIMIT" not in sql_upper:
+            # 移除末尾的分号
+            sql = sql.rstrip().rstrip(";")
+            sql = f"{sql} LIMIT {limit}"
+
+        # 执行查询
+        result = engine.execute_query(sql)
+
+        # 处理结果
+        if hasattr(result, 'to_dict'):
+            # DataFrame 类型
+            data = result.to_dict('records')
+            columns = list(result.columns) if hasattr(result, 'columns') else []
+        elif isinstance(result, list):
+            data = result
+            columns = list(result[0].keys()) if result and isinstance(result[0], dict) else []
+        else:
+            data = []
+            columns = []
+
+        # 应用 limit
+        if limit > 0:
+            data = data[:limit]
+
+        logger.info(f"SQL查询成功，返回 {len(data)} 行数据")
+
+        # 如果需要保存到文件
+        result = {
+            "success": True,
+            "row_count": len(data),
+            "columns": columns,
+            "data": data
+        }
+
+        return json.dumps(result, ensure_ascii=False, default=str)
+
+    except Exception as e:
+        logger.error(f"SQL查询失败: {e}")
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "row_count": 0,
+            "data": []
+        }, ensure_ascii=False)

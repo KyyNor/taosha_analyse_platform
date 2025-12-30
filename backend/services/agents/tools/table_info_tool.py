@@ -201,7 +201,6 @@ def is_numeric_type(col_type: str) -> bool:
 
 # ==================== 工具函数 ====================
 
-@tool
 @observe(name="get_table_sample_data")
 def get_table_sample_data(
     table_name: str,
@@ -303,7 +302,6 @@ def get_table_sample_data(
         }, ensure_ascii=False)
 
 
-@tool
 @observe(name="get_table_statistics")
 def get_table_statistics(
     table_name: str,
@@ -442,7 +440,6 @@ def get_table_statistics(
         }, ensure_ascii=False)
 
 
-@tool
 @observe(name="get_column_statistics")
 def get_column_statistics(
     table_name: str,
