@@ -160,17 +160,20 @@ export default function GlossaryTermDetailPage() {
 
   // 字典映射项操作
   const addMapping = () => {
+    if (!termData) return;
     const currentContent = parseContent(termData.type, termData.content);
     handleContentChange('dict_map', [...currentContent.dict_map, { key: '', value: '' }]);
   };
 
   const removeMapping = (index: number) => {
+    if (!termData) return;
     const currentContent = parseContent(termData.type, termData.content);
     const newDictMap = currentContent.dict_map.filter((_, i) => i !== index);
     handleContentChange('dict_map', newDictMap);
   };
 
   const updateMapping = (index: number, field: 'key' | 'value', value: string) => {
+    if (!termData) return;
     const currentContent = parseContent(termData.type, termData.content);
     const newDictMap = [...currentContent.dict_map];
     newDictMap[index] = { ...newDictMap[index], [field]: value };
