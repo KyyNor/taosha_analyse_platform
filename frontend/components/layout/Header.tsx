@@ -26,10 +26,8 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { type: 'link', href: "/nlquery", label: "查询" },
   { type: 'link', href: "/agent", label: "Agent" },
   { type: 'link', href: "/deepagents", label: "DeepAgents" },
-  { type: 'link', href: "/favorites", label: "收藏" },
   {
     type: 'dropdown',
     label: "猎诈",
@@ -59,7 +57,8 @@ const navItems: NavItem[] = [
       { type: 'link', href: "/metadata/relations", label: "关系" },
       { type: 'link', href: "/metadata/glossary", label: "术语表" },
       { type: 'link', href: "/metadata/themes", label: "主题" },
-      { type: 'link', href: "/metadata/prompt-templates", label: "提示模板" }
+      { type: 'link', href: "/metadata/prompt-templates", label: "提示模板" },
+      { type: 'link', href: "/metadata/fine-reports", label: "帆软报表" }
     ]
   }
 ];
@@ -129,7 +128,7 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur">
       <div className="mx-auto max-w-screen-2xl px-6 h-14 flex items-center justify-between">
-        <Link href="/nlquery" className="font-semibold text-lg">淘沙分析平台</Link>
+        <Link href="/agent" className="font-semibold text-lg">淘沙分析平台</Link>
         <NavigationMenu>
           <NavigationMenuList className="flex items-center gap-1">
             {navItems.map((item) => renderNavItem(item))}
