@@ -9,11 +9,11 @@ from sqlalchemy.orm import Session
 
 from api.endpoint_models import TableMetadataRequest, TableMetadataUpdate, ColumnMetadataRequest, ColumnMetadataUpdate, \
     GlossaryTermRequest, GlossaryTermUpdate, RelationFieldConfigRequest, RelationFieldConfigUpdate, \
-    PromptTemplateRequest, PromptTemplateUpdate, DataThemeRequest, DataThemeUpdate, ThemeTableRelationRequest, \
+    PromptTemplateRequest, PromptTemplateUpdate, \
     BatchUpdateRequest, BatchUpdateResult, FineReportRequest, FineReportUpdate
 from models.db_base import get_db
 from services import get_metadata_service, get_glossary_service, get_relation_field_config_service, \
-    get_prompt_template_service, get_data_theme_service
+    get_prompt_template_service
 from services.metadata_service.fine_report_service import get_fine_report_service
 from utils.config import settings
 from utils.logger import logger
@@ -562,145 +562,6 @@ async def delete_prompt_template(template_id: int, db: Session = Depends(get_db)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# 数据主题管理
-@router.get("/themes")
-async def get_all_themes(
-    page: int = 1,
-    page_size: int = 20,
-    theme_type: Optional[str] = None,
-    search: Optional[str] = None,  # 新增：搜索参数（搜索主题名称和描述）
-    db: Session = Depends(get_db)
-):
-    """获取所有数据主题（支持分页）"""
-    try:
-        # todo 只返回非公共表
-        theme_service = get_data_theme_service(db)
-        result = theme_service.get_themes_paginated(
-            page=page,
-            page_size=page_size,
-            search_query=search
-        )
-        return {"success": True, **result}
-    except Exception as e:
-        logger.error(f"获取数据主题失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/themes/{theme_id}")
-async def get_theme(theme_id: int, db: Session = Depends(get_db)):
-    """获取指定数据主题"""
-    try:
-        theme_service = get_data_theme_service(db)
-        theme = theme_service.get_theme_by_id(theme_id)
-        if theme:
-            return {"success": True, "data": theme}
-        else:
-            raise HTTPException(status_code=404, detail="数据主题不存在")
-    except Exception as e:
-        logger.error(f"获取数据主题失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/themes")
-async def add_theme(request: DataThemeRequest, db: Session = Depends(get_db)):
-    """添加数据主题"""
-    try:
-        theme_service = get_data_theme_service(db)
-        created_theme = theme_service.add_theme(
-            request.theme_name,
-            request.theme_description,
-            request.theme_type,
-            request.department
-        )
-        if created_theme:
-            return {
-                "success": True,
-                "message": f"数据主题已添加: {request.theme_name}",
-                "data": created_theme
-            }
-        else:
-            raise HTTPException(status_code=400, detail="添加数据主题失败")
-    except Exception as e:
-        logger.error(f"添加数据主题失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.put("/themes/{theme_id}")
-async def update_theme(theme_id: int, request: DataThemeUpdate, db: Session = Depends(get_db)):
-    """更新数据主题"""
-    try:
-        theme_service = get_data_theme_service(db)
-        success = theme_service.update_theme(
-            theme_id,
-            request.theme_name,
-            request.theme_description,
-            request.theme_type,
-            request.department
-        )
-        if success:
-            return {"success": True, "message": f"数据主题已更新: ID {theme_id}"}
-        else:
-            raise HTTPException(status_code=400, detail="更新数据主题失败")
-    except Exception as e:
-        logger.error(f"更新数据主题失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/themes/{theme_id}")
-async def delete_theme(theme_id: int, db: Session = Depends(get_db)):
-    """删除数据主题"""
-    try:
-        theme_service = get_data_theme_service(db)
-        success = theme_service.delete_theme(theme_id)
-        if success:
-            return {"success": True, "message": f"数据主题已删除: ID {theme_id}"}
-        else:
-            raise HTTPException(status_code=400, detail="删除数据主题失败")
-    except Exception as e:
-        logger.error(f"删除数据主题失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/themes/{theme_id}/tables")
-async def get_theme_tables(theme_id: int, db: Session = Depends(get_db)):
-    """获取主题下的表"""
-    try:
-        theme_service = get_data_theme_service(db)
-        tables = theme_service.get_theme_tables(theme_id)
-        return {"success": True, "data": tables}
-    except Exception as e:
-        logger.error(f"获取主题表失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/themes/{theme_id}/tables")
-async def add_table_to_theme(theme_id: int, request: ThemeTableRelationRequest, db: Session = Depends(get_db)):
-    """添加表到主题"""
-    try:
-        theme_service = get_data_theme_service(db)
-        success = theme_service.add_table_to_theme(theme_id, request.table_id)
-        if success:
-            return {"success": True, "message": f"表已添加到主题: 主题{theme_id}, 表{request.table_id}"}
-        else:
-            raise HTTPException(status_code=400, detail="添加表到主题失败")
-    except Exception as e:
-        logger.error(f"添加表到主题失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/themes/{theme_id}/tables/{table_id}")
-async def remove_table_from_theme(theme_id: int, table_id: int, db: Session = Depends(get_db)):
-    """从主题中移除表"""
-    try:
-        theme_service = get_data_theme_service(db)
-        success = theme_service.remove_table_from_theme(theme_id, table_id)
-        if success:
-            return {"success": True, "message": f"表已从主题中移除: 主题{theme_id}, 表{table_id}"}
-        else:
-            raise HTTPException(status_code=400, detail="从主题中移除表失败")
-    except Exception as e:
-        logger.error(f"从主题中移除表失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # FineReport报表元数据管理

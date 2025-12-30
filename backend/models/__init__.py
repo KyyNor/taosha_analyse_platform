@@ -15,9 +15,6 @@ from .relation_models import (
 from .tracking_models import (
     NlQuerySession, NlQueryStep, UserFeedback
 )
-from .theme_models import (
-    DataTheme, ThemeTableRelation
-)
 from .training_models import (
     TrainingRecord
 )
@@ -65,9 +62,7 @@ __all__ = [
     "NlQueryStep",
     "UserFeedback",
 
-    # 主题模型
-    "DataTheme",
-    "ThemeTableRelation",
+    # TODO: 主题模型已删除
 
     # 训练模型
     "TrainingRecord",

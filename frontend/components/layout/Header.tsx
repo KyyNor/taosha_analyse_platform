@@ -56,7 +56,6 @@ const navItems: NavItem[] = [
       { type: 'link', href: "/metadata/tables", label: "数据表" },
       { type: 'link', href: "/metadata/relations", label: "关系" },
       { type: 'link', href: "/metadata/glossary", label: "术语表" },
-      { type: 'link', href: "/metadata/themes", label: "主题" },
       { type: 'link', href: "/metadata/prompt-templates", label: "提示模板" },
       { type: 'link', href: "/metadata/fine-reports", label: "帆软报表" }
     ]

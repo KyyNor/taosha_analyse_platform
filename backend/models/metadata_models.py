@@ -10,7 +10,6 @@ from .db_base import Base
 # 避免循环导入，使用字符串引用
 if __name__ == "__main__":
     from .relation_models import RelationFieldConfig
-    from .theme_models import ThemeTableRelation
 
 
 class MetadataTable(Base):
@@ -28,9 +27,6 @@ class MetadataTable(Base):
     # 关系定义
     columns: Mapped[list["MetadataColumn"]] = relationship(
         "MetadataColumn", back_populates="table", cascade="all, delete-orphan"
-    )
-    theme_relations: Mapped[list["ThemeTableRelation"]] = relationship(
-        "ThemeTableRelation", back_populates="table", cascade="all, delete-orphan"
     )
 
     def __repr__(self):

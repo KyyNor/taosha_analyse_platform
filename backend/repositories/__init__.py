@@ -15,9 +15,6 @@ from .relation_repository import (
 from .tracking_repository import (
     NlQuerySessionRepository, NlQueryStepRepository, UserFeedbackRepository
 )
-from .theme_repository import (
-    DataThemeRepository, ThemeTableRelationRepository
-)
 from .training_repository import (
     TrainingRecordRepository
 )
@@ -49,9 +46,7 @@ __all__ = [
     "NlQueryStepRepository",
     "UserFeedbackRepository",
 
-    # 主题Repository
-    "DataThemeRepository",
-    "ThemeTableRelationRepository",
+    # TODO: 主题Repository已删除
 
     # 训练Repository
     "TrainingRecordRepository",
