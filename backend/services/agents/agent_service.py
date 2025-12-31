@@ -25,6 +25,7 @@ from services.agents.tools.common_tools import get_hotboard, get_programmer_stor
 from services.agents.tools.fine_report_tools import get_report_sample, batch_filter_report_and_get_data
 from services.agents.tools.chart_tool import create_chart
 from services.agents.tools.comparison_tool import create_comparison
+from services.agents.tools.table_tool import create_table
 from services.agents.tools.sql_query_tool import execute_sql_query
 from services.agents.tools.table_info_tool import get_table_sample_data, get_table_statistics, get_column_statistics
 from services.agents.tools.qdrant_vector_store_tool import search_knowledge_base
@@ -68,13 +69,14 @@ class AgentService:
                 get_date_range,
                 create_chart,
                 create_comparison,
+                create_table,
                 # execute_sql_query,
                 # get_table_sample_data,      # 获取表样例数据
                 # get_table_statistics,       # 获取表统计信息
                 # get_column_statistics,      # 获取字段统计信息
-                # add, 
-                # subtract, 
-                # divide, 
+                # add,
+                # subtract,
+                # divide,
                 # multiply,
                 # search_knowledge_base,
             ]
