@@ -12,9 +12,6 @@ from .glossary_repository import (
 from .relation_repository import (
     RelationFieldConfigRepository
 )
-from .tracking_repository import (
-    NlQuerySessionRepository, NlQueryStepRepository, UserFeedbackRepository
-)
 from .training_repository import (
     TrainingRecordRepository
 )
@@ -40,13 +37,6 @@ __all__ = [
 
     # 关联配置Repository
     "RelationFieldConfigRepository",
-
-    # 操作追踪Repository
-    "NlQuerySessionRepository",
-    "NlQueryStepRepository",
-    "UserFeedbackRepository",
-
-    # TODO: 主题Repository已删除
 
     # 训练Repository
     "TrainingRecordRepository",

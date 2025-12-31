@@ -12,9 +12,6 @@ from .glossary_models import (
 from .relation_models import (
     RelationFieldConfig
 )
-from .tracking_models import (
-    NlQuerySession, NlQueryStep, UserFeedback
-)
 from .training_models import (
     TrainingRecord
 )
@@ -56,13 +53,6 @@ __all__ = [
 
     # 关联配置模型
     "RelationFieldConfig",
-
-    # 操作追踪模型
-    "NlQuerySession",
-    "NlQueryStep",
-    "UserFeedback",
-
-    # TODO: 主题模型已删除
 
     # 训练模型
     "TrainingRecord",

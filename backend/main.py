@@ -32,7 +32,6 @@ from api.fraudhunter import (
     indicator_query_router
 )
 from services.query_engine import get_query_engine
-from services.nlquery_service.async_query_service import get_async_query_service
 from models.db_base import get_db_session
 from services.tracking_service.observability_service import initialize_observability
 
@@ -321,10 +320,6 @@ async def lifespan(app: FastAPI):
         # 初始化查询引擎服务（每个worker都需要）
         query_engine = get_query_engine()
         logger.info(f"查询引擎初始化完成")
-
-        # 初始化异步查询服务（每个worker都需要）
-        async_query_service = get_async_query_service()
-        logger.info("异步查询服务初始化完成")
         
         # 初始化可观测性服务（外部追踪）
         initialize_observability()
