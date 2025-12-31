@@ -15,14 +15,9 @@ import os
 # 数据库连接配置
 def get_database_url() -> str:
     """获取数据库连接URL"""
-    db_type = getattr(settings, 'taosha_db_type', 'sqlite')
+    db_type = getattr(settings, 'taosha_db_type', 'mysql')
 
-    if db_type == 'sqlite':
-        db_path = str(settings.database_dir / 'metadata.db')
-        # 确保数据库目录存在
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        return f"sqlite:///{db_path}"
-    elif db_type == 'mysql':
+    if db_type == 'mysql':
         host = getattr(settings, 'taosha_db_mysql_host', 'localhost')
         port = getattr(settings, 'taosha_db_mysql_port', 3306)
         database = getattr(settings, 'taosha_db_mysql_database', 'taosha')
