@@ -63,20 +63,20 @@ class AgentService:
             tools = [
                 # get_report_sample,
                 # batch_filter_report_and_get_data,
-                # get_hotboard,
+                get_hotboard,
                 # get_programmer_story,
                 get_date_range,
                 create_chart,
                 create_comparison,
-                execute_sql_query,
-                get_table_sample_data,      # 获取表样例数据
-                get_table_statistics,       # 获取表统计信息
-                get_column_statistics,      # 获取字段统计信息
-                add, 
-                subtract, 
-                divide, 
-                multiply,
-                search_knowledge_base,
+                # execute_sql_query,
+                # get_table_sample_data,      # 获取表样例数据
+                # get_table_statistics,       # 获取表统计信息
+                # get_column_statistics,      # 获取字段统计信息
+                # add, 
+                # subtract, 
+                # divide, 
+                # multiply,
+                # search_knowledge_base,
             ]
             self.agent = create_agent(
                 model=self.llm_service.client,

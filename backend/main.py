@@ -15,7 +15,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from utils.config import settings
-from api.nlquey_routes import router as nlquey_router
 from api.metadata_routes import router as metadata_router
 from api.user_routes import router as user_router
 from api.agents_routes import router as agents_router
@@ -418,7 +417,6 @@ app.add_middleware(
 api_prefix = "/api/taosha/v1"
 
 # 注册 API 路由
-app.include_router(nlquey_router, prefix=api_prefix)
 app.include_router(metadata_router, prefix=api_prefix)
 app.include_router(user_router, prefix=api_prefix)
 app.include_router(agents_router, prefix=api_prefix)
