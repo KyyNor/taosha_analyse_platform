@@ -278,7 +278,11 @@ export const permissionApi = {
   getPermissionMatrix: () => apiGet('/api/permissions/matrix'),
   
   // 获取权限摘要
-  getPermissionSummary: () => apiGet('/api/permissions/summary')
+  getPermissionSummary: () => apiGet('/api/permissions/summary'),
+  
+  // 复制权限
+  copyPermissions: (sourceEntityId: string, targetEntityId: string) => 
+    apiPost(`/api/permissions/copy/${sourceEntityId}/${targetEntityId}`)
 }
 
 /**

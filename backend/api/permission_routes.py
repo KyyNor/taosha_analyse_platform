@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from models.db_base import get_db_session
-from models.permission_models import SystemPage, SystemEntity
+from models.permission_models import SystemPage, SystemEntity, EntityType
 from services.permission_service import PageService
 from services.page_discovery_service import PageDiscoveryService
 from services.permission_assignment_service import PermissionAssignmentService
