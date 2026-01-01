@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 
 from langchain_core.tools import StructuredTool
 from langchain.agents.middleware import SummarizationMiddleware, PIIMiddleware, TodoListMiddleware
+from services.agents.middleware import SessionNamingMiddleware
 from langfuse import observe, propagate_attributes
 
 from services.llm_service.base_llm_service import BaseLLMService
@@ -93,6 +94,7 @@ class AgentService:
                         summary_prompt="请你总结以上内容。"
                     ),
                     TodoListMiddleware(),
+                    SessionNamingMiddleware(),  # 添加会话自动命名中间件
                     # LLMToolSelectorMiddleware(
                     #     model="gpt-4o-mini",  # Use cheaper model for selection
                     #     max_tools=3,  # Limit to 3 most relevant tools
@@ -314,16 +316,16 @@ class AgentService:
 
             # 1. 确保会话存在
             repo = ChatRepository(db) if db else self.chat_repo
-            repo.create_session(user_id=user_id, session_id=session_id)
+            session, is_new_session = repo.create_session(user_id=user_id, session_id=session_id)
             
-            # 3. 创建队列
+            # 2. 创建队列
             queue = asyncio.Queue()
 
-            # 4. 启动后台任务 (Producer)
+            # 3. 启动后台任务 (Producer)
             # 注意：不await task，让它在后台运行
             asyncio.create_task(self._run_agent_background(message, session_id, queue, trace_id))
 
-            # 5. 消费队列 (Consumer)
+            # 4. 消费队列 (Consumer)
             while True:
                 event = await queue.get()
                 logger.info(event)
