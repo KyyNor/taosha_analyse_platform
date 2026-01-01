@@ -146,8 +146,10 @@ class PermissionRepository:
         if existing:
             # 更新现有记录
             existing.user_name = record.user_name
-            existing.department = record.department
-            existing.roles = record.roles
+            existing.branch_no = record.branch_no
+            existing.branch_name = record.branch_name
+            existing.role_id_list = record.role_id_list
+            existing.role_name_list = record.role_name_list
             existing.last_login_time = record.last_login_time
             self.db.flush()
             return existing

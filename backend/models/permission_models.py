@@ -93,8 +93,10 @@ class SystemLoginRecord(Base):
 
     user_id: Mapped[str] = mapped_column(String(50), primary_key=True)
     user_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    department: Mapped[str] = mapped_column(String(100), nullable=False)
-    roles: Mapped[dict] = mapped_column(JSON, nullable=False)
+    branch_no: Mapped[str] = mapped_column(String(100), nullable=False, comment="部门编号")
+    branch_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="部门名称")
+    role_id_list: Mapped[dict] = mapped_column(JSON, nullable=False, comment="角色ID列表")
+    role_name_list: Mapped[dict] = mapped_column(JSON, nullable=False, comment="角色名称列表（仅包含在entity中存在的角色）")
     last_login_time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

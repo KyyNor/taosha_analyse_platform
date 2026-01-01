@@ -19,15 +19,15 @@ class PermissionService:
         self.db = db
         self.repo = PermissionRepository(db)
     
-    def get_user_permissions(self, department: str, roles: List[str]) -> Set[str]:
+    def get_user_permissions(self, branch_no: str, role_id_list: List[str]) -> Set[str]:
         """获取用户的页面权限集合（部门权限 + 角色权限的并集）"""
         try:
             # 获取部门实体
-            dept_entity = self.repo.get_entity_by_code_and_type(department, EntityType.DEPARTMENT)
+            dept_entity = self.repo.get_entity_by_code_and_type(branch_no, EntityType.DEPARTMENT)
             dept_entity_ids = [dept_entity.id] if dept_entity else []
             
             # 获取角色实体
-            role_entities = self.repo.get_entities_by_codes(roles, EntityType.ROLE)
+            role_entities = self.repo.get_entities_by_codes(role_id_list, EntityType.ROLE)
             role_entity_ids = [entity.id for entity in role_entities]
             
             # 合并实体ID列表
@@ -39,17 +39,17 @@ class PermissionService:
             # 获取所有权限对应的页面路径
             page_paths = self.repo.get_page_paths_by_entity_ids(all_entity_ids)
             
-            logger.info(f"用户权限计算: 部门={department}, 角色={roles}, 权限页面数={len(page_paths)}")
+            logger.info(f"用户权限计算: 部门={branch_no}, 角色={role_id_list}, 权限页面数={len(page_paths)}")
             return page_paths
             
         except Exception as e:
             logger.error(f"获取用户权限失败: {e}")
             return set()
     
-    def check_page_access(self, department: str, roles: List[str], page_path: str) -> bool:
+    def check_page_access(self, branch_no: str, role_id_list: List[str], page_path: str) -> bool:
         """检查用户是否有访问指定页面的权限"""
         try:
-            user_permissions = self.get_user_permissions(department, roles)
+            user_permissions = self.get_user_permissions(branch_no, role_id_list)
             has_access = page_path in user_permissions
             
             logger.debug(f"页面访问检查: 页面={page_path}, 有权限={has_access}")
@@ -59,9 +59,9 @@ class PermissionService:
             logger.error(f"检查页面访问权限失败: {e}")
             return False
     
-    def is_admin_user(self, roles: List[str]) -> bool:
+    def is_admin_user(self, role_id_list: List[str]) -> bool:
         """检查用户是否为管理员"""
-        return "淘沙管理员" in roles or "taosha_admin" in roles
+        return "淘沙管理员" in role_id_list or "taosha_admin" in role_id_list
 
 
 class EntityService:
@@ -223,14 +223,20 @@ class LoginRecordService:
         self.db = db
         self.repo = PermissionRepository(db)
     
-    def record_login(self, user_id: str, user_name: str, department: str, roles: List[str]) -> SystemLoginRecord:
+    def record_login(self, user_id: str, user_name: str, branch_no: str, branch_name: str, role_id_list: List[str]) -> SystemLoginRecord:
         """记录用户登录信息"""
         try:
+            # 查询角色实体，获取角色名称列表（只包含在entity中存在的角色）
+            role_entities = self.repo.get_entities_by_codes(role_id_list, EntityType.ROLE)
+            role_name_list = [entity.name for entity in role_entities]
+            
             record = SystemLoginRecord(
                 user_id=user_id,
                 user_name=user_name,
-                department=department,
-                roles=roles,
+                branch_no=branch_no,
+                branch_name=branch_name,
+                role_id_list=role_id_list,
+                role_name_list=role_name_list,
                 last_login_time=datetime.utcnow()
             )
             
