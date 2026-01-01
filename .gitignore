@@ -165,5 +165,4 @@ embeddings_model/*
 !embeddings_model/requirements-lock.txt
 
 .gemini/
-
-dolphinscheduler-sdk-python-main/
+.kiro/

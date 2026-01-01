@@ -22,6 +22,10 @@ from .fine_report_models import (
     MetadataFineReport
 )
 
+from .permission_models import (
+    SystemEntity, SystemPage, SystemPermission, SystemLoginRecord, EntityType
+)
+
 from .fraudhunter import (
     FraudHunterIndicatorTask,
     FraudHunterIndicatorTaskHistory,
@@ -64,6 +68,13 @@ __all__ = [
     
     # FineReport报表元数据模型
     "MetadataFineReport",
+
+    # 权限管理模型
+    "SystemEntity",
+    "SystemPage", 
+    "SystemPermission",
+    "SystemLoginRecord",
+    "EntityType",
 
     # FraudHunter模块
     "FraudHunterIndicatorTask",
