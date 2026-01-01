@@ -109,7 +109,7 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
         }
       }
 
-      // TodoList 工具结果 - 在此处不渲染，稍后统一渲染
+      // TodoList 工具结果 - 特殊处理，不在此处渲染，稍后统一渲染
       if (part.toolName === 'todo_list_tool') {
         return null;
       }
@@ -417,7 +417,7 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
 
   return (
     <div className="space-y-3">
-      {/* 按原始顺序渲染所有部分 */}
+      {/* 严格按照 parts 数组的顺序渲染所有部分 */}
       {parts.map((part, index) => {
         // 跳过 TodoList 工具结果，稍后统一渲染
         if (part.toolName === 'todo_list_tool') {
@@ -426,7 +426,7 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
         return renderMessagePart(part, index);
       })}
 
-      {/* TodoList - 在所有其他内容之后渲染 */}
+      {/* TodoList - 在所有其他内容之后渲染（特殊处理，每次对话只渲染一个） */}
       {hasTodoList && currentTodos && currentTodos.length > 0 && (
         <div key={currentTraceId} className="mb-4">
           <TodoList

@@ -274,19 +274,20 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
             const lastMessage = newMessages[newMessages.length - 1];
 
             if (lastMessage && lastMessage.role === 'assistant' && lastMessage.id === currentMessageId) {
-              // 查找或创建文本部分
-              const existingTextIndex = (lastMessage.parts || []).findIndex(part => part.type === 'text');
               const updatedParts = [...(lastMessage.parts || [])];
-
-              if (existingTextIndex >= 0) {
-                // 更新现有文本部分
-                updatedParts[existingTextIndex] = {
+              
+              // 检查最后一个部分是否是文本类型
+              const lastPart = updatedParts[updatedParts.length - 1];
+              
+              if (lastPart && lastPart.type === 'text') {
+                // 如果最后一个部分是文本，则追加内容
+                updatedParts[updatedParts.length - 1] = {
                   type: 'text',
-                  text: (updatedParts[existingTextIndex] as any).text + eventPayload.content
+                  text: (lastPart.text || '') + eventPayload.content
                 };
               } else {
-                // 添加新的文本部分
-                updatedParts.unshift({
+                // 如果最后一个部分不是文本（比如是工具调用/结果），则创建新的文本部分
+                updatedParts.push({
                   type: 'text',
                   text: eventPayload.content
                 });
@@ -295,7 +296,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
               newMessages[newMessages.length - 1] = {
                 ...lastMessage,
                 parts: updatedParts,
-                content: updatedParts.find(p => p.type === 'text')?.text || ''
+                content: updatedParts.filter(p => p.type === 'text').map(p => p.text).join('')
               };
             }
             return newMessages;
