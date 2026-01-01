@@ -350,22 +350,20 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
     return null;
   };
 
-  // 分组 parts
-  const toolAndGenUIParts = parts.filter(part => 
-    (part.type === 'tool-call' || part.type === 'tool-result') && 
-    part.toolName !== 'todo_list_tool'
-  );
-  
-  const textParts = parts.filter(part => part.type === 'text');
-  
   const hasTodoList = parts.some(part => part.toolName === 'todo_list_tool') || (currentTodos && currentTodos.length > 0);
 
   return (
     <div className="space-y-3">
-      {/* 1. 工具调用和生成式UI组件 */}
-      {toolAndGenUIParts.map((part, index) => renderMessagePart(part, index))}
+      {/* 按原始顺序渲染所有部分 */}
+      {parts.map((part, index) => {
+        // 跳过 TodoList 工具结果，稍后统一渲染
+        if (part.toolName === 'todo_list_tool') {
+          return null;
+        }
+        return renderMessagePart(part, index);
+      })}
 
-      {/* 2. TodoList */}
+      {/* TodoList - 在所有其他内容之后渲染 */}
       {hasTodoList && currentTodos && currentTodos.length > 0 && (
         <div key={currentTraceId} className="mb-4">
           <TodoList
@@ -376,7 +374,7 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
         </div>
       )}
 
-      {/* 3. 思维链 */}
+      {/* 思维链 - 在最后渲染 */}
       {thinking && (
         <Collapsible
           open={thinkingOpen}
@@ -411,9 +409,6 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
           </CollapsibleContent>
         </Collapsible>
       )}
-
-      {/* 4. 输出文本 */}
-      {textParts.map((part, index) => renderMessagePart(part, index))}
     </div>
   );
 }
