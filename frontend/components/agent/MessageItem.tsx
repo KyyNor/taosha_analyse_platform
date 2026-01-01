@@ -45,7 +45,7 @@ export function MessageItem({ message }: MessageItemProps) {
         <Card className={cn(
           "border shadow-sm transition-all hover:shadow-md",
           isUser
-            ? "bg-primary text-primary-foreground border-primary"
+            ? "bg-primary text-gray-200 border-primary"
             : "bg-white dark:bg-card border-border"
         )}>
           <CardContent className="p-4">
@@ -58,7 +58,10 @@ export function MessageItem({ message }: MessageItemProps) {
               isAssistant ? (
                 <MarkdownBlock content={message.content || ''} />
               ) : (
-                <div className="prose prose-sm max-w-none dark:prose-invert">
+                <div className={cn(
+                  "max-w-none",
+                  isUser ? "text-gray-200" : "prose prose-sm dark:prose-invert"
+                )}>
                   <div className="whitespace-pre-wrap">{message.content}</div>
                 </div>
               )
