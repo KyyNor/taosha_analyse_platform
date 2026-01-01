@@ -59,6 +59,17 @@ export {
   type ComparisonTableState,
 } from './ComparisonTable';
 
+// 表格组件
+export {
+  Table,
+  TableSkeleton,
+  TableError,
+  type TableProps,
+  type TableData,
+  type TableColumn,
+  type TableState,
+} from './Table';
+
 // TodoList组件
 export {
   TodoList,

@@ -264,3 +264,49 @@ def get_date_range(range_type: str) -> str:
         return json.dumps({
             "error": f"获取时间范围时发生错误: {str(e)}"
         }, ensure_ascii=False)
+    
+@observe(name="add")
+def add(num1: float, num2: float) -> float:
+    """
+    加法运算
+
+    Args:
+        num1: 元素1
+        num2: 元素2
+    """
+    return num1 + num2
+
+@observe(name="subtract")
+def subtract(num1: float, num2: float) -> float:
+    """
+    减法运算(num1 - num2)
+
+    Args:
+        num1: 元素1
+        num2: 元素2
+    """
+    return num1 - num2
+
+@observe(name="multiply")
+def multiply(num1: float, num2: float) -> float:
+    """
+    乘法运算
+
+    Args:
+        num1: 元素1
+        num2: 元素2
+    """
+    return num1 * num2
+
+@observe(name="divide")
+def divide(num1: float, num2: float) -> float:
+    """
+    乘法运算(num1 / num2)
+
+    Args:
+        num1: 除数
+        num2: 被除数
+    """
+    if num2 == 0:
+        raise ValueError("除数不能为零")
+    return num1 / num2

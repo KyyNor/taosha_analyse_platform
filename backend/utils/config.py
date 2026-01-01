@@ -65,10 +65,7 @@ class ConfigManager:
             duckdb_path: str = self._config_data.get('database', {}).get('duckdb_path', './database/taosha.duckdb')
 
             # 元数据配置
-            taosha_db_type: str = self._config_data.get('taosha_db', {}).get('db_type', 'sqlite')
-
-            # SQLite配置
-            taosha_db_sqlite_path: str = self._config_data.get('taosha_db', {}).get('sqlite_path', './database/metadata.db')
+            taosha_db_type: str = self._config_data.get('taosha_db', {}).get('db_type', 'mysql')
 
             # MySQL配置
             taosha_db_mysql_host: str = self._config_data.get('taosha_db', {}).get('mysql', {}).get('host', 'localhost')
@@ -126,8 +123,6 @@ class ConfigManager:
 
             # 跟踪配置
             tracing_type: Optional[str] = self._config_data.get('tracing', {}).get('tracing_type')
-            phoenix_work_dir: Optional[str] = self._config_data.get('tracing', {}).get('phoenix_work_dir')
-            phoenix_port: Optional[str] = self._config_data.get('tracing', {}).get('phoenix_port')
             langfuse_public_key: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY") or self._config_data.get('tracing', {}).get('langfuse_public_key')
             langfuse_secret_key: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY") or self._config_data.get('tracing', {}).get('langfuse_secret_key')
             langfuse_host: Optional[str] = os.getenv("LANGFUSE_HOST") or self._config_data.get('tracing', {}).get('langfuse_host')

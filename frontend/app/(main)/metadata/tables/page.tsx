@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { MetadataTable } from "@/components/ui/MetadataTable";
 import { getTables } from "@/lib/services/metadataService";
 import { useRouter } from "next/navigation";
-import { booleanBadgeConfig } from "@/lib/utils/badgeConfigs";
+import { isAvailableBadgeConfig } from "@/lib/utils/badgeConfigs";
+import { Button } from "@/components/ui/button";
 
 export default function Page() {
   const [loading, setLoading] = useState(false);
@@ -18,15 +19,23 @@ export default function Page() {
   // 搜索状态
   const [searchQuery, setSearchQuery] = useState<string>("");
 
+  // 筛选状态：null表示全部，0表示启用，1表示未启用
+  const [filterAvailable, setFilterAvailable] = useState<number | null>(null);
+
   const load = async () => {
     setLoading(true);
     try {
       const params: any = {
         fields: false,
         page: currentPage,
-        page_size: pageSize
+        page_size: pageSize,
+        // 默认按is_available升序排序（启用的在前）
+        order_by: "is_available",
+        order_direction: "asc"
       };
       if (searchQuery.trim()) params.search = searchQuery.trim();
+      // 添加筛选参数
+      if (filterAvailable !== null) params.is_available = filterAvailable;
 
       const res = await getTables(params); // 优化查询，不返回字段信息
       setData(res?.items || []);
@@ -38,12 +47,12 @@ export default function Page() {
 
   useEffect(() => {
     load();
-  }, [currentPage, searchQuery]);
+  }, [currentPage, searchQuery, filterAvailable]);
 
-  // 搜索变化时重置到第一页
+  // 搜索或筛选变化时重置到第一页
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, filterAvailable]);
 
   // 分页处理
   const handlePageChange = (page: number) => {
@@ -58,9 +67,9 @@ export default function Page() {
     { key: "remark", label: "备注", type: "text" as const, maxLength: 50 },
     {
       key: "is_available",
-      label: "是否可用",
+      label: "是否启用",
       type: "badge" as const,
-      badgeConfig: booleanBadgeConfig
+      badgeConfig: isAvailableBadgeConfig
     },
     { key: "created_at", label: "创建时间", type: "datetime" as const },
     { key: "updated_at", label: "更新时间", type: "datetime" as const },
@@ -84,6 +93,34 @@ export default function Page() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold">数据表管理</h1>
         <p className="text-muted-foreground">管理系统中的数据表信息</p>
+      </div>
+
+      {/* 筛选按钮 */}
+      <div className="mb-4 flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">筛选：</span>
+        <div className="flex gap-2">
+          <Button
+            variant={filterAvailable === null ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilterAvailable(null)}
+          >
+            全部
+          </Button>
+          <Button
+            variant={filterAvailable === 0 ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilterAvailable(0)}
+          >
+            启用
+          </Button>
+          <Button
+            variant={filterAvailable === 1 ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilterAvailable(1)}
+          >
+            未启用
+          </Button>
+        </div>
       </div>
 
       <MetadataTable

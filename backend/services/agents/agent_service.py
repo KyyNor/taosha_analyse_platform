@@ -25,7 +25,11 @@ from services.agents.tools.common_tools import get_hotboard, get_programmer_stor
 from services.agents.tools.fine_report_tools import get_report_sample, batch_filter_report_and_get_data
 from services.agents.tools.chart_tool import create_chart
 from services.agents.tools.comparison_tool import create_comparison
-from services.agents.tools.metrics_tool import get_metrics
+from services.agents.tools.table_tool import create_table
+from services.agents.tools.sql_query_tool import execute_sql_query
+from services.agents.tools.table_info_tool import get_table_sample_data, get_table_statistics, get_column_statistics
+from services.agents.tools.qdrant_vector_store_tool import search_knowledge_base
+from services.agents.tools.common_tools import add, subtract, divide, multiply
 from services.agents.json_encoder import to_serializable
 from utils.logger import logger
 
@@ -60,12 +64,21 @@ class AgentService:
             tools = [
                 # get_report_sample,
                 # batch_filter_report_and_get_data,
-                # get_hotboard,
+                get_hotboard,
                 # get_programmer_story,
                 get_date_range,
                 create_chart,
                 create_comparison,
-                get_metrics,
+                create_table,
+                # execute_sql_query,
+                # get_table_sample_data,      # 获取表样例数据
+                # get_table_statistics,       # 获取表统计信息
+                # get_column_statistics,      # 获取字段统计信息
+                # add,
+                # subtract,
+                # divide,
+                # multiply,
+                # search_knowledge_base,
             ]
             self.agent = create_agent(
                 model=self.llm_service.client,
@@ -79,7 +92,6 @@ class AgentService:
                         messages_to_keep=20,
                         summary_prompt="请你总结以上内容。"
                     ),
-                    PIIMiddleware("credit_card", strategy="mask", apply_to_output=True),
                     TodoListMiddleware(),
                     # LLMToolSelectorMiddleware(
                     #     model="gpt-4o-mini",  # Use cheaper model for selection
@@ -304,9 +316,6 @@ class AgentService:
             repo = ChatRepository(db) if db else self.chat_repo
             repo.create_session(user_id=user_id, session_id=session_id)
             
-            # Checkpoint会自动保存用户消息
-            # self.chat_repo.add_message(session_id, "user", message) # Removed
-
             # 3. 创建队列
             queue = asyncio.Queue()
 

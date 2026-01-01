@@ -321,7 +321,7 @@ async def list_risk_control_models(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     status: Optional[str] = Query(None, description="状态筛选"),
-    search: Optional[str] = Query(None, description="搜索（模糊匹配模型编码和名称）"),
+    search: Optional[str] = Query(None, description="搜索（模糊匹配模型编码、名称和描述）"),
     db: Session = Depends(get_db)
 ):
     """
@@ -331,7 +331,7 @@ async def list_risk_control_models(
     - page: 页码（默认1）
     - page_size: 每页数量（默认20，最大100）
     - status: 状态筛选（draft/testing/online/offline/archived）
-    - search: 搜索（模糊匹配模型编码和名称）
+    - search: 搜索（模糊匹配模型编码、名称和描述）
 
     返回:
     - total: 总记录数

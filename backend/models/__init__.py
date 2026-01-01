@@ -12,12 +12,6 @@ from .glossary_models import (
 from .relation_models import (
     RelationFieldConfig
 )
-from .tracking_models import (
-    NlQuerySession, NlQueryStep, UserFeedback
-)
-from .theme_models import (
-    DataTheme, ThemeTableRelation
-)
 from .training_models import (
     TrainingRecord
 )
@@ -59,15 +53,6 @@ __all__ = [
 
     # 关联配置模型
     "RelationFieldConfig",
-
-    # 操作追踪模型
-    "NlQuerySession",
-    "NlQueryStep",
-    "UserFeedback",
-
-    # 主题模型
-    "DataTheme",
-    "ThemeTableRelation",
 
     # 训练模型
     "TrainingRecord",

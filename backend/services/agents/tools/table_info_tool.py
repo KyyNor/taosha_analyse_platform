@@ -206,7 +206,6 @@ def is_numeric_type(col_type: str) -> bool:
 def get_table_sample_data(
     table_name: str,
     runtime: ToolRuntime["DataAnalysisContext"],
-    limit: int = 20
 ) -> str:
     """
     获取表的样例数据
@@ -215,8 +214,7 @@ def get_table_sample_data(
     结果会被缓存100天，当元数据发生变化时缓存自动失效。
 
     Args:
-        table_name: 表名称
-        limit: 返回行数，默认20行
+        table_name: 库表名称
 
     Returns:
         JSON格式字符串，包含：
@@ -230,11 +228,10 @@ def get_table_sample_data(
         - error: str (仅失败时)
 
     Examples:
-        get_table_sample_data("orders")
-        get_table_sample_data("customers", limit=10)
+        get_table_sample_data("hxb_dh_data.bcs_invm")
     """
     _ = runtime  # ToolRuntime 接口要求，当前未使用
-    logger.info(f"查询表样例数据: {table_name}, limit={limit}")
+    logger.info(f"查询表样例数据: {table_name}")
 
     try:
         # 获取可用列信息
@@ -267,7 +264,7 @@ def get_table_sample_data(
             SELECT {columns_sql}
             FROM {table_name}
             WHERE ETL_DATE = '{etl_date}'
-            LIMIT {limit}
+            LIMIT 20
         """
 
         # 执行查询
@@ -315,15 +312,12 @@ def get_table_statistics(
     """
     获取表的统计信息
 
-    查询指定表 ETL_DATE=10天前 的统计信息，包括：
+    查询指定表抽样日期的统计信息，包括：
     - 当天总条数
     - 各字段有值的条数（不为null且不为空字符串）
 
-    仅统计元数据中状态为可用的列。
-    结果会被缓存100天，当元数据发生变化时缓存自动失效。
-
     Args:
-        table_name: 表名称
+        table_name: 库表名称
 
     Returns:
         JSON格式字符串，包含：
@@ -336,7 +330,7 @@ def get_table_statistics(
         - error: str (仅失败时)
 
     Examples:
-        get_table_statistics("orders")
+        get_table_statistics("hxb_dh_data.bcs_invm")
     """
     _ = runtime  # ToolRuntime 接口要求，当前未使用
     logger.info(f"查询表统计信息: {table_name}")
@@ -454,32 +448,28 @@ def get_column_statistics(
     table_name: str,
     column_name: str,
     runtime: ToolRuntime["DataAnalysisContext"],
-    sample_limit: int = 20
 ) -> str:
     """
     获取字段的详细统计信息
 
-    查询指定表字段 ETL_DATE=10天前 的详细统计，包括：
+    查询指定表字段抽样日期的详细统计，包括：
     - 字段不重复值的条数
     - 取值范围：
       - 数值类型：最大值、最小值
-      - 字符串类型：去重后的前N个值
-
-    仅允许查询元数据中状态为可用的列。
-    结果会被缓存100天，当元数据发生变化时缓存自动失效。
+      - 字符串类型：去重后的20个值
 
     Args:
-        table_name: 表名称
+        table_name: 库表表名称
         column_name: 列名称
-        sample_limit: 字符串类型返回的去重值数量，默认20
 
     Returns:
         JSON格式字符串，包含：
         - success: bool
         - table_name: str
         - column_name: str
-        - etl_date: str
+        - etl_date: str (抽样日期)
         - distinct_count: int (不重复值数量)
+        - col_count: int (该字段etl_date的数据量)
         - value_range: dict (取值范围)
           - 数值类型: {"min": x, "max": y}
           - 字符串类型: {"sample_values": [...]}
@@ -487,8 +477,7 @@ def get_column_statistics(
         - error: str (仅失败时)
 
     Examples:
-        get_column_statistics("orders", "status")
-        get_column_statistics("orders", "amount", sample_limit=10)
+        get_column_statistics("hxb_dh_data.bcs_invm", "CURR_STATUS")
     """
     _ = runtime  # ToolRuntime 接口要求，当前未使用
     logger.info(f"查询字段统计信息: {table_name}.{column_name}")
@@ -534,7 +523,8 @@ def get_column_statistics(
 
         # 查询不重复值数量
         distinct_sql = f"""
-            SELECT COUNT(DISTINCT {col_name}) AS distinct_count
+            SELECT COUNT(DISTINCT {col_name}) AS distinct_count,
+            COUNT({col_name}) AS col_count
             FROM {table_name}
             WHERE ETL_DATE = '{etl_date}'
         """
@@ -548,6 +538,7 @@ def get_column_statistics(
             distinct_data = []
 
         distinct_count = distinct_data[0].get("distinct_count", 0) if distinct_data else 0
+        col_count = distinct_data[0].get("col_count", 0) if distinct_data else 0
 
         # 查询取值范围
         value_range = {}
@@ -584,7 +575,7 @@ def get_column_statistics(
                 WHERE ETL_DATE = '{etl_date}'
                   AND {col_name} IS NOT NULL
                   AND TRIM({col_name}) != ''
-                LIMIT {sample_limit}
+                LIMIT 20
             """
             sample_result = engine.execute_query(sample_sql)
 
@@ -607,6 +598,7 @@ def get_column_statistics(
             "column_comment": target_column["comment"],
             "etl_date": etl_date,
             "distinct_count": distinct_count,
+            "col_count": col_count,
             "value_range": value_range,
             "from_cache": False
         }

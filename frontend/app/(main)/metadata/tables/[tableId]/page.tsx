@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,98 @@ import { ArrowLeft, Edit, Database, Save, X, Trash2 } from "lucide-react";
 import { formatDateTime, formatBoolean } from "@/lib/utils/formatUtils";
 import { toast } from "sonner";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+
+// 优化的字段行组件 - 使用memo避免不必要的重渲染
+interface ColumnRowProps {
+  column: any;
+  index: number;
+  relationConfigs: any[];
+  onColumnChange: (index: number, field: string, value: any) => void;
+  onDelete: (index: number) => void;
+}
+
+const ColumnRow = memo(({ column, index, relationConfigs, onColumnChange, onDelete }: ColumnRowProps) => {
+  return (
+    <TableRow>
+      <TableCell>
+        <Input
+          value={column.name || ''}
+          onChange={(e) => onColumnChange(index, 'name', e.target.value)}
+          placeholder="字段名"
+          className="h-8"
+        />
+      </TableCell>
+      <TableCell>
+        <Input
+          value={column.type || ''}
+          onChange={(e) => onColumnChange(index, 'type', e.target.value)}
+          placeholder="字段类型"
+          className="h-8"
+        />
+      </TableCell>
+      <TableCell>
+        <Input
+          value={column.business_type || ''}
+          onChange={(e) => onColumnChange(index, 'business_type', e.target.value)}
+          placeholder="业务类型"
+          className="h-8"
+        />
+      </TableCell>
+      <TableCell>
+        <Input
+          value={column.comment || ''}
+          onChange={(e) => onColumnChange(index, 'comment', e.target.value)}
+          placeholder="字段描述"
+          className="h-8"
+        />
+      </TableCell>
+      <TableCell>
+        <Input
+          value={column.remark || ''}
+          onChange={(e) => onColumnChange(index, 'remark', e.target.value)}
+          placeholder="备注"
+          className="h-8"
+        />
+      </TableCell>
+      <TableCell>
+        <Select
+          value={column.relation_config_id?.toString() || '__none__'}
+          onValueChange={(value) => onColumnChange(index, 'relation_config_id', value === '__none__' ? null : Number(value))}
+        >
+          <SelectTrigger className="h-8">
+            <SelectValue placeholder="选择关系配置" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">无</SelectItem>
+            {relationConfigs.map((config) => (
+              <SelectItem key={config.id} value={config.id.toString()}>
+                {config.relation_family}{config.relation_subfamily ? `|${config.relation_subfamily}` : ''}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell>
+        <Switch
+          checked={column.is_available === 0}
+          onCheckedChange={(checked) => onColumnChange(index, 'is_available', checked ? 0 : 1)}
+        />
+      </TableCell>
+      <TableCell>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-destructive hover:text-destructive"
+          onClick={() => onDelete(index)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+ColumnRow.displayName = 'ColumnRow';
 
 export default function TableDetailPage() {
   const params = useParams();
@@ -70,7 +162,7 @@ export default function TableDetailPage() {
   const loadRelationConfigs = async () => {
     try {
       const res = await getRelations({ page: 1, page_size: 1000 });
-      const configs = Array.isArray(res?.data) ? res.data : [];
+      const configs = Array.isArray(res?.items) ? res.items : [];
       setRelationConfigs(configs);
     } catch (error) {
       console.error('Failed to load relation configs:', error);
@@ -231,8 +323,8 @@ export default function TableDetailPage() {
     }));
   };
 
-  // 字段数据更新处理
-  const handleColumnDataChange = (index: number, field: string, value: any) => {
+  // 字段数据更新处理 - 使用useCallback优化性能
+  const handleColumnDataChange = useCallback((index: number, field: string, value: any) => {
     setColumnsData((prev: any[]) => {
       const newColumns = [...prev];
       newColumns[index] = {
@@ -241,7 +333,7 @@ export default function TableDetailPage() {
       };
       return newColumns;
     });
-  };
+  }, []);
 
   // 添加新字段
   const handleAddColumn = () => {
@@ -261,15 +353,15 @@ export default function TableDetailPage() {
     setColumnsData(prev => [...prev, newColumn]);
   };
 
-  // 删除字段
-  const handleDeleteColumn = (index: number) => {
+  // 删除字段 - 使用useCallback优化性能
+  const handleDeleteColumn = useCallback((index: number) => {
     confirm({
       title: '确认删除',
       description: '确定要删除这个字段吗？',
       onConfirm: () => setColumnsData(prev => prev.filter((_, i) => i !== index)),
       variant: "destructive"
     });
-  };
+  }, [confirm]);
 
   if (loading) {
     return (
@@ -513,95 +605,14 @@ export default function TableDetailPage() {
                     </TableHeader>
                     <TableBody>
                       {columnsData.map((column, index) => (
-                        <TableRow key={column.id || index}>
-                          <TableCell>
-                            <Input
-                              value={column.name || ''}
-                              onChange={(e) => handleColumnDataChange(index, 'name', e.target.value)}
-                              placeholder="字段名"
-                              className="h-8"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={column.type || 'VARCHAR'}
-                              onValueChange={(value) => handleColumnDataChange(index, 'type', value)}
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="VARCHAR">VARCHAR</SelectItem>
-                                <SelectItem value="INT">INT</SelectItem>
-                                <SelectItem value="BIGINT">BIGINT</SelectItem>
-                                <SelectItem value="DECIMAL">DECIMAL</SelectItem>
-                                <SelectItem value="TEXT">TEXT</SelectItem>
-                                <SelectItem value="DATETIME">DATETIME</SelectItem>
-                                <SelectItem value="DATE">DATE</SelectItem>
-                                <SelectItem value="BOOLEAN">BOOLEAN</SelectItem>
-                                <SelectItem value="JSON">JSON</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={column.business_type || ''}
-                              onChange={(e) => handleColumnDataChange(index, 'business_type', e.target.value)}
-                              placeholder="业务类型"
-                              className="h-8"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={column.comment || ''}
-                              onChange={(e) => handleColumnDataChange(index, 'comment', e.target.value)}
-                              placeholder="字段描述"
-                              className="h-8"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={column.remark || ''}
-                              onChange={(e) => handleColumnDataChange(index, 'remark', e.target.value)}
-                              placeholder="备注"
-                              className="h-8"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={column.relation_config_id?.toString() || '__none__'}
-                              onValueChange={(value) => handleColumnDataChange(index, 'relation_config_id', value === '__none__' ? null : Number(value))}
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue placeholder="选择关系配置" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">无</SelectItem>
-                                {relationConfigs.map((config) => (
-                                  <SelectItem key={config.id} value={config.id.toString()}>
-                                    {config.relation_family}{config.relation_subfamily ? `|${config.relation_subfamily}` : ''}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Switch
-                              checked={column.is_available === 0}
-                              onCheckedChange={(checked) => handleColumnDataChange(index, 'is_available', checked ? 0 : 1)}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteColumn(index)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
+                        <ColumnRow
+                          key={column.id || index}
+                          column={column}
+                          index={index}
+                          relationConfigs={relationConfigs}
+                          onColumnChange={handleColumnDataChange}
+                          onDelete={handleDeleteColumn}
+                        />
                       ))}
                     </TableBody>
                   </Table>

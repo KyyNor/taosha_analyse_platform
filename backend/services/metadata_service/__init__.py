@@ -3,12 +3,10 @@ from .metadata_service import (
     GlossaryService,
     PromptTemplateService,
     RelationFieldConfigService,
-    DataThemeService,
     get_metadata_service,
     get_glossary_service,
     get_prompt_template_service,
-    get_relation_field_config_service,
-    get_data_theme_service
+    get_relation_field_config_service
 )
 
 __all__ = [
@@ -16,10 +14,8 @@ __all__ = [
     "GlossaryService",
     "PromptTemplateService",
     "RelationFieldConfigService",
-    "DataThemeService",
     "get_metadata_service",
     "get_glossary_service",
     "get_prompt_template_service",
-    "get_relation_field_config_service",
-    "get_data_theme_service"
+    "get_relation_field_config_service"
 ]

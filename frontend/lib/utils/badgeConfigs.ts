@@ -69,6 +69,12 @@ export const booleanBadgeConfig = {
   false: { variant: "secondary" as const, label: "否" }
 };
 
+// 是否启用标签配置（用于is_available字段，0/1值）
+export const isAvailableBadgeConfig = {
+  0: { variant: "default" as const, label: "启用" },
+  1: { variant: "secondary" as const, label: "未启用" }
+};
+
 // 指标任务/模型状态标签配置
 export const taskStatusBadgeConfig = {
   draft: { variant: "secondary" as const, label: "草稿" },

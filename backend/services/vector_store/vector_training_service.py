@@ -447,7 +447,8 @@ class VectorTrainingService:
 
                 relation_info = ''
                 if col.relation_config_id:
-                    relation_info = f'关联ID: {col.relation_config_id}'
+                    relation = self.relation_repo.get_by_id(col.relation_config_id)
+                    relation_info = f'关联ID: {relation.relation_family}|{relation.relation_subfamily}'
 
                 col_line = f"  - {col_name} ({col_type}) 描述: {col_comment} {relation_info}"
 

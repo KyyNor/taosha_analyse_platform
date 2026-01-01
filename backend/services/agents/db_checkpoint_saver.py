@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 import os
 import urllib.parse
 
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.checkpoint.mysql.aio import AIOMySQLSaver
 
 from utils.config import settings
@@ -14,22 +13,10 @@ from utils.logger import logger
 @asynccontextmanager
 async def get_checkpoint_saver_context():
     """获取检查点保存器的上下文管理器"""
-    db_type = getattr(settings, 'taosha_db_type', 'sqlite')
+    db_type = getattr(settings, 'taosha_db_type', 'mysql')
 
     try:
-        if db_type == 'sqlite':
-            db_path = getattr(settings, 'taosha_db_sqlite_path', './database/metadata.db')
-            # 确保目录存在
-            os.makedirs(os.path.dirname(db_path), exist_ok=True)
-
-            # AsyncSqliteSaver.from_conn_string 是一个异步上下文管理器
-            async with AsyncSqliteSaver.from_conn_string(db_path) as saver:
-                # 调用 setup 初始化数据库表（幂等操作）
-                await saver.setup()
-                logger.info(f"Initialized SQLite Checkpoint Saver: {db_path}")
-                yield saver
-
-        elif db_type == 'mysql':
+        if db_type == 'mysql':
             host = getattr(settings, 'taosha_db_mysql_host', 'localhost')
             port = getattr(settings, 'taosha_db_mysql_port', 3306)
             database = getattr(settings, 'taosha_db_mysql_database', 'taosha')

@@ -16,6 +16,7 @@ from langfuse import observe
 
 from browser_use import Agent
 from browser_use.browser.session import BrowserSession
+from browser_use.llm.openai.chat import ChatOpenAI
 
 from utils.logger import logger
 from utils.config import get_config
@@ -52,9 +53,29 @@ class BrowserResult(BaseModel):
 # ==================== LLM 配置 ====================
 
 def get_llm():
-    """获取 LLM 实例（复用 BaseLLMService）"""
+    """获取 browser-use 兼容的 LLM 实例"""
     from services.llm_service.base_llm_service import BaseLLMService
-    return BaseLLMService().client
+
+    # 获取配置
+    llm_service = BaseLLMService()
+    llm_config = config.get("llm", {})
+
+    # 获取 API 配置
+    api_key = llm_service.api_key
+    base_url = llm_service.base_url
+    model = llm_service.model_name
+
+    # 使用 browser-use 的 ChatOpenAI（不是 LangChain 的）
+    return ChatOpenAI(
+        model=model,
+        base_url=base_url,
+        api_key=api_key,
+        temperature=llm_config.get("temperature", 0.7),
+
+        # Moonshot/非标准 OpenAI API 兼容性配置
+        dont_force_structured_output=True,  # 禁用 response_format，避免 API 400 错误
+        add_schema_to_system_prompt=True,   # 通过系统提示引导 JSON 输出
+    )
 
 
 # ==================== 浏览器会话 ====================

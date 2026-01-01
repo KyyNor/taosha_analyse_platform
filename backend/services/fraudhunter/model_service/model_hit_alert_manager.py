@@ -332,12 +332,14 @@ class ModelHitAlertManager:
             headers = {
                 "Content-Type": "application/json"
             }
+            from utils.common_utils import getacctno
+            full_account_id = getacctno(account_id)
 
             data = {
                 "iibs": {
                     "req": {
                         "body": {
-                            "acctNo": account_id,
+                            "acctNo": full_account_id,
                             "acctType": account_type,
                             "resAbs": "武汉分行监测系统"
                         }
@@ -355,7 +357,7 @@ class ModelHitAlertManager:
             result = response.json()
             resp_data = result.get('iibs', {}).get('resp')
 
-            logger.info(f"管控接口调用成功: account_id={account_id}, response={resp_data}")
+            logger.info(f"管控接口调用成功: account_id={account_id}, full_account_id={full_account_id}, response={resp_data}")
             return resp_data
 
         except Exception as e:
