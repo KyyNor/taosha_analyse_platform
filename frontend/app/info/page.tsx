@@ -6,7 +6,7 @@
 'use client'
 
 import { useSearchParams, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { AlertCircle, Lock, Clock, User, RefreshCw, Home } from 'lucide-react'
 
 // 定义信息类型
@@ -60,7 +60,7 @@ const INFO_CONFIG = {
   }
 }
 
-export default function InfoPage() {
+function InfoPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
@@ -200,5 +200,20 @@ export default function InfoPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function InfoPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">加载中...</p>
+        </div>
+      </div>
+    }>
+      <InfoPageContent />
+    </Suspense>
   )
 }

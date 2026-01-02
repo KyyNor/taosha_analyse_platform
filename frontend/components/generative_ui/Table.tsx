@@ -172,7 +172,9 @@ export const Table: React.FC<TableProps> = ({
         label: key.replace(/_/g, ' ').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
         type,
         align: type === 'text' ? 'left' : 'right',
-      };
+        sortable: true,
+        width: undefined,
+      } as TableColumn;
     });
   }, [columns, data]);
 
