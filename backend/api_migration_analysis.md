@@ -91,12 +91,21 @@
 - **改造后**: 从JWT token获取user_id作为created_by
 - **变更**: 添加`current_user: UserInfo = Depends(get_current_user)`依赖注入
 
+### 4. 元数据管理接口 (backend/api/metadata_routes.py) ✅ 已完成
+
+#### 4.1 术语添加接口 ✅ 已完成
+- **接口**: `POST /metadata/glossary/terms`
+- **改造前**: 使用硬编码的"api_user"作为creator
+- **改造后**: 从JWT token获取user_id作为creator
+- **变更**: 添加`current_user: UserInfo = Depends(get_current_user)`依赖注入
+
 ## 改造完成状态
 
 ### ✅ 已完成改造的接口类别：
 1. **Agent聊天相关接口** - 用户体验直接相关
 2. **FraudHunter创建接口** - 数据审计和追踪相关
 3. **登录记录接口** - 已验证权限控制正确
+4. **元数据管理接口** - 术语创建追踪相关
 
 ### 🔧 改造技术实现：
 
@@ -107,9 +116,10 @@
 5. **数据追踪**: 所有创建操作现在都能正确记录实际操作用户
 
 ### 📊 改造统计：
-- **总计改造接口**: 11个
+- **总计改造接口**: 12个
 - **Agent相关**: 3个
 - **FraudHunter相关**: 8个
+- **元数据管理相关**: 1个
 - **登录记录相关**: 已验证无需改造
 
 ### ✅ 验证结果：

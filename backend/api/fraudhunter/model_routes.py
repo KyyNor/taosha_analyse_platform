@@ -31,7 +31,8 @@ from schemas.fraudhunter.risk_control_model import (
 from services.fraudhunter.model_service.rule_engine import RuleEngine
 from services.fraudhunter.model_service import RiskControlModelManager
 from utils.logger import logger
-from services.permission_service import get_current_user
+from services.permission_service import PermissionService
+from middleware.auth_middleware import get_current_user
 from services.token_service import UserInfo
 
 

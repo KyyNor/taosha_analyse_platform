@@ -23,7 +23,8 @@ from schemas.fraudhunter.batch_create import (
 )
 from services.fraudhunter.indicator_service import IndicatorManager
 from utils.logger import logger
-from services.permission_service import get_current_user
+from services.permission_service import PermissionService
+from middleware.auth_middleware import get_current_user
 from services.token_service import UserInfo
 
 

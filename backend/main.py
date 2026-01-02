@@ -326,6 +326,23 @@ async def lifespan(app: FastAPI):
         # 初始化可观测性服务（外部追踪）
         initialize_observability()
 
+        # 初始化数据库表和页面同步
+        try:
+            logger.info("初始化数据库表...")
+            from models.db_base import create_tables
+            create_tables()
+            
+            logger.info("同步页面配置到数据库...")
+            from services.page_discovery_service import PageDiscoveryService
+            with get_db_session() as db:
+                page_service = PageDiscoveryService(db)
+                page_service.sync_pages_on_startup()
+            
+            logger.info("数据库初始化和页面同步完成")
+        except Exception as e:
+            logger.error(f"数据库初始化或页面同步失败: {e}", exc_info=True)
+            # 不影响系统启动，继续运行
+
         # 初始化系统服务（向量数据库训练、元数据同步）
         # 这些服务在多worker环境下只需要运行一次
         await _initialize_system_services()

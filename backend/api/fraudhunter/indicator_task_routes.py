@@ -25,7 +25,8 @@ from services.fraudhunter.indicator_service import (
 )
 from services.fraudhunter.dry_run_task_service import dry_run_task_manager, indicator_executor
 from utils.logger import logger
-from services.permission_service import get_current_user
+from services.permission_service import PermissionService
+from middleware.auth_middleware import get_current_user
 from services.token_service import UserInfo
 
 

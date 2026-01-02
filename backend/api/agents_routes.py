@@ -18,7 +18,8 @@ from repositories.chat_repository import ChatRepository
 from services.tracking_service.observability_service import get_langfuse_client
 from models.db_base import get_db
 from utils.logger import logger
-from services.permission_service import get_current_user
+from services.permission_service import PermissionService
+from middleware.auth_middleware import get_current_user
 from services.token_service import UserInfo
 
 

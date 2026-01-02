@@ -15,6 +15,8 @@ from models.db_base import get_db
 from services import get_metadata_service, get_glossary_service, get_relation_field_config_service, \
     get_prompt_template_service
 from services.metadata_service.fine_report_service import get_fine_report_service
+from services.token_service import UserInfo
+from middleware.auth_middleware import get_current_user
 from utils.config import settings
 from utils.logger import logger
 
@@ -249,16 +251,15 @@ async def get_all_terms(
 
 
 @router.post("/glossary/terms")
-async def add_term(request: GlossaryTermRequest, db: Session = Depends(get_db)):
+async def add_term(request: GlossaryTermRequest, current_user: UserInfo = Depends(get_current_user), db: Session = Depends(get_db)):
     """添加术语"""
     try:
-        creator: str = "api_user"
         glossary_service = get_glossary_service(db)
         term_id = glossary_service.add_term(
             request.name,
             request.type,
             request.content,
-            creator,
+            current_user.user_id,  # 从JWT token获取用户ID
             request.is_basic  # 传递 is_basic 参数
         )
         if term_id:
