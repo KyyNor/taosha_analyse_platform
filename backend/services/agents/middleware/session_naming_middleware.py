@@ -3,7 +3,7 @@
 在 Agent 完成对话后自动为新会话生成标题
 """
 from typing import Dict, Any, List
-from langchain.agents.middleware.base import BaseMiddleware
+from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 
 from services.llm_service.base_llm_service import BaseLLMService
@@ -12,7 +12,7 @@ from models.db_base import get_db_session
 from utils.logger import logger
 
 
-class SessionNamingMiddleware(BaseMiddleware):
+class SessionNamingMiddleware(AgentMiddleware):
     """会话自动命名中间件"""
     
     def __init__(self):

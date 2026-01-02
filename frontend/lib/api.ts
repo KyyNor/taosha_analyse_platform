@@ -128,7 +128,8 @@ function handleAuthError(status: number): void {
     reason = 'no_permission'
   }
   
-  window.location.href = `/info?reason=${reason}`
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
+  window.location.href = `${basePath}/info?reason=${reason}`
 }
 
 /**

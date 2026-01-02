@@ -8,6 +8,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 
+// 获取基础路径的工具函数
+function getBasePath(): string {
+  return process.env.NEXT_PUBLIC_BASE_PATH || ''
+}
+
 // 用户信息接口
 export interface UserInfo {
   user_id: string
@@ -170,7 +175,7 @@ export function useAuth(): AuthState & {
           user: null,
           token: null
         })
-        router.push('/info?reason=invalid_token')
+        router.push(`${getBasePath()}/info?reason=invalid_token`)
       }
     }
     
@@ -204,7 +209,7 @@ export function useAuth(): AuthState & {
       user: null,
       token: null
     })
-    router.push('/info?reason=no_token')
+    router.push(`${getBasePath()}/info?reason=no_token`)
   }, [router])
   
   // 刷新认证状态
@@ -356,7 +361,7 @@ export function useAuthenticatedFetch() {
 /**
  * 权限保护的组件Hook
  */
-export function useRequireAuth(redirectTo: string = '/info?reason=no_token') {
+export function useRequireAuth(redirectTo: string = `${getBasePath()}/info?reason=no_token`) {
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
   
@@ -372,7 +377,7 @@ export function useRequireAuth(redirectTo: string = '/info?reason=no_token') {
 /**
  * 管理员权限保护Hook
  */
-export function useRequireAdmin(redirectTo: string = '/info?reason=no_permission') {
+export function useRequireAdmin(redirectTo: string = `${getBasePath()}/info?reason=no_permission`) {
   const { isAuthenticated, isLoading, user } = useAuth()
   const router = useRouter()
   

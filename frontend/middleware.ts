@@ -124,7 +124,8 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
  * 创建重定向到Info页面的响应
  */
 function createInfoRedirect(request: NextRequest, reason: string, userInfo?: any): NextResponse {
-  const url = new URL('/info', request.url)
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
+  const url = new URL(`${basePath}/info`, request.url)
   url.searchParams.set('reason', reason)
   
   if (userInfo) {
