@@ -19,6 +19,9 @@ from api.metadata_routes import router as metadata_router
 from api.user_routes import router as user_router
 from api.agents_routes import router as agents_router
 from api.deepagents_routes import router as deepagents_router
+from api.entity_routes import router as entity_router
+from api.permission_routes import router as permission_router
+from api.login_record_routes import router as login_record_router
 from api.fraudhunter import (
     indicator_task_router,
     indicator_router,
@@ -421,6 +424,11 @@ app.include_router(metadata_router, prefix=api_prefix)
 app.include_router(user_router, prefix=api_prefix)
 app.include_router(agents_router, prefix=api_prefix)
 app.include_router(deepagents_router, prefix=api_prefix)
+
+# 注册权限管理路由
+app.include_router(entity_router, prefix=api_prefix)
+app.include_router(permission_router, prefix=api_prefix)
+app.include_router(login_record_router, prefix=api_prefix)
 
 # 注册 FraudHunter 路由
 fraudhunter_prefix = f"{api_prefix}/fraudhunter"

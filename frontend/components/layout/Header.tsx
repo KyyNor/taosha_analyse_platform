@@ -59,6 +59,19 @@ const navItems: NavItem[] = [
       { type: 'link', href: "/metadata/prompt-templates", label: "提示模板" },
       { type: 'link', href: "/metadata/fine-reports", label: "帆软报表" }
     ]
+  },
+  {
+    type: 'dropdown',
+    label: "系统管理",
+    items: [
+      { type: 'group', label: "权限管理" },
+      { type: 'link', href: "/admin/departments", label: "部门管理" },
+      { type: 'link', href: "/admin/roles", label: "角色管理" },
+      { type: 'link', href: "/admin/permissions", label: "权限分配" },
+      { type: 'separator' },
+      { type: 'group', label: "系统监控" },
+      { type: 'link', href: "/admin/login-records", label: "登录记录" }
+    ]
   }
 ];
 
@@ -130,7 +143,7 @@ export default function Header() {
         <Link href="/agent" className="font-semibold text-lg">淘沙分析平台</Link>
         <NavigationMenu>
           <NavigationMenuList className="flex items-center gap-1">
-            {navItems.map((item) => renderNavItem(item))}
+            {allNavItems.map((item) => renderNavItem(item))}
           </NavigationMenuList>
         </NavigationMenu>
       </div>

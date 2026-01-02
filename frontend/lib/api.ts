@@ -3,8 +3,6 @@
  * 自动处理认证和错误响应
  */
 
-import { useRouter } from 'next/navigation'
-
 // API响应接口
 export interface ApiResponse<T = any> {
   data?: T
@@ -90,9 +88,9 @@ export async function apiCall<T = any>(
   const token = getToken()
   
   // 准备请求头
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers
+    ...options.headers as Record<string, string>
   }
   
   // 添加认证头
@@ -186,7 +184,7 @@ export async function apiUpload<T = any>(
   const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
   const url = `${baseUrl}${endpoint}`
   
-  const headers: HeadersInit = {}
+  const headers: Record<string, string> = {}
   
   // 添加认证头
   if (token) {
@@ -229,8 +227,6 @@ export async function apiUpload<T = any>(
  * React Hook for API calls with loading state
  */
 export function useApi() {
-  const router = useRouter()
-  
   const callApi = async <T = any>(
     apiFunction: () => Promise<T>,
     onSuccess?: (data: T) => void,

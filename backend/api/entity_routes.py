@@ -15,7 +15,7 @@ from middleware.auth_middleware import require_admin_role, get_current_user
 from services.token_service import UserInfo
 from utils.logger import logger
 
-router = APIRouter(prefix="/api/entities", tags=["实体管理"])
+router = APIRouter(prefix="/entities", tags=["实体管理"])
 
 
 # Pydantic模型定义

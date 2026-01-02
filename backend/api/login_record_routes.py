@@ -16,7 +16,7 @@ from middleware.auth_middleware import require_admin_role, get_current_user
 from services.token_service import UserInfo
 from utils.logger import logger
 
-router = APIRouter(prefix="/api/login-records", tags=["登录记录"])
+router = APIRouter(prefix="/login-records", tags=["登录记录"])
 
 
 # Pydantic模型定义
