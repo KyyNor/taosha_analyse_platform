@@ -108,37 +108,37 @@ export default function InfoPage() {
   }
   
   return (
-    <div className=\"min-h-screen bg-gray-50 flex items-center justify-center px-4 sm:px-6 lg:px-8\">
-      <div className=\"max-w-md w-full space-y-8\">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
         {/* 主要信息卡片 */}
         <div className={`${config.bgColor} ${config.borderColor} border rounded-lg p-6 shadow-sm`}>
-          <div className=\"flex items-center space-x-3 mb-4\">
+          <div className="flex items-center space-x-3 mb-4">
             <IconComponent className={`h-8 w-8 ${config.color}`} />
             <h1 className={`text-xl font-semibold ${config.color}`}>
               {config.title}
             </h1>
           </div>
           
-          <p className=\"text-gray-700 mb-3\">
+          <p className="text-gray-700 mb-3">
             {config.message}
           </p>
           
-          <p className=\"text-gray-600 text-sm\">
+          <p className="text-gray-600 text-sm">
             {config.description}
           </p>
           
           {/* 用户信息显示 */}
           {config.showUserInfo && (userName || userId) && (
-            <div className=\"mt-4 p-3 bg-white rounded border border-gray-200\">
-              <h3 className=\"text-sm font-medium text-gray-700 mb-2\">当前用户信息</h3>
+            <div className="mt-4 p-3 bg-white rounded border border-gray-200">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">当前用户信息</h3>
               {userName && (
-                <p className=\"text-sm text-gray-600\">
-                  <span className=\"font-medium\">用户姓名：</span>{userName}
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">用户姓名：</span>{userName}
                 </p>
               )}
               {userId && (
-                <p className=\"text-sm text-gray-600\">
-                  <span className=\"font-medium\">用户ID：</span>{userId}
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">用户ID：</span>{userId}
                 </p>
               )}
             </div>
@@ -146,13 +146,13 @@ export default function InfoPage() {
         </div>
         
         {/* 操作按钮 */}
-        <div className=\"space-y-3\">
+        <div className="space-y-3">
           {config.showRefresh && (
             <button
               onClick={handleRefresh}
-              className=\"w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors\"
+              className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
             >
-              <RefreshCw className=\"h-4 w-4 mr-2\" />
+              <RefreshCw className="h-4 w-4 mr-2" />
               刷新页面
             </button>
           )}
@@ -160,29 +160,29 @@ export default function InfoPage() {
           {(reason === 'invalid_token' || reason === 'expired_token') && (
             <button
               onClick={handleClearTokenAndRefresh}
-              className=\"w-full flex items-center justify-center px-4 py-2 border border-red-300 rounded-md shadow-sm bg-red-50 text-sm font-medium text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors\"
+              className="w-full flex items-center justify-center px-4 py-2 border border-red-300 rounded-md shadow-sm bg-red-50 text-sm font-medium text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
             >
-              <AlertCircle className=\"h-4 w-4 mr-2\" />
+              <AlertCircle className="h-4 w-4 mr-2" />
               清除登录信息并刷新
             </button>
           )}
           
           <button
             onClick={handleGoHome}
-            className=\"w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors\"
+            className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
           >
-            <Home className=\"h-4 w-4 mr-2\" />
+            <Home className="h-4 w-4 mr-2" />
             返回首页
           </button>
         </div>
         
         {/* 帮助信息 */}
-        <div className=\"text-center\">
-          <p className=\"text-xs text-gray-500\">
+        <div className="text-center">
+          <p className="text-xs text-gray-500">
             如果问题持续存在，请联系系统管理员
           </p>
           {reason === 'no_permission' && (
-            <p className=\"text-xs text-gray-500 mt-1\">
+            <p className="text-xs text-gray-500 mt-1">
               管理员邮箱: admin@example.com
             </p>
           )}
@@ -190,8 +190,8 @@ export default function InfoPage() {
         
         {/* 调试信息（仅在开发环境显示） */}
         {process.env.NODE_ENV === 'development' && (
-          <div className=\"mt-6 p-3 bg-gray-100 rounded text-xs text-gray-600\">
-            <h4 className=\"font-medium mb-1\">调试信息:</h4>
+          <div className="mt-6 p-3 bg-gray-100 rounded text-xs text-gray-600">
+            <h4 className="font-medium mb-1">调试信息:</h4>
             <p>Reason: {reason}</p>
             <p>User Name: {userName || 'N/A'}</p>
             <p>User ID: {userId || 'N/A'}</p>

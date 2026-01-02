@@ -10,6 +10,7 @@ import {
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 type NavItem = {
   type: 'link';
@@ -59,7 +60,11 @@ const navItems: NavItem[] = [
       { type: 'link', href: "/metadata/prompt-templates", label: "提示模板" },
       { type: 'link', href: "/metadata/fine-reports", label: "帆软报表" }
     ]
-  },
+  }
+];
+
+// 管理员菜单项
+const adminNavItems: NavItem[] = [
   {
     type: 'dropdown',
     label: "系统管理",
@@ -76,6 +81,10 @@ const navItems: NavItem[] = [
 ];
 
 export default function Header() {
+  const { isAuthenticated, isAdmin } = useAuth();
+  
+  // 合并导航菜单：普通菜单 + 管理员菜单（如果是管理员）
+  const allNavItems = isAdmin ? [...navItems, ...adminNavItems] : navItems;
   const renderNavItem = (item: NavItem) => {
     if (item.type === 'link') {
       return (

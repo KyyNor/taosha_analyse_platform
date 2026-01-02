@@ -7,7 +7,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { jwtDecode } from 'jwt-decode'
 
 // 用户信息接口
 export interface UserInfo {
@@ -16,9 +15,7 @@ export interface UserInfo {
   branch_no: string
   branch_name: string
   role_id_list: string[]
-  access_time: string
-  exp: number
-  iat: number
+  role_name_list: string[]
 }
 
 // 认证状态接口
@@ -85,24 +82,36 @@ function clearToken(): void {
 }
 
 /**
- * 验证token是否有效
+ * 验证token并获取用户信息
  */
-function validateToken(token: string): { valid: boolean; userInfo?: UserInfo } {
+async function validateTokenAndGetUser(token: string): Promise<{ valid: boolean; userInfo?: UserInfo }> {
   try {
-    const decoded = jwtDecode<UserInfo>(token)
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:50020'
     
-    // 检查token是否过期
-    const now = Math.floor(Date.now() / 1000)
-    if (decoded.exp && decoded.exp < now) {
+    const response = await fetch(`${backendUrl}/api/taosha/v1/login-records/current/info`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      return { 
+        valid: true, 
+        userInfo: {
+          user_id: data.user_id,
+          user_name: data.user_name,
+          branch_no: data.branch_no,
+          branch_name: data.branch_name,
+          role_id_list: data.role_id_list,
+          role_name_list: data.role_name_list
+        }
+      }
+    } else {
       return { valid: false }
     }
-    
-    // 检查必要字段
-    if (!decoded.user_id || !decoded.user_name || !decoded.branch_no || !decoded.role_id_list) {
-      return { valid: false }
-    }
-    
-    return { valid: true, userInfo: decoded }
     
   } catch (error) {
     console.error('Token validation error:', error)
@@ -114,10 +123,10 @@ function validateToken(token: string): { valid: boolean; userInfo?: UserInfo } {
  * 主要的认证Hook
  */
 export function useAuth(): AuthState & {
-  login: (token: string) => boolean
+  login: (token: string) => Promise<boolean>
   logout: () => void
-  refreshAuth: () => void
-  isAdmin: () => boolean
+  refreshAuth: () => Promise<void>
+  isAdmin: boolean
 } {
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
@@ -130,43 +139,47 @@ export function useAuth(): AuthState & {
   
   // 初始化认证状态
   useEffect(() => {
-    const token = getToken()
-    
-    if (!token) {
-      setAuthState({
-        isAuthenticated: false,
-        isLoading: false,
-        user: null,
-        token: null
-      })
-      return
+    const initAuth = async () => {
+      const token = getToken()
+      
+      if (!token) {
+        setAuthState({
+          isAuthenticated: false,
+          isLoading: false,
+          user: null,
+          token: null
+        })
+        return
+      }
+      
+      const validation = await validateTokenAndGetUser(token)
+      
+      if (validation.valid && validation.userInfo) {
+        setAuthState({
+          isAuthenticated: true,
+          isLoading: false,
+          user: validation.userInfo,
+          token
+        })
+      } else {
+        // Token无效，清除并重定向
+        clearToken()
+        setAuthState({
+          isAuthenticated: false,
+          isLoading: false,
+          user: null,
+          token: null
+        })
+        router.push('/info?reason=invalid_token')
+      }
     }
     
-    const validation = validateToken(token)
-    
-    if (validation.valid && validation.userInfo) {
-      setAuthState({
-        isAuthenticated: true,
-        isLoading: false,
-        user: validation.userInfo,
-        token
-      })
-    } else {
-      // Token无效，清除并重定向
-      clearToken()
-      setAuthState({
-        isAuthenticated: false,
-        isLoading: false,
-        user: null,
-        token: null
-      })
-      router.push('/info?reason=invalid_token')
-    }
+    initAuth()
   }, [router])
   
   // 登录函数
-  const login = useCallback((token: string): boolean => {
-    const validation = validateToken(token)
+  const login = useCallback(async (token: string): Promise<boolean> => {
+    const validation = await validateTokenAndGetUser(token)
     
     if (validation.valid && validation.userInfo) {
       setToken(token)
@@ -195,7 +208,7 @@ export function useAuth(): AuthState & {
   }, [router])
   
   // 刷新认证状态
-  const refreshAuth = useCallback(() => {
+  const refreshAuth = useCallback(async () => {
     const token = getToken()
     
     if (!token) {
@@ -203,7 +216,7 @@ export function useAuth(): AuthState & {
       return
     }
     
-    const validation = validateToken(token)
+    const validation = await validateTokenAndGetUser(token)
     
     if (validation.valid && validation.userInfo) {
       setAuthState(prev => ({
@@ -217,12 +230,9 @@ export function useAuth(): AuthState & {
   }, [logout])
   
   // 检查是否为管理员
-  const isAdmin = useCallback((): boolean => {
-    if (!authState.user) return false
-    
-    return authState.user.role_id_list.includes('淘沙管理员') || 
-           authState.user.role_id_list.includes('taosha_admin')
-  }, [authState.user])
+  const isAdmin = authState.user?.role_id_list.includes('ADMIN') || 
+                  authState.user?.role_id_list.includes('淘沙管理员') || 
+                  authState.user?.role_id_list.includes('taosha_admin') || false
   
   return {
     ...authState,
@@ -259,7 +269,8 @@ export function usePagePermission(pagePath: string): PermissionResult {
     const isAdminPath = adminPaths.some(path => pagePath.startsWith(path))
     
     if (isAdminPath) {
-      const isAdmin = user?.role_id_list.includes('淘沙管理员') || 
+      const isAdmin = user?.role_id_list.includes('ADMIN') || 
+                     user?.role_id_list.includes('淘沙管理员') || 
                      user?.role_id_list.includes('taosha_admin')
       
       setResult({
@@ -273,9 +284,9 @@ export function usePagePermission(pagePath: string): PermissionResult {
     // 调用后端API检查权限
     const checkPermission = async () => {
       try {
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:50020'
         
-        const response = await fetch(`${backendUrl}/api/permissions/check-access`, {
+        const response = await fetch(`${backendUrl}/api/taosha/v1/permissions/check-access`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -365,7 +376,8 @@ export function useRequireAdmin(redirectTo: string = '/info?reason=no_permission
   const { isAuthenticated, isLoading, user } = useAuth()
   const router = useRouter()
   
-  const isAdmin = user?.role_id_list.includes('淘沙管理员') || 
+  const isAdmin = user?.role_id_list.includes('ADMIN') || 
+                 user?.role_id_list.includes('淘沙管理员') || 
                  user?.role_id_list.includes('taosha_admin')
   
   useEffect(() => {

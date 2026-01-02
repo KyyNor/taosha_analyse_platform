@@ -4,26 +4,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { jwtDecode } from 'jwt-decode'
-
-// 定义用户信息接口
-interface UserInfo {
-  user_id: string
-  user_name: string
-  branch_no: string
-  branch_name: string
-  role_id_list: string[]
-  access_time: string
-  exp: number
-  iat: number
-}
-
-// 定义权限检查结果接口
-interface PermissionCheckResult {
-  hasAccess: boolean
-  reason?: 'no_token' | 'invalid_token' | 'expired_token' | 'no_permission'
-  userInfo?: UserInfo
-}
 
 // 不需要权限检查的公共路径
 const PUBLIC_PATHS = [
@@ -77,24 +57,62 @@ function getTokenFromCookies(request: NextRequest): string | null {
 }
 
 /**
- * 验证JWT token并解析用户信息
+ * 调用后端API验证token并检查权限
  */
-function validateToken(token: string): { valid: boolean; userInfo?: UserInfo; reason?: string } {
+async function checkTokenAndPermission(token: string, pagePath: string): Promise<{
+  valid: boolean
+  isAdmin?: boolean
+  hasPageAccess?: boolean
+  userInfo?: any
+  reason?: string
+}> {
   try {
-    const decoded = jwtDecode<UserInfo>(token)
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:50020'
     
-    // 检查token是否过期
-    const now = Math.floor(Date.now() / 1000)
-    if (decoded.exp && decoded.exp < now) {
-      return { valid: false, reason: 'expired_token' }
+    // 首先验证token并获取用户信息
+    const userResponse = await fetch(`${backendUrl}/api/taosha/v1/login-records/current/info`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!userResponse.ok) {
+      if (userResponse.status === 401) {
+        return { valid: false, reason: 'expired_token' }
+      } else if (userResponse.status === 403) {
+        return { valid: false, reason: 'no_permission' }
+      } else {
+        return { valid: false, reason: 'invalid_token' }
+      }
     }
     
-    // 检查必要字段
-    if (!decoded.user_id || !decoded.user_name || !decoded.branch_no || !decoded.role_id_list) {
-      return { valid: false, reason: 'invalid_token' }
+    const userInfo = await userResponse.json()
+    
+    // 检查是否为管理员
+    const isAdmin = userInfo.role_id_list?.includes('ADMIN') || 
+                   userInfo.role_id_list?.includes('淘沙管理员') || 
+                   userInfo.role_id_list?.includes('taosha_admin')
+    
+    // 如果是管理员路径，直接检查管理员权限
+    if (isAdminPath(pagePath)) {
+      return {
+        valid: true,
+        isAdmin,
+        hasPageAccess: isAdmin,
+        userInfo,
+        reason: isAdmin ? undefined : 'no_permission'
+      }
     }
     
-    return { valid: true, userInfo: decoded }
+    // 对于其他路径，假设有权限（具体权限检查在页面组件中进行）
+    return {
+      valid: true,
+      isAdmin,
+      hasPageAccess: true,
+      userInfo
+    }
     
   } catch (error) {
     console.error('Token validation error:', error)
@@ -103,94 +121,9 @@ function validateToken(token: string): { valid: boolean; userInfo?: UserInfo; re
 }
 
 /**
- * 检查用户是否为管理员
- */
-function isAdminUser(userInfo: UserInfo): boolean {
-  return userInfo.role_id_list.includes('淘沙管理员') || 
-         userInfo.role_id_list.includes('taosha_admin')
-}
-
-/**
- * 调用后端API检查页面访问权限
- */
-async function checkPageAccess(token: string, pagePath: string): Promise<boolean> {
-  try {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
-    
-    const response = await fetch(`${backendUrl}/api/permissions/check-access`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ page_path: pagePath })
-    })
-    
-    if (response.ok) {
-      const result = await response.json()
-      return result.has_access === true
-    }
-    
-    // 如果API调用失败，默认拒绝访问
-    return false
-    
-  } catch (error) {
-    console.error('Page access check error:', error)
-    // API调用失败时，默认拒绝访问
-    return false
-  }
-}
-
-/**
- * 执行权限检查
- */
-async function performPermissionCheck(request: NextRequest): Promise<PermissionCheckResult> {
-  const pathname = request.nextUrl.pathname
-  
-  // 1. 获取token
-  const token = getTokenFromCookies(request)
-  if (!token) {
-    return { hasAccess: false, reason: 'no_token' }
-  }
-  
-  // 2. 验证token
-  const tokenValidation = validateToken(token)
-  if (!tokenValidation.valid) {
-    return { 
-      hasAccess: false, 
-      reason: tokenValidation.reason as 'invalid_token' | 'expired_token'
-    }
-  }
-  
-  const userInfo = tokenValidation.userInfo!
-  
-  // 3. 检查管理员路径
-  if (isAdminPath(pathname)) {
-    if (!isAdminUser(userInfo)) {
-      return { hasAccess: false, reason: 'no_permission', userInfo }
-    }
-    // 管理员用户访问管理员路径，直接允许
-    return { hasAccess: true, userInfo }
-  }
-  
-  // 4. 对于其他路径，调用后端API检查权限
-  try {
-    const hasAccess = await checkPageAccess(token, pathname)
-    return { 
-      hasAccess, 
-      reason: hasAccess ? undefined : 'no_permission',
-      userInfo 
-    }
-  } catch (error) {
-    console.error('Permission check failed:', error)
-    return { hasAccess: false, reason: 'no_permission', userInfo }
-  }
-}
-
-/**
  * 创建重定向到Info页面的响应
  */
-function createInfoRedirect(request: NextRequest, reason: string, userInfo?: UserInfo): NextResponse {
+function createInfoRedirect(request: NextRequest, reason: string, userInfo?: any): NextResponse {
   const url = new URL('/info', request.url)
   url.searchParams.set('reason', reason)
   
@@ -213,22 +146,33 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
   
-  // 执行权限检查
-  const permissionResult = await performPermissionCheck(request)
+  // 获取token
+  const token = getTokenFromCookies(request)
+  if (!token) {
+    return createInfoRedirect(request, 'no_token')
+  }
   
-  if (!permissionResult.hasAccess) {
-    // 根据不同的原因重定向到Info页面
-    return createInfoRedirect(request, permissionResult.reason!, permissionResult.userInfo)
+  // 验证token并检查权限
+  const result = await checkTokenAndPermission(token, pathname)
+  
+  if (!result.valid) {
+    return createInfoRedirect(request, result.reason!, result.userInfo)
+  }
+  
+  // 如果是管理员路径但用户不是管理员
+  if (isAdminPath(pathname) && !result.hasPageAccess) {
+    return createInfoRedirect(request, 'no_permission', result.userInfo)
   }
   
   // 权限检查通过，继续处理请求
   const response = NextResponse.next()
   
   // 在响应头中添加用户信息（可选，供页面组件使用）
-  if (permissionResult.userInfo) {
-    response.headers.set('X-User-ID', permissionResult.userInfo.user_id)
-    response.headers.set('X-User-Name', encodeURIComponent(permissionResult.userInfo.user_name))
-    response.headers.set('X-Branch-Name', encodeURIComponent(permissionResult.userInfo.branch_name))
+  if (result.userInfo) {
+    response.headers.set('X-User-ID', result.userInfo.user_id)
+    response.headers.set('X-User-Name', encodeURIComponent(result.userInfo.user_name))
+    response.headers.set('X-Branch-Name', encodeURIComponent(result.userInfo.branch_name))
+    response.headers.set('X-Is-Admin', result.isAdmin ? 'true' : 'false')
   }
   
   return response
