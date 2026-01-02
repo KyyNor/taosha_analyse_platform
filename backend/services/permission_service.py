@@ -49,6 +49,18 @@ class PermissionService:
     def check_page_access(self, branch_no: str, role_id_list: List[str], page_path: str) -> bool:
         """检查用户是否有访问指定页面的权限"""
         try:
+            # 首先检查页面是否存在
+            page_exists = self.repo.get_page_by_path(page_path) is not None
+            if not page_exists:
+                logger.debug(f"页面访问检查: 页面={page_path}, 页面不存在")
+                return False
+            
+            # 管理员有所有存在页面的访问权限
+            if self.is_admin_user(role_id_list):
+                logger.debug(f"页面访问检查: 页面={page_path}, 管理员用户，允许访问")
+                return True
+            
+            # 普通用户检查具体权限
             user_permissions = self.get_user_permissions(branch_no, role_id_list)
             has_access = page_path in user_permissions
             
