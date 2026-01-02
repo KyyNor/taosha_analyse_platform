@@ -11,22 +11,26 @@ import {
 } from "@/components/ui/navigation-menu";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useMemo } from "react";
 
 type NavItem = {
   type: 'link';
   href: string;
   label: string;
+  requiresAdmin?: boolean;
 } | {
   type: 'dropdown';
   label: string;
+  requiresAdmin?: boolean;
   items: Array<
-    | { type: 'link'; href: string; label: string }
+    | { type: 'link'; href: string; label: string; requiresAdmin?: boolean }
     | { type: 'separator' }
     | { type: 'group'; label: string }
   >;
 };
 
-const navItems: NavItem[] = [
+// 完整的导航菜单配置，包含所有功能
+const allNavItems: NavItem[] = [
   { type: 'link', href: "/agent", label: "Agent" },
   { type: 'link', href: "/deepagents", label: "DeepAgents" },
   {
@@ -60,22 +64,19 @@ const navItems: NavItem[] = [
       { type: 'link', href: "/metadata/prompt-templates", label: "提示模板" },
       { type: 'link', href: "/metadata/fine-reports", label: "帆软报表" }
     ]
-  }
-];
-
-// 管理员菜单项
-const adminNavItems: NavItem[] = [
+  },
   {
     type: 'dropdown',
     label: "系统管理",
+    requiresAdmin: true,
     items: [
       { type: 'group', label: "权限管理" },
-      { type: 'link', href: "/admin/departments", label: "部门管理" },
-      { type: 'link', href: "/admin/roles", label: "角色管理" },
-      { type: 'link', href: "/admin/permissions", label: "权限分配" },
+      { type: 'link', href: "/admin/departments", label: "部门管理", requiresAdmin: true },
+      { type: 'link', href: "/admin/roles", label: "角色管理", requiresAdmin: true },
+      { type: 'link', href: "/admin/permissions", label: "权限分配", requiresAdmin: true },
       { type: 'separator' },
       { type: 'group', label: "系统监控" },
-      { type: 'link', href: "/admin/login-records", label: "登录记录" }
+      { type: 'link', href: "/admin/login-records", label: "登录记录", requiresAdmin: true }
     ]
   }
 ];
@@ -83,8 +84,67 @@ const adminNavItems: NavItem[] = [
 export default function Header() {
   const { isAuthenticated, isAdmin } = useAuth();
   
-  // 合并导航菜单：普通菜单 + 管理员菜单（如果是管理员）
-  const allNavItems = isAdmin ? [...navItems, ...adminNavItems] : navItems;
+  // 根据用户权限过滤导航菜单
+  const visibleNavItems = useMemo(() => {
+    return allNavItems.filter(item => {
+      // 如果菜单项需要管理员权限但用户不是管理员，则隐藏
+      if (item.requiresAdmin && !isAdmin) {
+        return false;
+      }
+      
+      // 对于下拉菜单，需要过滤其子项
+      if (item.type === 'dropdown') {
+        const visibleSubItems = item.items.filter(subItem => {
+          // 分隔符和分组标题总是显示
+          if (subItem.type === 'separator' || subItem.type === 'group') {
+            return true;
+          }
+          
+          // 链接项需要检查权限
+          if (subItem.type === 'link') {
+            return !subItem.requiresAdmin || isAdmin;
+          }
+          
+          return true;
+        });
+        
+        // 如果过滤后没有可见的链接项，则隐藏整个下拉菜单
+        const hasVisibleLinks = visibleSubItems.some(subItem => subItem.type === 'link');
+        if (!hasVisibleLinks) {
+          return false;
+        }
+        
+        // 返回过滤后的下拉菜单
+        return {
+          ...item,
+          items: visibleSubItems
+        };
+      }
+      
+      return true;
+    }).map(item => {
+      // 对于下拉菜单，应用子项过滤
+      if (item.type === 'dropdown') {
+        const visibleSubItems = item.items.filter(subItem => {
+          if (subItem.type === 'separator' || subItem.type === 'group') {
+            return true;
+          }
+          if (subItem.type === 'link') {
+            return !subItem.requiresAdmin || isAdmin;
+          }
+          return true;
+        });
+        
+        return {
+          ...item,
+          items: visibleSubItems
+        };
+      }
+      
+      return item;
+    });
+  }, [isAdmin]);
+  
   const renderNavItem = (item: NavItem) => {
     if (item.type === 'link') {
       return (
@@ -152,7 +212,7 @@ export default function Header() {
         <Link href="/agent" className="font-semibold text-lg">淘沙分析平台</Link>
         <NavigationMenu>
           <NavigationMenuList className="flex items-center gap-1">
-            {allNavItems.map((item) => renderNavItem(item))}
+            {visibleNavItems.map((item) => renderNavItem(item))}
           </NavigationMenuList>
         </NavigationMenu>
       </div>
