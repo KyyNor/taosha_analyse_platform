@@ -31,6 +31,8 @@ from schemas.fraudhunter.risk_control_model import (
 from services.fraudhunter.model_service.rule_engine import RuleEngine
 from services.fraudhunter.model_service import RiskControlModelManager
 from utils.logger import logger
+from services.permission_service import get_current_user
+from services.token_service import UserInfo
 
 
 router = APIRouter(prefix="/models", tags=["模型管理"])
@@ -283,7 +285,8 @@ async def health_check():
 )
 async def create_risk_control_model(
     model_data: RiskControlModelCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
 ):
     """
     创建新的预警管控模型
@@ -302,7 +305,7 @@ async def create_risk_control_model(
     """
     try:
         manager = RiskControlModelManager(db)
-        model = manager.create_risk_control_model(model_data, created_by="system")
+        model = manager.create_risk_control_model(model_data, created_by=current_user.user_id)
         return model
 
     except ValueError as e:
@@ -533,7 +536,8 @@ async def archive_risk_control_model(
 async def submit_model_backtest(
     model_id: int,
     backtest_data: ModelBacktestRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
 ):
     """
     提交模型历史回测任务
@@ -564,7 +568,7 @@ async def submit_model_backtest(
             model_id=model_id,
             start_date=backtest_data.start_date,
             end_date=backtest_data.end_date,
-            created_by="system"
+            created_by=current_user.user_id
         )
 
         return ModelBacktestResponse(

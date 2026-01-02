@@ -25,6 +25,8 @@ from services.fraudhunter.indicator_service import (
 )
 from services.fraudhunter.dry_run_task_service import dry_run_task_manager, indicator_executor
 from utils.logger import logger
+from services.permission_service import get_current_user
+from services.token_service import UserInfo
 
 
 router = APIRouter(prefix="/indicator-tasks", tags=["指标任务管理"])
@@ -33,7 +35,8 @@ router = APIRouter(prefix="/indicator-tasks", tags=["指标任务管理"])
 @router.post("", summary="创建指标任务")
 async def create_indicator_task(
     task_data: IndicatorTaskCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
 ):
     """创建新的指标任务
 
@@ -64,7 +67,7 @@ async def create_indicator_task(
         manager = IndicatorTaskManager(db)
         task = manager.create_indicator_task(
             task_data,
-            created_by="system"  # 实际应该从JWT token中获取
+            created_by=current_user.user_id
         )
 
         return {
@@ -195,7 +198,8 @@ async def update_indicator_task(
 async def dry_run_indicator_task(
     task_id: int,
     dry_run_request: DryRunRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
 ):
     """提交指标任务试运行任务
 
@@ -215,7 +219,7 @@ async def dry_run_indicator_task(
             task_type='indicator',
             task_id=task_id,
             task_func=indicator_executor.execute_dry_run,
-            created_by="system",
+            created_by=current_user.user_id,
             etl_date=dry_run_request.etl_date,
             sample_size=dry_run_request.sample_size,
             task_version=dry_run_request.task_version
@@ -261,7 +265,8 @@ async def delete_indicator_task(
 async def publish_to_dolphinscheduler(
     task_id: int,
     request: PublishToDSRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
 ):
     """将指标任务上线到 DolphinScheduler
 
@@ -318,7 +323,7 @@ async def publish_to_dolphinscheduler(
             # 使用任务的object_type触发版本创建
             object_type = indicator_task.object_type
             version_manager = WideTableVersionManager(db)
-            version_manager.create_new_version(object_type, created_by="system")
+            version_manager.create_new_version(object_type, created_by=current_user.user_id)
             logger.info(f"已触发object_type={object_type}的宽表版本变更检查")
         except Exception as e:
             logger.error(f"触发宽表版本变更检查失败: {e}", exc_info=True)
