@@ -55,7 +55,6 @@ class EntityListResponse(BaseModel):
 
 # API路由定义
 @router.post("", response_model=EntityResponse, status_code=status.HTTP_201_CREATED)  # 处理 /entities（不带斜杠）
-@router.post("/", response_model=EntityResponse, status_code=status.HTTP_201_CREATED)  # 处理 /entities/（带斜杠）
 async def create_entity(
     request: EntityCreateRequest,
     admin_user: UserInfo = Depends(require_admin_role)
@@ -102,7 +101,6 @@ async def create_entity(
 
 
 @router.get("", response_model=EntityListResponse)  # 处理 /entities（不带斜杠）
-@router.get("/", response_model=EntityListResponse)   # 处理 /entities/（带斜杠）
 async def list_entities(
     entity_type: Optional[EntityType] = None,
     current_user: UserInfo = Depends(get_current_user)
@@ -280,7 +278,6 @@ async def delete_entity(
 
 # 便捷路由：按类型获取实体
 @router.get("/departments", response_model=EntityListResponse)  # 处理 /entities/departments（不带斜杠）
-@router.get("/departments/", response_model=EntityListResponse)  # 处理 /entities/departments/（带斜杠）
 async def list_departments(
     current_user: UserInfo = Depends(get_current_user)
 ):
@@ -289,7 +286,6 @@ async def list_departments(
 
 
 @router.get("/roles", response_model=EntityListResponse)  # 处理 /entities/roles（不带斜杠）
-@router.get("/roles/", response_model=EntityListResponse)  # 处理 /entities/roles/（带斜杠）
 async def list_roles(
     current_user: UserInfo = Depends(get_current_user)
 ):
