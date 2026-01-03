@@ -132,8 +132,10 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
  * 创建重定向到Info页面的响应
  */
 function createInfoRedirect(request: NextRequest, reason: string, userInfo?: any): NextResponse {
+  const url = new URL(request.url)
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
-  const url = new URL(`${basePath}/info`, request.url)
+  url.pathname = `${basePath}/info`
+  url.search = '' // 清除现有的查询参数
   url.searchParams.set('reason', reason)
   
   if (userInfo) {
@@ -148,8 +150,17 @@ function createInfoRedirect(request: NextRequest, reason: string, userInfo?: any
  * 创建带token cookie的重定向响应
  */
 function createRedirectWithTokenCookie(request: NextRequest, token: string, targetPath?: string): NextResponse {
-  // 如果没有指定目标路径，则重定向到当前路径（去掉token参数）
-  const url = new URL(targetPath || request.nextUrl.pathname, request.url)
+  // 构建重定向URL，保持basePath
+  const url = new URL(request.url)
+  
+  // 如果指定了目标路径，使用目标路径；否则使用当前路径
+  if (targetPath) {
+    url.pathname = targetPath
+  }
+  // 如果没有指定目标路径，保持当前路径不变（已经包含basePath）
+  
+  // 移除token参数
+  url.searchParams.delete('token')
   
   // 创建重定向响应
   const response = NextResponse.redirect(url)
