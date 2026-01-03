@@ -341,27 +341,46 @@ export function useApi() {
  */
 export const permissionApi = {
   // 获取页面列表
-  getPages: () => apiGet('/api/permissions/pages'),
+  getPages: async () => {
+    const res = await api.get('/permissions/pages')
+    return res.data
+  },
   
   // 同步页面配置
-  syncPages: () => apiPost('/api/permissions/pages/sync'),
+  syncPages: async () => {
+    const res = await api.post('/permissions/pages/sync')
+    return res.data
+  },
   
   // 获取实体权限
-  getEntityPermissions: (entityId: string) => apiGet(`/api/permissions/entity/${entityId}`),
+  getEntityPermissions: async (entityId: string) => {
+    const res = await api.get(`/permissions/entity/${entityId}`)
+    return res.data
+  },
   
   // 分配权限
-  assignPermissions: (entityId: string, pageIds: string[]) => 
-    apiPost('/api/permissions/assign', { entity_id: entityId, page_ids: pageIds }),
+  assignPermissions: async (entityId: string, pageIds: string[]) => {
+    const res = await api.post('/permissions/assign', { entity_id: entityId, page_ids: pageIds })
+    return res.data
+  },
   
   // 获取权限矩阵
-  getPermissionMatrix: () => apiGet('/api/permissions/matrix'),
+  getPermissionMatrix: async () => {
+    const res = await api.get('/permissions/matrix')
+    return res.data
+  },
   
   // 获取权限摘要
-  getPermissionSummary: () => apiGet('/api/permissions/summary'),
+  getPermissionSummary: async () => {
+    const res = await api.get('/permissions/summary')
+    return res.data
+  },
   
   // 复制权限
-  copyPermissions: (sourceEntityId: string, targetEntityId: string) => 
-    apiPost(`/api/permissions/copy/${sourceEntityId}/${targetEntityId}`)
+  copyPermissions: async (sourceEntityId: string, targetEntityId: string) => {
+    const res = await api.post(`/permissions/copy/${sourceEntityId}/${targetEntityId}`)
+    return res.data
+  }
 }
 
 /**
@@ -369,25 +388,40 @@ export const permissionApi = {
  */
 export const entityApi = {
   // 获取实体列表
-  getEntities: (type?: 'department' | 'role') => {
-    const params = type ? `?entity_type=${type}` : ''
-    return apiGet(`/api/entities/${params}`)
+  getEntities: async (type?: 'department' | 'role') => {
+    const res = await api.get('/entities/', { params: type ? { entity_type: type } : undefined })
+    return res.data
   },
   
   // 创建实体
-  createEntity: (data: any) => apiPost('/api/entities/', data),
+  createEntity: async (data: any) => {
+    const res = await api.post('/entities/', data)
+    return res.data
+  },
   
   // 更新实体
-  updateEntity: (id: string, data: any) => apiPut(`/api/entities/${id}`, data),
+  updateEntity: async (id: string, data: any) => {
+    const res = await api.put(`/entities/${id}`, data)
+    return res.data
+  },
   
   // 删除实体
-  deleteEntity: (id: string) => apiDelete(`/api/entities/${id}`),
+  deleteEntity: async (id: string) => {
+    const res = await api.delete(`/entities/${id}`)
+    return res.data
+  },
   
   // 获取部门列表
-  getDepartments: () => apiGet('/api/entities/departments/'),
+  getDepartments: async () => {
+    const res = await api.get('/entities/departments/')
+    return res.data
+  },
   
   // 获取角色列表
-  getRoles: () => apiGet('/api/entities/roles/')
+  getRoles: async () => {
+    const res = await api.get('/entities/roles/')
+    return res.data
+  }
 }
 
 /**
@@ -395,17 +429,26 @@ export const entityApi = {
  */
 export const loginRecordApi = {
   // 获取登录记录列表
-  getLoginRecords: (params?: any) => {
-    const queryString = params ? `?${new URLSearchParams(params).toString()}` : ''
-    return apiGet(`/api/login-records/${queryString}`)
+  getLoginRecords: async (params?: any) => {
+    const res = await api.get('/login-records/', { params })
+    return res.data
   },
   
   // 获取当前用户登录记录
-  getCurrentUserRecord: () => apiGet('/api/login-records/current/info'),
+  getCurrentUserRecord: async () => {
+    const res = await api.get('/login-records/current/info')
+    return res.data
+  },
   
   // 获取登录统计
-  getLoginSummary: () => apiGet('/api/login-records/summary/stats'),
+  getLoginSummary: async () => {
+    const res = await api.get('/login-records/summary/stats')
+    return res.data
+  },
   
   // 获取部门登录统计
-  getDepartmentStats: (days: number = 30) => apiGet(`/api/login-records/departments/stats?days=${days}`)
+  getDepartmentStats: async (days: number = 30) => {
+    const res = await api.get('/login-records/departments/stats', { params: { days } })
+    return res.data
+  }
 }
