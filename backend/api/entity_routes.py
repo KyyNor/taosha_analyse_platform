@@ -54,14 +54,15 @@ class EntityListResponse(BaseModel):
 
 
 # API路由定义
-@router.post("/", response_model=EntityResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=EntityResponse, status_code=status.HTTP_201_CREATED)  # 处理 /entities（不带斜杠）
+@router.post("/", response_model=EntityResponse, status_code=status.HTTP_201_CREATED)  # 处理 /entities/（带斜杠）
 async def create_entity(
     request: EntityCreateRequest,
     admin_user: UserInfo = Depends(require_admin_role)
 ):
     """
     创建实体（部门或角色）
-    
+
     需要管理员权限
     """
     try:
@@ -100,20 +101,21 @@ async def create_entity(
         )
 
 
-@router.get("/", response_model=EntityListResponse)
+@router.get("", response_model=EntityListResponse)  # 处理 /entities（不带斜杠）
+@router.get("/", response_model=EntityListResponse)   # 处理 /entities/（带斜杠）
 async def list_entities(
     entity_type: Optional[EntityType] = None,
     current_user: UserInfo = Depends(get_current_user)
 ):
     """
     获取实体列表
-    
+
     可选择按类型过滤（部门或角色）
     """
     try:
         with get_db_session() as db:
             entity_service = EntityService(db)
-            
+
             if entity_type:
                 entities = entity_service.get_entities_by_type(entity_type)
             else:
@@ -121,7 +123,7 @@ async def list_entities(
                 departments = entity_service.get_entities_by_type(EntityType.DEPARTMENT)
                 roles = entity_service.get_entities_by_type(EntityType.ROLE)
                 entities = departments + roles
-            
+
             entity_responses = [
                 EntityResponse(
                     id=entity.id,
@@ -134,12 +136,12 @@ async def list_entities(
                 )
                 for entity in entities
             ]
-            
+
             return EntityListResponse(
                 entities=entity_responses,
                 total=len(entity_responses)
             )
-            
+
     except Exception as e:
         logger.error(f"获取实体列表失败: {e}")
         raise HTTPException(
@@ -277,7 +279,8 @@ async def delete_entity(
 
 
 # 便捷路由：按类型获取实体
-@router.get("/departments/", response_model=EntityListResponse)
+@router.get("/departments", response_model=EntityListResponse)  # 处理 /entities/departments（不带斜杠）
+@router.get("/departments/", response_model=EntityListResponse)  # 处理 /entities/departments/（带斜杠）
 async def list_departments(
     current_user: UserInfo = Depends(get_current_user)
 ):
@@ -285,7 +288,8 @@ async def list_departments(
     return await list_entities(EntityType.DEPARTMENT, current_user)
 
 
-@router.get("/roles/", response_model=EntityListResponse)
+@router.get("/roles", response_model=EntityListResponse)  # 处理 /entities/roles（不带斜杠）
+@router.get("/roles/", response_model=EntityListResponse)  # 处理 /entities/roles/（带斜杠）
 async def list_roles(
     current_user: UserInfo = Depends(get_current_user)
 ):
