@@ -5,14 +5,91 @@
 
 import axios from "axios";
 
+/**
+ * 获取token的工具函数
+ */
+function getToken(): string | null {
+  if (typeof window === 'undefined') return null
+  
+  // 优先从cookie获取
+  const cookies = document.cookie.split(';')
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=')
+    if (name === 'auth_token') {
+      return decodeURIComponent(value)
+    }
+  }
+  
+  // 从localStorage获取
+  return localStorage.getItem('auth_token')
+}
+
+/**
+ * 清除token的工具函数
+ */
+function clearToken(): void {
+  if (typeof window === 'undefined') return
+  
+  // 清除cookie
+  document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
+  
+  // 清除localStorage
+  localStorage.removeItem('auth_token')
+  localStorage.removeItem('user_info')
+}
+
+/**
+ * 处理认证错误
+ */
+function handleAuthError(status: number): void {
+  if (typeof window === 'undefined') return
+  
+  clearToken()
+  
+  let reason = 'invalid_token'
+  if (status === 401) {
+    reason = 'expired_token'
+  } else if (status === 403) {
+    reason = 'no_permission'
+  }
+  
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
+  window.location.href = `${basePath}/info?reason=${reason}`
+}
+
 // 创建 axios 实例（保持向后兼容）
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE || "/api/taosha/v1"
 });
 
+// 请求拦截器：自动添加认证头
+api.interceptors.request.use(
+  (config) => {
+    // 获取token
+    const token = getToken()
+    
+    // 添加认证头
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
+// 响应拦截器：处理认证错误
 api.interceptors.response.use(
   (res) => res,
-  (err) => Promise.reject(err)
+  (err) => {
+    // 处理认证错误
+    if (err.response?.status === 401 || err.response?.status === 403) {
+      handleAuthError(err.response.status)
+    }
+    return Promise.reject(err)
+  }
 );
 
 export function buildApiUrl(path: string): string {
@@ -78,58 +155,6 @@ export class ApiError extends Error {
     super(message)
     this.name = 'ApiError'
   }
-}
-
-/**
- * 获取token的工具函数
- */
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null
-  
-  // 优先从cookie获取
-  const cookies = document.cookie.split(';')
-  for (const cookie of cookies) {
-    const [name, value] = cookie.trim().split('=')
-    if (name === 'auth_token') {
-      return decodeURIComponent(value)
-    }
-  }
-  
-  // 从localStorage获取
-  return localStorage.getItem('auth_token')
-}
-
-/**
- * 清除token的工具函数
- */
-function clearToken(): void {
-  if (typeof window === 'undefined') return
-  
-  // 清除cookie
-  document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
-  
-  // 清除localStorage
-  localStorage.removeItem('auth_token')
-  localStorage.removeItem('user_info')
-}
-
-/**
- * 处理认证错误
- */
-function handleAuthError(status: number): void {
-  if (typeof window === 'undefined') return
-  
-  clearToken()
-  
-  let reason = 'invalid_token'
-  if (status === 401) {
-    reason = 'expired_token'
-  } else if (status === 403) {
-    reason = 'no_permission'
-  }
-  
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
-  window.location.href = `${basePath}/info?reason=${reason}`
 }
 
 /**
