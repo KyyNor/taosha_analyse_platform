@@ -75,17 +75,18 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
   reason?: string
 }> {
   try {
-    const basePath = process.env.NEXT_PUBLIC_API_BASE || "/api/taosha/v1"
-    
+    // 中间件运行在服务器端，直接调用后端API（不通过Next.js代理）
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:50020'
+
     // 首先验证token并获取用户信息
-    const userResponse = await fetch(`${basePath}/login-records/current/info`, {
+    const userResponse = await fetch(`${backendUrl}/api/taosha/v1/login-records/current/info`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     })
-    
+
     if (!userResponse.ok) {
       if (userResponse.status === 401) {
         return { valid: false, reason: 'expired_token' }
@@ -95,14 +96,14 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
         return { valid: false, reason: 'invalid_token' }
       }
     }
-    
+
     const userInfo = await userResponse.json()
-    
+
     // 检查是否为管理员
-    const isAdmin = userInfo.role_id_list?.includes('ADMIN') || 
-                   userInfo.role_id_list?.includes('淘沙管理员') || 
+    const isAdmin = userInfo.role_id_list?.includes('ADMIN') ||
+                   userInfo.role_id_list?.includes('淘沙管理员') ||
                    userInfo.role_id_list?.includes('taosha_admin')
-    
+
     // 如果是管理员路径，直接检查管理员权限
     if (isAdminPath(pagePath)) {
       return {
@@ -113,7 +114,7 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
         reason: isAdmin ? undefined : 'no_permission'
       }
     }
-    
+
     // 对于其他路径，假设有权限（具体权限检查在页面组件中进行）
     return {
       valid: true,
@@ -121,7 +122,7 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
       hasPageAccess: true,
       userInfo
     }
-    
+
   } catch (error) {
     console.error('Token validation error:', error)
     return { valid: false, reason: 'invalid_token' }

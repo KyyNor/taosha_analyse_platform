@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import api from '@/lib/api'
 
 // 获取基础路径的工具函数
 function getBasePath(): string {
@@ -91,33 +92,26 @@ function clearToken(): void {
  */
 async function validateTokenAndGetUser(token: string): Promise<{ valid: boolean; userInfo?: UserInfo }> {
   try {
-    const basePath = process.env.NEXT_PUBLIC_API_BASE || "/api/taosha/v1"
-    
-    const response = await fetch(`${basePath}/login-records/current/info`, {
-      method: 'GET',
+    // 使用临时axios实例，手动设置token
+    const response = await api.get('/login-records/current/info', {
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        'Authorization': `Bearer ${token}`
       }
     })
-    
-    if (response.ok) {
-      const data = await response.json()
-      return { 
-        valid: true, 
-        userInfo: {
-          user_id: data.user_id,
-          user_name: data.user_name,
-          branch_no: data.branch_no,
-          branch_name: data.branch_name,
-          role_id_list: data.role_id_list,
-          role_name_list: data.role_name_list
-        }
+
+    const data = response.data
+    return {
+      valid: true,
+      userInfo: {
+        user_id: data.user_id,
+        user_name: data.user_name,
+        branch_no: data.branch_no,
+        branch_name: data.branch_name,
+        role_id_list: data.role_id_list,
+        role_name_list: data.role_name_list
       }
-    } else {
-      return { valid: false }
     }
-    
+
   } catch (error) {
     console.error('Token validation error:', error)
     return { valid: false }
@@ -289,30 +283,14 @@ export function usePagePermission(pagePath: string): PermissionResult {
     // 调用后端API检查权限
     const checkPermission = async () => {
       try {
-        const basePath = process.env.NEXT_PUBLIC_API_BASE || "/api/taosha/v1"
-        
-        const response = await fetch(`${basePath}/permissions/check-access`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ page_path: pagePath })
+        const response = await api.post('/permissions/check-access', {
+          page_path: pagePath
         })
-        
-        if (response.ok) {
-          const data = await response.json()
-          setResult({
-            hasPermission: data.has_access === true,
-            loading: false
-          })
-        } else {
-          setResult({
-            hasPermission: false,
-            loading: false,
-            error: 'Permission check failed'
-          })
-        }
+
+        setResult({
+          hasPermission: response.data.has_access === true,
+          loading: false
+        })
       } catch (error) {
         console.error('Permission check error:', error)
         setResult({
