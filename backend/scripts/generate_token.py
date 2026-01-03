@@ -43,7 +43,7 @@ def main():
             branch_no=args.branch_no,
             branch_name=args.branch_name,
             role_id_list=role_id_list,
-            access_time=datetime.utcnow()
+            access_time=datetime.now()
         )
         
         # 创建token服务

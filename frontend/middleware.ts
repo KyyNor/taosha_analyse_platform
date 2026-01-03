@@ -75,10 +75,10 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
   reason?: string
 }> {
   try {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:50020'
+    const basePath = process.env.NEXT_PUBLIC_API_BASE || "/api/taosha/v1"
     
     // 首先验证token并获取用户信息
-    const userResponse = await fetch(`${backendUrl}/api/taosha/v1/login-records/current/info`, {
+    const userResponse = await fetch(`${basePath}/login-records/current/info`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,

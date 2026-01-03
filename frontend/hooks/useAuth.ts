@@ -91,9 +91,9 @@ function clearToken(): void {
  */
 async function validateTokenAndGetUser(token: string): Promise<{ valid: boolean; userInfo?: UserInfo }> {
   try {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:50020'
+    const basePath = process.env.NEXT_PUBLIC_API_BASE || "/api/taosha/v1"
     
-    const response = await fetch(`${backendUrl}/api/taosha/v1/login-records/current/info`, {
+    const response = await fetch(`${basePath}/login-records/current/info`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -289,9 +289,9 @@ export function usePagePermission(pagePath: string): PermissionResult {
     // 调用后端API检查权限
     const checkPermission = async () => {
       try {
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:50020'
+        const basePath = process.env.NEXT_PUBLIC_API_BASE || "/api/taosha/v1"
         
-        const response = await fetch(`${backendUrl}/api/taosha/v1/permissions/check-access`, {
+        const response = await fetch(`${basePath}/permissions/check-access`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
