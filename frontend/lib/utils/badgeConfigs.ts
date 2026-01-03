@@ -120,3 +120,15 @@ export const reportTypeBadgeConfig = {
   summary: { variant: "default" as const, label: "汇总表" },
   detail: { variant: "secondary" as const, label: "明细表" }
 };
+
+// 角色类型标签配置
+export const roleTypeBadgeConfig = {
+  system: { variant: "default" as const, label: "系统角色" },
+  custom: { variant: "secondary" as const, label: "自定义角色" }
+};
+
+// 实体类型标签配置
+export const entityTypeBadgeConfig = {
+  department: { variant: "default" as const, label: "部门" },
+  role: { variant: "secondary" as const, label: "角色" }
+};
