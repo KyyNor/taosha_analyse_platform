@@ -39,21 +39,29 @@ function isAdminPath(pathname: string): boolean {
 }
 
 /**
- * 从cookie中获取token
+ * 从多个来源获取token（优先级：SearchParam > Cookie > Header）
  */
-function getTokenFromCookies(request: NextRequest): string | null {
+function getTokenFromRequest(request: NextRequest): { token: string | null, fromSearchParam: boolean } {
+  // 1. 优先从URL参数获取token（首次跳转）
+  const searchParams = request.nextUrl.searchParams
+  const tokenFromParam = searchParams.get('token')
+  if (tokenFromParam) {
+    return { token: tokenFromParam, fromSearchParam: true }
+  }
+  
+  // 2. 从cookie获取token（后续访问）
   const authToken = request.cookies.get('auth_token')?.value
   if (authToken) {
-    return authToken
+    return { token: authToken, fromSearchParam: false }
   }
   
-  // 也尝试从Authorization header获取
+  // 3. 从Authorization header获取token（API调用）
   const authHeader = request.headers.get('authorization')
   if (authHeader && authHeader.startsWith('Bearer ')) {
-    return authHeader.substring(7)
+    return { token: authHeader.substring(7), fromSearchParam: false }
   }
   
-  return null
+  return { token: null, fromSearchParam: false }
 }
 
 /**
@@ -137,6 +145,31 @@ function createInfoRedirect(request: NextRequest, reason: string, userInfo?: any
 }
 
 /**
+ * 创建带token cookie的重定向响应
+ */
+function createRedirectWithTokenCookie(request: NextRequest, token: string, targetPath?: string): NextResponse {
+  // 如果没有指定目标路径，则重定向到当前路径（去掉token参数）
+  const url = new URL(targetPath || request.nextUrl.pathname, request.url)
+  
+  // 创建重定向响应
+  const response = NextResponse.redirect(url)
+  
+  // 设置token到cookie（7天过期）
+  const expires = new Date()
+  expires.setDate(expires.getDate() + 7)
+  
+  response.cookies.set('auth_token', token, {
+    expires: expires,
+    path: '/',
+    httpOnly: false, // 允许前端JavaScript访问
+    secure: process.env.NODE_ENV === 'production', // 生产环境使用HTTPS
+    sameSite: 'lax'
+  })
+  
+  return response
+}
+
+/**
  * Next.js 中间件主函数
  */
 export async function middleware(request: NextRequest) {
@@ -147,10 +180,25 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
   
-  // 获取token
-  const token = getTokenFromCookies(request)
+  // 获取token（支持SearchParam、Cookie、Header）
+  const { token, fromSearchParam } = getTokenFromRequest(request)
+  
+  // 如果没有token，重定向到info页面
   if (!token) {
     return createInfoRedirect(request, 'no_token')
+  }
+  
+  // 如果token来自SearchParam，先验证token，然后设置cookie并重定向
+  if (fromSearchParam) {
+    // 验证token
+    const result = await checkTokenAndPermission(token, pathname)
+    
+    if (!result.valid) {
+      return createInfoRedirect(request, result.reason!, result.userInfo)
+    }
+    
+    // token有效，设置cookie并重定向到当前页面（去掉token参数）
+    return createRedirectWithTokenCookie(request, token)
   }
   
   // 验证token并检查权限

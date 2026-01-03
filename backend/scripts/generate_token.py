@@ -70,6 +70,14 @@ def main():
         print("生成的Token:")
         print(token)
         print("=" * 60)
+        print("使用方法:")
+        print("1. URL参数方式（首次访问）:")
+        print(f"   http://localhost:3000/taosha/agent?token={token}")
+        print("2. 手动设置Cookie:")
+        print(f"   document.cookie = 'auth_token={token}; path=/; max-age=86400'")
+        print("3. API调用Header:")
+        print(f"   Authorization: Bearer {token}")
+        print("=" * 60)
         
         # 验证token（测试解析）
         print("验证Token...")

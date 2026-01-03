@@ -39,7 +39,7 @@ export interface PermissionResult {
 }
 
 /**
- * 获取token的工具函数
+ * 获取token的工具函数（简化版：只从cookie和localStorage获取）
  */
 function getToken(): string | null {
   if (typeof window === 'undefined') return null
@@ -53,7 +53,7 @@ function getToken(): string | null {
     }
   }
   
-  // 从localStorage获取
+  // 备用：从localStorage获取
   return localStorage.getItem('auth_token')
 }
 
