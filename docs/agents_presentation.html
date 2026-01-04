@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>淘沙分析平台 - 智能体架构汇报</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-tertiary: #f1f5f9;
+            --accent-blue: #2563eb;
+            --accent-cyan: #0891b2;
+            --accent-green: #059669;
+            --accent-purple: #7c3aed;
+            --accent-pink: #db2777;
+            --text-primary: #1e293b;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --border-color: #e2e8f0;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* Animated Background */
+        .bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 40px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 80px 20px;
+            position: relative;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 50px;
+            font-size: 0.85rem;
+            color: var(--accent-blue);
+            margin-bottom: 30px;
+            font-weight: 600;
+        }
+
+        .hero-badge::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--accent-blue);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+
+        .hero h1 {
+            font-size: clamp(3rem, 8vw, 6rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-cyan) 50%, var(--accent-green) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+        }
+
+        .hero-subtitle {
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+            font-weight: 400;
+        }
+
+        .hero-stats {
+            display: flex;
+            gap: 60px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 3rem;
+            font-weight: 800;
+            color: var(--accent-green);
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 5px;
+            font-weight: 600;
+        }
+
+        /* Section */
+        .section {
+            padding: 120px 0;
+            position: relative;
+        }
+
+        .section-label {
+            display: inline-block;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.75rem;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        .section-title {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 800;
+            margin-bottom: 20px;
+            letter-spacing: -0.02em;
+            color: var(--text-primary);
+        }
+
+        .section-desc {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            line-height: 1.8;
+        }
+
+        /* Card */
+        .card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 40px;
+            transition: var(--transition-smooth);
+            position: relative;
+            box-shadow: var(--shadow-md);
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-xl);
+            border-color: var(--accent-blue);
+        }
+
+        /* Grid Layouts */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 30px;
+            margin-top: 60px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-top: 60px;
+        }
+
+        /* Agent Cards */
+        .agent-card {
+            position: relative;
+            padding: 50px 40px;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+        }
+
+        .agent-card.agent-a {
+            border: 2px solid var(--accent-cyan);
+        }
+
+        .agent-card.agent-a:hover {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+        }
+
+        .agent-card.agent-d {
+            border: 2px solid var(--accent-green);
+        }
+
+        .agent-card.agent-d:hover {
+            border-color: var(--accent-green);
+            box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
+        }
+
+        .agent-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            margin-bottom: 25px;
+            position: relative;
+            font-weight: 800;
+        }
+
+        .agent-card.agent-a .agent-icon {
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(8, 145, 178, 0.1));
+            color: var(--accent-blue);
+        }
+
+        .agent-card.agent-d .agent-icon {
+            background: linear-gradient(135deg, rgba(5, 150, 105, 0.15), rgba(8, 145, 178, 0.1));
+            color: var(--accent-green);
+        }
+
+        .agent-title {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+
+        .agent-badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        .agent-card.agent-a .agent-badge {
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--accent-blue);
+        }
+
+        .agent-card.agent-d .agent-badge {
+            background: rgba(5, 150, 105, 0.1);
+            color: var(--accent-green);
+        }
+
+        .agent-desc {
+            color: var(--text-secondary);
+            margin-bottom: 30px;
+            line-height: 1.8;
+        }
+
+        /* Feature List */
+        .feature-list {
+            list-style: none;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            padding: 15px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .feature-item:last-child {
+            border-bottom: none;
+        }
+
+        .feature-number {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        .agent-card.agent-a .feature-number {
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--accent-blue);
+        }
+
+        .agent-card.agent-d .feature-number {
+            background: rgba(5, 150, 105, 0.1);
+            color: var(--accent-green);
+        }
+
+        .feature-content h4 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+            color: var(--text-primary);
+        }
+
+        .feature-content p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* Collapsible */
+        .collapsible {
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            margin: 20px 0;
+            overflow: hidden;
+            background: var(--bg-primary);
+        }
+
+        .collapsible-header {
+            padding: 20px 25px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: var(--transition-smooth);
+            background: var(--bg-secondary);
+        }
+
+        .collapsible-header:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .collapsible-title {
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .collapsible-tag {
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .tag-blue { background: rgba(37, 99, 235, 0.1); color: var(--accent-blue); }
+        .tag-cyan { background: rgba(8, 145, 178, 0.1); color: var(--accent-cyan); }
+        .tag-green { background: rgba(5, 150, 105, 0.1); color: var(--accent-green); }
+        .tag-purple { background: rgba(124, 58, 237, 0.1); color: var(--accent-purple); }
+        .tag-pink { background: rgba(219, 39, 119, 0.1); color: var(--accent-pink); }
+
+        .collapsible-icon {
+            width: 24px;
+            height: 24px;
+            transition: transform 0.3s ease;
+            opacity: 0.5;
+        }
+
+        .collapsible.open .collapsible-icon {
+            transform: rotate(180deg);
+        }
+
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .collapsible.open .collapsible-content {
+            max-height: 3000px;
+        }
+
+        .collapsible-inner {
+            padding: 0 25px 25px;
+        }
+
+        /* Architecture Flow */
+        .arch-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+            margin: 60px 0;
+        }
+
+        .arch-box {
+            background: var(--bg-primary);
+            border: 2px solid var(--border-color);
+            border-radius: 20px;
+            padding: 30px 40px;
+            text-align: center;
+            min-width: 200px;
+            transition: var(--transition-smooth);
+            box-shadow: var(--shadow-md);
+        }
+
+        .arch-box:hover {
+            transform: scale(1.05);
+            border-color: var(--accent-purple);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .arch-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+
+        .arch-title {
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .arch-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        }
+
+        .arch-arrow {
+            font-size: 2rem;
+            color: var(--accent-purple);
+        }
+
+        /* Comparison Table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 40px;
+            background: var(--bg-primary);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+        }
+
+        .comparison-table thead tr {
+            background: var(--bg-secondary);
+        }
+
+        .comparison-table th {
+            padding: 20px 25px;
+            text-align: left;
+            font-weight: 700;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .comparison-table td {
+            padding: 25px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .comparison-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .comparison-table tr:hover td {
+            background: var(--bg-secondary);
+        }
+
+        .comparison-label {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .check { color: var(--accent-green); font-weight: 700; }
+        .cross { color: var(--text-muted); }
+
+        /* Footer */
+        .footer {
+            padding: 80px 0;
+            text-align: center;
+            border-top: 1px solid var(--border-color);
+            margin-top: 120px;
+            background: var(--bg-secondary);
+        }
+
+        .footer-logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .footer p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Scroll Animation */
+        .reveal {
+            opacity: 0;
+            transform: translateY(60px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container { padding: 0 20px; }
+            .hero h1 { font-size: 2.5rem; }
+            .hero-stats { gap: 30px; }
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            .arch-flow { flex-direction: column; }
+            .arch-arrow { transform: rotate(90deg); }
+        }
+    </style>
+</head>
+<body>
+    <canvas class="bg-canvas" id="bgCanvas"></canvas>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <span class="hero-badge">AI-Powered Analytics Platform</span>
+            <h1>淘沙分析平台</h1>
+            <p class="hero-subtitle">新一代智能数据分析系统</p>
+            <div class="hero-stats">
+                <div class="stat-item">
+                    <div class="stat-value">2</div>
+                    <div class="stat-label">智能体引擎</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">10+</div>
+                    <div class="stat-label">核心工具</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">∞</div>
+                    <div class="stat-label">分析可能</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Overview Section -->
+    <section class="section">
+        <div class="container">
+            <span class="section-label">01 — Overview</span>
+            <h2 class="section-title">双引擎驱动</h2>
+            <p class="section-desc">淘沙分析平台采用双智能体架构，分别针对实时对话和深度分析场景提供专业解决方案</p>
+
+            <div class="grid-2">
+                <div class="card agent-card agent-a reveal">
+                    <div class="agent-icon">A</div>
+                    <div class="agent-title">Agent 智能助手</div>
+                    <span class="agent-badge">实时对话式交互</span>
+                    <p class="agent-desc">基于LangChain ReAct框架，专注实时交互与生成式UI展示，为用户提供即时响应</p>
+                    <ul class="feature-list">
+                        <li class="feature-item">
+                            <div class="feature-number">01</div>
+                            <div class="feature-content">
+                                <h4>流式对话</h4>
+                                <p>SSE实时响应，支持长上下文连续对话</p>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-number">02</div>
+                            <div class="feature-content">
+                                <h4>生成式UI</h4>
+                                <p>动态渲染图表、任务清单</p>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-number">03</div>
+                            <div class="feature-content">
+                                <h4>混合向量检索</h4>
+                                <p>语义+全文融合，智能重排序</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="card agent-card agent-d reveal">
+                    <div class="agent-icon">D</div>
+                    <div class="agent-title">DeepAgents 分析</div>
+                    <span class="agent-badge">自动化深度分析</span>
+                    <p class="agent-desc">多智能体协作系统，专注自动化报告生成与代码执行，处理复杂分析任务</p>
+                    <ul class="feature-list">
+                        <li class="feature-item">
+                            <div class="feature-number">01</div>
+                            <div class="feature-content">
+                                <h4>多智能体协作</h4>
+                                <p>问题提出+数据分析+AI评分三阶段流水线</p>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-number">02</div>
+                            <div class="feature-content">
+                                <h4>Docker沙箱</h4>
+                                <p>安全隔离的Python代码执行环境</p>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-number">03</div>
+                            <div class="feature-content">
+                                <h4>混合向量检索</h4>
+                                <p>语义+全文融合，智能重排序</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Agent Features Section -->
+    <section class="section" style="background: var(--bg-secondary);">
+        <div class="container">
+            <span class="section-label">02 — Agent Core</span>
+            <h2 class="section-title">Agent 智能助手核心能力</h2>
+            <p class="section-desc">对话式AI助手的核心技术栈与能力展示</p>
+
+            <div class="card reveal">
+                <div class="collapsible">
+                    <div class="collapsible-header" onclick="toggleCollapse(this)">
+                        <div class="collapsible-title">
+                            <span>生成式UI (Generative UI)</span>
+                            <span class="collapsible-tag tag-cyan">特色</span>
+                        </div>
+                        <svg class="collapsible-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6,9 12,15 18,9"></polyline>
+                        </svg>
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="collapsible-inner">
+                            <p style="color: var(--text-secondary); margin-bottom: 25px;">
+                                Agent能够根据对话上下文动态生成和渲染UI组件，提供直观的交互体验
+                            </p>
+                            <div class="grid-3" style="margin-top: 0;">
+                                <div class="card" style="padding: 25px;">
+                                    <div style="font-size: 2rem; margin-bottom: 10px;">📊</div>
+                                    <h4 style="margin-bottom: 8px;">图表组件</h4>
+                                    <p style="color: var(--text-muted); font-size: 0.9rem;">折线图、饼图、柱状图、树图等</p>
+                                </div>
+                                <div class="card" style="padding: 25px;">
+                                    <div style="font-size: 2rem; margin-bottom: 10px;">📋</div>
+                                    <h4 style="margin-bottom: 8px;">对比表格</h4>
+                                    <p style="color: var(--text-muted); font-size: 0.9rem;">多维度数据对比展示</p>
+                                </div>
+                                <div class="card" style="padding: 25px;">
+                                    <div style="font-size: 2rem; margin-bottom: 10px;">✅</div>
+                                    <h4 style="margin-bottom: 8px;">TodoList</h4>
+                                    <p style="color: var(--text-muted); font-size: 0.9rem;">动态任务进度追踪</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="collapsible">
+                    <div class="collapsible-header" onclick="toggleCollapse(this)">
+                        <div class="collapsible-title">
+                            <span>工具调用系统</span>
+                            <span class="collapsible-tag tag-green">ReAct</span>
+                        </div>
+                        <svg class="collapsible-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6,9 12,15 18,9"></polyline>
+                        </svg>
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="collapsible-inner">
+                            <p style="color: var(--text-secondary); margin-bottom: 25px;">
+                                基于LangChain ReAct框架，Agent自主决策并调用多种工具完成任务
+                            </p>
+                            <table class="comparison-table">
+                                <thead>
+                                    <tr>
+                                        <th>工具名称</th>
+                                        <th>功能描述</th>
+                                        <th>应用场景</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace;">create_chart</td>
+                                        <td>生成各类交互式图表</td>
+                                        <td>数据可视化、趋势分析</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace;">create_comparison</td>
+                                        <td>创建数据对比表格</td>
+                                        <td>多维度数据对比</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace;">get_metrics</td>
+                                        <td>获取业务指标数据</td>
+                                        <td>指标查询与监控</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace;">get_date_range</td>
+                                        <td>智能日期范围计算</td>
+                                        <td>时间维度分析</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="collapsible">
+                    <div class="collapsible-header" onclick="toggleCollapse(this)">
+                        <div class="collapsible-title">
+                            <span>中间件系统</span>
+                            <span class="collapsible-tag tag-purple">安全</span>
+                        </div>
+                        <svg class="collapsible-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6,9 12,15 18,9"></polyline>
+                        </svg>
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="collapsible-inner">
+                            <div class="feature-list">
+                                <li class="feature-item">
+                                    <div class="feature-number" style="background: rgba(124, 58, 237, 0.1); color: var(--accent-purple);">S</div>
+                                    <div class="feature-content">
+                                        <h4>SummarizationMiddleware</h4>
+                                        <p style="color: var(--text-muted);">智能摘要机制，当Token超过50000时自动压缩历史对话，保持上下文连贯</p>
+                                    </div>
+                                </li>
+                                <li class="feature-item">
+                                    <div class="feature-number" style="background: rgba(124, 58, 237, 0.1); color: var(--accent-purple);">P</div>
+                                    <div class="feature-content">
+                                        <h4>PIIMiddleware</h4>
+                                        <p style="color: var(--text-muted);">敏感信息保护层，自动屏蔽信用卡号、身份证号等PII数据</p>
+                                    </div>
+                                </li>
+                                <li class="feature-item">
+                                    <div class="feature-number" style="background: rgba(124, 58, 237, 0.1); color: var(--accent-purple);">T</div>
+                                    <div class="feature-content">
+                                        <h4>TodoListMiddleware</h4>
+                                        <p style="color: var(--text-muted);">任务清单管理器，动态追踪和更新任务执行状态</p>
+                                    </div>
+                                </li>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- DeepAgents Section -->
+    <section class="section">
+        <div class="container">
+            <span class="section-label">03 — DeepAgents</span>
+            <h2 class="section-title">DeepAgents 深度分析</h2>
+            <p class="section-desc">多智能体协作的自动化数据分析系统</p>
+
+            <div class="arch-flow reveal">
+                <div class="arch-box">
+                    <div class="arch-icon">💡</div>
+                    <div class="arch-title">问题提出智能体</div>
+                    <div class="arch-subtitle">QuestionProposer</div>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-box">
+                    <div class="arch-icon">📊</div>
+                    <div class="arch-title">数据分析智能体</div>
+                    <div class="arch-subtitle">DataAnalyser</div>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-box">
+                    <div class="arch-icon">⭐</div>
+                    <div class="arch-title">评分智能体</div>
+                    <div class="arch-subtitle">Scorer</div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card reveal">
+                    <div style="font-size: 2.5rem; margin-bottom: 20px;">🔒</div>
+                    <h3 style="font-size: 1.5rem; margin-bottom: 15px;">Docker沙箱执行</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 25px;">完全隔离的安全代码执行环境</p>
+                    <ul class="feature-list">
+                        <li class="feature-item">
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">✓</div>
+                            <div class="feature-content">
+                                <h4>完全隔离</h4>
+                                <p style="color: var(--text-muted);">独立文件系统、禁用网络、资源限制</p>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">⏱</div>
+                            <div class="feature-content">
+                                <h4>超时控制</h4>
+                                <p style="color: var(--text-muted);">30秒默认超时，防止无限循环</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="card reveal">
+                    <div style="font-size: 2.5rem; margin-bottom: 20px;">🔍</div>
+                    <h3 style="font-size: 1.5rem; margin-bottom: 15px;">混合向量检索</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 25px;">基于Qdrant的智能知识库，支持多种检索模式</p>
+                    <ul class="feature-list">
+                        <li class="feature-item">
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">🎯</div>
+                            <div class="feature-content">
+                                <h4>语义检索</h4>
+                                <p style="color: var(--text-muted);">基于embeddings的向量相似度搜索</p>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">📝</div>
+                            <div class="feature-content">
+                                <h4>全文检索</h4>
+                                <p style="color: var(--text-muted);">基于BM25的关键词精确匹配</p>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">⚡</div>
+                            <div class="feature-content">
+                                <h4>混合检索+重排序</h4>
+                                <p style="color: var(--text-muted);">语义+全文融合，智能重排序提升精准度</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="card reveal">
+                    <div style="font-size: 2.5rem; margin-bottom: 20px;">📋</div>
+                    <h3 style="font-size: 1.5rem; margin-bottom: 15px;">元数据维护</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 25px;">完整的数据资产管理体系</p>
+                    <ul class="feature-list">
+                        <li class="feature-item">
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">T</div>
+                            <div class="feature-content">
+                                <h4>表结构管理</h4>
+                                <p style="color: var(--text-muted);">表、列、关系、主题元数据</p>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">↻</div>
+                            <div class="feature-content">
+                                <h4>自动同步</h4>
+                                <p style="color: var(--text-muted);">从数据源自动同步表结构</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="card reveal">
+                    <div style="font-size: 2.5rem; margin-bottom: 20px;">📄</div>
+                    <h3 style="font-size: 1.5rem; margin-bottom: 15px;">自动报告生成</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 25px;">AI驱动的专业分析报告</p>
+                    <ul class="feature-list">
+                        <li class="feature-item">
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">🎨</div>
+                            <div class="feature-content">
+                                <h4>多主题支持</h4>
+                                <p style="color: var(--text-muted);">随机主题选择，丰富CSS样式</p>
+                            </div>
+                        </li>
+                        <li class="feature-item">
+                            <div class="feature-number" style="background: rgba(5, 150, 105, 0.1); color: var(--accent-green);">📊</div>
+                            <div class="feature-content">
+                                <h4>图表嵌入</h4>
+                                <p style="color: var(--text-muted);">matplotlib/seaborn自动生成</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Comparison Section -->
+    <section class="section" style="background: var(--bg-secondary);">
+        <div class="container">
+            <span class="section-label">04 — Comparison</span>
+            <h2 class="section-title">能力对比</h2>
+            <p class="section-desc">两大智能体的详细能力对比</p>
+
+            <div class="card reveal">
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 20%;">能力维度</th>
+                            <th style="width: 40%;">Agent 智能助手</th>
+                            <th style="width: 40%;">DeepAgents 深度分析</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Use Case (优先展示) -->
+                        <tr>
+                            <td><span class="comparison-label">典型场景</span></td>
+                            <td>日常问答、快速查询、实时交互</td>
+                            <td>深度分析、报告生成、数据挖掘</td>
+                        </tr>
+
+                        <!-- Shared Capabilities -->
+                        <tr>
+                            <td colspan="3" style="background: rgba(37, 99, 235, 0.08); color: var(--accent-blue); font-weight: 700; padding: 15px 25px;">
+                                共享能力
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><span class="comparison-label">LLM支持</span></td>
+                            <td>OpenAI / Qwen / LocalAI</td>
+                            <td>OpenAI / Qwen / LocalAI</td>
+                        </tr>
+                        <tr>
+                            <td><span class="comparison-label">向量检索</span></td>
+                            <td><span class="check">✓</span> 混合向量检索+重排序</td>
+                            <td><span class="check">✓</span> 混合向量检索+重排序</td>
+                        </tr>
+                        <tr>
+                            <td><span class="comparison-label">元数据维护</span></td>
+                            <td colspan="2" style="text-align: center; color: var(--text-muted);">统一的元数据服务</td>
+                        </tr>
+                        <tr>
+                            <td><span class="comparison-label">会话管理</span></td>
+                            <td><span class="check">✓</span> Checkpoint内存持久化</td>
+                            <td><span class="check">✓</span> 数据库会话记录</td>
+                        </tr>
+
+                        <!-- Different Capabilities -->
+                        <tr>
+                            <td colspan="3" style="background: rgba(5, 150, 105, 0.08); color: var(--accent-green); font-weight: 700; padding: 15px 25px;">
+                                差异化能力
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><span class="comparison-label">交互模式</span></td>
+                            <td><span class="collapsible-tag tag-cyan" style="display: inline-block;">实时对话</span> SSE流式响应</td>
+                            <td><span class="collapsible-tag tag-green" style="display: inline-block;">任务队列</span> 异步批处理</td>
+                        </tr>
+                        <tr>
+                            <td><span class="comparison-label">生成式UI</span></td>
+                            <td><span class="check">✓</span> 图表、对比表、TodoList</td>
+                            <td><span class="cross">—</span></td>
+                        </tr>
+                        <tr>
+                            <td><span class="comparison-label">代码执行</span></td>
+                            <td><span class="cross">—</span></td>
+                            <td><span class="check">✓</span> Docker沙箱Python执行</td>
+                        </tr>
+                        <tr>
+                            <td><span class="comparison-label">多智能体协作</span></td>
+                            <td><span class="cross">—</span></td>
+                            <td><span class="check">✓</span> 三阶段流水线协作</td>
+                        </tr>
+                        <tr>
+                            <td><span class="comparison-label">安全沙箱</span></td>
+                            <td><span class="cross">N/A</span></td>
+                            <td><span class="check">✓</span> Docker完全隔离</td>
+                        </tr>
+                        <tr>
+                            <td><span class="comparison-label">PII保护</span></td>
+                            <td><span class="check">✓</span> 自动屏蔽敏感信息</td>
+                            <td><span class="cross">N/A</span></td>
+                        </tr>
+                        <tr>
+                            <td><span class="comparison-label">结果评分</span></td>
+                            <td><span class="cross">—</span></td>
+                            <td><span class="check">✓</span> AI自动评分+改进建议</td>
+                        </tr>
+                        <tr>
+                            <td><span class="comparison-label">报告生成</span></td>
+                            <td><span class="cross">—</span></td>
+                            <td><span class="check">✓</span> HTML格式完整报告</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-logo">淘沙分析平台</div>
+            <p>AI驱动的智能数据分析系统</p>
+            <p style="margin-top: 10px;">基于 LangChain · LangGraph · DeepAgents · FastAPI · Next.js</p>
+            <p style="margin-top: 30px; font-size: 0.8rem; color: var(--text-muted);">© 2025 淘沙分析平台 | 内部汇报材料</p>
+        </div>
+    </footer>
+
+    <script>
+        // Canvas Background Animation - Light Theme
+        const canvas = document.getElementById('bgCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let animationId;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.vx = (Math.random() - 0.5) * 0.3;
+                this.vy = (Math.random() - 0.5) * 0.3;
+                this.radius = Math.random() * 2;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(37, 99, 235, 0.2)';
+                ctx.fill();
+            }
+        }
+
+        function initParticles() {
+            particles = [];
+            const particleCount = Math.floor((canvas.width * canvas.height) / 20000);
+            for (let i = 0; i < particleCount; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function connectParticles() {
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < 150) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(37, 99, 235, ${0.08 * (1 - distance / 150)})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            particles.forEach(particle => {
+                particle.update();
+                particle.draw();
+            });
+
+            connectParticles();
+            animationId = requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            initParticles();
+        });
+
+        resizeCanvas();
+        initParticles();
+        animate();
+
+        // Collapsible
+        function toggleCollapse(element) {
+            const parent = element.closest('.collapsible');
+            parent.classList.toggle('open');
+        }
+
+        // Scroll Reveal
+        function reveal() {
+            const reveals = document.querySelectorAll('.reveal');
+            reveals.forEach(element => {
+                const windowHeight = window.innerHeight;
+                const elementTop = element.getBoundingClientRect().top;
+                const elementVisible = 150;
+
+                if (elementTop < windowHeight - elementVisible) {
+                    element.classList.add('active');
+                }
+            });
+        }
+
+        window.addEventListener('scroll', reveal);
+        reveal();
+    </script>
+</body>
+</html>

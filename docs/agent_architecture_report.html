@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>淘沙分析平台 - 智能体架构汇报</title>
+    <style>
+        :root {
+            --primary-color: #d32f2f; /* Red theme */
+            --primary-light: #ffcdd2;
+            --primary-dark: #b71c1c;
+            --bg-color: #fafafa; /* Light background */
+            --text-color: #333;
+            --text-secondary: #666;
+            --card-bg: #ffffff;
+            --shadow: 0 4px 6px rgba(0,0,0,0.1);
+            --border-radius: 8px;
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        /* Layout */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 40px 0;
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary-color));
+            color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        /* Grid for two agents */
+        .agents-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+
+        @media (min-width: 768px) {
+            .agents-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        /* Card Style */
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            transition: var(--transition);
+            border-top: 5px solid var(--primary-color);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+        }
+
+        .card-header {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            color: var(--primary-dark);
+            font-weight: bold;
+        }
+
+        .card-badge {
+            background-color: var(--primary-light);
+            color: var(--primary-dark);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        /* Sections inside card */
+        .section {
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            color: #444;
+        }
+
+        .section-title::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 1.2em;
+            background-color: var(--primary-color);
+            margin-right: 8px;
+            border-radius: 2px;
+        }
+
+        /* Capabilities List */
+        .capabilities-list {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+        }
+
+        .capability-item {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 0.9rem;
+            border: 1px solid #eee;
+        }
+
+        /* Architecture Diagram (CSS Only) */
+        .arch-diagram {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #fff9fa;
+            border-radius: var(--border-radius);
+            border: 1px dashed var(--primary-light);
+        }
+
+        .arch-node {
+            background: white;
+            border: 2px solid var(--primary-color);
+            color: var(--primary-dark);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            position: relative;
+            text-align: center;
+            min-width: 120px;
+        }
+
+        .arch-arrow {
+            font-size: 1.5rem;
+            color: #ccc;
+            margin: -5px 0;
+        }
+
+        .arch-row {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        /* Expandable Details */
+        details {
+            margin-top: 15px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        summary {
+            padding: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            background-color: #eee;
+            user-select: none;
+            outline: none;
+            transition: background-color 0.2s;
+            position: relative;
+        }
+
+        summary:hover {
+            background-color: #e0e0e0;
+        }
+
+        summary::marker {
+            color: var(--primary-color);
+        }
+
+        .details-content {
+            padding: 15px;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            border-top: 1px solid #ddd;
+        }
+
+        /* Comparison Table */
+        .comparison-section {
+            margin-top: 40px;
+            background: white;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: var(--primary-light);
+            color: var(--primary-dark);
+            font-weight: bold;
+        }
+
+        tr:hover {
+            background-color: #fff5f5;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>淘沙分析平台智能体架构</h1>
+        <p>双引擎驱动：实时对话 Agent 与 深度分析 DeepAgent</p>
+    </header>
+
+    <div class="agents-grid">
+        <!-- Agent Card -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Agent (实时助手)</div>
+                <span class="card-badge">实时交互</span>
+            </div>
+            <div class="card-body">
+                <div class="section">
+                    <div class="section-title">定位</div>
+                    <p>面向日常数据查询的即时交互助手。通过自然语言对话，快速将用户问题转化为 SQL 查询，提供秒级的数据反馈。</p>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">核心架构</div>
+                    <div class="arch-diagram">
+                        <div class="arch-node">用户 (Web/Mobile)</div>
+                        <div class="arch-arrow">↓</div>
+                        <div class="arch-node">Next.js 前端 (Streaming)</div>
+                        <div class="arch-arrow">↓</div>
+                        <div class="arch-node">FastAPI 后端服务</div>
+                        <div class="arch-arrow">↓</div>
+                        <div class="arch-row">
+                            <div class="arch-node" style="border-color: #666; color: #666;">LangChain</div>
+                            <div class="arch-node" style="border-color: #666; color: #666;">NL2SQL</div>
+                        </div>
+                        <div class="arch-arrow">↓</div>
+                        <div class="arch-node">DuckDB / Vector Store</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">关键能力</div>
+                    <ul class="capabilities-list">
+                        <li class="capability-item">自然语言转 SQL</li>
+                        <li class="capability-item">多轮对话上下文</li>
+                        <li class="capability-item">流式响应输出</li>
+                        <li class="capability-item">工具自动调用</li>
+                    </ul>
+                </div>
+
+                <details>
+                    <summary>查看技术细节</summary>
+                    <div class="details-content">
+                        <p><strong>状态管理：</strong> 使用 LangGraph 管理对话状态，支持人机回环（Human-in-the-loop）确认模糊意图。</p>
+                        <p style="margin-top: 10px;"><strong>检索增强：</strong> 集成 BGE 向量模型，通过 RAG 技术增强对专有业务术语的理解能力。</p>
+                        <p style="margin-top: 10px;"><strong>前端实现：</strong> 基于 Vercel AI SDK 实现打字机效果的流式输出，提升用户感知的响应速度。</p>
+                    </div>
+                </details>
+            </div>
+        </div>
+
+        <!-- DeepAgent Card -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">DeepAgent (深度分析)</div>
+                <span class="card-badge">深度思考</span>
+            </div>
+            <div class="card-body">
+                <div class="section">
+                    <div class="section-title">定位</div>
+                    <p>面向复杂业务场景的自动化分析专家。能够自主拆解复杂问题，制定分析计划，执行多步推理，并生成图文并茂的分析报告。</p>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">核心架构</div>
+                    <div class="arch-diagram">
+                        <div class="arch-node">任务队列 (Queue)</div>
+                        <div class="arch-arrow">↓</div>
+                        <div class="arch-node">规划器 (Planner)</div>
+                        <div class="arch-arrow">↓</div>
+                        <div class="arch-row">
+                            <div class="arch-node" style="border-color: #d32f2f;">代码执行</div>
+                            <div class="arch-node" style="border-color: #d32f2f;">数据检索</div>
+                        </div>
+                        <div class="arch-arrow">↓</div>
+                        <div class="arch-node">报告生成器 (Reporter)</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">关键能力</div>
+                    <ul class="capabilities-list">
+                        <li class="capability-item">任务自主拆解</li>
+                        <li class="capability-item">Python 代码执行</li>
+                        <li class="capability-item">自我反思修正</li>
+                        <li class="capability-item">生成 HTML 报告</li>
+                    </ul>
+                </div>
+
+                <details>
+                    <summary>查看技术细节</summary>
+                    <div class="details-content">
+                        <p><strong>异步处理：</strong> 采用任务队列机制，支持长时间运行的分析任务（Long-running tasks）。</p>
+                        <p style="margin-top: 10px;"><strong>沙箱环境：</strong> 代码生成与执行在隔离的 Python 沙箱中运行，确保系统安全性。</p>
+                        <p style="margin-top: 10px;"><strong>成果交付：</strong> 最终产出不依赖 CDN 的独立 HTML 报告，包含可交互图表，适合内网分发与汇报。</p>
+                    </div>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison Table -->
+    <div class="comparison-section">
+        <h2 style="color: var(--primary-dark); margin-bottom: 20px;">场景与能力对比</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>特性</th>
+                    <th>Agent (实时助手)</th>
+                    <th>DeepAgent (深度分析)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>响应模式</strong></td>
+                    <td>同步流式，秒级响应</td>
+                    <td>异步处理，分钟级响应</td>
+                </tr>
+                <tr>
+                    <td><strong>交互方式</strong></td>
+                    <td>Chat (聊天窗口)</td>
+                    <td>Submit & Report (提交-报告)</td>
+                </tr>
+                <tr>
+                    <td><strong>任务复杂度</strong></td>
+                    <td>单一查询，简单逻辑</td>
+                    <td>多步推理，复杂逻辑，探索性分析</td>
+                </tr>
+                <tr>
+                    <td><strong>主要产出</strong></td>
+                    <td>文本答案，简单数据表格</td>
+                    <td>结构化分析报告 (含图表、代码)</td>
+                </tr>
+                <tr>
+                    <td><strong>容错机制</strong></td>
+                    <td>用户追问澄清</td>
+                    <td>自主反思，自我修正错误</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <footer>
+        <p>&copy; 2025 淘沙分析平台 | 内部汇报资料</p>
+    </footer>
+</div>
+
+<script>
+    // Simple interaction for expanding details smoothly (optional enhancement)
+    document.querySelectorAll('details').forEach((detail) => {
+        detail.addEventListener('toggle', (e) => {
+            if (detail.open) {
+                // Could add animation logic here if needed, 
+                // but CSS transition on height is complex with 'auto'.
+                // keeping it simple for no-dependency requirement.
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
