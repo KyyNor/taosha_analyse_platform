@@ -173,9 +173,9 @@ class DataAnalyserAgent:
             tools = [
                 sql_query,                  # SQL 查询工具（支持 ToolRuntime）
                 search_knowledge_base,      # 知识库检索工具
-                get_table_sample_data,      # 获取表样例数据
-                get_table_statistics,       # 获取表统计信息
-                get_column_statistics,      # 获取字段统计信息
+                # get_table_sample_data,      # 获取表样例数据
+                # get_table_statistics,       # 获取表统计信息
+                # get_column_statistics,      # 获取字段统计信息
                 add, 
                 subtract, 
                 divide, 

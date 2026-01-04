@@ -263,7 +263,7 @@ def get_table_sample_data(
             SELECT {columns_sql}
             FROM {table_name}
             WHERE ETL_DATE = '{etl_date}'
-            LIMIT 20
+            LIMIT 10
         """
 
         # 执行查询

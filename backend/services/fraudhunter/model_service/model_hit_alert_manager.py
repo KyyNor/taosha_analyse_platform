@@ -173,7 +173,7 @@ class ModelHitAlertManager:
 
                 if control_resp:
                     # 管控接口调用成功，从响应中提取流水号
-                    control_serial_number = control_resp.get('body', {}).get('serialNumber', '000000')
+                    control_serial_number = control_resp.get('body', {}).get('tranFlwNo', '000000')
                     alert_control_record.control_status = 'executed'
                     alert_control_record.control_time = datetime.now()
                     alert_control_record.control_serial_number = control_serial_number

@@ -30,7 +30,7 @@ class BaseLLMService:
                 temperature=settings.openai_temperature,
                 model=settings.openai_model,
                 profile={
-                    "max_input_tokens": 100_000
+                    "max_input_tokens": 90000
                 }
             )
             self.client = openai_client
