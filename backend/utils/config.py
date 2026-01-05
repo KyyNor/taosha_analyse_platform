@@ -217,7 +217,7 @@ class ConfigManager:
             # FraudHunter 实时数据配置
             fraudhunter_realtime_data_enabled: bool = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('enabled', False)
             fraudhunter_realtime_data_storage_path: str = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('storage_path', './realtime_data')
-            fraudhunter_realtime_data_retention_days: int = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('data_retention_days', 7)
+            fraudhunter_realtime_data_retention_days: int = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('data_retention_days', 14)
             fraudhunter_realtime_kafka_bootstrap_servers: str = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('kafka', {}).get('bootstrap_servers', 'localhost:9092')
             fraudhunter_realtime_kafka_topic: str = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('kafka', {}).get('topic', 'oss_inct_new')
             fraudhunter_realtime_kafka_group_id: str = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('kafka', {}).get('group_id', 'taosha_realtime_consumer')
