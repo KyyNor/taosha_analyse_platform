@@ -9,9 +9,13 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { User, Building, Shield } from "lucide-react";
 
 type NavItem = {
   type: 'link';
@@ -81,10 +85,82 @@ const allNavItems: NavItem[] = [
   }
 ];
 
+// 用户信息弹出组件
+function UserInfoPopover({ user }: { user: { user_name: string; user_id: string; branch_no: string; branch_name: string; role_name_list: string[] } }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          className="h-9 px-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+          onMouseEnter={() => setIsOpen(true)}
+          onMouseLeave={() => setIsOpen(false)}
+        >
+          <User className="mr-2 h-4 w-4" />
+          {user.user_name}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-80"
+        align="end"
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+      >
+        <div className="space-y-4">
+          {/* 用户基本信息 */}
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <User className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">{user.user_name}</span>
+            </div>
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+              <span className="font-medium">OA号:</span>
+              <span>{user.user_id}</span>
+            </div>
+          </div>
+
+          {/* 机构信息 */}
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <Building className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">机构信息</span>
+            </div>
+            <div className="space-y-1 text-sm text-muted-foreground pl-6">
+              <div className="flex items-center space-x-2">
+                <span className="font-medium">机构号:</span>
+                <span>{user.branch_no}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="font-medium">机构名:</span>
+                <span>{user.branch_name}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 角色列表 */}
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <Shield className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">角色列表</span>
+            </div>
+            <div className="flex flex-wrap gap-2 pl-6">
+              {user.role_name_list.map((role) => (
+                <Badge key={role} variant="secondary" className="text-xs">
+                  {role}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function Header() {
-  const { isAuthenticated, isAdmin } = useAuth();
-  
-  // 根据用户权限过滤导航菜单
+  const { isAuthenticated, isAdmin, user } = useAuth();
   const visibleNavItems = useMemo(() => {
     return allNavItems.filter(item => {
       // 如果菜单项需要管理员权限但用户不是管理员，则隐藏
@@ -210,11 +286,14 @@ export default function Header() {
     <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur">
       <div className="mx-auto max-w-screen-2xl px-6 h-14 flex items-center justify-between">
         <Link href="/agent" className="font-semibold text-lg">淘沙分析平台</Link>
-        <NavigationMenu>
-          <NavigationMenuList className="flex items-center gap-1">
-            {visibleNavItems.map((item) => renderNavItem(item))}
-          </NavigationMenuList>
-        </NavigationMenu>
+        <div className="flex items-center gap-4">
+          <NavigationMenu>
+            <NavigationMenuList className="flex items-center gap-1">
+              {visibleNavItems.map((item) => renderNavItem(item))}
+            </NavigationMenuList>
+          </NavigationMenu>
+          {isAuthenticated && user && <UserInfoPopover user={user} />}
+        </div>
       </div>
     </header>
   );
