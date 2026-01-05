@@ -6,11 +6,18 @@
 from typing import Optional
 from fastapi import Depends, HTTPException, Header, status
 from sqlalchemy.orm import Session
+from cachetools import TTLCache
+import threading
+import hashlib
 
 from models.db_base import get_db_session
 from services.token_service import get_token_service, UserInfo
 from services.permission_service import PermissionService, LoginRecordService
 from utils.logger import logger
+
+# 用于记录已处理的 token，避免重复记录登录
+_recorded_tokens = TTLCache(maxsize=1000, ttl=43200)  # 缓存12小时
+_record_lock = threading.Lock()
 
 
 async def get_current_user(
@@ -60,20 +67,30 @@ async def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        # 记录登录信息（异步处理，不影响主流程）
-        try:
-            with get_db_session() as db:
-                login_service = LoginRecordService(db)
-                login_service.record_login(
-                    user_id=user_info.user_id,
-                    user_name=user_info.user_name,
-                    branch_no=user_info.branch_no,
-                    branch_name=user_info.branch_name,
-                    role_id_list=user_info.role_id_list
-                )
-        except Exception as e:
-            # 登录记录失败不应该影响主流程
-            logger.error(f"记录登录信息失败: {e}")
+        # 记录登录信息（同一个token只记录一次）
+        token_hash = hashlib.sha256(token.encode()).hexdigest()[:16]  # 避免存储完整token
+        
+        with _record_lock:
+            if token_hash not in _recorded_tokens:
+                _recorded_tokens[token_hash] = True
+                
+                # 异步记录登录（不影响主流程）
+                try:
+                    with get_db_session() as db:
+                        login_service = LoginRecordService(db)
+                        login_service.record_login(
+                            user_id=user_info.user_id,
+                            user_name=user_info.user_name,
+                            branch_no=user_info.branch_no,
+                            branch_name=user_info.branch_name,
+                            role_id_list=user_info.role_id_list
+                        )
+                        logger.info(f"首次记录用户登录: {user_info.user_id}")
+                except Exception as e:
+                    # 登录记录失败不应该影响主流程
+                    logger.error(f"记录登录信息失败: {e}")
+            else:
+                logger.debug(f"Token已记录过登录，跳过: {user_info.user_id}")
         
         logger.debug(f"用户认证成功: {user_info.user_id}")
         return user_info
