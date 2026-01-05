@@ -11,7 +11,7 @@ from utils.config import settings
 from utils.logger import logger
 
 
-async def cleanup_realtime_data():
+async def realtime_data_cleanup_job():
     """每日凌晨清理过期的实时数据"""
     if not settings.fraudhunter_realtime_data_enabled:
         logger.info("实时数据服务未启用，跳过清理任务")

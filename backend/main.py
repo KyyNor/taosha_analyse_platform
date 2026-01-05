@@ -274,14 +274,24 @@ async def _initialize_system_services():
                 job_name='向量数据库训练'
             )
 
-            # 添加实时数据清理任务
+            # 注册实时数据清理任务（每日凌晨2点）
             if settings.fraudhunter_realtime_data_enabled:
-                from services.scheduler.jobs.realtime_data_cleanup_job import cleanup_realtime_data
+                from services.scheduler.jobs.realtime_data_cleanup_job import realtime_data_cleanup_job
                 scheduler_service.add_cron_job(
-                    func=cleanup_realtime_data,
-                    cron='0 2 * * *',  # 每日凌晨2点
+                    func=realtime_data_cleanup_job,
+                    cron=settings.scheduler_realtime_data_cleanup_cron,
                     job_id='realtime_data_cleanup',
                     job_name='实时数据清理'
+                )
+
+            # 注册Parquet文件清理任务（每日凌晨3点）
+            if settings.fraudhunter_realtime_data_enabled:
+                from services.scheduler.jobs.parquet_file_cleanup_job import parquet_file_cleanup_job
+                scheduler_service.add_cron_job(
+                    func=parquet_file_cleanup_job,
+                    cron=settings.scheduler_parquet_file_cleanup_cron,
+                    job_id='parquet_file_cleanup',
+                    job_name='Parquet文件清理'
                 )
 
             # 启动调度器
