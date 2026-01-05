@@ -53,7 +53,7 @@ class TokenService:
         """
         try:
             # 创建JWT payload
-            now = datetime.utcnow()
+            now = datetime.now()
             payload = {
                 # 标准claims
                 "iat": now,  # issued at
@@ -185,7 +185,7 @@ class TokenService:
         """
         try:
             expire_time = access_time + timedelta(hours=self.token_expire_hours)
-            is_expired = datetime.utcnow() > expire_time
+            is_expired = datetime.now() > expire_time
             
             if is_expired:
                 logger.debug(f"token已过期，访问时间: {access_time}, 过期时间: {expire_time}")
@@ -222,7 +222,7 @@ class TokenService:
                 branch_no=payload['branch_no'],
                 branch_name=payload['branch_name'],
                 role_id_list=payload['role_id_list'],
-                access_time=datetime.utcnow()  # 更新访问时间
+                access_time=datetime.now()  # 更新访问时间
             )
             
             # 生成新token

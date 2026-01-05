@@ -42,3 +42,5 @@ export PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-*.zip:$PYTHONPA
 
 安装tar gz包的时候会尝试在独立环境中构建，但是因为未连接互联网因此无法构建独立环境，可以加--no-build-isolation直接使用当前环境构建
 uv pip install ../emb_wheels/* --no-build-isolation
+
+python scripts/generate_token.py --user-id "test001" --user-name "测试用户" --branch-no "DEPT001" --branch-name "技术部" --role-id-list "淘沙管理员" --expire-hours 24

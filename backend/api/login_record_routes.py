@@ -225,7 +225,7 @@ async def get_login_summary(
             from datetime import datetime, timedelta
             from sqlalchemy import func, desc
             
-            now = datetime.utcnow()
+            now = datetime.now()
             today = now.replace(hour=0, minute=0, second=0, microsecond=0)
             week_ago = now - timedelta(days=7)
             month_ago = now - timedelta(days=30)
@@ -308,7 +308,7 @@ async def get_department_login_stats(
             from datetime import datetime, timedelta
             from sqlalchemy import func
             
-            start_date = datetime.utcnow() - timedelta(days=days)
+            start_date = datetime.now() - timedelta(days=days)
             
             # 按部门统计登录用户数
             dept_stats = db.query(

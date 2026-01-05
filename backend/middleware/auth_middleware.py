@@ -28,7 +28,6 @@ async def get_current_user(
     Raises:
         HTTPException: 401 - token缺失、无效或过期
     """
-    logger.info(f"Authorization header : {authorization}")
     if not authorization:
         logger.warning("请求缺少Authorization header")
         raise HTTPException(
@@ -51,7 +50,6 @@ async def get_current_user(
         # 解析token
         token_service = get_token_service()
         user_info = token_service.decode_token(token)
-        logger.info(user_info)
         
         # 验证token
         if not token_service.validate_token(user_info):

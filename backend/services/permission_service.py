@@ -249,7 +249,7 @@ class LoginRecordService:
                 branch_name=branch_name,
                 role_id_list=role_id_list,
                 role_name_list=role_name_list,
-                last_login_time=datetime.utcnow()
+                last_login_time=datetime.now()
             )
             
             return self.repo.create_or_update_login_record(record)

@@ -24,8 +24,8 @@ class SystemEntity(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False, comment="实体名称")
     type: Mapped[EntityType] = mapped_column(Enum(EntityType), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     # 关系定义
     permissions: Mapped[list["SystemPermission"]] = relationship(
@@ -52,8 +52,8 @@ class SystemPage(Base):
     path: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     # 表约束
     __table_args__ = (
@@ -71,7 +71,7 @@ class SystemPermission(Base):
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     entity_id: Mapped[str] = mapped_column(String(50), ForeignKey("system_entities.id"), nullable=False, comment="实体ID（部门或角色）")
     page_id: Mapped[str] = mapped_column(String(50), ForeignKey("system_pages.id"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
     # 关系定义
     entity: Mapped["SystemEntity"] = relationship("SystemEntity", back_populates="permissions")
@@ -98,8 +98,8 @@ class SystemLoginRecord(Base):
     role_id_list: Mapped[dict] = mapped_column(JSON, nullable=False, comment="角色ID列表")
     role_name_list: Mapped[dict] = mapped_column(JSON, nullable=False, comment="角色名称列表（仅包含在entity中存在的角色）")
     last_login_time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     # 表约束
     __table_args__ = (
