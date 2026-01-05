@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token生成工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        input[type="text"], input[type="number"], input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 5px rgba(0,123,255,0.3);
+        }
+        
+        .btn {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        
+        .result-section {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .result-section h3 {
+            color: #007bff;
+            margin-top: 0;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            color: #555;
+        }
+        
+        .token-display {
+            background: #fff;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            word-break: break-all;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin: 10px 0;
+        }
+        
+        .usage-section {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e9ecef;
+            border-radius: 5px;
+        }
+        
+        .usage-section h4 {
+            margin-top: 0;
+            color: #495057;
+        }
+        
+        .usage-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .error {
+            color: #dc3545;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .success {
+            color: #155724;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .copy-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        
+        .copy-btn:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Token生成工具</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 30px;">
+            用于开发和测试环境生成测试用的JWT token
+        </p>
+        
+        <form id="tokenForm">
+            <div class="form-group">
+                <label for="userId">用户ID *</label>
+                <input type="text" id="userId" name="userId" required placeholder="请输入用户ID">
+            </div>
+            
+            <div class="form-group">
+                <label for="userName">用户姓名 *</label>
+                <input type="text" id="userName" name="userName" required placeholder="请输入用户姓名">
+            </div>
+            
+            <div class="form-group">
+                <label for="branchNo">部门编号 *</label>
+                <input type="text" id="branchNo" name="branchNo" required placeholder="请输入部门编号">
+            </div>
+            
+            <div class="form-group">
+                <label for="branchName">部门名称 *</label>
+                <input type="text" id="branchName" name="branchName" required placeholder="请输入部门名称">
+            </div>
+            
+            <div class="form-group">
+                <label for="roleIdList">角色ID列表 *</label>
+                <input type="text" id="roleIdList" name="roleIdList" required placeholder="请输入角色ID，用逗号分隔，如：admin,user">
+            </div>
+            
+            <div class="form-group">
+                <label for="secretKey">JWT签名密钥</label>
+                <input type="password" id="secretKey" name="secretKey" placeholder="可选，默认使用 default_secret_key_for_development">
+            </div>
+            
+            <div class="form-group">
+                <label for="expireHours">过期时间（小时）</label>
+                <input type="number" id="expireHours" name="expireHours" value="24" min="1" max="8760" placeholder="默认24小时">
+            </div>
+            
+            <div style="text-align: center; margin-top: 30px;">
+                <button type="submit" class="btn">🚀 生成Token</button>
+                <button type="button" class="btn btn-secondary" onclick="clearForm()">🔄 清空表单</button>
+            </div>
+        </form>
+        
+        <div id="resultSection" class="result-section hidden">
+            <h3>✅ Token生成成功！</h3>
+            
+            <div class="info-grid">
+                <div class="info-label">用户ID:</div>
+                <div id="resultUserId"></div>
+                
+                <div class="info-label">用户姓名:</div>
+                <div id="resultUserName"></div>
+                
+                <div class="info-label">部门编号:</div>
+                <div id="resultBranchNo"></div>
+                
+                <div class="info-label">部门名称:</div>
+                <div id="resultBranchName"></div>
+                
+                <div class="info-label">角色ID列表:</div>
+                <div id="resultRoleIdList"></div>
+                
+                <div class="info-label">访问时间:</div>
+                <div id="resultAccessTime"></div>
+                
+                <div class="info-label">过期时间:</div>
+                <div id="resultExpireTime"></div>
+            </div>
+            
+            <h4>生成的Token:</h4>
+            <div class="token-display" id="tokenDisplay"></div>
+            <button class="copy-btn" onclick="copyToken()">📋 复制Token</button>
+            
+            <div class="usage-section">
+                <h4>📖 使用方法:</h4>
+                
+                <div>
+                    <strong>1. URL参数方式（首次访问）:</strong>
+                    <div class="usage-item" id="urlUsage"></div>
+                    <button class="copy-btn" onclick="copyUrl()">📋 复制URL</button>
+                </div>
+                
+                <div>
+                    <strong>2. 手动设置Cookie:</strong>
+                    <div class="usage-item" id="cookieUsage"></div>
+                    <button class="copy-btn" onclick="copyCookie()">📋 复制Cookie</button>
+                </div>
+                
+                <div>
+                    <strong>3. API调用Header:</strong>
+                    <div class="usage-item" id="headerUsage"></div>
+                    <button class="copy-btn" onclick="copyHeader()">📋 复制Header</button>
+                </div>
+            </div>
+            
+            <div id="verificationSection">
+                <h4>🔍 Token验证信息:</h4>
+                <div id="verificationResult"></div>
+            </div>
+        </div>
+        
+        <div id="errorSection" class="error hidden">
+            <strong>❌ 生成失败:</strong>
+            <div id="errorMessage"></div>
+        </div>
+    </div>
+
+    <script>
+        // JWT生成函数
+        function generateJWT(payload, secret) {
+            try {
+                // JWT Header
+                const header = {
+                    "alg": "HS256",
+                    "typ": "JWT"
+                };
+                
+                // Base64URL编码函数
+                function base64UrlEncode(str) {
+                    return btoa(str)
+                        .replace(/\+/g, '-')
+                        .replace(/\//g, '_')
+                        .replace(/=/g, '');
+                }
+                
+                // 编码header和payload
+                const encodedHeader = base64UrlEncode(JSON.stringify(header));
+                const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+                
+                // 创建签名数据
+                const signatureData = encodedHeader + '.' + encodedPayload;
+                
+                // 使用HMAC-SHA256生成签名
+                const signature = CryptoJS.HmacSHA256(signatureData, secret);
+                const encodedSignature = base64UrlEncode(signature.toString(CryptoJS.enc.Base64));
+                
+                // 组合JWT
+                return signatureData + '.' + encodedSignature;
+            } catch (error) {
+                throw new Error('JWT生成失败: ' + error.message);
+            }
+        }
+        
+        // JWT解码函数（用于验证）
+        function decodeJWT(token, secret) {
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    throw new Error('Invalid JWT format');
+                }
+                
+                // Base64URL解码函数
+                function base64UrlDecode(str) {
+                    str = str.replace(/-/g, '+').replace(/_/g, '/');
+                    while (str.length % 4) {
+                        str += '=';
+                    }
+                    return atob(str);
+                }
+                
+                // Base64URL编码函数（与生成时保持一致）
+                function base64UrlEncode(str) {
+                    return btoa(str)
+                        .replace(/\+/g, '-')
+                        .replace(/\//g, '_')
+                        .replace(/=/g, '');
+                }
+                
+                // 解码header和payload
+                const header = JSON.parse(base64UrlDecode(parts[0]));
+                const payload = JSON.parse(base64UrlDecode(parts[1]));
+                
+                // 验证签名 - 使用与生成时相同的方法
+                const signatureData = parts[0] + '.' + parts[1];
+                const expectedSignature = CryptoJS.HmacSHA256(signatureData, secret);
+                const expectedEncodedSignature = base64UrlEncode(expectedSignature.toString(CryptoJS.enc.Base64));
+                
+                const isValid = parts[2] === expectedEncodedSignature;
+                
+                return {
+                    header: header,
+                    payload: payload,
+                    isValid: isValid,
+                    isExpired: payload.exp && (Date.now() / 1000) > payload.exp
+                };
+            } catch (error) {
+                throw new Error('JWT解码失败: ' + error.message);
+            }
+        }
+        
+        // 表单提交处理
+        document.getElementById('tokenForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            try {
+                // 获取表单数据
+                const formData = new FormData(e.target);
+                const userId = formData.get('userId').trim();
+                const userName = formData.get('userName').trim();
+                const branchNo = formData.get('branchNo').trim();
+                const branchName = formData.get('branchName').trim();
+                const roleIdListStr = formData.get('roleIdList').trim();
+                const secretKey = formData.get('secretKey').trim() || 'default_secret_key_for_development';
+                const expireHours = parseInt(formData.get('expireHours')) || 24;
+                
+                // 验证必填字段
+                if (!userId || !userName || !branchNo || !branchName || !roleIdListStr) {
+                    throw new Error('请填写所有必填字段');
+                }
+                
+                // 解析角色ID列表
+                const roleIdList = roleIdListStr.split(',').map(id => id.trim()).filter(id => id);
+                if (roleIdList.length === 0) {
+                    throw new Error('角色ID列表不能为空');
+                }
+                
+                // 创建JWT payload
+                const now = new Date();
+                const accessTime = now.toISOString();
+                const expireTime = new Date(now.getTime() + expireHours * 60 * 60 * 1000);
+                
+                const payload = {
+                    // 标准claims
+                    "iat": Math.floor(now.getTime() / 1000),
+                    "exp": Math.floor(expireTime.getTime() / 1000),
+                    "iss": "taosha-platform",
+                    
+                    // 自定义claims
+                    "user_id": userId,
+                    "user_name": userName,
+                    "branch_no": branchNo,
+                    "branch_name": branchName,
+                    "role_id_list": roleIdList,
+                    "access_time": accessTime
+                };
+                
+                // 生成JWT token
+                const token = generateJWT(payload, secretKey);
+                
+                // 验证生成的token
+                const verification = decodeJWT(token, secretKey);
+                
+                // 添加调试信息
+                console.log('生成的Token:', token);
+                console.log('验证结果:', verification);
+                console.log('使用的密钥:', secretKey);
+                
+                // 显示结果
+                showResult({
+                    userId: userId,
+                    userName: userName,
+                    branchNo: branchNo,
+                    branchName: branchName,
+                    roleIdList: roleIdList,
+                    accessTime: accessTime,
+                    expireTime: expireTime.toLocaleString('zh-CN'),
+                    expireHours: expireHours,
+                    token: token,
+                    verification: verification
+                });
+                
+                hideError();
+                
+            } catch (error) {
+                showError(error.message);
+                hideResult();
+            }
+        });
+        
+        // 显示结果
+        function showResult(data) {
+            document.getElementById('resultUserId').textContent = data.userId;
+            document.getElementById('resultUserName').textContent = data.userName;
+            document.getElementById('resultBranchNo').textContent = data.branchNo;
+            document.getElementById('resultBranchName').textContent = data.branchName;
+            document.getElementById('resultRoleIdList').textContent = data.roleIdList.join(', ');
+            document.getElementById('resultAccessTime').textContent = new Date(data.accessTime).toLocaleString('zh-CN');
+            document.getElementById('resultExpireTime').textContent = data.expireTime;
+            
+            document.getElementById('tokenDisplay').textContent = data.token;
+            
+            // 使用方法
+            const baseUrl = 'http://localhost:50011/taosha/agent';
+            document.getElementById('urlUsage').textContent = `${baseUrl}?token=${data.token}`;
+            document.getElementById('cookieUsage').textContent = `document.cookie = 'auth_token=${data.token}; path=/; max-age=86400'`;
+            document.getElementById('headerUsage').textContent = `Authorization: Bearer ${data.token}`;
+            
+            // 验证信息
+            const verificationHtml = `
+                <div class="success">
+                    <strong>Token验证结果:</strong> ${data.verification.isValid ? '✅ 有效' : '❌ 无效'}<br>
+                    <strong>是否过期:</strong> ${data.verification.isExpired ? '❌ 已过期' : '✅ 未过期'}<br>
+                    <strong>JWT过期时间:</strong> ${new Date(data.verification.payload.exp * 1000).toLocaleString('zh-CN')}<br>
+                    <strong>JWT签发时间:</strong> ${new Date(data.verification.payload.iat * 1000).toLocaleString('zh-CN')}<br>
+                    <strong>JWT签发者:</strong> ${data.verification.payload.iss || 'N/A'}
+                </div>
+            `;
+            document.getElementById('verificationResult').innerHTML = verificationHtml;
+            
+            document.getElementById('resultSection').classList.remove('hidden');
+            
+            // 滚动到结果区域
+            document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // 显示错误
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorSection').classList.remove('hidden');
+        }
+        
+        // 隐藏结果
+        function hideResult() {
+            document.getElementById('resultSection').classList.add('hidden');
+        }
+        
+        // 隐藏错误
+        function hideError() {
+            document.getElementById('errorSection').classList.add('hidden');
+        }
+        
+        // 清空表单
+        function clearForm() {
+            document.getElementById('tokenForm').reset();
+            hideResult();
+            hideError();
+        }
+        
+        // 复制功能
+        function copyToClipboard(text) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert('已复制到剪贴板！');
+                }).catch(() => {
+                    fallbackCopy(text);
+                });
+            } else {
+                fallbackCopy(text);
+            }
+        }
+        
+        function fallbackCopy(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                alert('已复制到剪贴板！');
+            } catch (err) {
+                alert('复制失败，请手动复制');
+            }
+            document.body.removeChild(textArea);
+        }
+        
+        function copyToken() {
+            const token = document.getElementById('tokenDisplay').textContent;
+            copyToClipboard(token);
+        }
+        
+        function copyUrl() {
+            const url = document.getElementById('urlUsage').textContent;
+            copyToClipboard(url);
+        }
+        
+        function copyCookie() {
+            const cookie = document.getElementById('cookieUsage').textContent;
+            copyToClipboard(cookie);
+        }
+        
+        function copyHeader() {
+            const header = document.getElementById('headerUsage').textContent;
+            copyToClipboard(header);
+        }
+        
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 可以在这里添加一些初始化逻辑
+            console.log('Token生成工具已加载');
+        });
+    </script>
+</body>
+</html>
