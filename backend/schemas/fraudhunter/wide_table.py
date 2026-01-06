@@ -115,8 +115,37 @@ class WideTableVersionDetailInfo(BaseModel):
         from_attributes = True
 
 
+class IncompleteTaskInfo(BaseModel):
+    """未完成的任务详情"""
+
+    task_id: int = Field(..., description="任务ID")
+    task_code: str = Field(..., description="任务编码")
+    task_name: str = Field(..., description="任务名称")
+    object_type: str = Field(..., description="对象类型")
+
+    class Config:
+        from_attributes = True
+
+
+class DateProgressDetail(BaseModel):
+    """单个ETL日期的进度详情（增强版）"""
+
+    etl_date: str = Field(..., description="ETL日期")
+    completed_count: int = Field(..., description="已完成任务数")
+    total_count: int = Field(..., description="总任务数")
+    is_complete: bool = Field(..., description="是否全部完成")
+    last_finish_time: Optional[str] = Field(None, description="最后完成时间")
+    incomplete_tasks: list[IncompleteTaskInfo] = Field(
+        default_factory=list,
+        description="未完成的任务列表"
+    )
+
+    class Config:
+        from_attributes = True
+
+
 class WideTableVersionProgressInfo(BaseModel):
-    """宽表版本执行进度信息"""
+    """宽表版本执行进度信息（增强版）"""
 
     version_hash: str = Field(..., description="版本号")
     wide_table_name: str = Field(..., description="宽表名称")
@@ -125,10 +154,11 @@ class WideTableVersionProgressInfo(BaseModel):
         default_factory=list,
         description="已完成执行的ETL日期列表"
     )
-    recent_progress: list[Dict] = Field(
+    recent_progress: list[DateProgressDetail] = Field(
         default_factory=list,
-        description="最近的执行进度记录"
+        description="最近的执行进度记录（含未完成任务详情）"
     )
+    lookback_days: int = Field(..., description="查询周期天数")
 
     class Config:
         from_attributes = True

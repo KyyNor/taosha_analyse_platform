@@ -417,18 +417,29 @@ export interface WideTableVersionDetail extends WideTableVersion {
   completed_dates: string[];
 }
 
+export interface IncompleteTaskInfo {
+  task_id: number;
+  task_code: string;
+  task_name: string;
+  object_type: string;
+}
+
+export interface DateProgressDetail {
+  etl_date: string;
+  completed_count: number;
+  total_count: number;
+  is_complete: boolean;
+  last_finish_time?: string;
+  incomplete_tasks: IncompleteTaskInfo[];
+}
+
 export interface WideTableVersionProgress {
   version_hash: string;
   wide_table_name: string;
   total_indicators: number;
   completed_dates: string[];
-  recent_progress: Array<{
-    etl_date: string;
-    completed_count: number;
-    total_count: number;
-    is_complete: boolean;
-    last_finish_time?: string;
-  }>;
+  recent_progress: DateProgressDetail[];
+  lookback_days: number;
 }
 
 export interface WideTableVersionListResponse {
@@ -473,11 +484,9 @@ export const wideTableVersionService = {
     return response.data;
   },
 
-  // 获取版本执行进度
-  async getProgress(versionHash: string, limit?: number): Promise<WideTableVersionProgress> {
-    const response = await api.get(`${BASE_PATH}/wide-table/versions/${versionHash}/progress`, {
-      params: { limit }
-    });
+  // 获取版本执行进度（自动使用配置的查询周期）
+  async getProgress(versionHash: string): Promise<WideTableVersionProgress> {
+    const response = await api.get(`${BASE_PATH}/wide-table/versions/${versionHash}/progress`);
     return response.data;
   },
 
