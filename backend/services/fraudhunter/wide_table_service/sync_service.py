@@ -14,6 +14,12 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 import pandas as pd
+import requests
+import pyarrow as pa
+import pyarrow.parquet as pq
+import shutil
+from pathlib import Path
+from tqdm import tqdm  # 显示进度条
 
 from models.fraudhunter.wide_table import (
     FraudHunterWideTableVersion,
@@ -146,17 +152,21 @@ class WideTableSyncService:
             # 4. 构建Spark SQL PIVOT查询
             sql = self._build_pivot_sql(wide_table_name, indicator_metadata, etl_date)
 
+            etl_date_str = etl_date.strftime('%Y%m%d')
             # 5. 生成输出文件路径
             output_path = self._generate_wide_table_path(
                 wide_table_name,
                 version_hash,
-                etl_date
+                etl_date_str
             )
+
+            
+            hdfs_filepath = f"{wide_table_name}_{etl_date_str}"
 
             # 6. 执行Spark查询并保存为Parquet（这是耗时操作）
             self._execute_sql_query(f"refresh table {self.source_table}")
             row_count, column_count, file_size = self._execute_spark_query_and_save(
-                sql, output_path
+                sql, output_path, hdfs_filepath
             )
 
             # 7. 使用独立session更新Snapshot记录（status='ready'）
@@ -553,7 +563,8 @@ PIVOT (
     def _execute_spark_query_and_save(
         self,
         sql: str,
-        output_path: Path
+        output_path: Path,
+        hdfs_filepath: str
     ) -> Tuple[int, int, int]:
         """执行Spark SQL并保存为Parquet
 
@@ -569,14 +580,15 @@ PIVOT (
             (row_count, column_count, file_size_bytes)
         """
         if self._use_pyspark:
-            return self._execute_with_pyspark(sql, output_path)
+            return self._execute_with_pyspark(sql, output_path, hdfs_filepath)
         else:
             return self._execute_with_jdbc(sql, output_path)
     
     def _execute_with_pyspark(
         self,
         sql: str,
-        output_path: Path
+        output_path: Path,
+        hdfs_filepath: str
     ) -> Tuple[int, int, int]:
         """使用PySpark执行查询并保存
         
@@ -597,15 +609,114 @@ PIVOT (
             if not pyspark_service.initialize():
                 raise RuntimeError("PySpark初始化失败，无法执行查询")
         
-        # 使用PySpark执行并保存
-        row_count, column_count, file_size = pyspark_service.execute_sql_to_parquet(
-            sql=sql,
-            output_path=output_path,
-            mode='overwrite'
+
+        # 执行SQL查询
+        hdfs_file_path = f'/taosha/wide_tables/{hdfs_filepath}'
+
+        df = pyspark_service.spark.sql(sql)
+        df.write.mode("overwrite").parquet(hdfs_file_path)
+        
+        # 获取列数
+        column_count = len(df.columns)
+        row_count = df.count()
+        
+        # 构建临时目录
+        tmp_output_path = output_path.parent / f'tmp_{hdfs_filepath}'
+
+        if tmp_output_path.exists():
+            logger.info(f'删除临时目录 ： {tmp_output_path}')
+            shutil.rmtree(tmp_output_path)
+        
+        tmp_output_path.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f'开始从HDFS下载文件到本地临时目录 : {hdfs_file_path}  -->  {tmp_output_path}')
+        self.download_hdfs_directory(hdfs_file_path, tmp_output_path)
+        
+        # 确保输出目录存在
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        logger.info(f'将临时目录合并为最终文件 : {tmp_output_path}  -->  {output_path}')
+        self.merge_parquet(tmp_output_path, output_path)
+
+        logger.info(f'删除临时目录 ： {tmp_output_path}')
+        shutil.rmtree(tmp_output_path)
+
+        file_size = output_path.stat().st_size if output_path.exists() else 0
+
+        return (row_count, column_count, file_size)
+
+    def download_hdfs_directory(self, hdfs_dir: str, local_dir: Path):
+        """递归下载HDFS目录到本地"""
+        namenode_host = "bigdata01"
+        webhdfs_port = "50070"
+        
+        # 1. 列出目录内容
+        list_url = f"http://{namenode_host}:{webhdfs_port}/webhdfs/v1{hdfs_dir}"
+        
+        list_params = {"op": "LISTSTATUS"}
+        
+        try:
+            response = requests.get(list_url, params=list_params)
+            response.raise_for_status()
+            files = response.json()['FileStatuses']['FileStatus']
+            
+            # 3. 遍历下载
+            for item in tqdm(files, desc=f"Downloading {hdfs_dir}"):
+                file_name = item['pathSuffix']
+                hdfs_path = f"{hdfs_dir}/{file_name}"
+                local_path = local_dir / file_name
+                
+                if item['type'] == 'FILE':
+                    webhdfs_url = f"http://{namenode_host}:{webhdfs_port}/webhdfs/v1{hdfs_path}"
+                    params = { "op": "OPEN" }
+                    # 发起请求
+                    with requests.get(webhdfs_url, params=params, stream=True) as r:
+                        r.raise_for_status()
+                        with open(local_path, "wb") as f:
+                            for chunk in r.iter_content(chunk_size=8192):
+                                f.write(chunk)
+            logger.info(f'hdfs文件下载完毕，共下载 {len(files)} 个文件')
+                    
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error accessing {hdfs_dir}: {str(e)}")
+
+
+    def merge_parquet(
+        self,
+        tmp_output_path: Path,
+        output_path: str,
+    ):
+        """
+        使用 PyArrow 高效合并 Parquet 文件
+        
+        参数:
+            input_files: Parquet 文件路径列表
+            output_path: 输出文件路径
+        """
+        input_files = [tmp_output_path / file.name for file in tmp_output_path.iterdir() if file.is_file() and file.name.endswith('parquet')]
+        
+        # 读取第一个文件获取 schema
+        first_table = pq.read_table(input_files[0])
+        
+        # 创建写入器
+        writer = pq.ParquetWriter(
+            output_path,
+            schema=first_table.schema,
+            compression="ZSTD",  # 更高效的压缩
         )
         
-        return (row_count, column_count, file_size)
-    
+        # 写入第一个表
+        writer.write_table(first_table)
+        
+        # 追加写入其他文件
+        for file in input_files[1:]:
+            table = pq.read_table(file)
+            writer.write_table(table)
+        
+        # 关闭写入器
+        writer.close()
+        logger.info(f"合并完成: {output_path}")
+
     def _execute_with_jdbc(
         self,
         sql: str,
@@ -657,7 +768,7 @@ PIVOT (
         self,
         wide_table_name: str,
         version_hash: str,
-        etl_date: date
+        etl_date_str: str
     ) -> Path:
         """生成宽表文件路径
 
@@ -669,7 +780,6 @@ PIVOT (
         Returns:
             文件路径
         """
-        etl_date_str = etl_date.strftime('%Y%m%d')
         filename = f"{wide_table_name}_{version_hash}_{etl_date_str}.parquet"
 
         # 存储在子目录: {storage_path}/{wide_table_name}/
