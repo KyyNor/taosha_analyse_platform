@@ -90,6 +90,9 @@ class ConfigManager:
             pyspark_enabled: bool = self._config_data.get('pyspark', {}).get('enabled', False)
             pyspark_app_name: str = self._config_data.get('pyspark', {}).get('app_name', 'TaoShaAnalyticsPlatform')
             pyspark_master: str = self._config_data.get('pyspark', {}).get('master', 'local[*]')
+            pyspark_deploy_mode: str = self._config_data.get('pyspark', {}).get('deploy_mode', 'client')
+            pyspark_queue: str = self._config_data.get('pyspark', {}).get('queue', 'default')
+            
             pyspark_executor_memory: str = self._config_data.get('pyspark', {}).get('executor_memory', '4g')
             pyspark_executor_cores: int = self._config_data.get('pyspark', {}).get('executor_cores', 2)
             pyspark_driver_memory: str = self._config_data.get('pyspark', {}).get('driver_memory', '2g')

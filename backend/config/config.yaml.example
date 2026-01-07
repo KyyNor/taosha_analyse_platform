@@ -27,6 +27,8 @@ pyspark:
   enabled: false  # 是否启用PySpark模式（启用后宽表同步将使用PySpark而非JDBC）
   app_name: "taosha"  # Spark Application名称
   master: "yarn"  # Spark Master地址，spark://host:port
+  deploy_mode: "client"
+  queue: "low_priority"
   executor_memory: "4g"  # Executor内存
   executor_cores: 2  # 每个Executor的核心数
   driver_memory: "2g"  # Driver内存

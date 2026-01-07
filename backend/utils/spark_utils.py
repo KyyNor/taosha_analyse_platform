@@ -180,13 +180,15 @@ class PySparkService:
             # 获取配置
             app_name = settings.pyspark_app_name
             master = settings.pyspark_master
+            deploy_mode = settings.pyspark_deploy_mode
+            queue = settings.pyspark_queue
             executor_memory = settings.pyspark_executor_memory
             executor_cores = settings.pyspark_executor_cores
             driver_memory = settings.pyspark_driver_memory
             extra_configs = settings.pyspark_extra_configs
             
             logger.info(f"正在初始化PySpark: master={master}, "
-                       f"executor_memory={executor_memory}, executor_cores={executor_cores}")
+                       f"executor_memory={executor_memory}, executor_cores={executor_cores} , queue={queue}")
             
             # 构建SparkSession
             builder = SparkSession.builder \
@@ -195,11 +197,14 @@ class PySparkService:
                 .config("spark.executor.memory", executor_memory) \
                 .config("spark.executor.cores", str(executor_cores)) \
                 .config("spark.driver.memory", driver_memory) \
-                .config("spark.submit.deployMode", "client") \
+                .config("spark.submit.deployMode", deploy_mode) \
                 .config("spark.sql.adaptive.enabled", "true") \
                 .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
                 .enableHiveSupport()
-            
+
+            if master == 'yarn':
+                builder = builder.config("spark.yarn.queue", queue) 
+
             # 应用额外的配置
             for key, value in extra_configs.items():
                 builder = builder.config(key, value)
