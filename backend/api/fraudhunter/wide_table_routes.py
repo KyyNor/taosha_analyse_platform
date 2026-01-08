@@ -8,7 +8,7 @@ from sqlalchemy import func, distinct
 from datetime import datetime, date
 from typing import List, Optional
 from models.db_base import get_db
-from utils.config import config
+from utils.config import settings
 from schemas.fraudhunter.wide_table import (
     IndicatorRunProgressCallback,
     IndicatorRunProgressResponse,
@@ -302,7 +302,7 @@ async def get_version_progress(
         raise HTTPException(status_code=404, detail=f"版本不存在: {version_hash}")
 
     # 从配置读取查询周期（默认30天）
-    lookback_days = config.fraudhunter_wide_table_sync_lookback_days
+    lookback_days = settings.fraudhunter_wide_table_sync_lookback_days
 
     indicator_metadata = version.indicator_metadata or {}
 
