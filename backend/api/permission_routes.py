@@ -620,3 +620,119 @@ async def assign_hierarchical_permissions(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="层级化权限分配失败"
         )
+
+
+# ===== 页面访问检查相关路由 =====
+
+class PageAccessCheckRequest(BaseModel):
+    """页面访问检查请求模型"""
+    page_path: str
+
+
+class PageAccessCheckResponse(BaseModel):
+    """页面访问检查响应模型"""
+    has_access: bool
+    page_path: str
+    reason: Optional[str] = None
+    is_admin: bool = False
+
+
+@router.post("/check-access", response_model=PageAccessCheckResponse)
+async def check_page_access(
+    request: PageAccessCheckRequest,
+    current_user: UserInfo = Depends(get_current_user)
+):
+    """
+    检查当前用户是否有访问指定页面的权限
+
+    权限检查逻辑：
+    1. 检查页面是否在系统页面配置中
+    2. 检查用户是否为管理员（管理员有所有页面的访问权限）
+    3. 检查用户的具体页面权限（部门权限 + 角色权限）
+    4. 未配置权限的页面默认拒绝访问
+
+    Args:
+        request: 包含页面路径的请求体
+        current_user: 当前用户信息（从token中解析）
+
+    Returns:
+        PageAccessCheckResponse: 包含访问权限状态和原因
+    """
+    try:
+        from services.permission_service import PermissionService
+
+        with get_db_session() as db:
+            permission_service = PermissionService(db)
+
+            # 检查页面是否存在
+            page = permission_service.repo.get_page_by_path(request.page_path)
+
+            if not page:
+                logger.warning(
+                    f"页面访问检查失败: 页面不在配置中 - "
+                    f"用户={current_user.user_id}, 页面={request.page_path}"
+                )
+                return PageAccessCheckResponse(
+                    has_access=False,
+                    page_path=request.page_path,
+                    reason="页面未在系统中配置",
+                    is_admin=False
+                )
+
+            # 检查是否为管理员
+            is_admin = permission_service.is_admin_user(
+                current_user.branch_no,
+                current_user.role_id_list
+            )
+
+            # 管理员有所有已配置页面的访问权限
+            if is_admin:
+                logger.debug(
+                    f"页面访问检查: 管理员用户访问 - "
+                    f"用户={current_user.user_id}, 页面={request.page_path}"
+                )
+                return PageAccessCheckResponse(
+                    has_access=True,
+                    page_path=request.page_path,
+                    is_admin=True
+                )
+
+            # 普通用户检查具体权限
+            has_access = permission_service.check_page_access(
+                current_user.branch_no,
+                current_user.role_id_list,
+                request.page_path
+            )
+
+            if not has_access:
+                logger.info(
+                    f"页面访问检查: 权限不足 - "
+                    f"用户={current_user.user_id}, "
+                    f"部门={current_user.branch_no}, "
+                    f"角色={current_user.role_id_list}, "
+                    f"页面={request.page_path}"
+                )
+                return PageAccessCheckResponse(
+                    has_access=False,
+                    page_path=request.page_path,
+                    reason="您没有访问此页面的权限",
+                    is_admin=False
+                )
+
+            logger.debug(
+                f"页面访问检查: 权限验证通过 - "
+                f"用户={current_user.user_id}, 页面={request.page_path}"
+            )
+
+            return PageAccessCheckResponse(
+                has_access=True,
+                page_path=request.page_path,
+                is_admin=False
+            )
+
+    except Exception as e:
+        logger.error(f"检查页面访问权限时发生错误: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="权限检查失败"
+        )

@@ -231,6 +231,14 @@ export const permissionApi = {
       include_descendants: includeDescendants
     })
     return res.data
+  },
+
+  // 检查页面访问权限
+  checkPageAccess: async (pagePath: string) => {
+    const res = await api.post('/permissions/check-access', {
+      page_path: pagePath
+    })
+    return res.data
   }
 }
 

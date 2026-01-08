@@ -78,7 +78,7 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
     // 中间件运行在服务器端，直接调用后端API（不通过Next.js代理）
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:50020'
 
-    // 首先验证token并获取用户信息
+    // 1. 首先验证token并获取用户信息
     const userResponse = await fetch(`${backendUrl}/api/taosha/v1/login-records/current/info`, {
       method: 'GET',
       headers: {
@@ -99,12 +99,12 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
 
     const userInfo = await userResponse.json()
 
-    // 检查是否为管理员
+    // 2. 检查是否为管理员
     const isAdmin = userInfo.role_id_list?.includes('ADMIN') ||
                    userInfo.role_id_list?.includes('淘沙管理员') ||
                    userInfo.role_id_list?.includes('taosha_admin')
 
-    // 如果是管理员路径，直接检查管理员权限
+    // 3. 如果是管理员路径，直接检查管理员权限
     if (isAdminPath(pagePath)) {
       return {
         valid: true,
@@ -115,12 +115,49 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
       }
     }
 
-    // 对于其他路径，假设有权限（具体权限检查在页面组件中进行）
-    return {
-      valid: true,
-      isAdmin,
-      hasPageAccess: true,
-      userInfo
+    // 4. 对于其他路径，调用权限检查API
+    try {
+      const permissionResponse = await fetch(`${backendUrl}/api/taosha/v1/permissions/check-access`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ page_path: pagePath })
+      })
+
+      if (!permissionResponse.ok) {
+        console.error(`Permission check failed: ${permissionResponse.status}`)
+        // 权限检查API失败时，采用安全优先策略：拒绝访问
+        return {
+          valid: true,
+          isAdmin,
+          hasPageAccess: false,
+          userInfo,
+          reason: 'permission_check_failed'
+        }
+      }
+
+      const permissionData = await permissionResponse.json()
+
+      return {
+        valid: true,
+        isAdmin: permissionData.is_admin || isAdmin,
+        hasPageAccess: permissionData.has_access,
+        userInfo,
+        reason: permissionData.has_access ? undefined : (permissionData.reason || 'no_permission')
+      }
+
+    } catch (error) {
+      console.error('Permission check API error:', error)
+      // API调用失败时，采用安全优先策略：拒绝访问
+      return {
+        valid: true,
+        isAdmin,
+        hasPageAccess: false,
+        userInfo,
+        reason: 'permission_check_error'
+      }
     }
 
   } catch (error) {
