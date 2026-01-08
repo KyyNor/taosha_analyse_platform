@@ -253,7 +253,7 @@ export const indicatorTaskService = {
     page?: number;
     page_size?: number;
     status?: string;
-    task_code?: string;
+    search?: string;  // 修改：使用search参数名与后端API一致
     object_type?: string;
   }): Promise<IndicatorTaskListResponse> {
     const response = await api.get(`${BASE_PATH}/indicator-tasks`, { params });

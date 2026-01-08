@@ -93,7 +93,16 @@ export default function IndicatorTasksPage() {
       type: "badge" as const,
       badgeConfig: taskStatusBadgeConfig
     },
-    { key: "current_version", label: "当前版本", type: "number" as const },
+    { 
+      key: "current_version", 
+      label: "当前版本", 
+      type: "custom" as const,
+      render: (value: number, row: IndicatorTask) => (
+        <span className={row.current_version !== row.latest_version ? "text-red-600 font-semibold" : ""}>
+          {value}
+        </span>
+      )
+    },
     { key: "latest_version", label: "最新版本", type: "number" as const },
     { key: "created_at", label: "创建时间", type: "datetime" as const },
     { key: "updated_at", label: "更新时间", type: "datetime" as const }
@@ -192,11 +201,25 @@ export default function IndicatorTasksPage() {
     }
   };
 
+  // 自定义行样式 - 对于发布版本与当前版本不一致的（已修改 未发布的）以红色高亮其当前版本
+  const getRowClassName = (item: IndicatorTask) => {
+    if (item.current_version !== item.latest_version) {
+      return "bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500";
+    }
+    return "";
+  };
+
   return (
     <div className="container mx-auto py-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">指标任务管理</h1>
-        <p className="text-muted-foreground">管理反诈指标任务及其SQL加工逻辑</p>
+        <p className="text-muted-foreground">
+          管理反诈指标任务及其SQL加工逻辑
+          <span className="ml-4 text-sm">
+            <span className="inline-block w-3 h-3 bg-red-100 border-l-2 border-red-500 mr-1"></span>
+            红色高亮表示已修改未发布的任务
+          </span>
+        </p>
       </div>
 
       <MetadataTable
@@ -218,6 +241,7 @@ export default function IndicatorTasksPage() {
           total,
           onPageChange: handlePageChange,
         }}
+        getRowClassName={getRowClassName}
         customActions={(item: IndicatorTask) => (
           <div className="flex gap-2">
             <Button
