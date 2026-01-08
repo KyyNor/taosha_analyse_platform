@@ -25,12 +25,14 @@ class EntityCreateRequest(BaseModel):
     name: str
     type: EntityType
     description: Optional[str] = None
+    is_admin: Optional[bool] = False
 
 
 class EntityUpdateRequest(BaseModel):
     """更新实体请求模型"""
     name: Optional[str] = None
     description: Optional[str] = None
+    is_admin: Optional[bool] = None
 
 
 class EntityResponse(BaseModel):
@@ -40,6 +42,7 @@ class EntityResponse(BaseModel):
     name: str
     type: EntityType
     description: Optional[str]
+    is_admin: bool
     created_at: str
     updated_at: str
 
@@ -72,7 +75,8 @@ async def create_entity(
                 code=request.code,
                 name=request.name,
                 entity_type=request.type,
-                description=request.description
+                description=request.description,
+                is_admin=request.is_admin
             )
             
             logger.info(f"管理员 {admin_user.user_id} 创建了{request.type.value}: {entity.code}")
@@ -83,6 +87,7 @@ async def create_entity(
                 name=entity.name,
                 type=entity.type,
                 description=entity.description,
+                is_admin=entity.is_admin,
                 created_at=entity.created_at.isoformat(),
                 updated_at=entity.updated_at.isoformat()
             )
@@ -129,6 +134,7 @@ async def list_entities(
                     name=entity.name,
                     type=entity.type,
                     description=entity.description,
+                    is_admin=entity.is_admin,
                     created_at=entity.created_at.isoformat(),
                     updated_at=entity.updated_at.isoformat()
                 )
@@ -173,6 +179,7 @@ async def get_entity(
                 name=entity.name,
                 type=entity.type,
                 description=entity.description,
+                is_admin=entity.is_admin,
                 created_at=entity.created_at.isoformat(),
                 updated_at=entity.updated_at.isoformat()
             )
@@ -205,7 +212,8 @@ async def update_entity(
             entity = entity_service.update_entity(
                 entity_id=entity_id,
                 name=request.name,
-                description=request.description
+                description=request.description,
+                is_admin=request.is_admin
             )
             
             logger.info(f"管理员 {admin_user.user_id} 更新了实体: {entity.code}")
@@ -216,6 +224,7 @@ async def update_entity(
                 name=entity.name,
                 type=entity.type,
                 description=entity.description,
+                is_admin=entity.is_admin,
                 created_at=entity.created_at.isoformat(),
                 updated_at=entity.updated_at.isoformat()
             )

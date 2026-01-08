@@ -2,7 +2,7 @@
 权限管理相关的SQLAlchemy模型
 """
 
-from sqlalchemy import Column, String, Text, DateTime, JSON, ForeignKey, Enum, UniqueConstraint, Index
+from sqlalchemy import Column, String, Text, DateTime, JSON, ForeignKey, Enum, UniqueConstraint, Index, Boolean
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from datetime import datetime
 import enum
@@ -24,6 +24,7 @@ class SystemEntity(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False, comment="实体名称")
     type: Mapped[EntityType] = mapped_column(Enum(EntityType), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, comment="是否为管理员实体")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 

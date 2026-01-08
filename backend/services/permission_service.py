@@ -71,9 +71,41 @@ class PermissionService:
             logger.error(f"检查页面访问权限失败: {e}")
             return False
     
-    def is_admin_user(self, role_id_list: List[str]) -> bool:
-        """检查用户是否为管理员"""
-        return "淘沙管理员" in role_id_list or "taosha_admin" in role_id_list
+    def is_admin_user(self, branch_no: str, role_id_list: List[str]) -> bool:
+        """
+        检查用户是否为管理员
+
+        管理员判断逻辑：
+        1. 用户的角色中有任意一个角色的 is_admin=True
+        2. 用户的部门 is_admin=True
+
+        Args:
+            branch_no: 部门编号
+            role_id_list: 角色编码列表
+
+        Returns:
+            bool: 是否为管理员
+        """
+        try:
+            # 检查部门是否为管理员
+            dept_entity = self.repo.get_entity_by_code_and_type(branch_no, EntityType.DEPARTMENT)
+            if dept_entity and dept_entity.is_admin:
+                logger.debug(f"用户所属部门 {branch_no} 为管理员部门")
+                return True
+
+            # 检查角色是否有管理员角色
+            role_entities = self.repo.get_entities_by_codes(role_id_list, EntityType.ROLE)
+            for role in role_entities:
+                if role.is_admin:
+                    logger.debug(f"用户拥有管理员角色: {role.code}")
+                    return True
+
+            return False
+
+        except Exception as e:
+            logger.error(f"检查管理员权限时发生错误: {e}")
+            # 发生错误时降级为旧逻辑，确保系统可用性
+            return "淘沙管理员" in role_id_list or "taosha_admin" in role_id_list
 
 
 class EntityService:
@@ -83,20 +115,21 @@ class EntityService:
         self.db = db
         self.repo = PermissionRepository(db)
     
-    def create_entity(self, code: str, name: str, entity_type: EntityType, description: str = None) -> SystemEntity:
+    def create_entity(self, code: str, name: str, entity_type: EntityType, description: str = None, is_admin: bool = False) -> SystemEntity:
         """创建实体"""
         try:
             # 检查编码是否已存在
             existing = self.repo.get_entity_by_code_and_type(code, entity_type)
             if existing:
                 raise ValueError(f"{entity_type.value}编码 '{code}' 已存在")
-            
+
             entity = SystemEntity(
                 id=str(uuid.uuid4()),
                 code=code,
                 name=name,
                 type=entity_type,
-                description=description
+                description=description,
+                is_admin=is_admin
             )
             
             return self.repo.create_entity(entity)
@@ -105,17 +138,19 @@ class EntityService:
             logger.error(f"创建{entity_type.value}失败: {e}")
             raise
     
-    def update_entity(self, entity_id: str, name: str = None, description: str = None) -> SystemEntity:
+    def update_entity(self, entity_id: str, name: str = None, description: str = None, is_admin: bool = None) -> SystemEntity:
         """更新实体"""
         try:
             entity = self.repo.get_entity_by_id(entity_id)
             if not entity:
                 raise ValueError(f"实体 {entity_id} 不存在")
-            
+
             if name is not None:
                 entity.name = name
             if description is not None:
                 entity.description = description
+            if is_admin is not None:
+                entity.is_admin = is_admin
             
             return self.repo.update_entity(entity)
             

@@ -129,8 +129,8 @@ async def require_admin_role(
     try:
         with get_db_session() as db:
             permission_service = PermissionService(db)
-            
-            if not permission_service.is_admin_user(current_user.role_id_list):
+
+            if not permission_service.is_admin_user(current_user.branch_no, current_user.role_id_list):
                 logger.warning(f"用户 {current_user.user_id} 尝试访问管理员功能，但不是管理员")
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,

@@ -29,6 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
 
 interface Role {
   id: string;
@@ -36,6 +37,7 @@ interface Role {
   name: string;
   type: "role";
   description?: string;
+  is_admin: boolean;
   created_at: string;
   updated_at: string;
   roleType?: string; // 用于显示系统角色/自定义角色
@@ -45,6 +47,7 @@ interface RoleFormData {
   code: string;
   name: string;
   description: string;
+  is_admin: boolean;
 }
 
 // 检查是否为系统角色
@@ -71,6 +74,7 @@ export default function RolesPage() {
     code: "",
     name: "",
     description: "",
+    is_admin: false,
   });
 
   const load = async () => {
@@ -114,12 +118,25 @@ export default function RolesPage() {
       type: "badge" as const,
       badgeConfig: roleTypeBadgeConfig,
     },
+    {
+      key: "is_admin",
+      label: "管理员",
+      type: "custom" as const,
+      render: (value: boolean) =>
+        value ? (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+            管理员
+          </span>
+        ) : (
+          <span className="text-muted-foreground">普通角色</span>
+        )
+    },
     { key: "description", label: "描述", type: "text" as const, maxLength: 50 },
     { key: "created_at", label: "创建时间", type: "datetime" as const },
   ];
 
   const resetForm = () => {
-    setFormData({ code: "", name: "", description: "" });
+    setFormData({ code: "", name: "", description: "", is_admin: false });
   };
 
   const handleAdd = () => {
@@ -133,6 +150,7 @@ export default function RolesPage() {
       code: item.code,
       name: item.name,
       description: item.description || "",
+      is_admin: item.is_admin,
     });
     setEditDialogOpen(true);
   };
@@ -173,6 +191,7 @@ export default function RolesPage() {
         name: formData.name,
         type: "role",
         description: formData.description || null,
+        is_admin: formData.is_admin,
       });
       toast.success("创建成功");
       setCreateDialogOpen(false);
@@ -195,6 +214,7 @@ export default function RolesPage() {
       await entityApi.updateEntity(selectedItem.id, {
         name: formData.name,
         description: formData.description || null,
+        is_admin: formData.is_admin,
       });
       toast.success("更新成功");
       setEditDialogOpen(false);
@@ -293,6 +313,21 @@ export default function RolesPage() {
                   rows={3}
                 />
               </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="is_admin">管理员角色</Label>
+                  <p className="text-xs text-muted-foreground">
+                    管理员角色拥有所有页面的访问权限
+                  </p>
+                </div>
+                <Switch
+                  id="is_admin"
+                  checked={formData.is_admin}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, is_admin: checked })
+                  }
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button
@@ -355,6 +390,21 @@ export default function RolesPage() {
                   }
                   placeholder="请输入角色描述"
                   rows={3}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="edit-is_admin">管理员角色</Label>
+                  <p className="text-xs text-muted-foreground">
+                    管理员角色拥有所有页面的访问权限
+                  </p>
+                </div>
+                <Switch
+                  id="edit-is_admin"
+                  checked={formData.is_admin}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, is_admin: checked })
+                  }
                 />
               </div>
             </div>
