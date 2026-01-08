@@ -166,40 +166,70 @@ export const permissionApi = {
     const res = await api.get('/permissions/pages')
     return res.data
   },
-  
+
   // 同步页面配置
   syncPages: async () => {
     const res = await api.post('/permissions/pages/sync')
     return res.data
   },
-  
+
   // 获取实体权限
   getEntityPermissions: async (entityId: string) => {
     const res = await api.get(`/permissions/entity/${entityId}`)
     return res.data
   },
-  
+
   // 分配权限
   assignPermissions: async (entityId: string, pageIds: string[]) => {
     const res = await api.post('/permissions/assign', { entity_id: entityId, page_ids: pageIds })
     return res.data
   },
-  
+
   // 获取权限矩阵
   getPermissionMatrix: async () => {
     const res = await api.get('/permissions/matrix')
     return res.data
   },
-  
+
   // 获取权限摘要
   getPermissionSummary: async () => {
     const res = await api.get('/permissions/summary')
     return res.data
   },
-  
+
   // 复制权限
   copyPermissions: async (sourceEntityId: string, targetEntityId: string) => {
     const res = await api.post(`/permissions/copy/${sourceEntityId}/${targetEntityId}`)
+    return res.data
+  },
+
+  // ===== 新增：层级化权限相关API =====
+
+  // 获取页面树形结构
+  getPagesTree: async () => {
+    const res = await api.get('/permissions/pages/tree')
+    return res.data
+  },
+
+  // 获取指定页面的所有有权限实体（部门+角色）
+  getPageEntities: async (pageId: string) => {
+    const res = await api.get(`/permissions/pages/${pageId}/entities`)
+    return res.data
+  },
+
+  // 获取用户的最终权限（带层级结构）
+  getUserEffectivePermissions: async (userId: string) => {
+    const res = await api.get(`/permissions/user/${userId}/effective-permissions`)
+    return res.data
+  },
+
+  // 层级化权限分配（支持自动包含子页面）
+  assignHierarchicalPermissions: async (entityId: string, pageId: string, includeDescendants: boolean = true) => {
+    const res = await api.post('/permissions/assign-hierarchical', {
+      entity_id: entityId,
+      page_id: pageId,
+      include_descendants: includeDescendants
+    })
     return res.data
   }
 }
