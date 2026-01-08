@@ -3,12 +3,11 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { permissionApi, entityApi } from "@/lib/api";
-import { Shield, Users, Edit, Save, X, ChevronDown, ChevronRight } from "lucide-react";
+import { Shield, Users, Save, X, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/select";
 import {
   Select,
   SelectContent,
@@ -40,7 +39,6 @@ export default function PermissionsByEntityView() {
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [pageTree, setPageTree] = useState<Page[]>([]);
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
-  const [mode, setMode] = useState<"view" | "edit">("view");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -56,7 +54,7 @@ export default function PermissionsByEntityView() {
 
   // 加载实体权限
   useEffect(() => {
-    if (selectedEntity && mode === "view") {
+    if (selectedEntity) {
       loadEntityPermissions();
     }
   }, [selectedEntity]);
@@ -87,19 +85,14 @@ export default function PermissionsByEntityView() {
 
     try {
       const response = await permissionApi.getEntityPermissions(selectedEntity.id);
-      const pageIds = new Set(response.pages.map((p: Page) => p.id));
+      const pageIds: Set<string> = new Set(response.pages.map((p: any) => p.id));
       setPermissions(pageIds);
     } catch (err) {
       toast.error("加载权限失败");
     }
   };
 
-  const handleEdit = () => {
-    setMode("edit");
-  };
-
   const handleCancel = () => {
-    setMode("view");
     loadEntityPermissions(); // 重新加载原始权限
   };
 
@@ -110,7 +103,6 @@ export default function PermissionsByEntityView() {
       setSaving(true);
       await permissionApi.assignPermissions(selectedEntity.id, Array.from(permissions));
       toast.success("权限保存成功");
-      setMode("view");
     } catch (err) {
       toast.error("保存权限失败");
     } finally {
@@ -156,83 +148,69 @@ export default function PermissionsByEntityView() {
         </Button>
       </div>
 
-      {/* 实体选择器 */}
+      {/* 左右两栏布局 */}
       {entities.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">选择{entityType === "department" ? "部门" : "角色"}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Select
-              value={selectedEntity?.id || ""}
-              onValueChange={(value) => {
-                const entity = entities.find((e) => e.id === value);
-                if (entity) {
-                  setSelectedEntity(entity);
-                  setPermissions(new Set());
-                  setMode("view");
-                }
-              }}
-              disabled={mode === "edit"}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={`请选择${entityType === "department" ? "部门" : "角色"}`} />
-              </SelectTrigger>
-              <SelectContent>
-                {entities.map((entity) => (
-                  <SelectItem key={entity.id} value={entity.id}>
-                    {entity.name} ({entity.code})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
-      )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* 左栏：实体选择器 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">选择{entityType === "department" ? "部门" : "角色"}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select
+                value={selectedEntity?.id || ""}
+                onValueChange={(value) => {
+                  const entity = entities.find((e) => e.id === value);
+                  if (entity) {
+                    setSelectedEntity(entity);
+                    setPermissions(new Set());
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={`请选择${entityType === "department" ? "部门" : "角色"}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {entities.map((entity) => (
+                    <SelectItem key={entity.id} value={entity.id}>
+                      {entity.name} ({entity.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
 
-      {/* 权限配置区域 */}
-      {selectedEntity && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">
-                {selectedEntity.name} 的页面权限
-              </CardTitle>
-              {mode === "view" ? (
-                <Button onClick={handleEdit} variant="outline">
-                  <Edit className="h-4 w-4 mr-2" />
-                  修改
-                </Button>
-              ) : (
-                <div className="flex gap-2">
-                  <Button onClick={handleSave} disabled={saving}>
-                    <Save className="h-4 w-4 mr-2" />
-                    {saving ? "保存中..." : "保存"}
-                  </Button>
-                  <Button onClick={handleCancel} variant="outline">
-                    <X className="h-4 w-4 mr-2" />
-                    取消
-                  </Button>
+          {/* 右栏：权限配置区域 */}
+          {selectedEntity && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">
+                    {selectedEntity.name} 的页面权限
+                  </CardTitle>
+                  <div className="flex gap-2">
+                    <Button onClick={handleSave} disabled={saving}>
+                      <Save className="h-4 w-4 mr-2" />
+                      {saving ? "保存中..." : "保存"}
+                    </Button>
+                    <Button onClick={handleCancel} variant="outline" disabled={saving}>
+                      <X className="h-4 w-4 mr-2" />
+                      取消
+                    </Button>
+                  </div>
                 </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {mode === "view" ? (
-              <PageTreeView
-                pages={pageTree}
-                permissions={permissions}
-                readonly
-              />
-            ) : (
-              <PageTreeView
-                pages={pageTree}
-                permissions={permissions}
-                onToggle={togglePermission}
-              />
-            )}
-          </CardContent>
-        </Card>
+              </CardHeader>
+              <CardContent>
+                <PageTreeView
+                  pages={pageTree}
+                  permissions={permissions}
+                  onToggle={togglePermission}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
     </div>
   );
@@ -242,12 +220,11 @@ export default function PermissionsByEntityView() {
 interface PageTreeViewProps {
   pages: Page[];
   permissions: Set<string>;
-  readonly?: boolean;
-  onToggle?: (pageId: string) => void;
+  onToggle: (pageId: string) => void;
   level?: number;
 }
 
-function PageTreeView({ pages, permissions, readonly, onToggle, level = 0 }: PageTreeViewProps) {
+function PageTreeView({ pages, permissions, onToggle, level = 0 }: PageTreeViewProps) {
   return (
     <div className="space-y-2">
       {pages.map((page) => (
@@ -261,8 +238,7 @@ function PageTreeView({ pages, permissions, readonly, onToggle, level = 0 }: Pag
             )}
             <Checkbox
               checked={permissions.has(page.id)}
-              onCheckedChange={() => onToggle?.(page.id)}
-              disabled={readonly}
+              onCheckedChange={() => onToggle(page.id)}
             />
             <div className="flex-1">
               <div className="flex items-center gap-2">
@@ -280,7 +256,6 @@ function PageTreeView({ pages, permissions, readonly, onToggle, level = 0 }: Pag
             <PageTreeView
               pages={page.children}
               permissions={permissions}
-              readonly={readonly}
               onToggle={onToggle}
               level={level + 1}
             />

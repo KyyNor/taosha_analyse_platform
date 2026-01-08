@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { permissionApi, entityApi } from "@/lib/api";
-import { FileText, Building2, Shield as ShieldIcon, Edit, Save, X, ChevronDown, ChevronRight } from "lucide-react";
+import { FileText, Building2, Shield as ShieldIcon, Save, X, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -39,7 +39,6 @@ export default function PermissionsByPageView() {
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
   const [departments, setDepartments] = useState<Entity[]>([]);
   const [roles, setRoles] = useState<Entity[]>([]);
-  const [mode, setMode] = useState<"view" | "edit">("view");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -100,15 +99,9 @@ export default function PermissionsByPageView() {
   const handlePageSelect = (page: Page) => {
     setSelectedPage(page);
     loadPagePermissions(page);
-    setMode("view");
-  };
-
-  const handleEdit = () => {
-    setMode("edit");
   };
 
   const handleCancel = () => {
-    setMode("view");
     if (selectedPage) {
       loadPagePermissions(selectedPage); // 重新加载
     }
@@ -131,7 +124,6 @@ export default function PermissionsByPageView() {
       }
 
       toast.success("权限保存成功");
-      setMode("view");
     } catch (err) {
       toast.error("保存权限失败");
     } finally {
@@ -151,79 +143,75 @@ export default function PermissionsByPageView() {
 
   return (
     <div className="space-y-4">
-      {/* 页面选择器 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">选择页面</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <PageTreeSelector
-            pages={pageTree}
-            selectedPage={selectedPage}
-            onSelect={handlePageSelect}
-          />
-        </CardContent>
-      </Card>
-
-      {/* 权限详情 */}
-      {selectedPage && (
+      {/* 左右两栏布局 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 左栏：页面选择器 */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">{selectedPage.name}</CardTitle>
-                <p className="text-sm text-muted-foreground">{selectedPage.path}</p>
-              </div>
-              {mode === "view" ? (
-                <Button onClick={handleEdit} variant="outline">
-                  <Edit className="h-4 w-4 mr-2" />
-                  修改
-                </Button>
-              ) : (
+            <CardTitle className="text-lg">选择页面</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PageTreeSelector
+              pages={pageTree}
+              selectedPage={selectedPage}
+              onSelect={handlePageSelect}
+            />
+          </CardContent>
+        </Card>
+
+        {/* 右栏：权限详情 */}
+        {selectedPage && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">{selectedPage.name}</CardTitle>
+                  <p className="text-sm text-muted-foreground">{selectedPage.path}</p>
+                </div>
                 <div className="flex gap-2">
                   <Button onClick={handleSave} disabled={saving}>
                     <Save className="h-4 w-4 mr-2" />
                     {saving ? "保存中..." : "保存"}
                   </Button>
-                  <Button onClick={handleCancel} variant="outline">
+                  <Button onClick={handleCancel} variant="outline" disabled={saving}>
                     <X className="h-4 w-4 mr-2" />
                     取消
                   </Button>
                 </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* 部门列表 */}
-            <div>
-              <h3 className="font-semibold mb-3 flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-blue-500" />
-                部门权限
-              </h3>
-              <EntityPermissionList
-                entities={departments}
-                readonly={mode === "view"}
-                onToggle={toggleEntityPermission}
-              />
-            </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* 部门列表 */}
+              <div>
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-blue-500" />
+                  部门权限
+                </h3>
+                <EntityPermissionList
+                  entities={departments}
+                  readonly={false}
+                  onToggle={toggleEntityPermission}
+                />
+              </div>
 
-            <Separator />
+              <Separator />
 
-            {/* 角色列表 */}
-            <div>
-              <h3 className="font-semibold mb-3 flex items-center gap-2">
-                <ShieldIcon className="h-4 w-4 text-green-500" />
-                角色权限
-              </h3>
-              <EntityPermissionList
-                entities={roles}
-                readonly={mode === "view"}
-                onToggle={toggleEntityPermission}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              {/* 角色列表 */}
+              <div>
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <ShieldIcon className="h-4 w-4 text-green-500" />
+                  角色权限
+                </h3>
+                <EntityPermissionList
+                  entities={roles}
+                  readonly={false}
+                  onToggle={toggleEntityPermission}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
@@ -250,7 +238,7 @@ function PageTreeSelector({ pages, selectedPage, onSelect, level = 0 }: PageTree
             style={{ marginLeft: `${level * 24}px` }}
             onClick={() => onSelect(page)}
           >
-            {page.children && page.children.length > 0 && <ChevronRight className="h-4 w-4" />}
+            {page.children && page.children.length > 0 && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <span className="font-medium">{page.name}</span>
