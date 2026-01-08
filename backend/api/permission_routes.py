@@ -13,6 +13,7 @@ from models.permission_models import SystemPage, SystemEntity, EntityType
 from services.permission_service import PageService
 from services.page_discovery_service import PageDiscoveryService
 from services.permission_assignment_service import PermissionAssignmentService
+from services.hierarchical_permission_service import HierarchicalPermissionService
 from middleware.auth_middleware import require_admin_role, get_current_user
 from services.token_service import UserInfo
 from utils.logger import logger
@@ -153,12 +154,12 @@ async def get_pages_from_config(
         with get_db_session() as db:
             discovery_service = PageDiscoveryService(db)
             pages_config = discovery_service.get_all_pages_from_config()
-            
+
             return {
                 "pages": pages_config,
                 "total": len(pages_config)
             }
-            
+
     except Exception as e:
         logger.error(f"获取配置页面信息失败: {e}")
         raise HTTPException(
@@ -455,15 +456,15 @@ async def copy_permissions(
 ):
     """
     复制权限从一个实体到另一个实体
-    
+
     需要管理员权限
     """
     try:
         with get_db_session() as db:
             assignment_service = PermissionAssignmentService(db)
-            
+
             success = assignment_service.copy_permissions(source_entity_id, target_entity_id)
-            
+
             if success:
                 logger.info(f"管理员 {admin_user.user_id} 复制权限从实体 {source_entity_id} 到 {target_entity_id}")
                 return {
@@ -476,7 +477,7 @@ async def copy_permissions(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="权限复制失败"
                 )
-                
+
     except HTTPException:
         raise
     except Exception as e:
@@ -484,4 +485,138 @@ async def copy_permissions(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="权限复制失败"
+        )
+
+
+# ===== 层级化权限相关路由 =====
+
+@router.get("/pages/tree")
+async def get_pages_tree(
+    current_user: UserInfo = Depends(get_current_user)
+):
+    """获取页面树形结构"""
+    try:
+        with get_db_session() as db:
+            service = HierarchicalPermissionService(db)
+            tree = service.get_page_tree()
+
+            return {
+                "success": True,
+                "tree": tree,
+                "total": len(tree)
+            }
+
+    except Exception as e:
+        logger.error(f"获取页面树失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="获取页面树失败"
+        )
+
+
+@router.get("/pages/{page_id}/entities")
+async def get_page_entities(
+    page_id: str,
+    current_user: UserInfo = Depends(get_current_user)
+):
+    """获取指定页面的所有有权限实体（部门+角色）"""
+    try:
+        with get_db_session() as db:
+            service = HierarchicalPermissionService(db)
+            result = service.get_page_entities(page_id)
+
+            if not result["success"]:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=result.get("message", "获取失败")
+                )
+
+            return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取页面实体列表失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="获取页面实体列表失败"
+        )
+
+
+@router.get("/user/{user_id}/effective-permissions")
+async def get_user_effective_permissions(
+    user_id: str,
+    admin_user: UserInfo = Depends(require_admin_role)
+):
+    """
+    获取用户的最终权限（带层级结构）
+
+    需要管理员权限
+    """
+    try:
+        with get_db_session() as db:
+            service = HierarchicalPermissionService(db)
+            result = service.get_user_effective_permissions(user_id)
+
+            if not result["success"]:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=result.get("message", "获取失败")
+                )
+
+            logger.info(f"管理员 {admin_user.user_id} 查询了用户 {user_id} 的最终权限")
+            return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取用户最终权限失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="获取用户最终权限失败"
+        )
+
+
+class HierarchicalPermissionRequest(BaseModel):
+    """层级化权限分配请求"""
+    entity_id: str
+    page_id: str
+    include_descendants: bool = True
+
+
+@router.post("/assign-hierarchical", status_code=status.HTTP_200_OK)
+async def assign_hierarchical_permissions(
+    request: HierarchicalPermissionRequest,
+    admin_user: UserInfo = Depends(require_admin_role)
+):
+    """
+    层级化权限分配（支持自动包含子页面）
+
+    需要管理员权限
+    """
+    try:
+        with get_db_session() as db:
+            service = HierarchicalPermissionService(db)
+            result = service.assign_with_descendants(
+                entity_id=request.entity_id,
+                page_id=request.page_id,
+                include_descendants=request.include_descendants
+            )
+
+            if not result["success"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=result.get("message", "分配失败")
+                )
+
+            logger.info(f"管理员 {admin_user.user_id} 为实体 {request.entity_id} 分配了页面 {request.page_id} 的层级权限")
+            return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"层级化权限分配失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="层级化权限分配失败"
         )

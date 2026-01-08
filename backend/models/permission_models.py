@@ -2,10 +2,11 @@
 权限管理相关的SQLAlchemy模型
 """
 
-from sqlalchemy import Column, String, Text, DateTime, JSON, ForeignKey, Enum, UniqueConstraint, Index, Boolean
-from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy import Column, String, Text, DateTime, JSON, ForeignKey, Enum, UniqueConstraint, Index, Boolean, Integer
+from sqlalchemy.orm import relationship, Mapped, mapped_column, backref
 from datetime import datetime
 import enum
+from typing import Optional
 from .db_base import Base
 
 
@@ -46,23 +47,59 @@ class SystemEntity(Base):
 
 
 class SystemPage(Base):
-    """系统页面模型"""
+    """系统页面模型 - 支持层级结构"""
     __tablename__ = "system_pages"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     path: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
+
+    # 层级支持字段
+    parent_id: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        ForeignKey("system_pages.id", ondelete="CASCADE"),
+        nullable=True,
+        comment="父页面ID，根页面为NULL"
+    )
+    level: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="层级深度，根页面为0"
+    )
+    path_hash: Mapped[str] = mapped_column(
+        String(500),
+        nullable=False,
+        default="",
+        comment="层级路径哈希"
+    )
+    sort_order: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        comment="同级排序顺序"
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
+    # 自引用关系 - 父子关系
+    children: Mapped[list["SystemPage"]] = relationship(
+        "SystemPage",
+        backref=backref("parent", remote_side=[id]),
+        cascade="all, delete-orphan"
+    )
+
     # 表约束
     __table_args__ = (
+        Index('idx_parent_id', 'parent_id'),
+        Index('idx_level', 'level'),
+        Index('idx_path_hash', 'path_hash'),
         {"mysql_charset": "utf8mb4"},
     )
 
     def __repr__(self):
-        return f"<SystemPage(id='{self.id}', path='{self.path}', name='{self.name}')>"
+        return f"<SystemPage(id='{self.id}', path='{self.path}', name='{self.name}', level={self.level})>"
 
 
 class SystemPermission(Base):

@@ -69,7 +69,15 @@ class PermissionRepository:
     def get_all_pages(self) -> List[SystemPage]:
         """获取所有页面"""
         return self.db.query(SystemPage).all()
-    
+
+    def get_pages_by_parent_id(self, parent_id: Optional[str]) -> List[SystemPage]:
+        """根据parent_id查询子页面"""
+        if parent_id is None:
+            # 查询根页面（parent_id为NULL）
+            return self.db.query(SystemPage).filter(SystemPage.parent_id.is_(None)).all()
+        else:
+            return self.db.query(SystemPage).filter(SystemPage.parent_id == parent_id).all()
+
     def create_page(self, page: SystemPage) -> SystemPage:
         """创建页面"""
         self.db.add(page)
@@ -95,10 +103,14 @@ class PermissionRepository:
     def get_permissions_by_entity_id(self, entity_id: str) -> List[SystemPermission]:
         """根据实体ID获取权限列表"""
         return self.db.query(SystemPermission).filter(SystemPermission.entity_id == entity_id).all()
-    
+
     def get_permissions_by_entity_ids(self, entity_ids: List[str]) -> List[SystemPermission]:
         """根据实体ID列表获取权限列表"""
         return self.db.query(SystemPermission).filter(SystemPermission.entity_id.in_(entity_ids)).all()
+
+    def get_permissions_by_page_id(self, page_id: str) -> List[SystemPermission]:
+        """根据页面ID获取权限列表"""
+        return self.db.query(SystemPermission).filter(SystemPermission.page_id == page_id).all()
     
     def get_page_paths_by_entity_ids(self, entity_ids: List[str]) -> Set[str]:
         """根据实体ID列表获取页面路径集合"""
