@@ -91,13 +91,19 @@ type FullAgentState = AgentState & AgentActions;
 
 const Ctx = createContext<FullAgentState | null>(null);
 
-export function AgentProvider({ children }: { children: React.ReactNode }) {
+export function AgentProvider({
+  children,
+  userId
+}: {
+  children: React.ReactNode;
+  userId: string;
+}) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingText, setProcessingText] = useState('正在思考中...');
   const [currentResponse, setCurrentResponse] = useState('');
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [currentUserId] = useState<string>('api_user');
+  const [currentUserId] = useState<string>(userId);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentTodoList, setCurrentTodoList] = useState<TodoList | null>(null);
