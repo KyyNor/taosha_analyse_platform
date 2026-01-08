@@ -44,22 +44,23 @@ class TokenService:
     def generate_token(self, user_info: UserInfo) -> str:
         """
         生成JWT token
-        
+
         Args:
             user_info: 用户信息
-            
+
         Returns:
             JWT token字符串
         """
         try:
-            # 创建JWT payload
+            # 创建JWT payload（使用UTC时间戳）
             now = datetime.now()
+            now_timestamp = int(now.timestamp())
             payload = {
-                # 标准claims
-                "iat": now,  # issued at
-                "exp": now + timedelta(hours=self.token_expire_hours),  # expiration time
+                # 标准claims（使用时间戳数值）
+                "iat": now_timestamp,  # issued at
+                "exp": now_timestamp + int(timedelta(hours=self.token_expire_hours).total_seconds()),  # expiration time
                 "iss": "taosha-platform",  # issuer
-                
+
                 # 自定义claims
                 "user_id": user_info.user_id,
                 "user_name": user_info.user_name,
