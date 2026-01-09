@@ -675,7 +675,7 @@ async def check_page_access(
                 return PageAccessCheckResponse(
                     has_access=False,
                     page_path=request.page_path,
-                    reason="页面未在系统中配置",
+                    reason="page_not_found",
                     is_admin=False
                 )
 
@@ -715,7 +715,7 @@ async def check_page_access(
                 return PageAccessCheckResponse(
                     has_access=False,
                     page_path=request.page_path,
-                    reason="您没有访问此页面的权限",
+                    reason="no_permission",
                     is_admin=False
                 )
 

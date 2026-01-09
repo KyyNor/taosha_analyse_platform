@@ -141,8 +141,15 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
       const permissionData = await permissionResponse.json()
 
       // 统一reason为标准code，确保info页面能正确显示提示
-      // 当has_access为false时，统一使用'no_permission'
-      const finalReason = permissionData.has_access ? undefined : 'no_permission'
+      // 优先使用后端返回的reason，如果没有则使用默认值
+      let finalReason: string | undefined
+      if (permissionData.has_access) {
+        finalReason = undefined
+      } else {
+        // 后端应该返回标准reason code: 'no_permission' | 'page_not_found'
+        // 如果后端返回了中文reason，映射为标准code
+        finalReason = permissionData.reason || 'no_permission'
+      }
 
       return {
         valid: true,

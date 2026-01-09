@@ -10,7 +10,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { AlertCircle, Lock, Clock, User, RefreshCw, Home } from 'lucide-react'
 
 // 定义信息类型
-type InfoReason = 'no_token' | 'invalid_token' | 'expired_token' | 'no_permission'
+type InfoReason = 'no_token' | 'invalid_token' | 'expired_token' | 'no_permission' | 'page_not_found'
 
 // 信息配置
 const INFO_CONFIG = {
@@ -55,6 +55,17 @@ const INFO_CONFIG = {
     color: 'text-purple-600',
     bgColor: 'bg-purple-50',
     borderColor: 'border-purple-200',
+    showRefresh: false,
+    showUserInfo: true
+  },
+  page_not_found: {
+    icon: AlertCircle,
+    title: '页面未配置',
+    message: '您访问的页面未在系统中配置。',
+    description: '该页面可能尚未在权限系统中注册，请联系系统管理员配置。',
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-50',
+    borderColor: 'border-orange-200',
     showRefresh: false,
     showUserInfo: true
   }
@@ -181,7 +192,7 @@ function InfoPageContent() {
           <p className="text-xs text-gray-500">
             如果问题持续存在，请联系系统管理员
           </p>
-          {reason === 'no_permission' && (
+          {(reason === 'no_permission' || reason === 'page_not_found') && (
             <p className="text-xs text-gray-500 mt-1">
               管理员邮箱: admin@example.com
             </p>
