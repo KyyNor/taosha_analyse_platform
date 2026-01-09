@@ -164,9 +164,8 @@ class WideTableSyncService:
             hdfs_filepath = f"{wide_table_name}_{etl_date_str}"
 
             # 6. 执行Spark查询并保存为Parquet（这是耗时操作）
-            self._execute_sql_query(f"refresh table {self.source_table}")
             row_count, column_count, file_size = self._execute_spark_query_and_save(
-                sql, output_path, hdfs_filepath
+                sql, output_path, hdfs_filepath, refresh_sql = f"refresh table {self.source_table}"
             )
 
             # 7. 使用独立session更新Snapshot记录（status='ready'）
@@ -424,82 +423,6 @@ class WideTableSyncService:
 
         return result
 
-    def _execute_sql_query(
-        self,
-        sql: str,
-        return_type: str = 'dataframe'
-    ) -> Union[pd.DataFrame, List[Dict]]:
-        """纯粹执行SQL查询，不保存文件
-
-        支持两种模式：
-        1. PySpark模式：直接使用PySpark执行查询
-        2. JDBC模式：通过JDBC连接执行查询
-
-        Args:
-            sql: SQL查询语句
-            return_type: 返回类型，'dataframe' 或 'dict'
-
-        Returns:
-            DataFrame或字典列表
-        """
-        logger.info(f"执行SQL查询，返回类型: {return_type}")
-        logger.debug(f"SQL: {sql}")
-
-        if self._use_pyspark:
-            result_df = self._query_with_pyspark(sql)
-        else:
-            result_df = self._query_with_jdbc(sql)
-
-        # 根据return_type返回不同格式
-        if return_type == 'dict':
-            return result_df.to_dict('records')
-        else:
-            return result_df
-
-    def _query_with_pyspark(self, sql: str) -> pd.DataFrame:
-        """使用PySpark执行查询并返回DataFrame
-
-        Args:
-            sql: SQL查询语句
-
-        Returns:
-            pandas DataFrame
-        """
-        from utils.spark_utils import pyspark_service
-
-        logger.info("使用PySpark执行查询")
-
-        # 确保PySpark已初始化
-        if not pyspark_service.is_initialized():
-            logger.info("PySpark未初始化，正在初始化...")
-            if not pyspark_service.initialize():
-                raise RuntimeError("PySpark初始化失败，无法执行查询")
-
-        # 使用PySpark执行查询
-        spark_df = pyspark_service.execute_sql(sql)
-
-        logger.info(f"查询完成，返回 {len(spark_df)} 行")
-        return spark_df
-
-    def _query_with_jdbc(self, sql: str) -> pd.DataFrame:
-        """使用JDBC执行查询并返回DataFrame
-
-        Args:
-            sql: SQL查询语句
-
-        Returns:
-            pandas DataFrame
-        """
-        from utils.spark_utils import spark_utils
-
-        logger.info("使用JDBC执行查询")
-
-        # 执行查询
-        results = spark_utils.query_sql(sql, return_type='dict')
-
-        logger.info(f"查询完成，返回 {len(results)} 行")
-        return results
-
     def _build_pivot_sql(
         self,
         wide_table_name: str,
@@ -564,7 +487,8 @@ PIVOT (
         self,
         sql: str,
         output_path: Path,
-        hdfs_filepath: str
+        hdfs_filepath: str,
+        refresh_sql: str
     ) -> Tuple[int, int, int]:
         """执行Spark SQL并保存为Parquet
 
@@ -580,15 +504,23 @@ PIVOT (
             (row_count, column_count, file_size_bytes)
         """
         if self._use_pyspark:
-            return self._execute_with_pyspark(sql, output_path, hdfs_filepath)
+            from utils.spark_utils import PySparkService
+            _pyspark_service = PySparkService()
+            _pyspark_service.initialize()
+            r = self._execute_with_pyspark(sql, output_path, hdfs_filepath, _pyspark_service)
+            _pyspark_service.shutdown()
+            return r
         else:
+            from utils.spark_utils import spark_utils
+            spark_utils.query_sql(refresh_sql, return_type='dict')
             return self._execute_with_jdbc(sql, output_path)
     
     def _execute_with_pyspark(
         self,
         sql: str,
         output_path: Path,
-        hdfs_filepath: str
+        hdfs_filepath: str,
+        pyspark_service
     ) -> Tuple[int, int, int]:
         """使用PySpark执行查询并保存
         
@@ -599,8 +531,6 @@ PIVOT (
         Returns:
             (row_count, column_count, file_size_bytes)
         """
-        from utils.spark_utils import pyspark_service
-        
         logger.info(f"使用PySpark执行查询并保存到: {output_path}")
         
         # 确保PySpark已初始化
@@ -609,6 +539,8 @@ PIVOT (
             if not pyspark_service.initialize():
                 raise RuntimeError("PySpark初始化失败，无法执行查询")
         
+        if pyspark_service.spark is None or pyspark_service.spark._sc._jsc is None:
+            pyspark_service.initialize()
 
         # 执行SQL查询
         hdfs_file_path = f'/taosha/wide_tables/{hdfs_filepath}'

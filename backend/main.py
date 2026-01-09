@@ -140,53 +140,6 @@ async def _run_realtime_consumer(consumer):
         logger.error(f"实时数据消费服务运行异常: {e}", exc_info=True)
 
 
-async def _initialize_pyspark():
-    """初始化PySpark服务（如果配置启用）
-    
-    PySpark初始化是耗时操作，使用线程池执行避免阻塞事件循环
-    """
-    import asyncio
-    
-    if not getattr(settings, 'pyspark_enabled', False):
-        logger.info("PySpark未启用，跳过初始化")
-        return
-    
-    try:
-        logger.info("正在初始化PySpark服务...")
-        
-        def _init_pyspark():
-            from utils.spark_utils import pyspark_service
-            return pyspark_service.initialize()
-        
-        # 在线程池中初始化PySpark
-        success = await asyncio.to_thread(_init_pyspark)
-        
-        if success:
-            from utils.spark_utils import pyspark_service
-            status = pyspark_service.get_status()
-            logger.info(f"PySpark服务初始化成功: {status}")
-        else:
-            logger.warning("PySpark服务初始化失败，将使用JDBC模式")
-            
-    except Exception as e:
-        logger.error(f"PySpark初始化异常: {e}", exc_info=True)
-        logger.warning("将回退到JDBC模式进行Spark查询")
-
-
-async def _shutdown_pyspark():
-    """关闭PySpark服务"""
-    if not getattr(settings, 'pyspark_enabled', False):
-        return
-    
-    try:
-        logger.info("正在关闭PySpark服务...")
-        from utils.spark_utils import pyspark_service
-        pyspark_service.shutdown()
-        logger.info("PySpark服务已关闭")
-    except Exception as e:
-        logger.error(f"关闭PySpark服务失败: {e}", exc_info=True)
-
-
 async def _initialize_system_services():
     """初始化系统服务，包括向量数据库训练、元数据同步、可观测服务、PySpark
 
@@ -198,10 +151,6 @@ async def _initialize_system_services():
 
     try:
         logger.info("=== 开始系统服务初始化（仅此worker执行） ===")
-
-        # 初始化PySpark服务（如果配置启用）
-        await _initialize_pyspark()
-
 
         # 启动实时数据服务（如果配置启用）
         # 注意：在启动锁保护内启动，确保只有一个worker执行
@@ -376,9 +325,6 @@ async def lifespan(app: FastAPI):
                 logger.info("实时数据消费服务已停止")
             except Exception as e:
                 logger.error(f"停止实时数据消费服务失败: {e}", exc_info=True)
-
-        # 关闭PySpark服务
-        await _shutdown_pyspark()
 
         # 清理异步 Playwright 浏览器（每个worker都需要清理）
         if not settings.fine_report_disable_browser_init:

@@ -559,7 +559,7 @@ def _build_model_matching_sql(
 
     # 构建 SELECT 字段列表
     select_fields = [
-        "dep_acct_realtime_indicator.target_id                  AS realtime_target_id",
+        "ifnull(dep_acct_realtime_indicator.target_id, dep_acct_offline_indicator.target_id)            AS realtime_target_id",
         "dep_acct_offline_indicator.i_dep_acct_no_offline_00007 AS offline_cust_type",
         "dep_acct_realtime_indicator.etl_date                   AS realtime_etl_date",
         "dep_acct_realtime_indicator.*",  # 实时存款指标
@@ -572,8 +572,8 @@ def _build_model_matching_sql(
 
     # 构建 FROM 和 JOIN 子句
     join_clauses = [
-        f"FROM read_parquet('{realtime_wide_table_path}') AS dep_acct_realtime_indicator",
-        f"LEFT JOIN read_parquet('{dep_acct_offline_path}') AS dep_acct_offline_indicator",
+        f"FROM read_parquet('{dep_acct_offline_path}') AS dep_acct_offline_indicator",
+        f"LEFT JOIN read_parquet('{realtime_wide_table_path}') AS dep_acct_realtime_indicator",
         "    ON dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id"
     ]
 
