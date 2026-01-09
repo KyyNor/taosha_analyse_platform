@@ -104,8 +104,9 @@ class PermissionService:
 
         except Exception as e:
             logger.error(f"检查管理员权限时发生错误: {e}")
-            # 发生错误时降级为旧逻辑，确保系统可用性
-            return "淘沙管理员" in role_id_list or "taosha_admin" in role_id_list
+            # 发生错误时返回 False，不进行硬编码降级
+            # 系统应该完全依赖数据库中的 is_admin 字段
+            return False
 
 
 class EntityService:

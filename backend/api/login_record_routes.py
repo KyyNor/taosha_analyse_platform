@@ -28,6 +28,7 @@ class LoginRecordResponse(BaseModel):
     branch_name: str
     role_id_list: List[str]
     role_name_list: List[str]
+    is_admin: bool = False  # 是否为管理员（根据部门和角色的is_admin字段判断）
     last_login_time: str
     created_at: str
     updated_at: str
@@ -72,42 +73,53 @@ async def list_login_records(
     """
     try:
         with get_db_session() as db:
+            from services.permission_service import PermissionService
+
             login_service = LoginRecordService(db)
-            
+            permission_service = PermissionService(db)
+
             # 构建查询
             query = db.query(SystemLoginRecord)
-            
+
             # 应用过滤条件
             if user_id:
                 query = query.filter(SystemLoginRecord.user_id.like(f"%{user_id}%"))
-            
+
             if branch_no:
                 query = query.filter(SystemLoginRecord.branch_no == branch_no)
-            
+
             # 获取总数
             total = query.count()
-            
+
             # 应用分页和排序
             records = query.order_by(SystemLoginRecord.last_login_time.desc())\
                           .offset((page - 1) * page_size)\
                           .limit(page_size)\
                           .all()
-            
+
             # 转换响应格式
-            record_responses = [
-                LoginRecordResponse(
-                    user_id=record.user_id,
-                    user_name=record.user_name,
-                    branch_no=record.branch_no,
-                    branch_name=record.branch_name,
-                    role_id_list=record.role_id_list,
-                    role_name_list=record.role_name_list,
-                    last_login_time=record.last_login_time.isoformat(),
-                    created_at=record.created_at.isoformat(),
-                    updated_at=record.updated_at.isoformat()
+            record_responses = []
+            for record in records:
+                # 计算每个用户是否为管理员
+                is_admin = permission_service.is_admin_user(
+                    record.branch_no,
+                    record.role_id_list
                 )
-                for record in records
-            ]
+
+                record_responses.append(
+                    LoginRecordResponse(
+                        user_id=record.user_id,
+                        user_name=record.user_name,
+                        branch_no=record.branch_no,
+                        branch_name=record.branch_name,
+                        role_id_list=record.role_id_list,
+                        role_name_list=record.role_name_list,
+                        is_admin=is_admin,
+                        last_login_time=record.last_login_time.isoformat(),
+                        created_at=record.created_at.isoformat(),
+                        updated_at=record.updated_at.isoformat()
+                    )
+                )
             
             return LoginRecordListResponse(
                 records=record_responses,
@@ -136,15 +148,25 @@ async def get_user_login_record(
     """
     try:
         with get_db_session() as db:
+            from services.permission_service import PermissionService
+
             login_service = LoginRecordService(db)
+            permission_service = PermissionService(db)
+
             record = login_service.get_last_login(user_id)
-            
+
             if not record:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"用户 {user_id} 的登录记录不存在"
                 )
-            
+
+            # 计算用户是否为管理员
+            is_admin = permission_service.is_admin_user(
+                record.branch_no,
+                record.role_id_list
+            )
+
             return LoginRecordResponse(
                 user_id=record.user_id,
                 user_name=record.user_name,
@@ -152,6 +174,7 @@ async def get_user_login_record(
                 branch_name=record.branch_name,
                 role_id_list=record.role_id_list,
                 role_name_list=record.role_name_list,
+                is_admin=is_admin,
                 last_login_time=record.last_login_time.isoformat(),
                 created_at=record.created_at.isoformat(),
                 updated_at=record.updated_at.isoformat()
@@ -173,14 +196,18 @@ async def get_current_user_login_record(
 ):
     """
     获取当前用户的登录记录
-    
+
     用户可以查看自己的登录记录
     """
     try:
         with get_db_session() as db:
+            from services.permission_service import PermissionService
+
             login_service = LoginRecordService(db)
+            permission_service = PermissionService(db)
+
             record = login_service.get_last_login(current_user.user_id)
-            
+
             if not record:
                 # 如果没有记录，创建一个基于当前token信息的记录
                 record = login_service.record_login(
@@ -190,7 +217,13 @@ async def get_current_user_login_record(
                     branch_name=current_user.branch_name,
                     role_id_list=current_user.role_id_list
                 )
-            
+
+            # 计算用户是否为管理员（基于实体的is_admin字段）
+            is_admin = permission_service.is_admin_user(
+                record.branch_no,
+                record.role_id_list
+            )
+
             return LoginRecordResponse(
                 user_id=record.user_id,
                 user_name=record.user_name,
@@ -198,11 +231,12 @@ async def get_current_user_login_record(
                 branch_name=record.branch_name,
                 role_id_list=record.role_id_list,
                 role_name_list=record.role_name_list,
+                is_admin=is_admin,
                 last_login_time=record.last_login_time.isoformat(),
                 created_at=record.created_at.isoformat(),
                 updated_at=record.updated_at.isoformat()
             )
-            
+
     except Exception as e:
         logger.error(f"获取当前用户登录记录失败: {e}")
         raise HTTPException(

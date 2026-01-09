@@ -99,10 +99,9 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
 
     const userInfo = await userResponse.json()
 
-    // 2. 检查是否为管理员
-    const isAdmin = userInfo.role_id_list?.includes('ADMIN') ||
-                   userInfo.role_id_list?.includes('淘沙管理员') ||
-                   userInfo.role_id_list?.includes('taosha_admin')
+    // 2. 检查是否为管理员（完全依赖后端返回的 is_admin 字段）
+    // 后端会根据实体的 is_admin 字段进行判断，不再硬编码角色名称
+    const isAdmin = userInfo.is_admin === true
 
     // 3. 如果是管理员路径，直接检查管理员权限
     if (isAdminPath(pagePath)) {
