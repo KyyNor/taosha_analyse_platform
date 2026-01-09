@@ -223,48 +223,53 @@ function createRedirectWithTokenCookie(request: NextRequest, token: string, targ
  */
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
-  
+
   // 跳过公共路径
   if (isPublicPath(pathname)) {
     return NextResponse.next()
   }
-  
+
   // 获取token（支持SearchParam、Cookie、Header）
   const { token, fromSearchParam } = getTokenFromRequest(request)
-  
+
   // 如果没有token，重定向到info页面
   if (!token) {
     return createInfoRedirect(request, 'no_token')
   }
-  
+
   // 如果token来自SearchParam，先验证token，然后设置cookie并重定向
   if (fromSearchParam) {
     // 验证token
     const result = await checkTokenAndPermission(token, pathname)
-    
+
     if (!result.valid) {
       return createInfoRedirect(request, result.reason!, result.userInfo)
     }
-    
+
     // token有效，设置cookie并重定向到当前页面（去掉token参数）
     return createRedirectWithTokenCookie(request, token)
   }
-  
+
   // 验证token并检查权限
   const result = await checkTokenAndPermission(token, pathname)
-  
+
   if (!result.valid) {
     return createInfoRedirect(request, result.reason!, result.userInfo)
   }
-  
+
   // 如果是管理员路径但用户不是管理员
   if (isAdminPath(pathname) && !result.hasPageAccess) {
     return createInfoRedirect(request, 'no_permission', result.userInfo)
   }
-  
+
+  // 对于所有路径（包括管理员路径和普通页面），检查页面访问权限
+  if (result.hasPageAccess === false) {
+    return createInfoRedirect(request, result.reason || 'no_permission', result.userInfo)
+  }
+
   // 权限检查通过，继续处理请求
   const response = NextResponse.next()
-  
+
   // 在响应头中添加用户信息（可选，供页面组件使用）
   if (result.userInfo) {
     response.headers.set('X-User-ID', result.userInfo.user_id)
@@ -272,7 +277,7 @@ export async function middleware(request: NextRequest) {
     response.headers.set('X-Branch-Name', encodeURIComponent(result.userInfo.branch_name))
     response.headers.set('X-Is-Admin', result.isAdmin ? 'true' : 'false')
   }
-  
+
   return response
 }
 

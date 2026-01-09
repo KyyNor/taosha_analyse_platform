@@ -25,23 +25,23 @@ class PermissionService:
             # 获取部门实体
             dept_entity = self.repo.get_entity_by_code_and_type(branch_no, EntityType.DEPARTMENT)
             dept_entity_ids = [dept_entity.id] if dept_entity else []
-            
+
             # 获取角色实体
             role_entities = self.repo.get_entities_by_codes(role_id_list, EntityType.ROLE)
             role_entity_ids = [entity.id for entity in role_entities]
-            
+
             # 合并实体ID列表
             all_entity_ids = dept_entity_ids + role_entity_ids
-            
+
             if not all_entity_ids:
                 return set()
-            
+
             # 获取所有权限对应的页面路径
             page_paths = self.repo.get_page_paths_by_entity_ids(all_entity_ids)
-            
+
             logger.info(f"用户权限计算: 部门={branch_no}, 角色={role_id_list}, 权限页面数={len(page_paths)}")
             return page_paths
-            
+
         except Exception as e:
             logger.error(f"获取用户权限失败: {e}")
             return set()
@@ -54,19 +54,19 @@ class PermissionService:
             if not page_exists:
                 logger.debug(f"页面访问检查: 页面={page_path}, 页面不存在")
                 return False
-            
+
             # 管理员有所有存在页面的访问权限
-            if self.is_admin_user(role_id_list):
+            if self.is_admin_user(branch_no, role_id_list):
                 logger.debug(f"页面访问检查: 页面={page_path}, 管理员用户，允许访问")
                 return True
-            
+
             # 普通用户检查具体权限
             user_permissions = self.get_user_permissions(branch_no, role_id_list)
             has_access = page_path in user_permissions
-            
+
             logger.debug(f"页面访问检查: 页面={page_path}, 有权限={has_access}")
             return has_access
-            
+
         except Exception as e:
             logger.error(f"检查页面访问权限失败: {e}")
             return False
