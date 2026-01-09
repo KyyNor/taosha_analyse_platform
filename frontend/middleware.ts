@@ -134,18 +134,22 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
           isAdmin,
           hasPageAccess: false,
           userInfo,
-          reason: 'permission_check_failed'
+          reason: 'no_permission'  // 统一使用标准code
         }
       }
 
       const permissionData = await permissionResponse.json()
+
+      // 统一reason为标准code，确保info页面能正确显示提示
+      // 当has_access为false时，统一使用'no_permission'
+      const finalReason = permissionData.has_access ? undefined : 'no_permission'
 
       return {
         valid: true,
         isAdmin: permissionData.is_admin || isAdmin,
         hasPageAccess: permissionData.has_access,
         userInfo,
-        reason: permissionData.has_access ? undefined : (permissionData.reason || 'no_permission')
+        reason: finalReason
       }
 
     } catch (error) {
@@ -156,7 +160,7 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
         isAdmin,
         hasPageAccess: false,
         userInfo,
-        reason: 'permission_check_error'
+        reason: 'no_permission'  // 统一使用标准code
       }
     }
 
