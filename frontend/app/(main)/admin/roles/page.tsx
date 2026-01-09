@@ -50,9 +50,9 @@ interface RoleFormData {
   is_admin: boolean;
 }
 
-// 检查是否为系统角色
-const isSystemRole = (roleCode: string) => {
-  return roleCode === "淘沙管理员" || roleCode === "taosha_admin";
+// 检查是否为系统角色（基于is_admin字段）
+const isSystemRole = (role: Role) => {
+  return role.is_admin === true;
 };
 
 export default function RolesPage() {
@@ -84,7 +84,7 @@ export default function RolesPage() {
       // 添加 roleType 字段用于显示
       const roles = (response.entities || []).map((role: Role) => ({
         ...role,
-        roleType: isSystemRole(role.code) ? "system" : "custom",
+        roleType: isSystemRole(role) ? "system" : "custom",
       }));
       setData(roles);
     } catch (err) {
@@ -156,7 +156,7 @@ export default function RolesPage() {
   };
 
   const handleDeleteClick = (item: Role) => {
-    if (isSystemRole(item.code)) {
+    if (isSystemRole(item)) {
       toast.error("系统角色不可删除");
       return;
     }
@@ -374,9 +374,9 @@ export default function RolesPage() {
                     setFormData({ ...formData, name: e.target.value })
                   }
                   placeholder="请输入角色名称"
-                  disabled={selectedItem ? isSystemRole(selectedItem.code) : false}
+                  disabled={selectedItem ? isSystemRole(selectedItem) : false}
                 />
-                {selectedItem && isSystemRole(selectedItem.code) && (
+                {selectedItem && isSystemRole(selectedItem) && (
                   <p className="text-xs text-amber-600">系统角色名称不可修改</p>
                 )}
               </div>

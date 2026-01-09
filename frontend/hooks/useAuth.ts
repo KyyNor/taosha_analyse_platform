@@ -22,6 +22,7 @@ export interface UserInfo {
   branch_name: string
   role_id_list: string[]
   role_name_list: string[]
+  is_admin: boolean  // 是否为管理员（由后端根据实体的is_admin字段计算）
 }
 
 // 认证状态接口
@@ -108,7 +109,8 @@ async function validateTokenAndGetUser(token: string): Promise<{ valid: boolean;
         branch_no: data.branch_no,
         branch_name: data.branch_name,
         role_id_list: data.role_id_list,
-        role_name_list: data.role_name_list
+        role_name_list: data.role_name_list,
+        is_admin: data.is_admin || false
       }
     }
 
@@ -228,10 +230,8 @@ export function useAuth(): AuthState & {
     }
   }, [logout])
   
-  // 检查是否为管理员
-  const isAdmin = authState.user?.role_id_list.includes('ADMIN') || 
-                  authState.user?.role_id_list.includes('淘沙管理员') || 
-                  authState.user?.role_id_list.includes('taosha_admin') || false
+  // 检查是否为管理员（完全依赖后端返回的is_admin字段）
+  const isAdmin = authState.user?.is_admin || false
   
   return {
     ...authState,
@@ -268,12 +268,11 @@ export function usePagePermission(pagePath: string): PermissionResult {
     const isAdminPath = adminPaths.some(path => pagePath.startsWith(path))
     
     if (isAdminPath) {
-      const isAdmin = user?.role_id_list.includes('ADMIN') || 
-                     user?.role_id_list.includes('淘沙管理员') || 
-                     user?.role_id_list.includes('taosha_admin')
-      
+      // 使用后端返回的is_admin字段
+      const isAdmin = user?.is_admin || false
+
       setResult({
-        hasPermission: isAdmin || false,
+        hasPermission: isAdmin,
         loading: false,
         error: isAdmin ? undefined : 'Admin permission required'
       })
@@ -358,16 +357,15 @@ export function useRequireAuth(redirectTo: string = `${getBasePath()}/info?reaso
 export function useRequireAdmin(redirectTo: string = `${getBasePath()}/info?reason=no_permission`) {
   const { isAuthenticated, isLoading, user } = useAuth()
   const router = useRouter()
-  
-  const isAdmin = user?.role_id_list.includes('ADMIN') || 
-                 user?.role_id_list.includes('淘沙管理员') || 
-                 user?.role_id_list.includes('taosha_admin')
-  
+
+  // 使用后端返回的is_admin字段
+  const isAdmin = user?.is_admin || false
+
   useEffect(() => {
     if (!isLoading && isAuthenticated && !isAdmin) {
       router.push(redirectTo)
     }
   }, [isAuthenticated, isLoading, isAdmin, router, redirectTo])
-  
+
   return { isAuthenticated, isLoading, isAdmin }
 }
