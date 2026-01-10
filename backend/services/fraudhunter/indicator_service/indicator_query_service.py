@@ -4,9 +4,8 @@
 
 from typing import List, Dict, Optional, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
-from datetime import datetime
-import duckdb
+from sqlalchemy import desc, and_
+from datetime import datetime, date
 from pathlib import Path
 
 from models.fraudhunter.indicator import FraudHunterIndicatorDefinition
@@ -15,6 +14,7 @@ from models.fraudhunter.wide_table import (
     FraudHunterWideTableSnapshot
 )
 from utils.logger import logger
+from utils.analyze_db_utils import AnalyzeDBConnector
 
 
 class IndicatorQueryService:
@@ -134,8 +134,12 @@ class IndicatorQueryService:
             else:
                 display_label = f"{etl_date_str}(实时)"
 
-            # 获取文件名
-            file_name = Path(snapshot.parquet_file_path).name if snapshot.parquet_file_path else ''
+            # 获取表名/文件名
+            if snapshot.parquet_file_path:
+                # PG表名
+                file_name = snapshot.parquet_file_path
+            else:
+                file_name = ''
 
             files.append({
                 "id": snapshot.id,
@@ -257,38 +261,34 @@ class IndicatorQueryService:
             if snapshot.status != 'ready':
                 raise ValueError(f"快照状态不是ready，当前状态: {snapshot.status}")
 
-            # 2. 检查文件是否存在
-            file_path = Path(snapshot.parquet_file_path)
-            if not file_path.exists():
-                raise ValueError(f"文件不存在: {snapshot.parquet_file_path}")
-
-            parquet_path = snapshot.parquet_file_path
+            # 2. 获取PG表名
+            pg_table_name = snapshot.parquet_file_path
+            if not pg_table_name:
+                raise ValueError(f"快照未关联PG表: snapshot_id={request['snapshot_id']}")
 
             # 3. 获取指标信息用于构建SELECT字段和类型转换
             indicators = self.get_indicators_by_wide_table(snapshot.id)
             indicator_map = {ind['indicator_code']: ind for ind in indicators}
 
             # 4. 构建SQL查询
-            sql_query = self._build_query_sql(request, parquet_path, indicator_map)
-            count_sql = self._build_count_sql(request, parquet_path)
+            sql_query = self._build_query_sql(request, pg_table_name, snapshot.etl_date, indicator_map)
+            count_sql = self._build_count_sql(request, pg_table_name, snapshot.etl_date)
 
             logger.info(f"执行查询SQL: {sql_query[:500]}...")
 
             # 5. 执行查询
-            con = duckdb.connect(database=':memory:')
+            import pandas as pd
 
             # 获取总数
-            total_result = con.execute(count_sql).fetchone()
-            total_count = total_result[0] if total_result else 0
-            
+            total_df = AnalyzeDBConnector.execute_sql(count_sql, fetch_df=True)
+            total_count = int(total_df.iloc[0]['count']) if total_df is not None and not total_df.empty else 0
+
             # 执行分页查询
             if total_count > 0:
-                result_df = con.execute(sql_query).fetchdf()
-                items = self._convert_numpy_types(result_df.to_dict('records'))
+                result_df = AnalyzeDBConnector.execute_sql(sql_query, fetch_df=True)
+                items = self._convert_numpy_types(result_df.to_dict('records')) if result_df is not None else []
             else:
                 items = []
-
-            con.close()
 
             # 6. 格式化结果
             return {
@@ -299,7 +299,7 @@ class IndicatorQueryService:
             }
 
         except Exception as e:
-            logger.error(f"查询数据失败: {str(e)}")
+            logger.error(f"查询数据失败: {str(e)}", exc_info=True)
             raise
 
     def _get_cast_expression(self, field: str, data_type: str) -> str:
@@ -323,14 +323,16 @@ class IndicatorQueryService:
     def _build_query_sql(
         self,
         request: Dict[str, Any],
-        parquet_path: str,
+        pg_table_name: str,
+        etl_date: date,
         indicator_map: Dict[str, Dict]
     ) -> str:
-        """构建查询SQL - 直接从parquet文件查询，带中文别名
+        """构建查询SQL - 从PG表查询，带中文别名
 
         Args:
             request: 查询请求
-            parquet_path: parquet文件路径
+            pg_table_name: PG表名
+            etl_date: ETL日期
             indicator_map: 指标信息映射 {indicator_code: indicator_info}
 
         Returns:
@@ -356,8 +358,8 @@ class IndicatorQueryService:
 
         select_clause = ",\n    ".join(select_fields)
 
-        # 构建WHERE子句
-        where_conditions = ["1=1"]
+        # 构建WHERE子句 - 利用分区裁剪
+        where_conditions = [f"etl_date = '{etl_date}'"]
 
         # 添加target_id条件
         if request.get("target_id"):
@@ -391,12 +393,12 @@ class IndicatorQueryService:
         page_size = request.get("page_size", 100)
         offset = (page - 1) * page_size
 
-        # 构建完整SQL - 直接从parquet文件查询
-        sql = f"""SELECT
+        # 构建完整SQL - 从PG表查询
+        sql = f'''SELECT
     {select_clause}
-FROM read_parquet('{parquet_path}')
+FROM {pg_table_name}
 WHERE {where_clause}
-LIMIT {page_size} OFFSET {offset}"""
+LIMIT {page_size} OFFSET {offset}'''
 
         return sql
 
@@ -450,18 +452,19 @@ LIMIT {page_size} OFFSET {offset}"""
 
         return ""
 
-    def _build_count_sql(self, request: Dict[str, Any], parquet_path: str) -> str:
-        """构建计数SQL - 直接从parquet文件查询
+    def _build_count_sql(self, request: Dict[str, Any], pg_table_name: str, etl_date: date) -> str:
+        """构建计数SQL - 从PG表查询
 
         Args:
             request: 查询请求
-            parquet_path: parquet文件路径
+            pg_table_name: PG表名
+            etl_date: ETL日期
 
         Returns:
             SQL计数语句
         """
-        # 构建WHERE子句
-        where_conditions = ["1=1"]
+        # 构建WHERE子句 - 利用分区裁剪
+        where_conditions = [f"etl_date = '{etl_date}'"]
 
         # 添加target_id条件
         if request.get("target_id"):
@@ -505,7 +508,7 @@ LIMIT {page_size} OFFSET {offset}"""
 
         where_clause = " AND ".join(where_conditions)
 
-        return f"SELECT COUNT(*) FROM read_parquet('{parquet_path}') WHERE {where_clause}"
+        return f'SELECT COUNT(*) AS count FROM {pg_table_name} WHERE {where_clause}'
     
     def _convert_numpy_types(self, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """将numpy/pandas 类型转换成原生python类型

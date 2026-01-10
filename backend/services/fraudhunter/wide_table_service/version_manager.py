@@ -16,6 +16,7 @@ from models.fraudhunter.wide_table import (
 )
 from utils.logger import logger
 from utils.config import settings
+from utils.analyze_db_utils import AnalyzeDBPartitionManager, AnalyzeDBConnector
 
 
 class WideTableVersionManager:
@@ -247,6 +248,17 @@ class WideTableVersionManager:
         self.db.commit()
         self.db.refresh(new_version)
 
+        # 7. 自动创建PG表
+        pg_table_name = f"{wide_table_name}_v{version_hash[:8]}"
+        try:
+            AnalyzeDBPartitionManager.create_wide_table(
+                pg_table_name, indicator_metadata, is_realtime=False
+            )
+            logger.info(f"创建PG表成功: {pg_table_name}")
+        except Exception as e:
+            logger.error(f"创建PG表失败: {pg_table_name}, error={e}")
+            # 不影响版本创建流程,只记录错误
+
         logger.info(
             f"创建新版本成功: {wide_table_name}, "
             f"version_hash={version_hash[:16]}..., "
@@ -454,15 +466,15 @@ class WideTableVersionManager:
         self,
         history_version: FraudHunterWideTableVersion
     ) -> int:
-        """清理history版本的文件和记录
-        
-        删除物理文件并更新snapshot状态为deleted
-        
+        """清理history版本的PG表和记录
+
+        删除PG表并更新snapshot状态为deleted
+
         Args:
             history_version: 历史版本对象
-            
+
         Returns:
-            删除的文件数量
+            删除的快照数量
         """
         # 1. 获取该版本的所有快照
         snapshots = self.db.query(FraudHunterWideTableSnapshot).filter(
@@ -472,29 +484,26 @@ class WideTableVersionManager:
             )
         ).all()
 
-        deleted_count = 0
+        snapshot_count = len(snapshots)
 
+        # 2. 删除PG表
+        pg_table_name = f"{history_version.wide_table_name}_v{history_version.version_hash[:8]}"
+        try:
+            AnalyzeDBPartitionManager.drop_table(pg_table_name)
+            logger.info(f"删除历史版本PG表: {pg_table_name}")
+        except Exception as e:
+            logger.error(f"删除PG表失败 {pg_table_name}: {e}")
+
+        # 3. 更新快照状态为deleted
         for snapshot in snapshots:
-            # 2. 删除物理文件
-            if snapshot.parquet_file_path:
-                try:
-                    file_path = Path(snapshot.parquet_file_path)
-                    if file_path.exists():
-                        file_path.unlink()
-                        deleted_count += 1
-                        logger.info(f"删除历史版本文件: {file_path.name}")
-                except Exception as e:
-                    logger.error(f"删除文件失败 {snapshot.parquet_file_path}: {e}")
-
-            # 3. 更新快照状态为deleted
             snapshot.status = 'deleted'
 
         logger.info(
             f"清理版本 {history_version.version_hash[:8]} 完成, "
-            f"删除 {deleted_count} 个文件, 更新 {len(snapshots)} 条快照记录"
+            f"删除PG表: {pg_table_name}, 更新 {snapshot_count} 条快照记录"
         )
 
-        return deleted_count
+        return snapshot_count
 
     def get_version_by_status(
         self,

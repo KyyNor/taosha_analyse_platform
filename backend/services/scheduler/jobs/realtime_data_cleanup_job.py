@@ -3,12 +3,14 @@
 每日凌晨清理过期的实时数据
 """
 
-from pathlib import Path
+from datetime import date, timedelta
 
-import duckdb
-
-from utils.config import settings
+from models.db_base import get_db_session
+from models.fraudhunter.wide_table import FraudHunterWideTableSnapshot
+from sqlalchemy import and_
 from utils.logger import logger
+from utils.config import settings
+from utils.analyze_db_utils import AnalyzeDBPartitionManager
 
 
 async def realtime_data_cleanup_job():
@@ -18,33 +20,36 @@ async def realtime_data_cleanup_job():
         return
 
     try:
-        db_path = Path(settings.fraudhunter_realtime_data_storage_path) / "realtime_data.duckdb"
-
-        if not db_path.exists():
-            logger.warning(f"实时数据库文件不存在: {db_path}")
-            return
-
-        # 连接数据库
-        conn = duckdb.connect(str(db_path))
-
-        # 删除过期数据
         retention_days = settings.fraudhunter_realtime_data_retention_days
-        result = conn.execute(f"""
-            DELETE FROM realtime_oss_inct_new
-            WHERE tran_date < CURRENT_DATE - INTERVAL '{retention_days} days'
-        """)
 
-        # 获取删除的行数
-        deleted_rows = result.fetchone()
-        deleted_count = deleted_rows[0] if deleted_rows else 0
+        # 清理实时交易表的旧分区
+        deleted_transaction_partitions = AnalyzeDBPartitionManager.cleanup_old_partitions(
+            'realtime_oss_inct_new', retention_days
+        )
 
-        # VACUUM压缩文件
-        conn.execute("VACUUM")
+        # 清理实时宽表快照记录
+        cutoff_date = date.today() - timedelta(days=retention_days)
+        with get_db_session() as db:
+            # 查询过期的快照记录
+            expired_snapshots = db.query(FraudHunterWideTableSnapshot).filter(
+                and_(
+                    FraudHunterWideTableSnapshot.wide_table_name == 'dep_acct_wide_table_realtime',
+                    FraudHunterWideTableSnapshot.etl_date < cutoff_date
+                )
+            ).all()
 
-        # 关闭连接
-        conn.close()
+            # 删除快照记录
+            deleted_snapshot_count = len(expired_snapshots)
+            for snapshot in expired_snapshots:
+                db.delete(snapshot)
+            db.commit()
 
-        logger.info(f"实时数据清理完成: 删除 {deleted_count} 行，保留 {retention_days} 天数据")
+        logger.info(
+            f"实时数据清理完成: "
+            f"删除 {deleted_transaction_partitions} 个交易表分区, "
+            f"删除 {deleted_snapshot_count} 条快照记录, "
+            f"保留 {retention_days} 天数据"
+        )
 
     except Exception as e:
         logger.error(f"清理实时数据失败: {e}", exc_info=True)

@@ -11,7 +11,6 @@
 
 import asyncio
 import json
-import duckdb
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, date, timedelta
@@ -30,23 +29,29 @@ from schemas.fraudhunter.rule import RuleConfig, ConditionRule, GroupRule, Rule
 from services.fraudhunter.model_service.rule_engine import RuleEngine
 from services.fraudhunter.system_config_service import SystemConfigManager
 from utils.logger import logger
+from utils.analyze_db_utils import AnalyzeDBConnector
 
 
 @dataclass
 class VersionSelectionResult:
     """版本选择结果"""
     version_hash: str                           # 选中的版本hash
-    parquet_path: Optional[str]                 # 文件路径
+    parquet_path: Optional[str]                 # PG表名 (保留字段名以兼容现有代码)
     is_fallback: bool = False                   # 是否降级
     fallback_reason: Optional[str] = None       # 降级原因类型
     mismatched_indicators: List[Dict] = field(default_factory=list)  # 不匹配指标详情
     message: str = ""                           # 用户友好的提示信息
-    
+
+    @property
+    def pg_table_name(self) -> Optional[str]:
+        """获取PG表名 (别名)"""
+        return self.parquet_path
+
     def get_fallback_summary(self) -> str:
         """获取降级摘要信息"""
         if not self.is_fallback:
             return ""
-        
+
         lines = [f"[版本降级] 使用target版本宽表，原因: {self.fallback_reason}"]
         for ind in self.mismatched_indicators:
             lines.append(f"  - {ind.get('indicator_code')}: {ind.get('message')}")
@@ -381,45 +386,45 @@ class ModelExecutor:
         self,
         db: Session,
         model: FraudHunterModelDefinition,
-        dep_acct_realtime_parquet_path: str,
-        dep_acct_offline_parquet_path: str,
-        cust_offline_parquet_path: str,
+        dep_acct_realtime_table_name: str,
+        dep_acct_offline_table_name: str,
+        cust_offline_table_name: str,
         etl_date: date
     ) -> str:
         """生成历史回测SQL
-        
+
         SQL结构：
         - 实时指标使用当天的存款宽表（dep_acct_no_realtime_indicator）
         - 离线指标使用前一天的存款宽表（dep_acct_no_offline_indicator）
         - 客户离线指标使用前一天的客户宽表（cust_offline_indicator）
-        
+
         Args:
             db: 数据库会话
             model: 模型定义
-            dep_acct_realtime_parquet_path: 实时（当天）存款宽表parquet路径
-            dep_acct_offline_parquet_path: 离线（前一天）存款宽表parquet路径
-            cust_offline_parquet_path: 离线（前一天）客户宽表parquet路径
+            dep_acct_realtime_table_name: 实时（当天）存款宽表PG表名
+            dep_acct_offline_table_name: 离线（前一天）存款宽表PG表名
+            cust_offline_table_name: 离线（前一天）客户宽表PG表名
             etl_date: 执行日期
-            
+
         Returns:
             回测SQL语句
         """
         rule_config_dict = model.rule_config
-        
+
         # 将 Dict 转换为 RuleConfig 模型
         rule_config = RuleConfig(**rule_config_dict)
-        
+
         # 使用 RuleEngine 构建指标别名映射并生成 WHERE 子句
         rule_engine = RuleEngine(db=db)  # 传入数据库会话以获取指标中文名
         indicator_alias_mapping = rule_engine.build_indicator_alias_mapping(
             rule_config,
             use_alias=True
         )
-        
+
         # 生成SELECT子句
         select_fields = [f'dep_acct_realtime_indicator.target_id as "账号"']
         select_fields.append(f'dep_acct_realtime_indicator.etl_date as "实时数据日期"')
-        
+
         # 根据别名映射添加字段，使用中文别名（实时指标带[实时]前缀）
         if indicator_alias_mapping:
             for indicator, alias in indicator_alias_mapping.items():
@@ -428,13 +433,13 @@ class ModelExecutor:
                 # 获取指标的中文显示名称（实时指标带[实时]前缀）
                 display_name = rule_engine._get_indicator_display_name(indicator)
                 select_fields.append(f'{alias}.{indicator} AS "{display_name}"')
-        
+
         select_clause = ",\n    ".join(select_fields)
-        
+
         # 生成WHERE子句，使用 RuleEngine
         where_clause = rule_engine.generate_sql_expression(rule_config, indicator_alias_mapping)
-        
-        # 生成完整SQL
+
+        # 生成完整SQL - 使用PG表
         sql = f"""-- 模型历史回测SQL
 -- 模型: {model.model_code} ({model.model_name})
 -- 执行日期: {etl_date.strftime('%Y-%m-%d')}
@@ -442,13 +447,13 @@ class ModelExecutor:
 SELECT
     {select_clause}
 FROM
-    read_parquet('{dep_acct_realtime_parquet_path}') as dep_acct_realtime_indicator
+    {dep_acct_realtime_table_name} as dep_acct_realtime_indicator
 LEFT JOIN
-    read_parquet('{dep_acct_offline_parquet_path}') as dep_acct_offline_indicator
+    {dep_acct_offline_table_name} as dep_acct_offline_indicator
 ON
     dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id
 LEFT JOIN
-    read_parquet('{cust_offline_parquet_path}') as cust_offline_indicator
+    {cust_offline_table_name} as cust_offline_indicator
 ON
     dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id
 WHERE
@@ -591,28 +596,28 @@ LIMIT 10000
                         results['version_fallbacks']
                     )
                 
-                dep_acct_realtime_parquet = dep_acct_realtime_result.parquet_path
-                dep_acct_offline_parquet = dep_acct_offline_result.parquet_path
-                cust_offline_parquet = cust_offline_result.parquet_path
+                dep_acct_realtime_table = dep_acct_realtime_result.pg_table_name
+                dep_acct_offline_table = dep_acct_offline_result.pg_table_name
+                cust_offline_table = cust_offline_result.pg_table_name
 
-                if not dep_acct_realtime_parquet:
-                    warning_msg = f"日期 {current_date} 的宽表文件不存在，跳过"
+                if not dep_acct_realtime_table:
+                    warning_msg = f"日期 {current_date} 的宽表不存在，跳过"
                     logger.warning(warning_msg)
                     results['warnings'].append(warning_msg)
                     results['skipped_days'] += 1
                     day_result['status'] = 'skipped'
-                    day_result['message'] = '当天宽表文件不存在'
+                    day_result['message'] = '当天宽表不存在'
                     results['daily_results'].append(day_result)
                     current_date += timedelta(days=1)
                     continue
 
-                if not dep_acct_offline_parquet or not cust_offline_parquet:
-                    warning_msg = f"日期 {previous_date} 的宽表文件不存在（用于离线指标），跳过 {current_date}"
+                if not dep_acct_offline_table or not cust_offline_table:
+                    warning_msg = f"日期 {previous_date} 的宽表不存在（用于离线指标），跳过 {current_date}"
                     logger.warning(warning_msg)
                     results['warnings'].append(warning_msg)
                     results['skipped_days'] += 1
                     day_result['status'] = 'skipped'
-                    day_result['message'] = '前一天宽表文件不存在'
+                    day_result['message'] = '前一天宽表不存在'
                     results['daily_results'].append(day_result)
                     current_date += timedelta(days=1)
                     continue
@@ -621,12 +626,12 @@ LIMIT 10000
                 sql = self._generate_backtest_sql(
                     db,
                     model,
-                    dep_acct_realtime_parquet,
-                    dep_acct_offline_parquet,
-                    cust_offline_parquet,
+                    dep_acct_realtime_table,
+                    dep_acct_offline_table,
+                    cust_offline_table,
                     current_date
                 )
-                
+
                 logger.info(f"模型sql已生成：{sql[:200]} ..................................... {sql[-200:]}")
 
                 results['generated_sqls'].append({
@@ -634,17 +639,17 @@ LIMIT 10000
                     'sql': sql
                 })
 
-                # 执行SQL（使用DuckDB执行）
-                with duckdb.connect(":memory:") as duckdb_con:
-                    execute_result = duckdb_con.execute(sql).df()
+                # 执行SQL（使用PG执行）
+                execute_result_df = AnalyzeDBConnector.execute_sql(sql, fetch_df=True)
+                execute_result = execute_result_df if execute_result_df is not None else None
 
                 day_result['status'] = 'success'
                 day_result['message'] = '执行成功'
-                day_result['rows_matched'] = len(execute_result)
+                day_result['rows_matched'] = len(execute_result) if execute_result is not None else 0
                 results['success_days'] += 1
 
                 # 收集命中记录到结果集
-                if len(execute_result) > 0:
+                if execute_result is not None and len(execute_result) > 0:
                     records = execute_result.to_dict('records')
                     # 为每条记录添加白名单标记
                     for record in records:
