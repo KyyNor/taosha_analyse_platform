@@ -437,13 +437,14 @@ async def generate_realtime_wide_table_job():
 
                 # 3.3 处理命中记录（生成告警管控记录）
                 # 白名单账号不触发告警和管控，但仍记录
-                manager.hit_record_processor(hit_record, is_whitelist=is_whitelist, cust_type=cust_type)
+                alert_control_record = manager.hit_record_processor(hit_record, is_whitelist=is_whitelist, cust_type=cust_type)
 
                 whitelist_tag = "[白名单]" if is_whitelist else ""
-                logger.info(
-                    f"账户 {account_id} {whitelist_tag}命中 {len(hit_models)} 个模型: "
-                    f"{[m.model_name for m in hit_models]}"
-                )
+                if alert_control_record.alert_status != "duplicate" or alert_control_record.control_status != "duplicate":
+                    logger.info(
+                        f"账户 {account_id} {whitelist_tag}命中 {len(hit_models)} 个模型: "
+                        f"{[m.model_name for m in hit_models]}"
+                    )
 
             # 3.6 更新执行记录的统计信息
             execution_record.execution_end_time = datetime.now()

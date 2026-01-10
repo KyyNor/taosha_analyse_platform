@@ -215,7 +215,7 @@ async def export_alert_control_records(
     alert_status: Optional[str] = Query(None, description="告警状态：not_configured/sent/duplicate"),
     control_status: Optional[str] = Query(None, description="管控状态：not_configured/executed/duplicate"),
     search: Optional[str] = Query(None, description="搜索关键词"),
-
+    hide_inactive:Optional[bool] = Query(None, description="隐藏无效记录"),
     db: Session = Depends(get_db)
 ):
     """
@@ -281,7 +281,8 @@ async def export_alert_control_records(
             model_name=model_name,
             alert_status=alert_status,
             control_status=control_status,
-            search=search
+            search=search,
+            hide_inactive=hide_inactive
         )
 
         # 导出数据

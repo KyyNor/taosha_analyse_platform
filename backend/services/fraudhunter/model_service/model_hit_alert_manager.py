@@ -96,7 +96,7 @@ class ModelHitAlertManager:
         self.db.add(hit_record)
         self.db.flush()  # 获取ID但不提交事务
 
-        logger.info(f"创建命中记录: account_id={account_id}, models={hit_model_ids}, hit_time={hit_time}, execution_id={execution_id}")
+        logger.debug(f"创建命中记录: account_id={account_id}, models={hit_model_ids}, hit_time={hit_time}, execution_id={execution_id}")
 
         return hit_record
 
@@ -269,8 +269,9 @@ class ModelHitAlertManager:
         self.db.add(alert_control_record)
         self.db.flush()
 
-        logger.info(f"处理命中记录完成: hit_record_id={hit_record.id}, account_id={hit_record.account_id}, "
-                   f"alert_status={alert_control_record.alert_status}, control_status={alert_control_record.control_status}")
+        if alert_control_record.alert_status != "duplicate" or alert_control_record.control_status != "duplicate":
+            logger.info(f"处理命中记录完成: hit_record_id={hit_record.id}, account_id={hit_record.account_id}, "
+                    f"alert_status={alert_control_record.alert_status}, control_status={alert_control_record.control_status}")
 
         return alert_control_record
 
@@ -561,10 +562,11 @@ class ModelHitAlertManager:
         # 查询所有符合条件的记录
         query = self.db.query(FraudHunterModelAlertControlRecord)
         query = self._apply_filters(query, filters)
-        records = query.order_by(FraudHunterModelAlertControlRecord.created_at.desc()).all()
+        records = query.order_by(FraudHunterModelAlertControlRecord.created_at.desc()).limit(5000).all()
 
         # 准备导出数据
         export_data = []
+        logger.info(f"export records len : {len(records)}")
         for record in records:
             # 将JSON数组转换为逗号分隔的字符串
             model_ids_str = ','.join(map(str, record.hit_model_ids)) if record.hit_model_ids else ''
