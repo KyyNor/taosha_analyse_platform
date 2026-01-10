@@ -286,9 +286,12 @@ class ModelHitAlertManager:
             已发送告警的模型ID列表
         """
         # 查询当天该账号的所有告警记录
+        from datetime import timedelta
+        date_range = [date - timedelta(days=i) for i in range(3)]  # 今天、昨天、前天
+
         alert_records = self.db.query(FraudHunterModelAlertControlRecord).filter(
             FraudHunterModelAlertControlRecord.account_id == account_id,
-            FraudHunterModelAlertControlRecord.record_date == date,
+            FraudHunterModelAlertControlRecord.record_date.in_(date_range),
             FraudHunterModelAlertControlRecord.alert_status.in_(['sent', 'duplicate'])
         ).all()
 
@@ -311,9 +314,12 @@ class ModelHitAlertManager:
             是否重复管控
         """
         # 查询当天是否已有管控记录
+        from datetime import timedelta
+        date_range = [date - timedelta(days=i) for i in range(3)]  # 今天、昨天、前天
+
         existing_control = self.db.query(FraudHunterModelAlertControlRecord).filter(
             FraudHunterModelAlertControlRecord.account_id == account_id,
-            FraudHunterModelAlertControlRecord.record_date == date,
+            FraudHunterModelAlertControlRecord.record_date.in_(date_range),
             FraudHunterModelAlertControlRecord.control_status.in_(['executed', 'duplicate'])
         ).first()
         
