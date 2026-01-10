@@ -210,12 +210,24 @@ class ConfigManager:
 
 
             # FraudHunter配置
+            fraudhunter_analyze_db: dict = self._config_data.get('fraudhunter', {}).get('analyze_db', {
+                'db_type': 'postgresql',
+                'postgresql': {
+                    'host': '127.0.0.1',
+                    'port': 5432,
+                    'database': 'taosha_fraudhunter',
+                    'user': 'taosha',
+                    'password': '',
+                    'pool_size': 10,
+                    'max_overflow': 20,
+                    'pool_recycle': 3600,
+                    'pool_pre_ping': True
+                }
+            })
             fraudhunter_wide_table_storage_path: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('storage_path', './wide_tables')
             fraudhunter_wide_table_sync_lookback_days: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('sync_lookback_days', 30)
             fraudhunter_wide_table_sync_scheduler_interval: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('sync_scheduler_interval', 600)
             fraudhunter_wide_table_source_table: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('source_table', 'hxb_dh_data_dwm.dwm_taosha_indicator_details')
-            fraudhunter_wide_table_duckdb_config_memory_limit: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb_config', {}).get('memory_limit', '4GB')
-            fraudhunter_wide_table_duckdb_config_threads: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb_config', {}).get('threads', 4)
 
             # FraudHunter 实时数据配置
             fraudhunter_realtime_data_enabled: bool = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('enabled', False)
@@ -230,6 +242,7 @@ class ConfigManager:
             fraudhunter_realtime_kafka_auto_offset_reset: str = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('kafka', {}).get('consumer', {}).get('auto_offset_reset', 'earliest')
             fraudhunter_realtime_writer_buffer_size: int = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('writer', {}).get('buffer_size', 2000)
             fraudhunter_realtime_writer_flush_interval: int = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('writer', {}).get('flush_interval_seconds', 120)
+            fraudhunter_realtime_writer_batch_insert_size: int = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('writer', {}).get('batch_insert_size', 1000)
             fraudhunter_alert_control_control_api_url: str = self._config_data.get('fraudhunter', {}).get('alert_control', {}).get('control_api_url', 'http://125.15.15.15:7799/sspd')
             fraudhunter_alert_control_message_api_url: str = self._config_data.get('fraudhunter', {}).get('alert_control', {}).get('message_api_url', 'http://125.15.15.15:7799/sendwx')
 
