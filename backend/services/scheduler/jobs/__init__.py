@@ -8,6 +8,8 @@ from .realtime_indicator_job import generate_realtime_wide_table_job
 from .metadata_sync_job import metadata_sync_job
 from .fine_report_sync_job import fine_report_sync_job
 from .vector_training_job import vector_training_job
+from .realtime_data_cleanup_job import realtime_data_cleanup_job
+from .parquet_file_cleanup_job import parquet_file_cleanup_job
 
 __all__ = [
     'sync_all_wide_tables_job',
@@ -15,4 +17,6 @@ __all__ = [
     'metadata_sync_job',
     'fine_report_sync_job',
     'vector_training_job',
+    'realtime_data_cleanup_job',
+    'parquet_file_cleanup_job',
 ]

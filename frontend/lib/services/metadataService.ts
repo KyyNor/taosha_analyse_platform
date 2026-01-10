@@ -88,46 +88,6 @@ export async function deleteGlossaryTerm(termId: number) {
   return res.data;
 }
 
-// 数据主题管理
-export async function getThemes(params?: { page?: number; page_size?: number; theme_type?: string }) {
-  const res = await api.get("/metadata/themes", { params });
-  return res.data;
-}
-
-export async function getThemeById(themeId: number) {
-  const res = await api.get(`/metadata/themes/${themeId}`);
-  return res.data;
-}
-
-export async function createTheme(data: any) {
-  const res = await api.post("/metadata/themes", data);
-  return res.data;
-}
-
-export async function updateTheme(themeId: number, data: any) {
-  const res = await api.put(`/metadata/themes/${themeId}`, data);
-  return res.data;
-}
-
-export async function deleteTheme(themeId: number) {
-  const res = await api.delete(`/metadata/themes/${themeId}`);
-  return res.data;
-}
-
-export async function getThemeTables(themeId: number) {
-  const res = await api.get(`/metadata/themes/${themeId}/tables`);
-  return res.data;
-}
-
-export async function addTableToTheme(themeId: number, tableId: number) {
-  const res = await api.post(`/metadata/themes/${themeId}/tables`, { table_id: tableId });
-  return res.data;
-}
-
-export async function removeTableFromTheme(themeId: number, tableId: number) {
-  const res = await api.delete(`/metadata/themes/${themeId}/tables/${tableId}`);
-  return res.data;
-}
 
 // 提示词模板管理
 export async function getPromptTemplates(params?: { page?: number; page_size?: number }) {

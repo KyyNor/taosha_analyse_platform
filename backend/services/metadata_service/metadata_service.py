@@ -9,8 +9,7 @@ from sqlalchemy.orm import Session
 from repositories import (
     MetadataTableRepository, MetadataColumnRepository,
     GlossaryTermRepository, PromptTemplateRepository,
-    RelationFieldConfigRepository, DataThemeRepository,
-    ThemeTableRelationRepository
+    RelationFieldConfigRepository
 )
 from utils.logger import logger
 
@@ -93,11 +92,14 @@ class MetadataService:
         is_available: Optional[str] = None,
         include_fields: Optional[bool] = True,
         table_name_filter: Optional[str] = None,
-        search_query: Optional[str] = None
+        search_query: Optional[str] = None,
+        order_by: Optional[str] = None,
+        order_direction: Optional[str] = "asc"
     ) -> Dict[str, Any]:
         """分页获取表信息列表"""
         try:
             from models.metadata_models import MetadataTable
+            from sqlalchemy import asc, desc
             query = self.db.query(MetadataTable)
 
             # 应用过滤条件
@@ -115,6 +117,14 @@ class MetadataService:
                     MetadataTable.remark.like(f"%{search_query}%")
                 )
                 query = query.filter(search_filter)
+
+            # 应用排序
+            if order_by and hasattr(MetadataTable, order_by):
+                order_column = getattr(MetadataTable, order_by)
+                if order_direction and order_direction.lower() == "desc":
+                    query = query.order_by(desc(order_column))
+                else:
+                    query = query.order_by(asc(order_column))
 
             # 计算总数
             total = query.count()
@@ -1156,262 +1166,6 @@ class PromptTemplateService:
             return False
 
 
-class DataThemeService:
-    """数据主题管理服务"""
-
-    def __init__(self, db: Session):
-        self.db = db
-        self.theme_repo = DataThemeRepository(db)
-        self.relation_repo = ThemeTableRelationRepository(db)
-        self.table_repo = MetadataTableRepository(db)
-
-    def get_all_themes(self) -> List[Dict[str, Any]]:
-        """获取所有数据主题"""
-        try:
-            themes = self.theme_repo.get_all()
-            return [
-                {
-                    "id": theme.id,
-                    "theme_name": theme.theme_name,
-                    "theme_description": theme.theme_description or "",
-                    "theme_type": theme.theme_type,
-                    "department": theme.department or "",
-                    "created_at": theme.created_at,
-                    "updated_at": theme.updated_at
-                }
-                for theme in themes
-            ]
-        except Exception as e:
-            logger.error(f"获取数据主题失败: {e}")
-            return []
-
-    def get_themes_paginated(self, page: int = 1, page_size: int = 20, search_query: Optional[str] = None) -> Dict[str, Any]:
-        """分页获取数据主题列表"""
-        try:
-            from models.theme_models import DataTheme
-            query = self.db.query(DataTheme)
-
-            # 应用搜索条件（模糊匹配主题名称、描述和部门）
-            if search_query:
-                from sqlalchemy import or_
-                search_filter = or_(
-                    DataTheme.theme_name.like(f"%{search_query}%"),
-                    DataTheme.theme_description.like(f"%{search_query}%"),
-                    DataTheme.department.like(f"%{search_query}%")
-                )
-                query = query.filter(search_filter)
-
-            # 计算总数
-            total = query.count()
-
-            # 应用分页
-            offset = (page - 1) * page_size
-            result = {'items': query.offset(offset).limit(page_size).all(), 'total': total, 'page': page, 'page_size': page_size}
-
-            themes_list = []
-            for theme in result['items']:
-                themes_list.append({
-                    "id": theme.id,
-                    "theme_name": theme.theme_name,
-                    "theme_description": theme.theme_description or "",
-                    "theme_type": theme.theme_type,
-                    "department": theme.department or "",
-                    "created_at": theme.created_at,
-                    "updated_at": theme.updated_at
-                })
-
-            return {
-                'items': themes_list,
-                'total': result['total'],
-                'page': result['page'],
-                'page_size': result['page_size']
-            }
-        except Exception as e:
-            logger.error(f"分页获取数据主题失败: {e}")
-            return {'items': [], 'total': 0, 'page': page, 'page_size': page_size}
-
-    def get_theme_by_id(self, theme_id: int) -> Optional[Dict[str, Any]]:
-        """根据ID获取数据主题"""
-        try:
-            theme = self.theme_repo.get_by_id(theme_id)
-            if theme:
-                return {
-                    "id": theme.id,
-                    "theme_name": theme.theme_name,
-                    "theme_description": theme.theme_description or "",
-                    "theme_type": theme.theme_type,
-                    "department": theme.department or "",
-                    "created_at": theme.created_at,
-                    "updated_at": theme.updated_at
-                }
-            return None
-        except Exception as e:
-            logger.error(f"获取数据主题失败: {e}")
-            return None
-
-    def get_theme_by_name(self, theme_name: str) -> Optional[Dict[str, Any]]:
-        """根据名称获取数据主题"""
-        try:
-            theme = self.theme_repo.get_by_name(theme_name)
-            if theme:
-                return self.get_theme_by_id(theme.id)
-            return None
-        except Exception as e:
-            logger.error(f"获取数据主题失败: {e}")
-            return None
-
-    def add_theme(self, theme_name: str, theme_description: str = "", theme_type: str = "normal", department: str = "") -> Optional[Dict[str, Any]]:
-        """添加数据主题"""
-        try:
-            # 检查通用主题唯一性
-            if theme_type == "public":
-                existing_public = self.get_public_theme()
-                if existing_public:
-                    logger.error("通用主题已存在，只能创建一个")
-                    return None
-
-            theme = self.theme_repo.create(
-                theme_name=theme_name,
-                theme_description=theme_description,
-                theme_type=theme_type,
-                department=department
-            )
-
-            # 转换为字典格式返回
-            theme_dict = {
-                "id": theme.id,
-                "theme_name": theme.theme_name,
-                "theme_description": theme.theme_description or "",
-                "theme_type": theme.theme_type,
-                "department": theme.department or "",
-                "created_at": theme.created_at,
-                "updated_at": theme.updated_at
-            }
-
-            logger.info(f"添加数据主题成功: {theme_name}")
-            return theme_dict
-
-        except Exception as e:
-            logger.error(f"添加数据主题失败: {e}")
-            return None
-
-    def update_theme(self, theme_id: int, theme_name: str = None, theme_description: str = None,
-                     theme_type: str = None, department: str = None) -> bool:
-        """更新数据主题"""
-        try:
-            # 获取当前主题信息
-            current_theme = self.get_theme_by_id(theme_id)
-            if not current_theme:
-                logger.error(f"主题不存在: ID {theme_id}")
-                return False
-
-            # 检查通用主题唯一性
-            if theme_type == "public" and current_theme.get("theme_type") != "public":
-                existing_public = self.get_public_theme()
-                if existing_public and existing_public.get("id") != theme_id:
-                    logger.error("通用主题已存在，只能创建一个")
-                    return False
-
-            # 准备更新数据
-            update_data = {}
-            if theme_name is not None:
-                update_data['theme_name'] = theme_name
-            if theme_description is not None:
-                update_data['theme_description'] = theme_description
-            if theme_type is not None:
-                update_data['theme_type'] = theme_type
-            if department is not None:
-                update_data['department'] = department
-
-            if update_data:
-                self.theme_repo.update(theme_id, **update_data)
-
-            logger.info(f"更新数据主题成功: ID {theme_id}")
-            return True
-
-        except Exception as e:
-            logger.error(f"更新数据主题失败: {e}")
-            return False
-
-    def delete_theme(self, theme_id: int) -> bool:
-        """删除数据主题"""
-        try:
-            self.theme_repo.delete(theme_id)
-            logger.info(f"删除数据主题成功: ID {theme_id}")
-            return True
-
-        except Exception as e:
-            logger.error(f"删除数据主题失败: {e}")
-            return False
-
-    def get_public_theme(self) -> Optional[Dict[str, Any]]:
-        """获取通用主题"""
-        try:
-            theme = self.theme_repo.get_public_theme()
-            if theme:
-                return self.get_theme_by_id(theme.id)
-            return None
-        except Exception as e:
-            logger.error(f"获取通用主题失败: {e}")
-            return None
-
-    def get_theme_tables(self, theme_id: int) -> List[Dict[str, Any]]:
-        """获取主题下的表"""
-        try:
-            relations = self.relation_repo.get_by_theme_id(theme_id)
-
-            tables = []
-            for relation in relations:
-                table = self.table_repo.get_by_id(relation.table_id)
-                if table:
-                    tables.append({
-                        "id": table.id,
-                        "name": table.name,
-                        "comment": table.comment or "",
-                        "is_available": int(table.is_available or 0),
-                        "created_at": table.created_at,
-                        "updated_at": table.updated_at
-                    })
-
-            return tables
-        except Exception as e:
-            logger.error(f"获取主题表失败: {e}")
-            return []
-
-    def add_table_to_theme(self, theme_id: int, table_id: int) -> bool:
-        """添加表到主题"""
-        try:
-            # 检查表是否存在
-            table = self.table_repo.get_by_id(table_id)
-            if not table:
-                logger.error(f"表不存在: ID {table_id}")
-                return False
-
-            # 检查关联是否已存在
-            existing_relation = self.relation_repo.get_relation(theme_id, table_id)
-            if existing_relation:
-                logger.info(f"表已存在于主题中: 主题{theme_id}, 表{table_id}")
-                return True
-
-            self.relation_repo.add_table_to_theme(theme_id, table_id)
-            logger.info(f"添加表到主题成功: 主题{theme_id}, 表{table_id}")
-            return True
-
-        except Exception as e:
-            logger.error(f"添加表到主题失败: {e}")
-            return False
-
-    def remove_table_from_theme(self, theme_id: int, table_id: int) -> bool:
-        """从主题中移除表"""
-        try:
-            success = self.relation_repo.remove_table_from_theme(theme_id, table_id)
-            if success:
-                logger.info(f"从主题中移除表成功: 主题{theme_id}, 表{table_id}")
-            return success
-
-        except Exception as e:
-            logger.error(f"从主题中移除表失败: {e}")
-            return False
 
 
 # 全局服务实例
@@ -1419,7 +1173,6 @@ _metadata_service: Optional[MetadataService] = None
 _glossary_service: Optional[GlossaryService] = None
 _relation_field_config_service: Optional[RelationFieldConfigService] = None
 _prompt_template_service: Optional[PromptTemplateService] = None
-_data_theme_service: Optional[DataThemeService] = None
 
 def get_metadata_service(db: Optional[Session] = None) -> MetadataService:
     """获取元数据服务实例"""
@@ -1465,13 +1218,3 @@ def get_prompt_template_service(db: Optional[Session] = None) -> PromptTemplateS
         _prompt_template_service = PromptTemplateService(SessionLocal())
     return _prompt_template_service
 
-def get_data_theme_service(db: Optional[Session] = None) -> DataThemeService:
-    """获取数据主题服务实例"""
-    if db:
-        # 如果提供了db，直接返回新实例
-        return DataThemeService(db)
-    global _data_theme_service
-    if _data_theme_service is None:
-        from models.db_base import SessionLocal
-        _data_theme_service = DataThemeService(SessionLocal())
-    return _data_theme_service

@@ -23,6 +23,9 @@ import {
   ComparisonTable,
   ComparisonTableSkeleton,
   ComparisonTableError,
+  Table,
+  TableSkeleton,
+  TableError,
   TodoList,
   ToolResult,
   type LineChartProps,
@@ -30,6 +33,7 @@ import {
   type BarChartProps,
   type TreemapChartProps,
   type ComparisonTableProps,
+  type TableProps,
   type TodoListProps
 } from "@/components/generative_ui";
 import { Sparkles, Brain, ChevronUp, ChevronDown } from "lucide-react";
@@ -105,7 +109,7 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
         }
       }
 
-      // TodoList 工具结果 - 在此处不渲染，稍后统一渲染
+      // TodoList 工具结果 - 特殊处理，不在此处渲染，稍后统一渲染
       if (part.toolName === 'todo_list_tool') {
         return null;
       }
@@ -335,6 +339,65 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
         }
       }
 
+      // 特殊处理表格工具 - 渲染表格组件
+      if (part.toolName === 'create_table') {
+        const result = part.result as any;
+
+        // 处理工具结果的嵌套结构
+        let tableData = result;
+
+        // 如果结果包含content字段，则提取实际的表格数据
+        if (result && result.content && typeof result.content === 'object') {
+          tableData = result.content;
+        }
+
+        // 检查是否有错误
+        if (part.isError || tableData?.error) {
+          return (
+            <TableError
+              key={index}
+              error={tableData?.error || '表格生成失败'}
+              title={tableData?.title}
+            />
+          );
+        }
+
+        // 渲染表格
+        if (tableData && tableData.type === 'table') {
+          const tableProps = {
+            key: index,
+            title: tableData.title,
+            description: tableData.description,
+            data: tableData.data || [],
+            columns: tableData.columns,
+            sortable: tableData.sortable,
+            paginated: tableData.paginated,
+            page_size: tableData.page_size,
+            stripe: tableData.stripe,
+            bordered: tableData.bordered,
+            compact: tableData.compact,
+            highlight_column: tableData.highlight_column,
+            highlight_color: tableData.highlight_color,
+            max_rows: tableData.max_rows,
+            show_index: tableData.show_index,
+            index_label: tableData.index_label
+          };
+
+          try {
+            return <Table {...tableProps as TableProps} />;
+          } catch (error) {
+            console.error('表格渲染错误:', error);
+            return (
+              <TableError
+                key={index}
+                error={error instanceof Error ? error.message : '表格渲染失败'}
+                title={tableData.title}
+              />
+            );
+          }
+        }
+      }
+
       // 默认工具结果 - 使用可折叠组件
       return (
         <ToolResult
@@ -350,22 +413,20 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
     return null;
   };
 
-  // 分组 parts
-  const toolAndGenUIParts = parts.filter(part => 
-    (part.type === 'tool-call' || part.type === 'tool-result') && 
-    part.toolName !== 'todo_list_tool'
-  );
-  
-  const textParts = parts.filter(part => part.type === 'text');
-  
   const hasTodoList = parts.some(part => part.toolName === 'todo_list_tool') || (currentTodos && currentTodos.length > 0);
 
   return (
     <div className="space-y-3">
-      {/* 1. 工具调用和生成式UI组件 */}
-      {toolAndGenUIParts.map((part, index) => renderMessagePart(part, index))}
+      {/* 严格按照 parts 数组的顺序渲染所有部分 */}
+      {parts.map((part, index) => {
+        // 跳过 TodoList 工具结果，稍后统一渲染
+        if (part.toolName === 'todo_list_tool') {
+          return null;
+        }
+        return renderMessagePart(part, index);
+      })}
 
-      {/* 2. TodoList */}
+      {/* TodoList - 在所有其他内容之后渲染（特殊处理，每次对话只渲染一个） */}
       {hasTodoList && currentTodos && currentTodos.length > 0 && (
         <div key={currentTraceId} className="mb-4">
           <TodoList
@@ -376,7 +437,7 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
         </div>
       )}
 
-      {/* 3. 思维链 */}
+      {/* 思维链 - 在最后渲染 */}
       {thinking && (
         <Collapsible
           open={thinkingOpen}
@@ -411,9 +472,6 @@ export function GenerativeUIRenderer({ parts, thinking }: GenerativeUIRendererPr
           </CollapsibleContent>
         </Collapsible>
       )}
-
-      {/* 4. 输出文本 */}
-      {textParts.map((part, index) => renderMessagePart(part, index))}
     </div>
   );
 }

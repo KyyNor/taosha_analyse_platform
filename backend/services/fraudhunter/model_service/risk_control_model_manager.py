@@ -137,7 +137,7 @@ class RiskControlModelManager:
             page: 页码
             page_size: 每页数量
             status: 状态筛选
-            search_query: 搜索关键词（模糊匹配编码和名称）
+            search_query: 搜索关键词（模糊匹配编码、名称和描述）
 
         Returns:
             (模型列表, 总数)
@@ -148,12 +148,13 @@ class RiskControlModelManager:
         if status:
             query = query.filter(FraudHunterModelDefinition.status == status)
 
-        # 搜索（模糊匹配编码和名称）
+        # 搜索（模糊匹配编码、名称和描述）
         if search_query:
             from sqlalchemy import or_
             search_filter = or_(
                 FraudHunterModelDefinition.model_code.like(f"%{search_query}%"),
-                FraudHunterModelDefinition.model_name.like(f"%{search_query}%")
+                FraudHunterModelDefinition.model_name.like(f"%{search_query}%"),
+                FraudHunterModelDefinition.description.like(f"%{search_query}%")
             )
             query = query.filter(search_filter)
 

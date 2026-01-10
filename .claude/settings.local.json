@@ -71,7 +71,9 @@
       "Bash(git rm:*)",
       "Bash(head:*)",
       "Bash(git stash:*)",
-      "mcp__tavily__tavily_crawl"
+      "mcp__tavily__tavily_crawl",
+      "Skill(gogit)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": [],

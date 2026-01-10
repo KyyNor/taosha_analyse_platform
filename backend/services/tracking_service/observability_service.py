@@ -1,6 +1,6 @@
 """
 可观测性服务 - 管理外部追踪平台集成
-支持 Langfuse 和 Phoenix 等追踪平台
+支持 Langfuse
 """
 
 from utils.config import settings
@@ -36,30 +36,6 @@ def initialize_observability():
 
         except Exception as e:
             logger.error(f"Failed to initialize Langfuse: {e}")
-            _tracing_handler = None
-
-    elif settings.tracing_type == "phoenix":
-        try:
-            import phoenix as px
-            # 启动本地服务器（内嵌在 Python 进程中）
-            import os
-            os.environ["PHOENIX_WORKING_DIR"] = settings.phoenix_work_dir
-            os.environ["PHOENIX_HOST"] = '0.0.0.0'
-            os.environ["PHOENIX_PORT"] = settings.phoenix_port
-            session = px.launch_app(use_temp_dir=False)
-            # 自动追踪 LangChain/LangGraph
-            from phoenix.otel import register
-            from openinference.instrumentation.langchain import LangChainInstrumentor
-
-            tracer_provider = register()
-            LangChainInstrumentor().instrument(tracer_provider=tracer_provider)
-
-            # Phoenix 使用自动instrumentation，不需要返回handler
-            _tracing_handler = None
-            logger.info("Phoenix observability initialized successfully")
-
-        except Exception as e:
-            logger.error(f"Failed to initialize Phoenix: {e}")
             _tracing_handler = None
     else:
         logger.info(f"Tracing disabled or unknown type: {settings.tracing_type}")

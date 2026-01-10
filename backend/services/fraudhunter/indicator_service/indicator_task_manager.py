@@ -143,9 +143,9 @@ class IndicatorTaskManager:
         # 总数
         total = query.count()
 
-        # 分页
+        # 分页 - 按修改时间倒序排列
         offset = (page - 1) * page_size
-        items = query.order_by(FraudHunterIndicatorTask.created_at.desc()).offset(offset).limit(page_size).all()
+        items = query.order_by(FraudHunterIndicatorTask.updated_at.desc()).offset(offset).limit(page_size).all()
 
         return items, total
 

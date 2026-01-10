@@ -6,9 +6,11 @@ import { ChatMessagesArea } from "@/components/agent/ChatMessagesArea";
 import { ChatInput } from "@/components/agent/ChatInput";
 import { useAgentState } from "@/lib/state/agent";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAuth } from "@/hooks/useAuth";
 
 function AgentPageContent() {
   const { sendMessage, isProcessing } = useAgentState();
+  const { user } = useAuth();
 
   return (
     <>
@@ -26,8 +28,21 @@ function AgentPageContent() {
 }
 
 export default function Page() {
+  const { user } = useAuth();
+
+  // 确保用户已认证
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <p className="text-muted-foreground">正在加载用户信息...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <AgentProvider>
+    <AgentProvider userId={user.user_id}>
       <ChatSidebarLayout>
         <AgentPageContent />
       </ChatSidebarLayout>

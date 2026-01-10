@@ -81,6 +81,8 @@ interface MetadataTableProps {
   // 受控搜索模式（支持服务端搜索）
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
+  // 自定义行样式
+  getRowClassName?: (item: any, index: number) => string;
 }
 
 export function MetadataTable({
@@ -98,7 +100,8 @@ export function MetadataTable({
   pagination,
   emptyText = "暂无数据",
   searchQuery: controlledSearchQuery,
-  onSearchChange
+  onSearchChange,
+  getRowClassName
 }: MetadataTableProps) {
   // 支持受控和非受控两种模式
   const [localSearchQuery, setLocalSearchQuery] = useState("");
@@ -260,7 +263,10 @@ export function MetadataTable({
             </TableHeader>
             <TableBody>
               {displayData.map((row, index) => (
-                <TableRow key={index}>
+                <TableRow 
+                  key={index}
+                  className={getRowClassName ? getRowClassName(row, index) : undefined}
+                >
                   {columns.map((column) => (
                     <TableCell
                       key={column.key}

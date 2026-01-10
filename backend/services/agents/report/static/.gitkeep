@@ -1,7 +1,0 @@
-# 此目录用于存放 HTML 报告所需的静态资源
-#
-# 主要文件:
-# - charts.bundle.js: 打包的图表组件 (由前端 npm run build:charts 生成)
-#
-# 构建方式:
-# cd frontend && npm run build:charts

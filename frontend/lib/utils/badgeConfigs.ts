@@ -69,6 +69,12 @@ export const booleanBadgeConfig = {
   false: { variant: "secondary" as const, label: "否" }
 };
 
+// 是否启用标签配置（用于is_available字段，0/1值）
+export const isAvailableBadgeConfig = {
+  0: { variant: "default" as const, label: "启用" },
+  1: { variant: "secondary" as const, label: "未启用" }
+};
+
 // 指标任务/模型状态标签配置
 export const taskStatusBadgeConfig = {
   draft: { variant: "secondary" as const, label: "草稿" },
@@ -113,4 +119,16 @@ export const wideTableVersionStatusBadgeConfig = {
 export const reportTypeBadgeConfig = {
   summary: { variant: "default" as const, label: "汇总表" },
   detail: { variant: "secondary" as const, label: "明细表" }
+};
+
+// 角色类型标签配置
+export const roleTypeBadgeConfig = {
+  system: { variant: "default" as const, label: "系统角色" },
+  custom: { variant: "secondary" as const, label: "自定义角色" }
+};
+
+// 实体类型标签配置
+export const entityTypeBadgeConfig = {
+  department: { variant: "default" as const, label: "部门" },
+  role: { variant: "secondary" as const, label: "角色" }
 };

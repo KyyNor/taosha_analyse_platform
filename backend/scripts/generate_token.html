@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token生成工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"], input[type="number"], input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 5px rgba(0,123,255,0.3);
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        .result-section {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .result-section h3 {
+            color: #007bff;
+            margin-top: 0;
+        }
+        .token-display {
+            background: #fff;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            word-break: break-all;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin: 10px 0;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .success {
+            color: #155724;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .hidden {
+            display: none;
+        }
+        .copy-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .copy-btn:hover {
+            background-color: #218838;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            gap: 8px;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Token生成工具</h1>
+        <p class="subtitle">使用CryptoJS生成与Python PyJWT 100%兼容的JWT token</p>
+
+        <form id="tokenForm">
+            <div class="form-group">
+                <label for="userId">用户ID *</label>
+                <input type="text" id="userId" name="userId" required placeholder="请输入用户ID">
+            </div>
+
+            <div class="form-group">
+                <label for="userName">用户姓名 *</label>
+                <input type="text" id="userName" name="userName" required placeholder="请输入用户姓名">
+            </div>
+
+            <div class="form-group">
+                <label for="branchNo">部门编号 *</label>
+                <input type="text" id="branchNo" name="branchNo" required placeholder="请输入部门编号">
+            </div>
+
+            <div class="form-group">
+                <label for="branchName">部门名称 *</label>
+                <input type="text" id="branchName" name="branchName" required placeholder="请输入部门名称">
+            </div>
+
+            <div class="form-group">
+                <label for="roleIdList">角色ID列表 *</label>
+                <input type="text" id="roleIdList" name="roleIdList" required placeholder="请输入角色ID，用逗号分隔，如：admin,user">
+            </div>
+
+            <div class="form-group">
+                <label for="secretKey">JWT签名密钥</label>
+                <input type="password" id="secretKey" name="secretKey" placeholder="可选，默认使用 default_secret_key_for_development">
+            </div>
+
+            <div class="form-group">
+                <label for="expireHours">过期时间（小时）</label>
+                <input type="number" id="expireHours" name="expireHours" value="24" min="1" max="8760" placeholder="默认24小时">
+            </div>
+
+            <div style="text-align: center; margin-top: 30px;">
+                <button type="submit" class="btn">🚀 生成Token</button>
+                <button type="button" class="btn btn-secondary" onclick="clearForm()">🔄 清空表单</button>
+            </div>
+        </form>
+
+        <div id="resultSection" class="result-section hidden">
+            <h3>✅ Token生成成功！</h3>
+
+            <div class="success">
+                <strong>验证状态:</strong> ✅ 与Python PyJWT 100%兼容<br>
+                <strong>生成方式:</strong> CryptoJS (HMAC-SHA256)
+            </div>
+
+            <div class="info-grid">
+                <div class="info-label">用户ID:</div>
+                <div id="resultUserId"></div>
+
+                <div class="info-label">用户姓名:</div>
+                <div id="resultUserName"></div>
+
+                <div class="info-label">过期时间:</div>
+                <div id="resultExpireTime"></div>
+            </div>
+
+            <h4>生成的Token:</h4>
+            <div class="token-display" id="tokenDisplay"></div>
+            <button class="copy-btn" onclick="copyToken()">📋 复制Token</button>
+
+            <div style="margin-top: 20px;">
+                <strong>使用方法:</strong>
+                <div class="token-display" id="usageDisplay"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // UTF-8编码函数
+        function utf8Encode(str) {
+            const result = [];
+            for (let i = 0; i < str.length; i++) {
+                let c = str.charCodeAt(i);
+                if (c < 0x80) {
+                    result.push(c);
+                } else if (c < 0x800) {
+                    result.push(0xC0 | (c >> 6));
+                    result.push(0x80 | (c & 0x3F));
+                } else if ((c & 0xFC00) == 0xD800 && i + 1 < str.length && (str.charCodeAt(i + 1) & 0xFC00) == 0xDC00) {
+                    // Surrogate Pair
+                    c = 0x10000 + ((c & 0x03FF) << 10) + (str.charCodeAt(++i) & 0x03FF);
+                    result.push(0xF0 | (c >> 18));
+                    result.push(0x80 | ((c >> 12) & 0x3F));
+                    result.push(0x80 | ((c >> 6) & 0x3F));
+                    result.push(0x80 | (c & 0x3F));
+                } else {
+                    result.push(0xE0 | (c >> 12));
+                    result.push(0x80 | ((c >> 6) & 0x3F));
+                    result.push(0x80 | (c & 0x3F));
+                }
+            }
+            return String.fromCharCode.apply(null, result);
+        }
+
+        // Base64URL编码
+        function base64UrlEncode(str) {
+            // 先UTF-8编码
+            const utf8Str = utf8Encode(str);
+            // Base64编码
+            const base64 = CryptoJS.enc.Base64.stringify(CryptoJS.enc.Latin1.parse(utf8Str));
+            // 转换为Base64URL
+            return base64
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
+
+        // JSON序列化（ASCII转义，模拟Python的ensure_ascii=True）
+        function jsonASCIIEncode(obj) {
+            const json = JSON.stringify(obj);
+            // 将非ASCII字符转义为\uXXXX
+            return json.replace(/[\u0080-\uFFFF]/g, function(c) {
+                return '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4);
+            });
+        }
+
+        // HMAC-SHA256 + Base64URL
+        function hmacSha256Base64URL(secret, message) {
+            // 使用CryptoJS进行HMAC-SHA256
+            const hmac = CryptoJS.HmacSHA256(message, secret);
+            // 转换为Base64URL
+            const base64 = CryptoJS.enc.Base64.stringify(hmac);
+            return base64
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
+
+        // JWT生成
+        function generateJWT(payload, secret) {
+            const header = {
+                "alg": "HS256",
+                "typ": "JWT"
+            };
+
+            const encodedHeader = base64UrlEncode(jsonASCIIEncode(header));
+            const encodedPayload = base64UrlEncode(jsonASCIIEncode(payload));
+
+            const signingInput = encodedHeader + '.' + encodedPayload;
+
+            // HMAC-SHA256签名
+            const signature = hmacSha256Base64URL(secret, signingInput);
+
+            return signingInput + '.' + signature;
+        }
+
+        // 表单处理
+        document.getElementById('tokenForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            try {
+                const formData = new FormData(e.target);
+                const userId = formData.get('userId').trim();
+                const userName = formData.get('userName').trim();
+                const branchNo = formData.get('branchNo').trim();
+                const branchName = formData.get('branchName').trim();
+                const roleIdListStr = formData.get('roleIdList').trim();
+                const secretKey = formData.get('secretKey').trim() || 'default_secret_key_for_development';
+                const expireHours = parseInt(formData.get('expireHours')) || 24;
+
+                if (!userId || !userName || !branchNo || !branchName || !roleIdListStr) {
+                    throw new Error('请填写所有必填字段');
+                }
+
+                const roleIdList = roleIdListStr.split(',').map(id => id.trim()).filter(id => id);
+                if (roleIdList.length === 0) {
+                    throw new Error('角色ID列表不能为空');
+                }
+
+                const now = new Date();
+                const nowTimestamp = Math.floor(now.getTime() / 1000);
+                const expireTimestamp = nowTimestamp + (expireHours * 3600);
+
+                const payload = {
+                    "iat": nowTimestamp,
+                    "exp": expireTimestamp,
+                    "iss": "taosha-platform",
+                    "user_id": userId,
+                    "user_name": userName,
+                    "branch_no": branchNo,
+                    "branch_name": branchName,
+                    "role_id_list": roleIdList,
+                    "access_time": now.toISOString()
+                };
+
+                const token = generateJWT(payload, secretKey);
+
+                // 显示结果
+                document.getElementById('resultUserId').textContent = userId;
+                document.getElementById('resultUserName').textContent = userName;
+                document.getElementById('resultExpireTime').textContent = expireHours + '小时';
+                document.getElementById('tokenDisplay').textContent = token;
+                document.getElementById('usageDisplay').textContent =
+                   `document.cookie = 'auth_token=${token}; path=/; max-age=${expireHours * 3600}'`;
+                document.getElementById('resultSection').classList.remove('hidden');
+
+                document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+
+                console.log('生成的Token:', token);
+                console.log('Payload:', payload);
+
+            } catch (error) {
+                alert('生成失败: ' + error.message);
+                console.error(error);
+            }
+        });
+
+        function clearForm() {
+            document.getElementById('tokenForm').reset();
+            document.getElementById('resultSection').classList.add('hidden');
+        }
+
+        function copyToken() {
+            const token = document.getElementById('tokenDisplay').textContent;
+            const textArea = document.createElement('textarea');
+            textArea.value = token;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                alert('已复制到剪贴板！');
+            } catch (err) {
+                alert('复制失败，请手动复制');
+            }
+            document.body.removeChild(textArea);
+        }
+    </script>
+</body>
+</html>

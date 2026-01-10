@@ -18,6 +18,9 @@ from repositories.chat_repository import ChatRepository
 from services.tracking_service.observability_service import get_langfuse_client
 from models.db_base import get_db
 from utils.logger import logger
+from services.permission_service import PermissionService
+from middleware.auth_middleware import get_current_user
+from services.token_service import UserInfo
 
 
 router = APIRouter(prefix="/agents")
@@ -29,7 +32,6 @@ class ChatRequest(BaseModel):
     """聊天请求模型"""
     message: str
     session_id: Optional[str] = None
-    user_id: Optional[str] = None
     trace_id: Optional[str] = None
 
 
@@ -57,7 +59,11 @@ class MessageResponse(BaseModel):
 # --- 聊天接口 ---
 
 @router.post("/chat/stream")
-async def chat_stream_endpoint(request: ChatRequest, db: Session = Depends(get_db)) -> StreamingResponse:
+async def chat_stream_endpoint(
+    request: ChatRequest, 
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
+) -> StreamingResponse:
     """
     流式聊天接口
 
@@ -80,8 +86,8 @@ async def chat_stream_endpoint(request: ChatRequest, db: Session = Depends(get_d
     async def generate_stream():
         """生成原生LangChain事件格式的流式响应"""
         try:
-            # 处理默认值
-            user_id = request.user_id or "api_user"
+            # 从JWT token获取用户信息
+            user_id = current_user.user_id
             session_id = request.session_id or str(uuid.uuid4())
             trace_id = request.trace_id or f"trace_{int(time.time())}_{uuid.uuid4().hex[:8]}"
 
@@ -145,10 +151,14 @@ async def chat_stream_endpoint(request: ChatRequest, db: Session = Depends(get_d
 # --- 历史记录接口 ---
 
 @router.get("/history")
-async def get_history(user_id: str = Query(..., description="用户ID"), limit: int = 20, db: Session = Depends(get_db)) -> List[SessionResponse]:
-    """获取用户的会话列表"""
+async def get_history(
+    limit: int = 20, 
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
+) -> List[SessionResponse]:
+    """获取当前用户的会话列表"""
     chat_repo = ChatRepository(db)
-    sessions = chat_repo.get_user_sessions(user_id, limit)
+    sessions = chat_repo.get_user_sessions(current_user.user_id, limit)
     return [
         SessionResponse(
             id=s.id,
@@ -173,10 +183,14 @@ async def get_session_messages(session_id: str) -> List[MessageResponse]:
     ]
 
 @router.delete("/history/{session_id}")
-async def delete_session(session_id: str, user_id: str = Query(..., description="用户ID"), db: Session = Depends(get_db)):
-    """删除会话"""
+async def delete_session(
+    session_id: str, 
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
+):
+    """删除当前用户的会话"""
     chat_repo = ChatRepository(db)
-    success = chat_repo.delete_session(session_id, user_id)
+    success = chat_repo.delete_session(session_id, current_user.user_id)
     if not success:
         raise HTTPException(status_code=404, detail="Session not found or permission denied")
     return {"status": "success", "message": "Session deleted"}

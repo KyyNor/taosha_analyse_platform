@@ -15,11 +15,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from utils.config import settings
-from api.nlquey_routes import router as nlquey_router
 from api.metadata_routes import router as metadata_router
 from api.user_routes import router as user_router
 from api.agents_routes import router as agents_router
 from api.deepagents_routes import router as deepagents_router
+from api.entity_routes import router as entity_router
+from api.permission_routes import router as permission_router
+from api.login_record_routes import router as login_record_router
 from api.fraudhunter import (
     indicator_task_router,
     indicator_router,
@@ -32,7 +34,6 @@ from api.fraudhunter import (
     indicator_query_router
 )
 from services.query_engine import get_query_engine
-from services.nlquery_service.async_query_service import get_async_query_service
 from models.db_base import get_db_session
 from services.tracking_service.observability_service import initialize_observability
 
@@ -222,14 +223,24 @@ async def _initialize_system_services():
                 job_name='向量数据库训练'
             )
 
-            # 添加实时数据清理任务
+            # 注册实时数据清理任务（每日凌晨2点）
             if settings.fraudhunter_realtime_data_enabled:
-                from services.scheduler.jobs.realtime_data_cleanup_job import cleanup_realtime_data
+                from services.scheduler.jobs.realtime_data_cleanup_job import realtime_data_cleanup_job
                 scheduler_service.add_cron_job(
-                    func=cleanup_realtime_data,
-                    cron='0 2 * * *',  # 每日凌晨2点
+                    func=realtime_data_cleanup_job,
+                    cron=settings.scheduler_realtime_data_cleanup_cron,
                     job_id='realtime_data_cleanup',
                     job_name='实时数据清理'
+                )
+
+            # 注册Parquet文件清理任务（每日凌晨3点）
+            if settings.fraudhunter_realtime_data_enabled:
+                from services.scheduler.jobs.parquet_file_cleanup_job import parquet_file_cleanup_job
+                scheduler_service.add_cron_job(
+                    func=parquet_file_cleanup_job,
+                    cron=settings.scheduler_parquet_file_cleanup_cron,
+                    job_id='parquet_file_cleanup',
+                    job_name='Parquet文件清理'
                 )
 
             # 启动调度器
@@ -270,13 +281,26 @@ async def lifespan(app: FastAPI):
         # 初始化查询引擎服务（每个worker都需要）
         query_engine = get_query_engine()
         logger.info(f"查询引擎初始化完成")
-
-        # 初始化异步查询服务（每个worker都需要）
-        async_query_service = get_async_query_service()
-        logger.info("异步查询服务初始化完成")
         
         # 初始化可观测性服务（外部追踪）
         initialize_observability()
+
+        # 初始化数据库表和页面同步
+        try:
+            logger.info("初始化数据库表...")
+            from models.db_base import create_tables
+            create_tables()
+            
+            logger.info("同步页面配置到数据库...")
+            from services.page_discovery_service import PageDiscoveryService
+            with get_db_session() as db:
+                page_service = PageDiscoveryService(db)
+                page_service.sync_pages_on_startup()
+            
+            logger.info("数据库初始化和页面同步完成")
+        except Exception as e:
+            logger.error(f"数据库初始化或页面同步失败: {e}", exc_info=True)
+            # 不影响系统启动，继续运行
 
         # 初始化系统服务（向量数据库训练、元数据同步）
         # 这些服务在多worker环境下只需要运行一次
@@ -365,11 +389,15 @@ app.add_middleware(
 api_prefix = "/api/taosha/v1"
 
 # 注册 API 路由
-app.include_router(nlquey_router, prefix=api_prefix)
 app.include_router(metadata_router, prefix=api_prefix)
 app.include_router(user_router, prefix=api_prefix)
 app.include_router(agents_router, prefix=api_prefix)
 app.include_router(deepagents_router, prefix=api_prefix)
+
+# 注册权限管理路由
+app.include_router(entity_router, prefix=api_prefix)
+app.include_router(permission_router, prefix=api_prefix)
+app.include_router(login_record_router, prefix=api_prefix)
 
 # 注册 FraudHunter 路由
 fraudhunter_prefix = f"{api_prefix}/fraudhunter"

@@ -23,6 +23,9 @@ from schemas.fraudhunter.batch_create import (
 )
 from services.fraudhunter.indicator_service import IndicatorManager
 from utils.logger import logger
+from services.permission_service import PermissionService
+from middleware.auth_middleware import get_current_user
+from services.token_service import UserInfo
 
 
 router = APIRouter(prefix="/indicators", tags=["指标管理"])
@@ -31,7 +34,8 @@ router = APIRouter(prefix="/indicators", tags=["指标管理"])
 @router.post("", response_model=IndicatorResponse, summary="创建指标")
 async def create_indicator(
     indicator_data: IndicatorCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
 ):
     """创建新的指标定义
 
@@ -46,7 +50,7 @@ async def create_indicator(
         manager = IndicatorManager(db)
         indicator = manager.create_indicator(
             indicator_data,
-            created_by="system"
+            created_by=current_user.user_id
         )
 
         return indicator
@@ -61,7 +65,8 @@ async def create_indicator(
 @router.post("/batch", response_model=IndicatorBatchCreateResponse, summary="批量创建指标")
 async def batch_create_indicators(
     batch_data: IndicatorTaskBatchCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
 ):
     """批量创建指标
 
@@ -82,7 +87,7 @@ async def batch_create_indicators(
         manager = IndicatorManager(db)
         result = manager.batch_create_indicators(
             batch_data,
-            created_by="system"
+            created_by=current_user.user_id
         )
 
         return result
@@ -154,7 +159,8 @@ async def validate_task_before_create(
 @router.post("/batch/create-task", response_model=CreateTaskWithIndicatorsResponse, summary="创建任务并关联指标")
 async def create_task_with_indicators(
     request_data: CreateTaskWithIndicatorsRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
 ):
     """创建指标任务并关联已存在的指标
 
@@ -173,7 +179,7 @@ async def create_task_with_indicators(
         # 创建任务
         task = task_manager.create_indicator_task(
             request_data.task_data,
-            created_by="system"
+            created_by=current_user.user_id
         )
 
         # 关联指标到任务

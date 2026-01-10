@@ -6,17 +6,6 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime
 
-class QueryRequest(BaseModel):
-    """查询请求模型"""
-    query: str = Field(..., description="自然语言查询", min_length=1)
-    flow_type: str = Field("fast", description="流程类型: fast=先验证后生成SQL, thorough=先生成SQL后验证")
-    max_retries: int = Field(2, description="最大重试次数", ge=0, le=5)
-    selected_theme_id: Optional[int] = Field(None, description="选中的数据主题ID")
-    selected_table_ids: Optional[List[int]] = Field(None, description="选中的数据表ID列表")
-
-class ClarificationInput(BaseModel):
-    clarification_input: str
-
 # 数据模型
 class TableMetadataRequest(BaseModel):
     name: str
@@ -90,22 +79,6 @@ class PromptTemplateUpdate(BaseModel):
     template: Optional[str] = None
 
 
-class DataThemeRequest(BaseModel):
-    theme_name: str = Field(..., description="主题名称", min_length=1)
-    theme_description: str = Field("", description="主题描述")
-    theme_type: str = Field("normal", description="主题类型: normal=一般主题, public=通用主题")
-    department: str = Field("", description="关联部门")
-
-
-class DataThemeUpdate(BaseModel):
-    theme_name: Optional[str] = Field(None, description="主题名称", min_length=1)
-    theme_description: Optional[str] = Field(None, description="主题描述")
-    theme_type: Optional[str] = Field(None, description="主题类型: normal=一般主题, public=通用主题")
-    department: Optional[str] = Field(None, description="关联部门")
-
-
-class ThemeTableRelationRequest(BaseModel):
-    table_id: int = Field(..., description="表ID")
 
 
 class BatchUpdateRequest(BaseModel):

@@ -12,12 +12,6 @@ from .glossary_models import (
 from .relation_models import (
     RelationFieldConfig
 )
-from .tracking_models import (
-    NlQuerySession, NlQueryStep, UserFeedback
-)
-from .theme_models import (
-    DataTheme, ThemeTableRelation
-)
 from .training_models import (
     TrainingRecord
 )
@@ -26,6 +20,10 @@ from .agent_chat_models import (
 )
 from .fine_report_models import (
     MetadataFineReport
+)
+
+from .permission_models import (
+    SystemEntity, SystemPage, SystemPermission, SystemLoginRecord, EntityType
 )
 
 from .fraudhunter import (
@@ -60,15 +58,6 @@ __all__ = [
     # 关联配置模型
     "RelationFieldConfig",
 
-    # 操作追踪模型
-    "NlQuerySession",
-    "NlQueryStep",
-    "UserFeedback",
-
-    # 主题模型
-    "DataTheme",
-    "ThemeTableRelation",
-
     # 训练模型
     "TrainingRecord",
 
@@ -79,6 +68,13 @@ __all__ = [
     
     # FineReport报表元数据模型
     "MetadataFineReport",
+
+    # 权限管理模型
+    "SystemEntity",
+    "SystemPage", 
+    "SystemPermission",
+    "SystemLoginRecord",
+    "EntityType",
 
     # FraudHunter模块
     "FraudHunterIndicatorTask",

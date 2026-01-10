@@ -65,10 +65,7 @@ class ConfigManager:
             duckdb_path: str = self._config_data.get('database', {}).get('duckdb_path', './database/taosha.duckdb')
 
             # 元数据配置
-            taosha_db_type: str = self._config_data.get('taosha_db', {}).get('db_type', 'sqlite')
-
-            # SQLite配置
-            taosha_db_sqlite_path: str = self._config_data.get('taosha_db', {}).get('sqlite_path', './database/metadata.db')
+            taosha_db_type: str = self._config_data.get('taosha_db', {}).get('db_type', 'mysql')
 
             # MySQL配置
             taosha_db_mysql_host: str = self._config_data.get('taosha_db', {}).get('mysql', {}).get('host', 'localhost')
@@ -129,8 +126,6 @@ class ConfigManager:
 
             # 跟踪配置
             tracing_type: Optional[str] = self._config_data.get('tracing', {}).get('tracing_type')
-            phoenix_work_dir: Optional[str] = self._config_data.get('tracing', {}).get('phoenix_work_dir')
-            phoenix_port: Optional[str] = self._config_data.get('tracing', {}).get('phoenix_port')
             langfuse_public_key: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY") or self._config_data.get('tracing', {}).get('langfuse_public_key')
             langfuse_secret_key: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY") or self._config_data.get('tracing', {}).get('langfuse_secret_key')
             langfuse_host: Optional[str] = os.getenv("LANGFUSE_HOST") or self._config_data.get('tracing', {}).get('langfuse_host')
@@ -225,7 +220,7 @@ class ConfigManager:
             # FraudHunter 实时数据配置
             fraudhunter_realtime_data_enabled: bool = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('enabled', False)
             fraudhunter_realtime_data_storage_path: str = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('storage_path', './realtime_data')
-            fraudhunter_realtime_data_retention_days: int = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('data_retention_days', 7)
+            fraudhunter_realtime_data_retention_days: int = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('data_retention_days', 14)
             fraudhunter_realtime_kafka_bootstrap_servers: str = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('kafka', {}).get('bootstrap_servers', 'localhost:9092')
             fraudhunter_realtime_kafka_topic: str = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('kafka', {}).get('topic', 'oss_inct_new')
             fraudhunter_realtime_kafka_group_id: str = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('kafka', {}).get('group_id', 'taosha_realtime_consumer')
@@ -243,6 +238,8 @@ class ConfigManager:
             scheduler_metadata_sync_interval: int = self._config_data.get('scheduler', {}).get('metadata_sync_interval', 3600)
             scheduler_fine_report_sync_interval: int = self._config_data.get('scheduler', {}).get('fine_report_sync_interval', 3600)
             scheduler_vector_training_interval: int = self._config_data.get('scheduler', {}).get('vector_training_interval', 1800)
+            scheduler_realtime_data_cleanup_cron: str = self._config_data.get('scheduler', {}).get('realtime_data_cleanup_cron', '0 2 * * *')
+            scheduler_parquet_file_cleanup_cron: str = self._config_data.get('scheduler', {}).get('parquet_file_cleanup_cron', '0 3 * * *')
 
             class Config:
                 env_prefix = self._config_data.get('env_prefix', 'TAOSHA_')

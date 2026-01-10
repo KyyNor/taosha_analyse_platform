@@ -41,11 +41,7 @@ pyspark:
 
 # 业务数据配置
 taosha_db:
-  db_type: "sqlite"  # sqlite 或 mysql
-
-  # SQLite配置（默认）
-  sqlite_path: "./database/metadata.db"
-
+  db_type: "mysql"  # mysql
   # MySQL配置（当db_type为mysql时使用）
   mysql:
     host: "127.0.0.1"
@@ -83,9 +79,7 @@ vector_store:
     timeout: 60  # 连接超时时间（秒）
 
 tracing:
-  tracing_type: "phoenix"  # phoenix 或 langfuse
-  phoenix_work_dir: "./database/"
-  phoenix_port: "7788"
+  tracing_type: "langfuse"  # langfuse
   langfuse_host: "https://cloud.langfuse.com"
   langfuse_public_key: ""  # langfuse需配置环境变量 LANGFUSE_PUBLIC_KEY
   langfuse_secret_key: ""  # langfuse需配置环境变量 LANGFUSE_SECRET_KEY
@@ -316,3 +310,5 @@ scheduler:
   metadata_sync_interval: 28800  # 秒，元数据同步间隔（8小时）
   fine_report_sync_interval: 28800  # 秒，FineReport报表同步间隔（8小时）
   vector_training_interval: 1800  # 秒，向量数据库训练间隔（30分钟）
+  realtime_data_cleanup_cron: "0 2 * * *"  # cron表达式，实时数据清理（每日凌晨2点）
+  parquet_file_cleanup_cron: "0 3 * * *"   # cron表达式，Parquet文件清理（每日凌晨3点）

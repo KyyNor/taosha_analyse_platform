@@ -96,7 +96,21 @@ export default function RiskControlModelsPage() {
   const columns = [
     { key: "id", label: "ID", type: "number" as const },
     { key: "model_code", label: "模型编码", type: "text" as const },
-    { key: "model_name", label: "模型名称", type: "text" as const },
+    {
+      key: "model_name",
+      label: "模型名称",
+      type: "custom" as const,
+      render: (value: any, row: RiskControlModel) => (
+        <div className="space-y-0.5">
+          <div className="font-medium">{value || '-'}</div>
+          {row.description && (
+            <div className="text-xs text-muted-foreground line-clamp-2">
+              {row.description}
+            </div>
+          )}
+        </div>
+      ),
+    },
     {
       key: "status",
       label: "状态",
@@ -320,7 +334,7 @@ export default function RiskControlModelsPage() {
         onAdd={handleAdd}
         onRefresh={load}
         customActions={customActions}
-        searchPlaceholder="搜索模型编码或名称..."
+        searchPlaceholder="搜索模型编码、名称或描述..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         pagination={{

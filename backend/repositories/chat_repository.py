@@ -24,10 +24,15 @@ class ChatRepository:
             with get_db_session() as db:
                 yield db
 
-    def create_session(self, user_id: str, session_id: str, title: str = None) -> ChatSession:
-        """创建或获取会话"""
+    def create_session(self, user_id: str, session_id: str, title: str = None) -> tuple[ChatSession, bool]:
+        """创建或获取会话
+        
+        Returns:
+            tuple[ChatSession, bool]: (会话对象, 是否为新创建)
+        """
         with self._get_db() as db:
             session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+            is_new = False
             if not session:
                 session = ChatSession(
                     id=session_id,
@@ -37,7 +42,8 @@ class ChatRepository:
                 db.add(session)
                 db.commit()
                 db.refresh(session)
-            return session
+                is_new = True
+            return session, is_new
 
     def update_session_title(self, session_id: str, title: str):
         """更新会话标题"""

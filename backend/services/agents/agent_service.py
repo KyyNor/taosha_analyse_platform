@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 
 from langchain_core.tools import StructuredTool
 from langchain.agents.middleware import SummarizationMiddleware, PIIMiddleware, TodoListMiddleware
+from services.agents.middleware import SessionNamingMiddleware
 from langfuse import observe, propagate_attributes
 
 from services.llm_service.base_llm_service import BaseLLMService
@@ -25,6 +26,7 @@ from services.agents.tools.common_tools import get_hotboard, get_programmer_stor
 from services.agents.tools.fine_report_tools import get_report_sample, batch_filter_report_and_get_data
 from services.agents.tools.chart_tool import create_chart
 from services.agents.tools.comparison_tool import create_comparison
+from services.agents.tools.table_tool import create_table
 from services.agents.tools.sql_query_tool import execute_sql_query
 from services.agents.tools.table_info_tool import get_table_sample_data, get_table_statistics, get_column_statistics
 from services.agents.tools.qdrant_vector_store_tool import search_knowledge_base
@@ -53,20 +55,21 @@ class AgentService:
             tools = [
                 # get_report_sample,
                 # batch_filter_report_and_get_data,
-                # get_hotboard,
+                get_hotboard,
                 # get_programmer_story,
                 get_date_range,
                 create_chart,
                 create_comparison,
-                execute_sql_query,
-                get_table_sample_data,      # 获取表样例数据
-                get_table_statistics,       # 获取表统计信息
-                get_column_statistics,      # 获取字段统计信息
-                add, 
-                subtract, 
-                divide, 
-                multiply,
-                search_knowledge_base,
+                create_table,
+                # execute_sql_query,
+                # get_table_sample_data,      # 获取表样例数据
+                # get_table_statistics,       # 获取表统计信息
+                # get_column_statistics,      # 获取字段统计信息
+                # add,
+                # subtract,
+                # divide,
+                # multiply,
+                # search_knowledge_base,
             ]
             _agent = create_agent(
                 model=self.llm_service.client,
@@ -81,6 +84,7 @@ class AgentService:
                         summary_prompt="请你总结以上内容。"
                     ),
                     TodoListMiddleware(),
+                    SessionNamingMiddleware(),  # 添加会话自动命名中间件
                     # LLMToolSelectorMiddleware(
                     #     model="gpt-4o-mini",  # Use cheaper model for selection
                     #     max_tools=3,  # Limit to 3 most relevant tools
@@ -303,16 +307,16 @@ class AgentService:
         try:
             # 1. 确保会话存在
             repo = ChatRepository(db) if db else self.chat_repo
-            repo.create_session(user_id=user_id, session_id=session_id)
+            session, is_new_session = repo.create_session(user_id=user_id, session_id=session_id)
             
-            # 3. 创建队列
+            # 2. 创建队列
             queue = asyncio.Queue()
 
-            # 4. 启动后台任务 (Producer)
+            # 3. 启动后台任务 (Producer)
             # 注意：不await task，让它在后台运行
             asyncio.create_task(self._run_agent_background(message, session_id, queue, trace_id))
 
-            # 5. 消费队列 (Consumer)
+            # 4. 消费队列 (Consumer)
             while True:
                 event = await queue.get()
                 logger.info(event)
