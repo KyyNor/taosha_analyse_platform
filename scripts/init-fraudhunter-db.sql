@@ -90,8 +90,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 创建今天和明天的分区
-SELECT create_realtime_partition(CURRENT_DATE);
-SELECT create_realtime_partition(CURRENT_DATE + INTERVAL '1 day');
+SELECT create_realtime_partition(CURRENT_DATE::date);
+SELECT create_realtime_partition((CURRENT_DATE + INTERVAL '1 day')::date);
 
 -- 完成初始化
 DO $$

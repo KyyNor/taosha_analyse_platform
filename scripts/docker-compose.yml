@@ -248,7 +248,7 @@ services:
     ports:
       - 15433:5432
     volumes:
-      - postgres_fraudhunter_data:/var/lib/postgresql/data
+      - postgres_fraudhunter_data:/var/lib/postgresql
       - ./init-fraudhunter-db.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fraudhunter"]

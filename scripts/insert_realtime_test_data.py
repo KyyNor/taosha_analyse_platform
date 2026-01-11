@@ -81,7 +81,7 @@ class RealtimeDataInserter:
     def __init__(
         self,
         host: str = 'localhost',
-        port: int = 5433,
+        port: int = 15433,
         database: str = 'fraudhunter',
         user: str = 'fraudhunter',
         password: str = 'fraudhunter123',
@@ -345,7 +345,7 @@ def main():
         epilog=__doc__
     )
     parser.add_argument('--host', default='localhost', help='PostgreSQL 主机')
-    parser.add_argument('--port', type=int, default=5433, help='PostgreSQL 端口')
+    parser.add_argument('--port', type=int, default=15433, help='PostgreSQL 端口')
     parser.add_argument('--database', default='fraudhunter', help='数据库名')
     parser.add_argument('--user', default='fraudhunter', help='用户名')
     parser.add_argument('--password', default='fraudhunter123', help='密码')

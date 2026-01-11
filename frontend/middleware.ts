@@ -280,14 +280,6 @@ export async function middleware(request: NextRequest) {
   // 权限检查通过，继续处理请求
   const response = NextResponse.next()
 
-  // 在响应头中添加用户信息（可选，供页面组件使用）
-  if (result.userInfo) {
-    response.headers.set('X-User-ID', result.userInfo.user_id)
-    response.headers.set('X-User-Name', encodeURIComponent(result.userInfo.user_name))
-    response.headers.set('X-Branch-Name', encodeURIComponent(result.userInfo.branch_name))
-    response.headers.set('X-Is-Admin', result.isAdmin ? 'true' : 'false')
-  }
-
   return response
 }
 
