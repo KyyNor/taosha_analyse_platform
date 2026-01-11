@@ -235,6 +235,28 @@ services:
       retries: 10
       start_period: 10s
 
+  # PostgreSQL for FraudHunter business data
+  postgres-business:
+    image: docker.io/postgres:18
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_BUSINESS_USER:-fraudhunter}
+      POSTGRES_PASSWORD: ${POSTGRES_BUSINESS_PASSWORD:-fraudhunter123} # CHANGEME
+      POSTGRES_DB: ${POSTGRES_BUSINESS_DB:-fraudhunter}
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - 15433:5432
+    volumes:
+      - postgres_fraudhunter_data:/var/lib/postgresql/data
+      - ./init-fraudhunter-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraudhunter"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
 volumes:
   langfuse_postgres_data:
     driver: local
@@ -247,4 +269,6 @@ volumes:
   qdrant_data:
     driver: local
   mysql_data:
+    driver: local
+  postgres_fraudhunter_data:
     driver: local
