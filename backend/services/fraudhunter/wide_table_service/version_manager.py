@@ -3,36 +3,53 @@
 """
 
 import hashlib
-from pathlib import Path
 from typing import List, Dict, Optional, Tuple
+from datetime import datetime, date
+
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
-from datetime import datetime, date
-from models.fraudhunter.indicator import FraudHunterIndicatorDefinition, FraudHunterIndicatorTask
+
+from models.fraudhunter.indicator import (
+    FraudHunterIndicatorDefinition,
+    FraudHunterIndicatorTask
+)
 from models.fraudhunter.wide_table import (
     FraudHunterWideTableVersion,
     FraudHunterWideTableSnapshot,
     FraudHunterIndicatorRunProgress
 )
 from utils.logger import logger
-from utils.config import settings
-from utils.analyze_db_utils import AnalyzeDBPartitionManager, AnalyzeDBConnector
+from utils.analyze_db_utils import AnalyzeDBPartitionManager
+
+# object_type到wide_table_name的映射
+OBJECT_TYPE_TO_TABLE_NAME = {
+    'dep_acct_no': 'dep_acct_wide_table',
+    'cust_no': 'cust_wide_table',
+    'loan_acct_no': 'loan_acct_wide_table',
+}
+
+# SHA256 hash长度
+HASH_FULL_LENGTH = 64
+HASH_SHORT_LENGTH = 8
 
 
 class WideTableVersionManager:
-    """宽表版本管理器"""
+    """宽表版本管理器
 
-    # object_type到wide_table_name的映射
-    OBJECT_TYPE_TO_TABLE_NAME = {
-        'dep_acct_no': 'dep_acct_wide_table',
-        'cust_no': 'cust_wide_table',
-        'loan_acct_no': 'loan_acct_wide_table',
-    }
+    管理宽表版本的创建、切换和清理。
+    版本状态流转: target -> current -> history
+    """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session) -> None:
+        """初始化版本管理器
+
+        Args:
+            db: 数据库会话
+        """
         self.db = db
 
-    def _get_wide_table_name(self, object_type: str) -> str:
+    @staticmethod
+    def get_wide_table_name(object_type: str) -> str:
         """根据object_type获取宽表名称
 
         Args:
@@ -40,8 +57,11 @@ class WideTableVersionManager:
 
         Returns:
             宽表名称（dep_acct_wide_table/cust_wide_table/loan_acct_wide_table）
+
+        Raises:
+            ValueError: 当object_type不支持时
         """
-        table_name = self.OBJECT_TYPE_TO_TABLE_NAME.get(object_type)
+        table_name = OBJECT_TYPE_TO_TABLE_NAME.get(object_type)
         if not table_name:
             raise ValueError(f"不支持的object_type: {object_type}")
         return table_name
@@ -50,23 +70,21 @@ class WideTableVersionManager:
         self,
         online_indicators: List[FraudHunterIndicatorDefinition]
     ) -> Tuple[str, Dict[int, Dict]]:
-        """生成版本号hash SHA256 取前8位
+        """生成版本号hash（SHA256取前8位）
 
         Args:
             online_indicators: 所有在线的离线指标列表（同一个object_type）
 
         Returns:
             (version_hash, indicator_metadata)
-            - version_hash: SHA256 hash值 取前8位
-            - indicator_metadata: {indicator_id: {version, indicator_code, indicator_name, indicator_task_id}}
         """
         if not online_indicators:
             raise ValueError("在线指标列表不能为空")
 
-        # 1. 按indicator_id升序排序
+        # 按indicator_id升序排序确保一致性
         sorted_indicators = sorted(online_indicators, key=lambda x: x.id)
 
-        # 2. 拼接字符串: {id1}_{version1}#{id2}_{version2}#...
+        # 构建版本字符串和元数据
         parts = []
         indicator_metadata = {}
 
@@ -85,10 +103,7 @@ class WideTableVersionManager:
             }
 
         version_string = "#".join(parts)
-
-        # 3. 生成完整64位SHA256 hash
-        version_hash = hashlib.sha256(version_string.encode('utf-8')).hexdigest()
-        version_hash = version_hash[:8]
+        version_hash = hashlib.sha256(version_string.encode('utf-8')).hexdigest()[:HASH_SHORT_LENGTH]
 
         logger.info(
             f"生成版本号: {version_hash[:16]}..., "
@@ -99,17 +114,17 @@ class WideTableVersionManager:
 
         return version_hash, indicator_metadata
 
-    def get_current_online_indicators_by_object_type(
+    def get_online_indicators(
         self,
         object_type: str
     ) -> List[FraudHunterIndicatorDefinition]:
-        """获取指定object_type的所有在线离线指标
+        """获取指定object_type的所有在线指标（离线+实时）
 
         Args:
             object_type: 对象类型（dep_acct_no/cust_no/loan_acct_no）
 
         Returns:
-            在线离线指标列表
+            在线指标列表
         """
         indicators = self.db.query(FraudHunterIndicatorDefinition).filter(
             and_(
@@ -119,7 +134,7 @@ class WideTableVersionManager:
             )
         ).order_by(FraudHunterIndicatorDefinition.id).all()
 
-        logger.info(f"查询到 {len(indicators)} 个object_type={object_type}的在线离线指标")
+        logger.info(f"查询到 {len(indicators)} 个object_type={object_type}的在线指标")
         return indicators
 
     def check_version_change_needed(self, object_type: str) -> bool:
@@ -133,34 +148,20 @@ class WideTableVersionManager:
         Returns:
             是否需要生成新版本
         """
-        # 获取当前在线指标
-        online_indicators = self.get_current_online_indicators_by_object_type(object_type)
+        online_indicators = self.get_online_indicators(object_type)
 
-        # 如果没有在线指标，无需创建版本
         if not online_indicators:
             logger.info(f"object_type={object_type}没有在线指标，无需创建版本")
             return False
 
-        # 获取wide_table_name
-        wide_table_name = self._get_wide_table_name(object_type)
+        wide_table_name = self.get_wide_table_name(object_type)
+        current_version = self._get_version_by_status(wide_table_name, 'current')
 
-        # 获取current版本
-        current_version = self.db.query(FraudHunterWideTableVersion).filter(
-            and_(
-                FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-                FraudHunterWideTableVersion.status == 'current'
-            )
-        ).first()
-
-        # 如果没有current版本，且有在线指标，需要创建
         if not current_version:
             logger.info(f"{wide_table_name}没有current版本，需要创建")
             return True
 
-        # 生成当前在线指标的版本hash
         new_hash, _ = self.generate_version_hash(online_indicators)
-
-        # 对比hash是否相同
         version_changed = (new_hash != current_version.version_hash)
 
         if version_changed:
@@ -184,35 +185,26 @@ class WideTableVersionManager:
         1. 指标上线/下线
         2. 指标重新发布(版本号变更)
 
-        流程:
-        1. 检查是否有版本变更
-        2. 如果已有target版本,标记为skipped
-        3. 创建新的target版本
-
         Args:
             object_type: 对象类型（dep_acct_no/cust_no/loan_acct_no）
             created_by: 创建人
 
         Returns:
-            新创建的版本对象,如果无需创建则返回None
+            新创建的版本对象，如果无需创建则返回None
         """
-        # 1. 检查是否需要新版本
         if not self.check_version_change_needed(object_type):
             logger.info(f"object_type={object_type}无版本变更，无需创建新版本")
             return None
 
-        # 2. 获取当前在线指标
-        online_indicators = self.get_current_online_indicators_by_object_type(object_type)
+        online_indicators = self.get_online_indicators(object_type)
         if not online_indicators:
             logger.warning(f"object_type={object_type}没有在线指标，无法创建版本")
             return None
 
         version_hash, indicator_metadata = self.generate_version_hash(online_indicators)
+        wide_table_name = self.get_wide_table_name(object_type)
 
-        # 3. 获取wide_table_name
-        wide_table_name = self._get_wide_table_name(object_type)
-
-        # 4. 检查该版本是否已存在
+        # 检查该版本是否已存在
         existing_version = self.db.query(FraudHunterWideTableVersion).filter(
             FraudHunterWideTableVersion.version_hash == version_hash
         ).first()
@@ -221,20 +213,10 @@ class WideTableVersionManager:
             logger.warning(f"版本 {version_hash[:16]}... 已存在，状态: {existing_version.status}")
             return existing_version
 
-        # 5. 将现有target版本标记为skipped
-        existing_target = self.db.query(FraudHunterWideTableVersion).filter(
-            and_(
-                FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-                FraudHunterWideTableVersion.status == 'target'
-            )
-        ).first()
+        # 将现有target版本标记为skipped
+        self._skip_existing_target(wide_table_name)
 
-        if existing_target:
-            existing_target.status = 'skipped'
-            existing_target.skipped_at = datetime.now()
-            logger.info(f"将版本 {existing_target.version_hash[:16]}... 标记为skipped")
-
-        # 6. 创建新版本
+        # 创建新版本
         new_version = FraudHunterWideTableVersion(
             wide_table_name=wide_table_name,
             version_hash=version_hash,
@@ -248,16 +230,8 @@ class WideTableVersionManager:
         self.db.commit()
         self.db.refresh(new_version)
 
-        # 7. 自动创建PG表
-        pg_table_name = f"{wide_table_name}_v{version_hash[:8]}"
-        try:
-            AnalyzeDBPartitionManager.create_wide_table(
-                pg_table_name, indicator_metadata, is_realtime=False
-            )
-            logger.info(f"创建PG表成功: {pg_table_name}")
-        except Exception as e:
-            logger.error(f"创建PG表失败: {pg_table_name}, error={e}")
-            # 不影响版本创建流程,只记录错误
+        # 自动创建PG表
+        self._create_pg_table_for_version(wide_table_name, version_hash, indicator_metadata)
 
         logger.info(
             f"创建新版本成功: {wide_table_name}, "
@@ -265,6 +239,36 @@ class WideTableVersionManager:
             f"包含 {len(online_indicators)} 个指标"
         )
         return new_version
+
+    def _skip_existing_target(self, wide_table_name: str) -> None:
+        """将现有target版本标记为skipped"""
+        existing_target = self.db.query(FraudHunterWideTableVersion).filter(
+            and_(
+                FraudHunterWideTableVersion.wide_table_name == wide_table_name,
+                FraudHunterWideTableVersion.status == 'target'
+            )
+        ).first()
+
+        if existing_target:
+            existing_target.status = 'skipped'
+            existing_target.skipped_at = datetime.now()
+            logger.info(f"将版本 {existing_target.version_hash[:16]}... 标记为skipped")
+
+    def _create_pg_table_for_version(
+        self,
+        wide_table_name: str,
+        version_hash: str,
+        indicator_metadata: Dict
+    ) -> None:
+        """为版本创建PG表"""
+        pg_table_name = f"{wide_table_name}_v{version_hash[:HASH_SHORT_LENGTH]}"
+        try:
+            AnalyzeDBPartitionManager.create_wide_table(
+                pg_table_name, indicator_metadata, is_realtime=False
+            )
+            logger.info(f"创建PG表成功: {pg_table_name}")
+        except Exception as e:
+            logger.error(f"创建PG表失败: {pg_table_name}, error={e}")
 
     def check_target_version_ready(
         self,
@@ -281,18 +285,37 @@ class WideTableVersionManager:
 
         Returns:
             (is_ready, missing_tasks)
-            - is_ready: 是否准备就绪
-            - missing_tasks: 未完成的任务列表
         """
         indicator_metadata = target_version.indicator_metadata
 
         if not indicator_metadata:
             return False, []
 
+        missing_tasks = self._check_indicators_progress(indicator_metadata, etl_date)
+        is_ready = len(missing_tasks) == 0
+
+        if is_ready:
+            logger.debug(
+                f"版本 {target_version.version_hash[:16]}... "
+                f"在 {etl_date} 的所有指标已完成"
+            )
+        else:
+            logger.debug(
+                f"版本 {target_version.version_hash[:16]}... "
+                f"在 {etl_date} 还有 {len(missing_tasks)} 个指标未完成"
+            )
+
+        return is_ready, missing_tasks
+
+    def _check_indicators_progress(
+        self,
+        indicator_metadata: Dict,
+        etl_date: date
+    ) -> List[Dict]:
+        """检查指标的运行进度"""
         missing_tasks = []
 
         for indicator_id, metadata in indicator_metadata.items():
-            # 查询该指标在指定日期的运行进度
             indicator_task_id = metadata.get('indicator_task_id')
 
             if not indicator_task_id:
@@ -321,20 +344,7 @@ class WideTableVersionManager:
                     "reason": "未找到运行进度记录"
                 })
 
-        is_ready = len(missing_tasks) == 0
-
-        if is_ready:
-            logger.debug(
-                f"版本 {target_version.version_hash[:16]}... "
-                f"在 {etl_date} 的所有指标已完成"
-            )
-        else:
-            logger.debug(
-                f"版本 {target_version.version_hash[:16]}... "
-                f"在 {etl_date} 还有 {len(missing_tasks)} 个指标未完成"
-            )
-
-        return is_ready, missing_tasks
+        return missing_tasks
 
     def promote_target_to_current(
         self,
@@ -343,11 +353,11 @@ class WideTableVersionManager:
     ) -> FraudHunterWideTableVersion:
         """将target版本提升为current
 
-        同时将旧的current版本标记为history，并清理历史文件
+        同时将旧的current版本标记为history，并清理历史版本
 
         Args:
             target_version: 目标版本对象
-            cleanup_history: 是否清理历史版本文件（默认True）
+            cleanup_history: 是否清理历史版本（默认True）
 
         Returns:
             更新后的版本对象
@@ -355,34 +365,28 @@ class WideTableVersionManager:
         if target_version.status != 'target':
             raise ValueError(f"只能提升status='target'的版本，当前状态: {target_version.status}")
 
-        # 1. 将旧的current版本标记为history
-        old_current = self.db.query(FraudHunterWideTableVersion).filter(
-            and_(
-                FraudHunterWideTableVersion.wide_table_name == target_version.wide_table_name,
-                FraudHunterWideTableVersion.status == 'current'
-            )
-        ).first()
+        # 将旧的current版本标记为history
+        old_current = self._get_version_by_status(target_version.wide_table_name, 'current')
 
         if old_current:
             old_current.status = 'history'
             old_current.history_at = datetime.now()
-            logger.info(f"将版本 {old_current.version_hash[:8]} 标记为history")
+            logger.info(f"将版本 {old_current.version_hash[:HASH_SHORT_LENGTH]} 标记为history")
 
-        # 2. 提升target为current
+        # 提升target为current
         target_version.status = 'current'
         target_version.current_at = datetime.now()
-
         self.db.flush()
 
-        # 3. 清理历史版本的文件和记录
+        # 清理历史版本
         if cleanup_history and old_current:
             deleted_count = self.cleanup_history_version(old_current)
-            logger.info(f"清理历史版本完成，删除 {deleted_count} 个文件")
+            logger.info(f"清理历史版本完成，删除 {deleted_count} 个快照")
 
         self.db.commit()
         self.db.refresh(target_version)
 
-        logger.info(f"版本 {target_version.version_hash[:8]} 已提升为current")
+        logger.info(f"版本 {target_version.version_hash[:HASH_SHORT_LENGTH]} 已提升为current")
         return target_version
 
     def check_and_promote_target(
@@ -390,77 +394,57 @@ class WideTableVersionManager:
         wide_table_name: str,
         promote_threshold: float = 0.5
     ) -> Optional[FraudHunterWideTableVersion]:
-        """检查并执行target→current版本切换
-        
+        """检查并执行target->current版本切换
+
         切换条件: target快照数量 >= current快照数量 * threshold
         首次创建时（无current版本），target有1个快照即可提升
-        
+
         Args:
             wide_table_name: 宽表名称
             promote_threshold: 切换阈值（默认0.5，即50%）
-            
+
         Returns:
             切换后的current版本，如果未切换返回None
         """
-        # 1. 获取current和target版本
-        current_version = self.db.query(FraudHunterWideTableVersion).filter(
-            and_(
-                FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-                FraudHunterWideTableVersion.status == 'current'
-            )
-        ).first()
-
-        target_version = self.db.query(FraudHunterWideTableVersion).filter(
-            and_(
-                FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-                FraudHunterWideTableVersion.status == 'target'
-            )
-        ).first()
+        current_version = self._get_version_by_status(wide_table_name, 'current')
+        target_version = self._get_version_by_status(wide_table_name, 'target')
 
         if not target_version:
             logger.debug(f"{wide_table_name} 没有target版本，无需切换")
             return None
 
-        # 2. 统计快照数量
-        target_snapshot_count = self.db.query(func.count(FraudHunterWideTableSnapshot.id)).filter(
-            and_(
-                FraudHunterWideTableSnapshot.version_hash == target_version.version_hash,
-                FraudHunterWideTableSnapshot.status == 'ready'
-            )
-        ).scalar() or 0
+        target_count = self._count_snapshots(target_version.version_hash)
+        current_count = self._count_snapshots(current_version.version_hash) if current_version else 0
 
-        current_snapshot_count = 0
-        if current_version:
-            current_snapshot_count = self.db.query(func.count(FraudHunterWideTableSnapshot.id)).filter(
-                and_(
-                    FraudHunterWideTableSnapshot.version_hash == current_version.version_hash,
-                    FraudHunterWideTableSnapshot.status == 'ready'
-                )
-            ).scalar() or 0
+        # 计算切换阈值
+        threshold = current_count * promote_threshold if current_version else 1
 
-        # 3. 检查切换条件
-        # 如果没有current版本，只要target有一个快照就可以提升
-        if current_version:
-            threshold = current_snapshot_count * promote_threshold
-        else:
-            threshold = 1
-
-        if target_snapshot_count < threshold:
+        if target_count < threshold:
             logger.info(
                 f"{wide_table_name} 未满足切换条件: "
-                f"target快照={target_snapshot_count}, current快照={current_snapshot_count}, "
+                f"target快照={target_count}, current快照={current_count}, "
                 f"需要>={threshold:.0f}"
             )
             return None
 
-        # 4. 执行版本切换
         logger.info(
             f"开始版本切换: {wide_table_name}, "
-            f"target({target_version.version_hash[:8]}) -> current, "
-            f"快照数量: {target_snapshot_count}/{current_snapshot_count}"
+            f"target({target_version.version_hash[:HASH_SHORT_LENGTH]}) -> current, "
+            f"快照数量: {target_count}/{current_count}"
         )
 
         return self.promote_target_to_current(target_version, cleanup_history=True)
+
+    def _count_snapshots(self, version_hash: str) -> int:
+        """统计指定版本的ready快照数量"""
+        if not version_hash:
+            return 0
+        return self.db.query(func.count(FraudHunterWideTableSnapshot.id)).filter(
+            and_(
+                FraudHunterWideTableSnapshot.version_hash == version_hash,
+                FraudHunterWideTableSnapshot.status == 'ready'
+            )
+        ).scalar() or 0
 
     def cleanup_history_version(
         self,
@@ -476,7 +460,6 @@ class WideTableVersionManager:
         Returns:
             删除的快照数量
         """
-        # 1. 获取该版本的所有快照
         snapshots = self.db.query(FraudHunterWideTableSnapshot).filter(
             and_(
                 FraudHunterWideTableSnapshot.version_hash == history_version.version_hash,
@@ -485,40 +468,32 @@ class WideTableVersionManager:
         ).all()
 
         snapshot_count = len(snapshots)
+        pg_table_name = f"{history_version.wide_table_name}_v{history_version.version_hash[:HASH_SHORT_LENGTH]}"
 
-        # 2. 删除PG表
-        pg_table_name = f"{history_version.wide_table_name}_v{history_version.version_hash[:8]}"
+        # 删除PG表
         try:
             AnalyzeDBPartitionManager.drop_table(pg_table_name)
             logger.info(f"删除历史版本PG表: {pg_table_name}")
         except Exception as e:
             logger.error(f"删除PG表失败 {pg_table_name}: {e}")
 
-        # 3. 更新快照状态为deleted
+        # 更新快照状态为deleted
         for snapshot in snapshots:
             snapshot.status = 'deleted'
 
         logger.info(
-            f"清理版本 {history_version.version_hash[:8]} 完成, "
+            f"清理版本 {history_version.version_hash[:HASH_SHORT_LENGTH]} 完成, "
             f"删除PG表: {pg_table_name}, 更新 {snapshot_count} 条快照记录"
         )
 
         return snapshot_count
 
-    def get_version_by_status(
+    def _get_version_by_status(
         self,
         wide_table_name: str,
         status: str
     ) -> Optional[FraudHunterWideTableVersion]:
-        """根据状态获取宽表版本
-        
-        Args:
-            wide_table_name: 宽表名称
-            status: 版本状态（current/target/history）
-            
-        Returns:
-            版本对象或None
-        """
+        """根据状态获取宽表版本"""
         return self.db.query(FraudHunterWideTableVersion).filter(
             and_(
                 FraudHunterWideTableVersion.wide_table_name == wide_table_name,
@@ -531,15 +506,7 @@ class WideTableVersionManager:
         version_hash: str,
         status: str = 'ready'
     ) -> int:
-        """获取指定版本的快照数量
-        
-        Args:
-            version_hash: 版本hash
-            status: 快照状态（默认ready）
-            
-        Returns:
-            快照数量
-        """
+        """获取指定版本的快照数量"""
         return self.db.query(func.count(FraudHunterWideTableSnapshot.id)).filter(
             and_(
                 FraudHunterWideTableSnapshot.version_hash == version_hash,
