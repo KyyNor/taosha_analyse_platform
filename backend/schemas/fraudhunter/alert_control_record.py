@@ -45,6 +45,7 @@ class AlertControlRecordResponse(BaseModel):
     id: int
     hit_record_id: int
     account_id: str
+    branch_no: Optional[str] = None
     record_date: date
     hit_model_ids: List[int]
     hit_model_names: List[str]
@@ -80,9 +81,10 @@ class AlertControlListResponse(BaseModel):
 
 class HitRecordResponse(BaseModel):
     """命中记录响应"""
-    
+
     id: int
     account_id: str
+    branch_no: Optional[str] = None
     hit_time: datetime
     hit_model_ids: List[int]
     hit_model_names: List[str]

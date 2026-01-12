@@ -339,6 +339,7 @@ async def generate_realtime_wide_table_job():
 
             for _, row in matched_df.iterrows():
                 account_id = str(row.get('目标ID', ''))
+                branch_no = str(row.get('branch_no', '')) if pd.notna(row.get('branch_no')) else None
                 offline_cust_type = str(row.get('客户类型', ''))
 
                 cust_type_map = {'个人': '01', '对公': '02'}
@@ -380,6 +381,7 @@ async def generate_realtime_wide_table_job():
 
                 hit_record = manager.create_hit_record(
                     account_id=account_id,
+                    branch_no=branch_no,
                     hit_models=hit_models,
                     indicator_data=indicator_data,
                     hit_time=hit_time,
@@ -496,6 +498,7 @@ def _build_model_matching_sql(
     select_fields = [
         f"COALESCE(dep_acct_realtime_indicator.target_id, dep_acct_offline_indicator.target_id) AS \"目标ID\"",
         "dep_acct_offline_indicator.i_dep_acct_no_offline_00007 AS \"客户类型\"",
+        "COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_offline_00002, dep_acct_offline_indicator.i_dep_acct_no_offline_00002) AS \"branch_no\"",
         "dep_acct_realtime_indicator.etl_date AS \"[实时]ETL日期\"",
     ]
 

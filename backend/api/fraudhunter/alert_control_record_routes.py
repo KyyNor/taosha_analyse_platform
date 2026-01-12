@@ -13,6 +13,8 @@ from urllib.parse import quote
 import io
 
 from models.db_base import get_db
+from middleware.auth_middleware import get_current_user
+from services.token_service import UserInfo
 from schemas.fraudhunter.alert_control_record import (
     AlertControlFilters,
     PaginationParams,
@@ -36,7 +38,7 @@ async def list_alert_control_records(
     # 分页参数
     page: int = Query(1, ge=1, description="页码，从1开始"),
     page_size: int = Query(20, ge=1, le=1000, description="每页大小，最大1000"),
-    
+
     # 筛选参数
     start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
@@ -47,7 +49,9 @@ async def list_alert_control_records(
     control_status: Optional[str] = Query(None, description="管控状态：not_configured/executed/duplicate"),
     search: Optional[str] = Query(None, description="搜索关键词（账号、模型名称、告警消息）"),
     hide_inactive:Optional[bool] = Query(None, description="隐藏无效记录"),
-    
+
+    # 认证
+    current_user: UserInfo = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -135,10 +139,14 @@ async def list_alert_control_records(
         
         # 查询记录
         manager = ModelHitAlertManager(db)
-        result = manager.get_alert_control_records(filters, pagination)
+        result = manager.get_alert_control_records(
+            filters, pagination,
+            current_user_branch_no=current_user.branch_no
+        )
         
         logger.info(
-            f"查询告警管控记录: page={page}, page_size={page_size}, "
+            f"查询告警管控记录: user={current_user.user_id}, branch_no={current_user.branch_no}, "
+            f"page={page}, page_size={page_size}, "
             f"total={result.total}, filters={filters.model_dump(exclude_none=True)}"
         )
         
@@ -216,6 +224,9 @@ async def export_alert_control_records(
     control_status: Optional[str] = Query(None, description="管控状态：not_configured/executed/duplicate"),
     search: Optional[str] = Query(None, description="搜索关键词"),
     hide_inactive:Optional[bool] = Query(None, description="隐藏无效记录"),
+
+    # 认证
+    current_user: UserInfo = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -287,7 +298,10 @@ async def export_alert_control_records(
 
         # 导出数据
         manager = ModelHitAlertManager(db)
-        file_content = manager.export_alert_control_records(filters)
+        file_content = manager.export_alert_control_records(
+            filters,
+            current_user_branch_no=current_user.branch_no
+        )
 
         # 设置文件名和响应头
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -296,7 +310,8 @@ async def export_alert_control_records(
         encoded_filename = quote(filename)
 
         logger.info(
-            f"导出告警管控记录: size={len(file_content)} bytes, "
+            f"导出告警管控记录: user={current_user.user_id}, branch_no={current_user.branch_no}, "
+            f"size={len(file_content)} bytes, "
             f"filters={filters.model_dump(exclude_none=True)}"
         )
 

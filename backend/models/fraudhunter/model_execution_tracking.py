@@ -78,6 +78,7 @@ class FraudHunterModelHitRecord(Base):
 
     # 基本信息
     account_id = Column(String(64), nullable=False, comment='账号标识')
+    branch_no = Column(String(32), nullable=True, comment='部门编号（4位数字）')
     hit_time = Column(DateTime, nullable=False, comment='命中时间')
 
     # 命中模型信息
@@ -103,6 +104,7 @@ class FraudHunterModelHitRecord(Base):
     __table_args__ = (
         Index('idx_fh_hit_execution_id', 'execution_id'),
         Index('idx_fh_hit_account_id', 'account_id'),
+        Index('idx_fh_hit_branch_no', 'branch_no'),
         Index('idx_fh_hit_hit_time', 'hit_time'),
         Index('idx_fh_hit_created_at', 'created_at'),
         {'comment': '模型运行命中记录表'}
@@ -128,6 +130,7 @@ class FraudHunterModelAlertControlRecord(Base):
     hit_record_id = Column(BigInteger, ForeignKey('fraudhunter_model_hit_record.id'), nullable=False, comment='命中记录ID')
     account_id = Column(String(64), nullable=False, comment='账号标识')
     record_date = Column(Date, nullable=False, comment='记录日期')
+    branch_no = Column(String(32), nullable=True, comment='部门编号（4位数字）')
 
     # 模型信息（JSON数组格式）
     hit_model_ids = Column(JSON, nullable=False, comment='命中模型ID列表')
@@ -155,6 +158,7 @@ class FraudHunterModelAlertControlRecord(Base):
     __table_args__ = (
         Index('idx_fh_alert_execution_id', 'execution_id'),
         Index('idx_fh_alert_account_date', 'account_id', 'record_date'),
+        Index('idx_fh_alert_branch_no', 'branch_no'),
         Index('idx_fh_alert_alert_time', 'alert_time'),
         Index('idx_fh_alert_control_time', 'control_time'),
         Index('idx_fh_alert_hit_record_id', 'hit_record_id'),

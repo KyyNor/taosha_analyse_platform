@@ -50,6 +50,7 @@ class ModelHitAlertManager:
     def create_hit_record(
         self,
         account_id: str,
+        branch_no: Optional[str],
         hit_models: List[ModelHit],
         indicator_data: Dict[str, Any],
         hit_time: datetime,
@@ -59,6 +60,7 @@ class ModelHitAlertManager:
 
         Args:
             account_id: 账号标识
+            branch_no: 部门编号（4位数字）
             hit_models: 命中的模型列表
             indicator_data: 指标数据
             hit_time: 命中时间
@@ -87,6 +89,7 @@ class ModelHitAlertManager:
         hit_record = FraudHunterModelHitRecord(
             execution_id=execution_id,
             account_id=account_id,
+            branch_no=branch_no,
             hit_time=hit_time,
             hit_model_ids=hit_model_ids,
             hit_model_names=hit_model_names,
@@ -96,7 +99,7 @@ class ModelHitAlertManager:
         self.db.add(hit_record)
         self.db.flush()  # 获取ID但不提交事务
 
-        logger.debug(f"创建命中记录: account_id={account_id}, models={hit_model_ids}, hit_time={hit_time}, execution_id={execution_id}")
+        logger.debug(f"创建命中记录: account_id={account_id}, branch_no={branch_no}, models={hit_model_ids}, hit_time={hit_time}, execution_id={execution_id}")
 
         return hit_record
 
@@ -122,6 +125,7 @@ class ModelHitAlertManager:
             execution_id=hit_record.execution_id,
             hit_record_id=hit_record.id,
             account_id=hit_record.account_id,
+            branch_no=hit_record.branch_no,
             record_date=record_date,
             hit_model_ids=hit_record.hit_model_ids,
             hit_model_names=hit_record.hit_model_names
@@ -477,21 +481,30 @@ class ModelHitAlertManager:
             )
 
     def get_alert_control_records(
-        self, 
-        filters: AlertControlFilters, 
-        pagination: PaginationParams
+        self,
+        filters: AlertControlFilters,
+        pagination: PaginationParams,
+        current_user_branch_no: Optional[str] = None
     ) -> AlertControlListResponse:
         """查询告警管控记录列表
-        
+
         Args:
             filters: 筛选条件
             pagination: 分页参数
-            
+            current_user_branch_no: 当前用户的部门编号（用于权限过滤）
+
         Returns:
             告警管控记录列表响应
         """
         # 构建基础查询
         query = self.db.query(FraudHunterModelAlertControlRecord)
+
+        # 应用权限过滤
+        if current_user_branch_no and len(current_user_branch_no) == 4 and current_user_branch_no.isdigit():
+            # 普通部门用户：只能查看本部门的记录
+            query = query.filter(FraudHunterModelAlertControlRecord.branch_no == current_user_branch_no)
+            logger.debug(f"应用部门权限过滤: branch_no={current_user_branch_no}")
+        # 否则（管理员或其他长度）：可以查看所有记录
         
         # 应用筛选条件
         query = self._apply_filters(query, filters)
@@ -555,18 +568,26 @@ class ModelHitAlertManager:
 
     def export_alert_control_records(
         self,
-        filters: AlertControlFilters
+        filters: AlertControlFilters,
+        current_user_branch_no: Optional[str] = None
     ) -> bytes:
         """导出告警管控记录为Excel
 
         Args:
             filters: 筛选条件
+            current_user_branch_no: 当前用户的部门编号（用于权限过滤）
 
         Returns:
             导出的Excel文件内容（字节）
         """
         # 查询所有符合条件的记录
         query = self.db.query(FraudHunterModelAlertControlRecord)
+
+        # 应用权限过滤
+        if current_user_branch_no and len(current_user_branch_no) == 4 and current_user_branch_no.isdigit():
+            query = query.filter(FraudHunterModelAlertControlRecord.branch_no == current_user_branch_no)
+            logger.debug(f"导出应用部门权限过滤: branch_no={current_user_branch_no}")
+
         query = self._apply_filters(query, filters)
         records = query.order_by(FraudHunterModelAlertControlRecord.created_at.desc()).limit(5000).all()
 
