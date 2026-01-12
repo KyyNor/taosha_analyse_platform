@@ -299,7 +299,7 @@ async def generate_realtime_wide_table_job():
                 logger.debug(f"创建执行记录: execution_id={execution_id}")
 
                 model_sql = _build_model_matching_sql(
-                    db, online_models, realtime_table_name, offline_table, offline_cust_table
+                    db, online_models, realtime_table_name, offline_table, offline_cust_table, object_type
                 )
                 execution_record.generated_sql = model_sql
                 db.flush()
@@ -429,12 +429,49 @@ def _build_model_matching_sql(
     db: Session,
     models: List[FraudHunterModelDefinition],
     realtime_table_name: str,
-    dep_acct_offline_table: str,
-    cust_offline_table: Optional[str]
+    offline_table: str,
+    related_offline_table: Optional[str],
+    object_type: str
 ) -> str:
+    """
+    构建实时模型匹配SQL
+
+    Args:
+        db: 数据库会话
+        models: 在线模型列表
+        realtime_table_name: 实时表名称
+        offline_table: 离线表名称（主表的object_type对应的离线表）
+        related_offline_table: 关联的离线表（如dep_acct_no关联cust_no表）
+        object_type: 对象类型 (dep_acct_no/cust_no/loan_acct_no)
+
+    Returns:
+        完整的模型匹配SQL
+    """
     from services.fraudhunter.model_service.rule_engine import RuleEngine
     from schemas.fraudhunter.rule import RuleConfig
 
+    # 表别名映射
+    table_alias_map = {
+        'dep_acct_no': {
+            'realtime': 'dep_acct_realtime_indicator',
+            'offline': 'dep_acct_offline_indicator'
+        },
+        'cust_no': {
+            'realtime': 'cust_realtime_indicator',
+            'offline': 'cust_offline_indicator'
+        },
+        'loan_acct_no': {
+            'realtime': 'loan_realtime_indicator',
+            'offline': 'loan_offline_indicator'
+        }
+    }
+
+    # 获取当前object_type的表别名
+    current_aliases = table_alias_map.get(object_type, table_alias_map['dep_acct_no'])
+    realtime_alias = current_aliases['realtime']
+    offline_alias = current_aliases['offline']
+
+    # 构建CASE WHEN子句（模型匹配逻辑）
     case_when_clauses = []
     for model in models:
         model_history = db.query(FraudHunterModelHistory).filter(
@@ -456,32 +493,44 @@ def _build_model_matching_sql(
 
         rule_config = RuleConfig(**rule_config_dict)
         rule_engine = RuleEngine(db=db)
-        indicator_alias_mapping = rule_engine.build_indicator_alias_mapping(rule_config, use_alias=True)
+        # 传递 object_type 参数，让规则引擎知道当前处理的表类型
+        indicator_alias_mapping = rule_engine.build_indicator_alias_mapping(
+            rule_config, use_alias=True, object_type=object_type
+        )
         where_condition = rule_engine.generate_sql_expression(rule_config, indicator_alias_mapping)
         case_when_clauses.append(f"CASE WHEN ({where_condition}) THEN {model.id} ELSE NULL END")
 
     array_expr = f"ARRAY(SELECT x FROM UNNEST(ARRAY[{', '.join(case_when_clauses)}]) x WHERE x IS NOT NULL)"
 
+    # 构建SELECT字段（只输出实时表字段，带[实时]前缀）
     select_fields = [
-        "COALESCE(dep_acct_realtime_indicator.target_id, dep_acct_offline_indicator.target_id) AS realtime_target_id",
-        "dep_acct_offline_indicator.i_dep_acct_no_offline_00007 AS offline_cust_type",
-        "dep_acct_realtime_indicator.etl_date AS realtime_etl_date",
-        "dep_acct_realtime_indicator.*",
-        "dep_acct_offline_indicator.*",
+        f"COALESCE({realtime_alias}.target_id, {offline_alias}.target_id) AS \"目标ID\"",
+        f"{offline_alias}.i_{object_type}_offline_00007 AS \"客户类型\"",
+        f"{realtime_alias}.etl_date AS \"[实时]ETL日期\"",
         f"{array_expr} AS model_hit_array"
     ]
 
+    # 构建JOIN子句
     join_clauses = [
-        f"FROM {dep_acct_offline_table} AS dep_acct_offline_indicator",
-        f"LEFT JOIN {realtime_table_name} AS dep_acct_realtime_indicator ON dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id"
+        f"FROM {offline_table} AS {offline_alias}",
+        f"LEFT JOIN {realtime_table_name} AS {realtime_alias} ON {realtime_alias}.target_id = {offline_alias}.target_id"
     ]
 
-    if cust_offline_table:
+    # 对于 dep_acct_no 类型，需要关联 cust_no 的实时表和离线表
+    if object_type == 'dep_acct_no':
+        cust_realtime_alias = table_alias_map['cust_no']['realtime']
+        cust_offline_alias = table_alias_map['cust_no']['offline']
+
         join_clauses.append(
-            f"LEFT JOIN {cust_offline_table} AS cust_offline_indicator ON "
-            f"dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id"
+            f"LEFT JOIN {realtime_table_name} AS {cust_realtime_alias} ON "
+            f"{cust_realtime_alias}.target_id = {offline_alias}.i_dep_acct_no_offline_00001"
         )
-        select_fields.append("cust_offline_indicator.*")
+
+        if related_offline_table:
+            join_clauses.append(
+                f"LEFT JOIN {related_offline_table} AS {cust_offline_alias} ON "
+                f"{offline_alias}.i_dep_acct_no_offline_00001 = {cust_offline_alias}.target_id"
+            )
 
     select_clause = ",\n    ".join(select_fields)
     where_clause = "WHERE array_length(model_hit_array, 1) > 0"
@@ -489,6 +538,7 @@ def _build_model_matching_sql(
     return f"""-- 实时模型匹配SQL
 -- 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 -- 模型数量: {len(models)}
+-- 对象类型: {object_type}
 
 SELECT
     {select_clause}
