@@ -1068,22 +1068,21 @@ class RuleEngine:
         """
         构建指标别名映射
 
-        根据指标编码自动判断所属表：
-        - 实时指标根据 object_type 映射到对应的实时表
-        - 以 'cust_' 或 'i_cust_' 开头的为客户指标 -> cust_offline_indicator
-        - 以 'loan_' 或 'i_loan_' 开头的为贷款指标 -> loan_offline_indicator
-        - 其他为存款离线指标 -> dep_acct_offline_indicator
+        根据每个指标的 indicator_type 和 object_type 自动判断所属表：
+        - 实时指标根据自身 object_type 映射到对应的实时表
+        - 离线指标根据自身 object_type 映射到对应的离线表
 
         Args:
             rule_config: 规则配置
             use_alias: 是否使用别名
                 - False: 返回 None（默认，不添加表别名）
                 - True: 返回指标别名映射
-            object_type: 对象类型 (dep_acct_no/cust_no/loan_acct_no)
-                用于确定实时指标表的别名
+            object_type: (已弃用) 此参数保留用于向后兼容，但不再使用
 
         Returns:
             指标别名映射字典，或 None
+            例如: {'i_dep_acct_no_realtime_00001': 'dep_acct_realtime_indicator',
+                  'i_cust_no_offline_00001': 'cust_offline_indicator'}
         """
         if not use_alias:
             return None
@@ -1095,34 +1094,36 @@ class RuleEngine:
             indicator_def = self._get_indicator_cached(indicator)
 
             if not indicator_def:
-                # 如果找不到指标定义，使用默认逻辑判断
+                # 如果找不到指标定义，使用默认逻辑判断（根据编码）
                 indicator_lower = indicator.lower()
                 if 'realtime' in indicator_lower:
-                    # 实时指标根据 object_type 映射
-                    if object_type == 'cust_no':
+                    # 实时指标：根据编码中的 object_type 判断
+                    if 'cust_no' in indicator_lower or indicator_lower.startswith('i_cust_'):
                         mapping[indicator] = 'cust_realtime_indicator'
-                    elif object_type == 'loan_acct_no':
+                    elif 'loan_acct_no' in indicator_lower or indicator_lower.startswith('i_loan_'):
                         mapping[indicator] = 'loan_realtime_indicator'
                     else:
                         mapping[indicator] = 'dep_acct_realtime_indicator'
-                elif indicator_lower.startswith('cust_') or indicator_lower.startswith('i_cust_'):
-                    mapping[indicator] = 'cust_offline_indicator'
-                elif indicator_lower.startswith('loan_') or indicator_lower.startswith('i_loan_'):
-                    mapping[indicator] = 'loan_offline_indicator'
                 else:
-                    mapping[indicator] = 'dep_acct_offline_indicator'
+                    # 离线指标：根据编码判断
+                    if 'cust_no' in indicator_lower or indicator_lower.startswith('i_cust_'):
+                        mapping[indicator] = 'cust_offline_indicator'
+                    elif 'loan_acct_no' in indicator_lower or indicator_lower.startswith('i_loan_'):
+                        mapping[indicator] = 'loan_offline_indicator'
+                    else:
+                        mapping[indicator] = 'dep_acct_offline_indicator'
             else:
-                # 根据指标定义判断
+                # 根据指标定义判断（每个指标根据自己的类型和对象类型映射）
                 if indicator_def.indicator_type == 'realtime':
-                    # 实时指标根据 object_type 映射
-                    if object_type == 'cust_no':
+                    # 实时指标：根据指标自身的 object_type 映射
+                    if indicator_def.object_type == 'cust_no':
                         mapping[indicator] = 'cust_realtime_indicator'
-                    elif object_type == 'loan_acct_no':
+                    elif indicator_def.object_type == 'loan_acct_no':
                         mapping[indicator] = 'loan_realtime_indicator'
                     else:
                         mapping[indicator] = 'dep_acct_realtime_indicator'
                 else:
-                    # 离线指标根据 object_type 映射
+                    # 离线指标：根据指标自身的 object_type 映射
                     if indicator_def.object_type == 'cust_no':
                         mapping[indicator] = 'cust_offline_indicator'
                     elif indicator_def.object_type == 'loan_acct_no':

@@ -475,9 +475,9 @@ def _build_model_matching_sql(
 
         rule_config = RuleConfig(**rule_config_dict)
         rule_engine = RuleEngine(db=db)
-        # 传递 object_type='dep_acct_no'，因为主表是存款账户
+        # 构建指标别名映射（每个指标根据自身的类型和对象类型映射）
         indicator_alias_mapping = rule_engine.build_indicator_alias_mapping(
-            rule_config, use_alias=True, object_type='dep_acct_no'
+            rule_config, use_alias=True
         )
         where_condition = rule_engine.generate_sql_expression(rule_config, indicator_alias_mapping)
         case_when_clauses.append(f"CASE WHEN ({where_condition}) THEN {model.id} ELSE NULL END")
