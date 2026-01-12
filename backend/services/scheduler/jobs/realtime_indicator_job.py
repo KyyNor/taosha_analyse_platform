@@ -83,111 +83,171 @@ async def generate_realtime_wide_table_job():
             logger.debug("步骤1: 实时指标加工")
             logger.debug("=" * 60)
 
+            # 查询所有在线的实时指标任务
             realtime_tasks = db.query(FraudHunterIndicatorTask).join(
                 FraudHunterIndicatorDefinition,
                 FraudHunterIndicatorDefinition.indicator_task_id == FraudHunterIndicatorTask.id
             ).filter(
                 and_(
                     FraudHunterIndicatorDefinition.status == 'online',
-                    FraudHunterIndicatorDefinition.object_type == 'dep_acct_no',
                     FraudHunterIndicatorDefinition.indicator_type == 'realtime'
                 )
             ).all()
 
             if not realtime_tasks:
-                logger.info("没有在线的 dep_acct_no 实时指标任务，跳过生成")
+                logger.info("没有在线的实时指标任务，跳过生成")
                 return
-            logger.debug(f"找到 {len(realtime_tasks)} 个在线的 dep_acct_no 实时指标任务")
+            logger.debug(f"找到 {len(realtime_tasks)} 个在线的实时指标任务")
 
-            offline_dep_acct_table = _get_current_version_table_name(db, 'dep_acct_wide_table')
-            offline_cust_table = _get_current_version_table_name(db, 'cust_wide_table')
-
-            if not offline_dep_acct_table:
-                logger.warning("没有找到 dep_acct_wide_table 的当前版本")
-                return
-            logger.debug(f"离线存款账户宽表: {offline_dep_acct_table}")
-            if offline_cust_table:
-                logger.debug(f"离线客户宽表: {offline_cust_table}")
-
-            current_version = db.query(FraudHunterWideTableVersion).filter(
-                and_(
-                    FraudHunterWideTableVersion.wide_table_name == 'dep_acct_wide_table',
-                    FraudHunterWideTableVersion.status == 'current'
-                )
-            ).first()
-
-            if not current_version:
-                logger.warning("没有找到 dep_acct_wide_table 的current版本")
-                return
-
-            realtime_table_name = f"dep_acct_wide_table_realtime_{current_version.version_hash[:8]}"
-
-            table_exists_sql = """
-                SELECT EXISTS (
-                    SELECT 1 FROM pg_tables
-                    WHERE schemaname = 'public' AND tablename = :table_name
-                )
-            """
-            table_exists = AnalyzeDBConnector.execute_sql(
-                table_exists_sql, params={"table_name": realtime_table_name}, fetch_df=True
-            )
-
-            if table_exists is not None and not table_exists.iloc[0]['exists']:
-                AnalyzeDBPartitionManager.create_wide_table(
-                    realtime_table_name, current_version.indicator_metadata, is_realtime=True
-                )
-                logger.info(f"创建实时宽表: {realtime_table_name}")
-
-            AnalyzeDBPartitionManager.ensure_partition(realtime_table_name, today)
-
-            all_indicator_results = []
-            user_variable_config = _build_all_user_variable_config(db)
-
+            # 按 object_type 分组任务
+            tasks_by_object_type: Dict[str, List[FraudHunterIndicatorTask]] = {}
             for task in realtime_tasks:
-                sql = task.realtime_logic_content
-                for k, v in user_variable_config.items():
-                    sql = sql.replace("${" + k + "}", v)
-                sql = sql.replace("${date}", today_str)
-                sql = sql.replace('realtime_oss_inct_new', 'realtime_oss_inct_new')
-                sql = sql.replace('offline_dep_acct_no_table', offline_dep_acct_table)
-                if offline_cust_table:
-                    sql = sql.replace('offline_cust_no_table', offline_cust_table)
+                # 从关联的指标定义中获取 object_type
+                for indicator in task.indicators:
+                    if indicator.indicator_type == 'realtime' and indicator.status == 'online':
+                        object_type = indicator.object_type
+                        if object_type not in tasks_by_object_type:
+                            tasks_by_object_type[object_type] = []
+                        tasks_by_object_type[object_type].append(task)
+                        break
 
-                logger.debug(f"执行指标任务 {task.task_code} 的实时SQL")
-                try:
-                    result_df = AnalyzeDBConnector.execute_sql(sql, fetch_df=True)
-                    if result_df is not None and not result_df.empty:
-                        all_indicator_results.append(result_df)
-                        logger.debug(f"  -> 返回 {len(result_df)} 行，{len(result_df.columns)} 列")
-                except Exception as e:
-                    logger.error(f"执行指标任务 {task.task_code} 失败: {e}")
+            if not tasks_by_object_type:
+                logger.info("没有有效的实时指标任务分组，跳过生成")
+                return
+
+            logger.debug(f"按 object_type 分组: {list(tasks_by_object_type.keys())}")
+
+            # object_type 到宽表名称的映射
+            object_type_to_wide_table = {
+                'dep_acct_no': 'dep_acct_wide_table',
+                'cust_no': 'cust_wide_table',
+                'loan_acct_no': 'loan_acct_wide_table'
+            }
+
+            # 获取所有离线宽表
+            offline_tables = {}
+            for object_type, wide_table_name in object_type_to_wide_table.items():
+                table_name = _get_current_version_table_name(db, wide_table_name)
+                if table_name:
+                    offline_tables[object_type] = table_name
+                    logger.debug(f"离线宽表 ({object_type}): {table_name}")
+
+            # 处理每个 object_type 的实时指标
+            user_variable_config = _build_all_user_variable_config(db)
+            generated_realtime_tables: Dict[str, str] = {}
+
+            for object_type, tasks in tasks_by_object_type.items():
+                logger.debug(f"\n处理 object_type: {object_type}, 任务数: {len(tasks)}")
+
+                wide_table_name = object_type_to_wide_table.get(object_type)
+                if not wide_table_name:
+                    logger.warning(f"未定义 object_type '{object_type}' 的宽表映射，跳过")
                     continue
 
-            if not all_indicator_results:
-                logger.warning("没有成功执行的实时指标任务")
-                return
+                # 获取对应的离线宽表
+                offline_table = offline_tables.get(object_type)
+                if not offline_table:
+                    logger.warning(f"没有找到 {wide_table_name} 的当前版本，跳过")
+                    continue
 
-            logger.debug("合并所有指标结果...")
-            final_result = all_indicator_results[0]
-            for i in range(1, len(all_indicator_results)):
-                final_result = final_result.merge(
-                    all_indicator_results[i], on='target_id', how='outer', suffixes=('', f'_dup_{i}')
+                # 获取当前版本信息
+                current_version = db.query(FraudHunterWideTableVersion).filter(
+                    and_(
+                        FraudHunterWideTableVersion.wide_table_name == wide_table_name,
+                        FraudHunterWideTableVersion.status == 'current'
+                    )
+                ).first()
+
+                if not current_version:
+                    logger.warning(f"没有找到 {wide_table_name} 的current版本，跳过")
+                    continue
+
+                realtime_table_name = f"{wide_table_name}_realtime_{current_version.version_hash[:8]}"
+                generated_realtime_tables[object_type] = realtime_table_name
+
+                # 创建实时表（如果不存在）
+                table_exists_sql = """
+                    SELECT EXISTS (
+                        SELECT 1 FROM pg_tables
+                        WHERE schemaname = 'public' AND tablename = :table_name
+                    )
+                """
+                table_exists = AnalyzeDBConnector.execute_sql(
+                    table_exists_sql, params={"table_name": realtime_table_name}, fetch_df=True
                 )
-            final_result['etl_date'] = today
 
-            batch_size = settings.fraudhunter_realtime_writer_batch_insert_size
-            AnalyzeDBConnector.batch_insert(
-                realtime_table_name, final_result, chunksize=batch_size, if_exists='append'
-            )
+                if table_exists is not None and not table_exists.iloc[0]['exists']:
+                    AnalyzeDBPartitionManager.create_wide_table(
+                        realtime_table_name, current_version.indicator_metadata, is_realtime=True
+                    )
+                    logger.info(f"创建实时宽表: {realtime_table_name}")
 
-            row_count = len(final_result)
-            column_count = len(final_result.columns)
-            logger.debug(f"实时宽表已写入PG: {realtime_table_name}, 行数: {row_count}, 列数: {column_count}")
+                # 确保分区存在
+                AnalyzeDBPartitionManager.ensure_partition(realtime_table_name, today)
 
-            _update_realtime_snapshot(
-                db, 'dep_acct_wide_table_realtime', today, realtime_table_name, row_count, column_count
-            )
+                # 执行该 object_type 的所有实时指标任务
+                all_indicator_results = []
+
+                for task in tasks:
+                    sql = task.realtime_logic_content
+                    for k, v in user_variable_config.items():
+                        sql = sql.replace("${" + k + "}", v)
+                    sql = sql.replace("${date}", today_str)
+
+                    # 替换离线表变量（根据 object_type 替换对应的离线表）
+                    if object_type == 'dep_acct_no':
+                        sql = sql.replace('offline_dep_acct_no_table', offline_table)
+                        if offline_tables.get('cust_no'):
+                            sql = sql.replace('offline_cust_no_table', offline_tables['cust_no'])
+                    elif object_type == 'cust_no':
+                        sql = sql.replace('offline_cust_no_table', offline_table)
+                    elif object_type == 'loan_acct_no':
+                        sql = sql.replace('offline_loan_acct_no_table', offline_table)
+
+                    logger.debug(f"执行指标任务 {task.task_code} 的实时SQL")
+                    try:
+                        result_df = AnalyzeDBConnector.execute_sql(sql, fetch_df=True)
+                        if result_df is not None and not result_df.empty:
+                            all_indicator_results.append(result_df)
+                            logger.debug(f"  -> 返回 {len(result_df)} 行，{len(result_df.columns)} 列")
+                    except Exception as e:
+                        logger.error(f"执行指标任务 {task.task_code} 失败: {e}")
+                        continue
+
+                if not all_indicator_results:
+                    logger.warning(f"object_type '{object_type}' 没有成功执行的实时指标任务")
+                    continue
+
+                # 合并所有指标结果
+                logger.debug("合并所有指标结果...")
+                final_result = all_indicator_results[0]
+                for i in range(1, len(all_indicator_results)):
+                    final_result = final_result.merge(
+                        all_indicator_results[i], on='target_id', how='outer', suffixes=('', f'_dup_{i}')
+                    )
+                final_result['etl_date'] = today
+
+                # 写入实时表
+                batch_size = settings.fraudhunter_realtime_writer_batch_insert_size
+                AnalyzeDBConnector.batch_insert(
+                    realtime_table_name, final_result, chunksize=batch_size, if_exists='append'
+                )
+
+                row_count = len(final_result)
+                column_count = len(final_result.columns)
+                logger.debug(f"实时宽表已写入PG: {realtime_table_name}, 行数: {row_count}, 列数: {column_count}")
+
+                # 更新快照
+                _update_realtime_snapshot(
+                    db, f'{wide_table_name}_realtime', today, realtime_table_name, row_count, column_count
+                )
+
             db.commit()
+
+            # 如果没有生成任何实时表，直接返回
+            if not generated_realtime_tables:
+                logger.warning("没有成功生成任何实时宽表")
+                return
 
             logger.debug("=" * 60)
             logger.debug("步骤2: 已上线模型执行")
@@ -202,121 +262,156 @@ async def generate_realtime_wide_table_job():
                 return
             logger.debug(f"找到 {len(online_models)} 个在线模型")
 
-            online_models_info = [
-                {'id': m.id, 'name': m.model_name, 'code': m.model_code, 'version': m.current_version}
-                for m in online_models
-            ]
+            # 对每个 object_type 的实时表执行模型匹配
+            for object_type, realtime_table_name in generated_realtime_tables.items():
+                logger.debug(f"\n对 {object_type} 的实时表执行模型匹配: {realtime_table_name}")
 
-            execution_start_time = datetime.now()
-            execution_record = FraudHunterModelExecution(
-                realtime_dep_acct_wide_table_path=realtime_table_name,
-                offline_dep_acct_wide_table_path=offline_dep_acct_table,
-                offline_cust_wide_table_path=offline_cust_table,
-                online_models_info=online_models_info,
-                generated_sql='',
-                execution_start_time=execution_start_time,
-                status='running'
-            )
-            db.add(execution_record)
-            db.flush()
-            execution_id = execution_record.id
-            logger.debug(f"创建执行记录: execution_id={execution_id}")
+                wide_table_name = object_type_to_wide_table.get(object_type)
+                offline_table = offline_tables.get(object_type)
 
-            model_sql = _build_model_matching_sql(db, online_models, realtime_table_name, offline_dep_acct_table, offline_cust_table)
-            execution_record.generated_sql = model_sql
-            db.flush()
-            logger.debug("模型匹配SQL已生成")
-
-            try:
-                matched_df = AnalyzeDBConnector.execute_sql(model_sql, fetch_df=True) or pd.DataFrame()
-                logger.info(f"实时模型匹配完成，命中 {len(matched_df)} 条记录")
-            except Exception as e:
-                logger.error(f"执行模型匹配SQL失败: {e}", exc_info=True)
-                return
-
-            if len(matched_df) == 0:
-                logger.debug("没有命中任何模型的记录")
-                return
-
-            logger.debug("=" * 60)
-            logger.debug("步骤3: 记录模型运行结果")
-            logger.debug("=" * 60)
-
-            manager = ModelHitAlertManager(db)
-            hit_time = datetime.now()
-            whitelist_acct = SystemConfigManager(db).get_config_value('whitelist_acct', default=[])
-            whitelist_set = set(whitelist_acct) if whitelist_acct else set()
-            if whitelist_set:
-                logger.debug(f"加载白名单账户 {len(whitelist_set)} 个")
-
-            all_hit_accounts = set()
-            new_hit_accounts = set()
-            whitelist_hit_accounts = set()
-
-            from models.fraudhunter.model_execution_tracking import FraudHunterModelAlertControlRecord
-
-            for _, row in matched_df.iterrows():
-                account_id = str(row.get('realtime_target_id', ''))
-                offline_cust_type = str(row.get('offline_cust_type', ''))
-
-                cust_type_map = {'个人': '01', '对公': '02'}
-                cust_type = cust_type_map.get(offline_cust_type, '03')
-
-                hit_model_list = row.get('model_hit_array', [])
-                if not hit_model_list:
+                if not offline_table:
+                    logger.warning(f"没有找到 {object_type} 的离线宽表，跳过模型匹配")
                     continue
 
-                hit_models = []
-                for model_id in hit_model_list:
-                    model = db.query(FraudHunterModelDefinition).filter(
-                        FraudHunterModelDefinition.id == model_id
-                    ).first()
-                    if model:
-                        hit_models.append(ModelHit(model_id=model.id, model_name=model.model_name))
+                # 对于 dep_acct_no 类型，需要关联 cust_no 表
+                offline_cust_table = None
+                if object_type == 'dep_acct_no':
+                    offline_cust_table = offline_tables.get('cust_no')
 
-                if not hit_models:
-                    continue
+                online_models_info = [
+                    {'id': m.id, 'name': m.model_name, 'code': m.model_code, 'version': m.current_version}
+                    for m in online_models
+                ]
 
-                all_hit_accounts.add(account_id)
-                is_whitelist = account_id in whitelist_set
-                if is_whitelist:
-                    whitelist_hit_accounts.add(account_id)
-
-                existing_record = db.query(FraudHunterModelAlertControlRecord).filter(
-                    and_(
-                        FraudHunterModelAlertControlRecord.account_id == account_id,
-                        FraudHunterModelAlertControlRecord.record_date == today
-                    )
-                ).first()
-                if not existing_record:
-                    new_hit_accounts.add(account_id)
-
-                indicator_data = {
-                    k: (None if pd.isna(v) else (v.item() if hasattr(v, 'item') else v))
-                    for k, v in row.items() if k != 'model_hit_array'
-                }
-
-                hit_record = manager.create_hit_record(
-                    account_id=account_id,
-                    hit_models=hit_models,
-                    indicator_data=indicator_data,
-                    hit_time=hit_time,
-                    execution_id=execution_id
+                execution_start_time = datetime.now()
+                execution_record = FraudHunterModelExecution(
+                    realtime_dep_acct_wide_table_path=realtime_table_name,
+                    offline_dep_acct_wide_table_path=offline_table,
+                    offline_cust_wide_table_path=offline_cust_table,
+                    online_models_info=online_models_info,
+                    generated_sql='',
+                    execution_start_time=execution_start_time,
+                    status='running'
                 )
+                db.add(execution_record)
+                db.flush()
+                execution_id = execution_record.id
+                logger.debug(f"创建执行记录: execution_id={execution_id}")
 
-                alert_control_record = manager.hit_record_processor(hit_record, is_whitelist=is_whitelist, cust_type=cust_type)
-                whitelist_tag = "[白名单]" if is_whitelist else ""
-                if alert_control_record.alert_status != "duplicate" or alert_control_record.control_status != "duplicate":
-                    logger.info(f"账户 {account_id} {whitelist_tag}命中 {len(hit_models)} 个模型: {[m.model_name for m in hit_models]}")
+                model_sql = _build_model_matching_sql(
+                    db, online_models, realtime_table_name, offline_table, offline_cust_table
+                )
+                execution_record.generated_sql = model_sql
+                db.flush()
+                logger.debug("模型匹配SQL已生成")
 
-            execution_record.execution_end_time = datetime.now()
-            execution_record.total_hit_accounts = len(all_hit_accounts)
-            execution_record.new_hit_accounts = len(new_hit_accounts)
-            execution_record.status = 'success'
-            db.flush()
+                try:
+                    matched_df = AnalyzeDBConnector.execute_sql(model_sql, fetch_df=True) or pd.DataFrame()
+                    logger.info(f"实时模型匹配完成 ({object_type}), 命中 {len(matched_df)} 条记录")
+                except Exception as e:
+                    logger.error(f"执行模型匹配SQL失败 ({object_type}): {e}", exc_info=True)
+                    execution_record.execution_end_time = datetime.now()
+                    execution_record.status = 'failed'
+                    execution_record.error_message = str(e)
+                    db.commit()
+                    continue
 
-            logger.debug(f"执行记录已更新: execution_id={execution_id}, 命中账户数={len(all_hit_accounts)}, 新命中账户数={len(new_hit_accounts)}, 白名单命中账户数={len(whitelist_hit_accounts)}")
-            db.commit()
+                if len(matched_df) == 0:
+                    logger.debug(f"没有命中任何模型的记录 ({object_type})")
+                    execution_record.execution_end_time = datetime.now()
+                    execution_record.status = 'success'
+                    db.commit()
+                    continue
+
+                logger.debug("=" * 60)
+                logger.debug(f"步骤3: 记录模型运行结果 ({object_type})")
+                logger.debug("=" * 60)
+
+                manager = ModelHitAlertManager(db)
+                hit_time = datetime.now()
+                whitelist_acct = SystemConfigManager(db).get_config_value('whitelist_acct', default=[])
+                whitelist_set = set(whitelist_acct) if whitelist_acct else set()
+                if whitelist_set:
+                    logger.debug(f"加载白名单账户 {len(whitelist_set)} 个")
+
+                all_hit_accounts = set()
+                new_hit_accounts = set()
+                whitelist_hit_accounts = set()
+
+                from models.fraudhunter.model_execution_tracking import FraudHunterModelAlertControlRecord
+
+                for _, row in matched_df.iterrows():
+                    account_id = str(row.get('realtime_target_id', ''))
+                    offline_cust_type = str(row.get('offline_cust_type', ''))
+
+                    cust_type_map = {'个人': '01', '对公': '02'}
+                    cust_type = cust_type_map.get(offline_cust_type, '03')
+
+                    hit_model_list = row.get('model_hit_array', [])
+                    if not hit_model_list:
+                        continue
+
+                    hit_models = []
+                    for model_id in hit_model_list:
+                        model = db.query(FraudHunterModelDefinition).filter(
+                            FraudHunterModelDefinition.id == model_id
+                        ).first()
+                        if model:
+                            hit_models.append(ModelHit(model_id=model.id, model_name=model.model_name))
+
+                    if not hit_models:
+                        continue
+
+                    all_hit_accounts.add(account_id)
+                    is_whitelist = account_id in whitelist_set
+                    if is_whitelist:
+                        whitelist_hit_accounts.add(account_id)
+
+                    existing_record = db.query(FraudHunterModelAlertControlRecord).filter(
+                        and_(
+                            FraudHunterModelAlertControlRecord.account_id == account_id,
+                            FraudHunterModelAlertControlRecord.record_date == today
+                        )
+                    ).first()
+                    if not existing_record:
+                        new_hit_accounts.add(account_id)
+
+                    indicator_data = {
+                        k: (None if pd.isna(v) else (v.item() if hasattr(v, 'item') else v))
+                        for k, v in row.items() if k != 'model_hit_array'
+                    }
+
+                    hit_record = manager.create_hit_record(
+                        account_id=account_id,
+                        hit_models=hit_models,
+                        indicator_data=indicator_data,
+                        hit_time=hit_time,
+                        execution_id=execution_id
+                    )
+
+                    alert_control_record = manager.hit_record_processor(
+                        hit_record, is_whitelist=is_whitelist, cust_type=cust_type
+                    )
+                    whitelist_tag = "[白名单]" if is_whitelist else ""
+                    if alert_control_record.alert_status != "duplicate" or alert_control_record.control_status != "duplicate":
+                        logger.info(
+                            f"账户 {account_id} {whitelist_tag}命中 {len(hit_models)} 个模型: "
+                            f"{[m.model_name for m in hit_models]}"
+                        )
+
+                execution_record.execution_end_time = datetime.now()
+                execution_record.total_hit_accounts = len(all_hit_accounts)
+                execution_record.new_hit_accounts = len(new_hit_accounts)
+                execution_record.status = 'success'
+                db.flush()
+
+                logger.debug(
+                    f"执行记录已更新 ({object_type}): execution_id={execution_id}, "
+                    f"命中账户数={len(all_hit_accounts)}, 新命中账户数={len(new_hit_accounts)}, "
+                    f"白名单命中账户数={len(whitelist_hit_accounts)}"
+                )
+                db.commit()
+
             logger.debug("实时指标宽表生成及模型匹配完成")
 
         except Exception as e:
@@ -354,7 +449,10 @@ def _build_model_matching_sql(
             logger.debug(f"模型 {model.model_code} 使用版本历史表的规则配置 (version={model.current_version})")
         else:
             rule_config_dict = model.rule_config
-            logger.warning(f"模型 {model.model_code} 的版本历史记录不存在 (version={model.current_version}), 降级使用模型表的规则配置")
+            logger.warning(
+                f"模型 {model.model_code} 的版本历史记录不存在 (version={model.current_version}), "
+                "降级使用模型表的规则配置"
+            )
 
         rule_config = RuleConfig(**rule_config_dict)
         rule_engine = RuleEngine(db=db)
@@ -379,7 +477,10 @@ def _build_model_matching_sql(
     ]
 
     if cust_offline_table:
-        join_clauses.append(f"LEFT JOIN {cust_offline_table} AS cust_offline_indicator ON dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id")
+        join_clauses.append(
+            f"LEFT JOIN {cust_offline_table} AS cust_offline_indicator ON "
+            f"dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id"
+        )
         select_fields.append("cust_offline_indicator.*")
 
     select_clause = ",\n    ".join(select_fields)
