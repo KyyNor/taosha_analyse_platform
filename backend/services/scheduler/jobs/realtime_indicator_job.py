@@ -484,13 +484,49 @@ def _build_model_matching_sql(
 
     array_expr = f"ARRAY(SELECT x FROM UNNEST(ARRAY[{', '.join(case_when_clauses)}]) x WHERE x IS NOT NULL)"
 
-    # 构建SELECT字段
+    # 查询所有在线的指标定义，构建动态 SELECT 字段
+    online_indicators = db.query(FraudHunterIndicatorDefinition).filter(
+        and_(
+            FraudHunterIndicatorDefinition.status == 'online',
+            FraudHunterIndicatorDefinition.object_type.in_(['dep_acct_no', 'cust_no'])
+        )
+    ).all()
+
+    # 基础字段
     select_fields = [
         f"COALESCE(dep_acct_realtime_indicator.target_id, dep_acct_offline_indicator.target_id) AS \"目标ID\"",
         "dep_acct_offline_indicator.i_dep_acct_no_offline_00007 AS \"客户类型\"",
         "dep_acct_realtime_indicator.etl_date AS \"[实时]ETL日期\"",
-        f"{array_expr} AS model_hit_array"
     ]
+
+    # 添加指标字段
+    for indicator in online_indicators:
+        indicator_name = indicator.indicator_name or indicator.indicator_code
+        object_type = indicator.object_type
+        indicator_code = indicator.indicator_code
+
+        # 确定表别名
+        if indicator.indicator_type == 'realtime':
+            # 实时指标：从实时表获取，带 [实时] 前缀
+            if object_type == 'dep_acct_no' and dep_acct_realtime_table:
+                table_alias = 'dep_acct_realtime_indicator'
+                alias_name = f"[实时]{indicator_name}"
+                select_fields.append(f"{table_alias}.{indicator_code} AS \"{alias_name}\"")
+            elif object_type == 'cust_no' and cust_realtime_table:
+                table_alias = 'cust_realtime_indicator'
+                alias_name = f"[实时]{indicator_name}"
+                select_fields.append(f"{table_alias}.{indicator_code} AS \"{alias_name}\"")
+        else:
+            # 离线指标：从离线表获取
+            if object_type == 'dep_acct_no':
+                table_alias = 'dep_acct_offline_indicator'
+                select_fields.append(f"{table_alias}.{indicator_code} AS \"{indicator_name}\"")
+            elif object_type == 'cust_no' and cust_offline_table:
+                table_alias = 'cust_offline_indicator'
+                select_fields.append(f"{table_alias}.{indicator_code} AS \"{indicator_name}\"")
+
+    # 添加模型匹配数组
+    select_fields.append(f"{array_expr} AS model_hit_array")
 
     # 构建JOIN子句（从离线账户表出发）
     join_clauses = [
@@ -519,6 +555,7 @@ def _build_model_matching_sql(
     return f"""-- 实时模型匹配SQL
 -- 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 -- 模型数量: {len(models)}
+-- 指标数量: {len(online_indicators)}
 -- 关联表: 离线账户、离线客户、实时账户、实时客户
 
 SELECT
