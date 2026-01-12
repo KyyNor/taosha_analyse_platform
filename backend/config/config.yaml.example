@@ -258,14 +258,25 @@ dolphinscheduler:
 
 # FraudHunter 宽表版本管理配置
 fraudhunter:
+  # 分析数据库配置 (PostgreSQL)
+  analyze_db:
+    db_type: "postgresql"  # 数据库类型: postgresql (仅支持此类型)
+
+    # PostgreSQL配置
+    postgresql:
+      host: "127.0.0.1"
+      port: 5432
+      database: "taosha_fraudhunter"  # 独立数据库
+      user: "taosha"
+      password: "taosha_pg_pass"
+      pool_size: 10  # 连接池大小
+      max_overflow: 20  # 连接池最大溢出连接数
+      pool_recycle: 3600  # 连接回收时间(秒)
+      pool_pre_ping: true  # 连接健康检查
+
   # 宽表配置
   wide_table:
-    storage_path: "/data/taosha/indicator_data/wide_tables"  # Parquet文件存储路径
-
-    # DuckDB配置
-    duckdb_config:
-      memory_limit: "10GB"  # 内存限制
-      threads: 4  # 线程数
+    storage_path: "/data/taosha/indicator_data/wide_tables"  # 保留用于兼容性
 
     # 离线宽表同步配置
     sync_lookback_days: 30  # 回溯扫描天数
@@ -275,7 +286,7 @@ fraudhunter:
   # 实时数据服务配置
   realtime_data:
     enabled: false  # 是否启用实时数据服务（默认关闭）
-    storage_path: "/data/taosha/indicator_data/realtime_data"  # DuckDB文件存储路径
+    storage_path: "/data/taosha/indicator_data/realtime_data"  # 保留用于兼容性
     data_retention_days: 7  # 数据保留天数
 
     # Kafka配置
@@ -295,6 +306,7 @@ fraudhunter:
     writer:
       buffer_size: 2000  # 缓冲区大小（条）
       flush_interval_seconds: 120  # 定时刷新间隔（秒）
+      batch_insert_size: 1000  # 批量插入大小
 
   # 管控和告警接口配置
   alert_control:
@@ -305,10 +317,8 @@ fraudhunter:
 
 # 调度器配置
 scheduler:
-  offline_wide_table_sync: 60 # 秒，检查是否可以同步的间隔
-  model_runner_interval: 300  # 秒，实时指标生成间隔（5分钟）
+  offline_wide_table_sync: 28800 # 秒，检查是否可以同步的间隔
+  model_runner_interval: 60  # 秒，实时指标生成间隔（5分钟）
   metadata_sync_interval: 28800  # 秒，元数据同步间隔（8小时）
   fine_report_sync_interval: 28800  # 秒，FineReport报表同步间隔（8小时）
-  vector_training_interval: 1800  # 秒，向量数据库训练间隔（30分钟）
-  realtime_data_cleanup_cron: "0 2 * * *"  # cron表达式，实时数据清理（每日凌晨2点）
-  parquet_file_cleanup_cron: "0 3 * * *"   # cron表达式，Parquet文件清理（每日凌晨3点）
+  vector_training_interval: 28800  # 秒，向量数据库训练间隔（30分钟）
