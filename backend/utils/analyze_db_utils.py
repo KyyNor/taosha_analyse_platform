@@ -1,6 +1,6 @@
 """PostgreSQL分析数据库工具类"""
 
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from contextlib import contextmanager
 from typing import Optional, Any, List, Tuple, Dict
 
@@ -308,33 +308,186 @@ class AnalyzeDBPartitionManager:
             return []
 
     @staticmethod
-    def cleanup_old_partitions(table_name: str, retention_days: int = 7) -> int:
-        cutoff_date = date.today() - timedelta(days=retention_days)
-        deleted_count = 0
+    def list_partitions(table_name: str) -> List[str]:
+        """列出表的所有分区
+
+        Args:
+            table_name: 主表名
+
+        Returns:
+            分区名列表
+        """
         engine = AnalyzeDBConnector.get_engine()
-        partitions_sql = """
+        sql = """
             SELECT tablename
             FROM pg_tables
             WHERE schemaname = 'public'
               AND tablename LIKE :pattern
-              AND substring(tablename from length(:table_name) + 2) < :cutoff_date
+            ORDER BY tablename
         """
         try:
-            df = pd.read_sql_query(
-                partitions_sql, engine,
-                params={
-                    "pattern": f"{table_name}_%",
-                    "table_name": table_name,
-                    "cutoff_date": cutoff_date.strftime('%Y%m%d')
-                }
-            )
-            for partition_name in df['tablename']:
-                if AnalyzeDBPartitionManager.drop_partition(table_name, partition_name):
-                    deleted_count += 1
-            logger.info(f"清理旧分区完成: 表={table_name}, 删除分区数={deleted_count}")
+            df = pd.read_sql_query(sql, engine, params={"pattern": f"{table_name}_%"})
+            partition_list = df['tablename'].tolist()
+            logger.debug(f"找到表 {table_name} 的 {len(partition_list)} 个分区")
+            return partition_list
         except Exception as e:
-            logger.error(f"清理旧分区失败: {table_name}, 错误: {e}", exc_info=True)
+            logger.error(f"列出分区失败: {table_name}, 错误={e}", exc_info=True)
+            return []
+
+    @staticmethod
+    def cleanup_old_partitions(table_name: str, retention_days: int = 7) -> int:
+        """清理表的旧分区
+
+        Args:
+            table_name: 主表名
+            retention_days: 保留天数
+
+        Returns:
+            删除的分区数量
+        """
+        cutoff_date = date.today() - timedelta(days=retention_days)
+        deleted_count = 0
+
+        # 获取所有分区
+        partitions = AnalyzeDBPartitionManager.list_partitions(table_name)
+
+        for partition_name in partitions:
+            try:
+                # 从分区名提取日期 (格式: table_name_YYYYMMDD)
+                date_str = partition_name.split('_')[-1]
+                if len(date_str) == 8 and date_str.isdigit():
+                    partition_date = datetime.strptime(date_str, '%Y%m%d').date()
+
+                    # 删除超过保留期的分区
+                    if partition_date < cutoff_date:
+                        sql = f"DROP TABLE IF EXISTS {partition_name};"
+                        if AnalyzeDBPartitionManager._execute_ddl(
+                            sql,
+                            f"删除旧分区: {partition_name}",
+                            f"删除分区失败: {partition_name}"
+                        ):
+                            deleted_count += 1
+            except (ValueError, IndexError) as e:
+                logger.warning(f"跳过无法解析日期的分区: {partition_name}, 错误={e}")
+                continue
+
+        if deleted_count > 0:
+            logger.info(f"清理旧分区完成: 表={table_name}, 删除分区数={deleted_count}, 保留天数={retention_days}")
+        else:
+            logger.debug(f"没有需要清理的旧分区: 表={table_name}")
+
         return deleted_count
+
+    @staticmethod
+    def cleanup_expired_snapshots(wide_table_name: str, retention_days: int) -> int:
+        """清理过期的宽表快照记录
+
+        Args:
+            wide_table_name: 宽表名称
+            retention_days: 保留天数
+
+        Returns:
+            删除的快照数量
+        """
+        from models.db_base import get_db_session
+        from models.fraudhunter.wide_table import FraudHunterWideTableSnapshot
+        from sqlalchemy import and_
+
+        cutoff_date = date.today() - timedelta(days=retention_days)
+
+        try:
+            with get_db_session() as db:
+                expired_snapshots = db.query(FraudHunterWideTableSnapshot).filter(
+                    and_(
+                        FraudHunterWideTableSnapshot.wide_table_name == wide_table_name,
+                        FraudHunterWideTableSnapshot.etl_date < cutoff_date
+                    )
+                ).all()
+
+                deleted_count = len(expired_snapshots)
+                for snapshot in expired_snapshots:
+                    db.delete(snapshot)
+                db.commit()
+
+                if deleted_count > 0:
+                    logger.info(
+                        f"清理过期快照完成: 表={wide_table_name}, "
+                        f"删除记录数={deleted_count}, 保留天数={retention_days}"
+                    )
+                else:
+                    logger.debug(f"没有需要清理的过期快照: 表={wide_table_name}")
+
+                return deleted_count
+
+        except Exception as e:
+            logger.error(f"清理过期快照失败: 表={wide_table_name}, 错误={e}", exc_info=True)
+            return 0
+
+    @staticmethod
+    def cleanup_orphaned_snapshots() -> int:
+        """清理孤立的快照记录 (对应PG表已不存在的快照)
+
+        将对应表已不存在的快照记录状态标记为deleted
+
+        Returns:
+            标记为deleted的快照数量
+        """
+        from models.db_base import get_db_session
+        from models.fraudhunter.wide_table import FraudHunterWideTableSnapshot
+
+        try:
+            with get_db_session() as db:
+                # 只查询ready状态的快照记录
+                snapshots = db.query(FraudHunterWideTableSnapshot).filter(
+                    FraudHunterWideTableSnapshot.status == 'ready'
+                ).all()
+
+                marked_count = 0
+                engine = AnalyzeDBConnector.get_engine()
+
+                for snapshot in snapshots:
+                    if snapshot.parquet_file_path:
+                        table_name = snapshot.parquet_file_path
+
+                        # 检查PG表是否存在
+                        check_sql = """
+                            SELECT EXISTS (
+                                SELECT 1 FROM pg_tables
+                                WHERE schemaname = 'public' AND tablename = :table_name
+                            );
+                        """
+
+                        try:
+                            with engine.connect() as conn:
+                                table_exists = bool(conn.execute(
+                                    text(check_sql),
+                                    {"table_name": table_name}
+                                ).scalar())
+
+                                # 如果表不存在，将状态标记为deleted
+                                if not table_exists:
+                                    snapshot.status = 'deleted'
+                                    marked_count += 1
+                                    logger.debug(
+                                        f"标记孤立快照为deleted: id={snapshot.id}, "
+                                        f"表={table_name}"
+                                    )
+
+                        except Exception as e:
+                            logger.warning(f"检查表存在性失败: {table_name}, 错误={e}")
+                            continue
+
+                if marked_count > 0:
+                    db.commit()
+                    logger.info(f"清理孤立快照完成: 标记 {marked_count} 条记录为deleted")
+                else:
+                    logger.debug("没有需要标记为deleted的孤立快照")
+
+                return marked_count
+
+        except Exception as e:
+            logger.error(f"清理孤立快照失败: {e}", exc_info=True)
+            return 0
 
 
 def get_analyze_db_session() -> Session:

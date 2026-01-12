@@ -223,24 +223,15 @@ async def _initialize_system_services():
                 job_name='向量数据库训练'
             )
 
-            # 注册实时数据清理任务（每日凌晨2点）
+            # 注册PostgreSQL数据清理任务（每日凌晨2点）
+            # 包含: 实时交易表分区、实时宽表分区、历史版本表、孤立快照
             if settings.fraudhunter_realtime_data_enabled:
-                from services.scheduler.jobs.realtime_data_cleanup_job import realtime_data_cleanup_job
+                from services.scheduler.jobs.postgres_data_cleanup_job import postgres_data_cleanup_job
                 scheduler_service.add_cron_job(
-                    func=realtime_data_cleanup_job,
+                    func=postgres_data_cleanup_job,
                     cron=settings.scheduler_realtime_data_cleanup_cron,
-                    job_id='realtime_data_cleanup',
-                    job_name='实时数据清理'
-                )
-
-            # 注册Parquet文件清理任务（每日凌晨3点）
-            if settings.fraudhunter_realtime_data_enabled:
-                from services.scheduler.jobs.parquet_file_cleanup_job import parquet_file_cleanup_job
-                scheduler_service.add_cron_job(
-                    func=parquet_file_cleanup_job,
-                    cron=settings.scheduler_parquet_file_cleanup_cron,
-                    job_id='parquet_file_cleanup',
-                    job_name='Parquet文件清理'
+                    job_id='postgres_data_cleanup',
+                    job_name='PostgreSQL数据清理'
                 )
 
             # 启动调度器
