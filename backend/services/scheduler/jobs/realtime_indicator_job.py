@@ -28,7 +28,7 @@ def _get_current_version_table_name(db: Session, wide_table_name: str) -> Option
     ).first()
     if not version:
         return None
-    return f"{wide_table_name}_v{version.version_hash[:8]}"
+    return f"{wide_table_name}_{version.version_hash[:8]}"
 
 
 def _update_realtime_snapshot(
@@ -120,7 +120,7 @@ async def generate_realtime_wide_table_job():
                 logger.warning("没有找到 dep_acct_wide_table 的current版本")
                 return
 
-            realtime_table_name = f"dep_acct_wide_table_realtime_v{current_version.version_hash[:8]}"
+            realtime_table_name = f"dep_acct_wide_table_realtime_{current_version.version_hash[:8]}"
 
             table_exists_sql = """
                 SELECT EXISTS (

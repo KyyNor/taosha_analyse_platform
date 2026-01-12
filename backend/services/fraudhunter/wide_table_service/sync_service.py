@@ -95,7 +95,7 @@ class WideTableSyncService:
             )
 
             # 4. 执行数据同步
-            pg_table_name = f"{wide_table_name}_v{version_hash[:8]}"
+            pg_table_name = f"{wide_table_name}_{version_hash[:8]}"
             row_count, column_count = self._execute_data_sync(
                 wide_table_name, indicator_metadata, etl_date, pg_table_name
             )

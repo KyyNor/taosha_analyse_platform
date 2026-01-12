@@ -261,7 +261,7 @@ class WideTableVersionManager:
         indicator_metadata: Dict
     ) -> None:
         """为版本创建PG表"""
-        pg_table_name = f"{wide_table_name}_v{version_hash[:HASH_SHORT_LENGTH]}"
+        pg_table_name = f"{wide_table_name}_{version_hash[:HASH_SHORT_LENGTH]}"
         try:
             AnalyzeDBPartitionManager.create_wide_table(
                 pg_table_name, indicator_metadata, is_realtime=False
@@ -468,7 +468,7 @@ class WideTableVersionManager:
         ).all()
 
         snapshot_count = len(snapshots)
-        pg_table_name = f"{history_version.wide_table_name}_v{history_version.version_hash[:HASH_SHORT_LENGTH]}"
+        pg_table_name = f"{history_version.wide_table_name}_{history_version.version_hash[:HASH_SHORT_LENGTH]}"
 
         # 删除PG表
         try:

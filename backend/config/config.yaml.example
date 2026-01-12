@@ -322,3 +322,4 @@ scheduler:
   metadata_sync_interval: 28800  # 秒，元数据同步间隔（8小时）
   fine_report_sync_interval: 28800  # 秒，FineReport报表同步间隔（8小时）
   vector_training_interval: 28800  # 秒，向量数据库训练间隔（30分钟）
+  postgres_data_cleanup_cron: "0 3 * * *"   # cron表达式，Pg文件清理（每日凌晨3点）

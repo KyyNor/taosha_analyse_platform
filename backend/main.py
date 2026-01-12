@@ -229,7 +229,7 @@ async def _initialize_system_services():
                 from services.scheduler.jobs.postgres_data_cleanup_job import postgres_data_cleanup_job
                 scheduler_service.add_cron_job(
                     func=postgres_data_cleanup_job,
-                    cron=settings.scheduler_realtime_data_cleanup_cron,
+                    cron=settings.scheduler_postgres_data_cleanup_cron,
                     job_id='postgres_data_cleanup',
                     job_name='PostgreSQL数据清理'
                 )

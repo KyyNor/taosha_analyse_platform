@@ -251,8 +251,7 @@ class ConfigManager:
             scheduler_metadata_sync_interval: int = self._config_data.get('scheduler', {}).get('metadata_sync_interval', 3600)
             scheduler_fine_report_sync_interval: int = self._config_data.get('scheduler', {}).get('fine_report_sync_interval', 3600)
             scheduler_vector_training_interval: int = self._config_data.get('scheduler', {}).get('vector_training_interval', 1800)
-            scheduler_realtime_data_cleanup_cron: str = self._config_data.get('scheduler', {}).get('realtime_data_cleanup_cron', '0 2 * * *')
-            scheduler_parquet_file_cleanup_cron: str = self._config_data.get('scheduler', {}).get('parquet_file_cleanup_cron', '0 3 * * *')
+            scheduler_postgres_data_cleanup_cron: str = self._config_data.get('scheduler', {}).get('postgres_data_cleanup_cron', '0 3 * * *')
 
             class Config:
                 env_prefix = self._config_data.get('env_prefix', 'TAOSHA_')

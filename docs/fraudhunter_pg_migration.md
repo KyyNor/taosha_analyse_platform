@@ -11,7 +11,7 @@
 ### 1.2 核心设计原则
 1. **版本化表**: 每个版本(v{version_hash})独立一张PG表,不存在ALTER TABLE问题
 2. **分区策略**: 所有表按`etl_date`按日分区,支持分区裁剪
-3. **实时宽表复用离线版本**: 实时宽表表名为`{wide_table_name}_realtime_v{version_hash}`
+3. **实时宽表复用离线版本**: 实时宽表表名为`{wide_table_name}_realtime_{version_hash}`
 4. **配置简化**: `fraudhunter.analyze_db.db_type=postgresql`,重构后不支持DuckDB
 5. **直接切换**: 不考虑双写和并行,用户自行处理数据同步
 
@@ -21,7 +21,7 @@
 
 ### 2.1 离线宽表版本表
 
-**命名规则**: `{wide_table_name}_v{version_hash[:8]}`
+**命名规则**: `{wide_table_name}_{version_hash[:8]}`
 
 ```sql
 -- 主表模板 (创建version时自动执行)
@@ -52,7 +52,7 @@ CREATE TABLE dep_acct_wide_table_v1a2b3c4d_20240111 PARTITION OF dep_acct_wide_t
 
 ### 2.2 实时指标宽表版本表
 
-**命名规则**: `{wide_table_name}_realtime_v{version_hash[:8]}`
+**命名规则**: `{wide_table_name}_realtime_{version_hash[:8]}`
 
 ```sql
 -- 实时存款账户指标宽表 (复用离线版本号)
@@ -800,17 +800,17 @@ async def generate_realtime_wide_table_job():
                 return
 
             # 构建离线宽表PG表名
-            offline_dep_acct_table = f"dep_acct_wide_table_v{offline_dep_acct_snapshot.version_hash[:8]}"
+            offline_dep_acct_table = f"dep_acct_wide_table_{offline_dep_acct_snapshot.version_hash[:8]}"
             offline_cust_table = None
             if offline_cust_snapshot:
-                offline_cust_table = f"cust_wide_table_v{offline_cust_snapshot.version_hash[:8]}"
+                offline_cust_table = f"cust_wide_table_{offline_cust_snapshot.version_hash[:8]}"
 
             logger.debug(f"离线存款账户宽表: {offline_dep_acct_table}")
             if offline_cust_table:
                 logger.debug(f"离线客户宽表: {offline_cust_table}")
 
             # 1.4 创建今日实时宽表分区 (如果不存在)
-            realtime_table_name = f"dep_acct_wide_table_realtime_v{version_hash_short}"
+            realtime_table_name = f"dep_acct_wide_table_realtime_{version_hash_short}"
             try:
                 AnalyzeDBPartitionManager.create_partition(realtime_table_name, today_str)
             except Exception as e:
@@ -1009,7 +1009,7 @@ async def generate_realtime_wide_table_job():
 **关键改动**:
 - ✅ DuckDB连接 → `AnalyzeDBConnector`
 - ✅ Parquet文件保存 → `batch_insert()` 写入PG表
-- ✅ 实时宽表名带版本号: `dep_acct_wide_table_realtime_v{version_hash[:8]}`
+- ✅ 实时宽表名带版本号: `dep_acct_wide_table_realtime_{version_hash[:8]}`
 - ✅ 离线宽表查询: PG表名而非文件路径
 - ✅ 分区自动创建: `AnalyzeDBPartitionManager.create_partition()`
 
@@ -1117,7 +1117,7 @@ class WideTableSyncService:
             )
 
             # 5. 更新Snapshot记录
-            pg_table_name = f"{wide_table_name}_v{version_hash[:8]}"
+            pg_table_name = f"{wide_table_name}_{version_hash[:8]}"
             with get_db_session() as db:
                 snapshot = db.query(FraudHunterWideTableSnapshot).get(snapshot_id)
                 if snapshot:
@@ -1204,7 +1204,7 @@ class WideTableSyncService:
         self.download_hdfs_directory(hdfs_filepath, tmp_output_path)
 
         # 3. 使用psycopg3 COPY导入PG
-        pg_table_name = f"{wide_table_name}_v{version_hash[:8]}"
+        pg_table_name = f"{wide_table_name}_{version_hash[:8]}"
 
         # 读取parquet文件
         import pyarrow.parquet as pq
@@ -1271,7 +1271,7 @@ class IndicatorQueryService:
                     FraudHunterWideTableVersion.status == 'current'
                 ).first()
                 if current_version:
-                    table_name = f"{snapshot.wide_table_name}_v{current_version.version_hash[:8]}"
+                    table_name = f"{snapshot.wide_table_name}_{current_version.version_hash[:8]}"
                 else:
                     raise ValueError(f"未找到 {snapshot.wide_table_name} 的current版本")
 
@@ -1571,7 +1571,7 @@ class WideTableVersionManager:
         logger.info(
             f"创建target版本: {wide_table_name}, "
             f"version={version_hash[:8]}, "
-            f"表名={wide_table_name}_v{version_hash[:8]}"
+            f"表名={wide_table_name}_{version_hash[:8]}"
         )
 
         return new_version
@@ -1583,7 +1583,7 @@ class WideTableVersionManager:
         indicator_metadata: dict
     ) -> None:
         """为版本创建PG表"""
-        table_name = f"{wide_table_name}_v{version_hash[:8]}"
+        table_name = f"{wide_table_name}_{version_hash[:8]}"
 
         # 构建CREATE TABLE SQL
         create_sql = f"""
@@ -1673,7 +1673,7 @@ async def realtime_data_cleanup_job():
             for version in history_versions:
                 # 检查版本是否超过30天
                 if version.history_at and (date.today() - version.history_at.date()).days > 30:
-                    table_name = f"{version.wide_table_name}_v{version.version_hash[:8]}"
+                    table_name = f"{version.wide_table_name}_{version.version_hash[:8]}"
 
                     # 删除PG表
                     try:
@@ -1975,8 +1975,8 @@ if __name__ == "__main__":
 5. ✅ **直接切换**: 无双写,简化实施
 
 **关键设计**:
-- 离线宽表: `{wide_table_name}_v{version_hash[:8]}`
-- 实时宽表: `{wide_table_name}_realtime_v{version_hash[:8]}`
+- 离线宽表: `{wide_table_name}_{version_hash[:8]}`
+- 实时宽表: `{wide_table_name}_realtime_{version_hash[:8]}`
 - 实时交易: `realtime_oss_inct_new` (按日期分区)
 
 **预期收益**:

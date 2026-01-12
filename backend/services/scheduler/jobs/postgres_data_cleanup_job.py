@@ -99,8 +99,8 @@ async def _cleanup_realtime_wide_table_partitions():
             total_deleted = 0
 
             for version in current_versions:
-                # 构建实时宽表表名: dep_acct_wide_table_realtime_v{version_hash[:8]}
-                realtime_table_name = f"{version.wide_table_name}_realtime_v{version.version_hash[:8]}"
+                # 构建实时宽表表名: dep_acct_wide_table_realtime_{version_hash[:8]}
+                realtime_table_name = f"{version.wide_table_name}_realtime_{version.version_hash[:8]}"
 
                 logger.info(
                     f"处理实时宽表: {realtime_table_name}, "
@@ -158,7 +158,7 @@ async def _cleanup_history_wide_table_versions():
                     days_since_history = (cutoff_date - history_date).days
 
                     if days_since_history > history_retention_days:
-                        table_name = f"{version.wide_table_name}_v{version.version_hash[:8]}"
+                        table_name = f"{version.wide_table_name}_{version.version_hash[:8]}"
 
                         logger.info(
                             f"删除历史版本表: {table_name}, "
