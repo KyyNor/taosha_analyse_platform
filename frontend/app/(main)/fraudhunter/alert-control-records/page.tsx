@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ModelMultiSelect } from "@/components/fraudhunter/alert/ModelMultiSelect";
 import { alertControlRecordService } from "@/lib/services/fraudhunter/alertControlRecordService";
 import type {
   AlertControlRecord,
@@ -30,6 +31,9 @@ export default function AlertControlRecordsPage() {
   const [data, setData] = useState<AlertControlRecord[]>([]);
   const [exporting, setExporting] = useState(false);
 
+  // 模型列表状态
+  const [allModelIds, setAllModelIds] = useState<number[]>([]);
+
   // 筛选状态
   const [filters, setFilters] = useState<AlertControlFilters>({});
   const [searchQuery, setSearchQuery] = useState("");
@@ -39,6 +43,27 @@ export default function AlertControlRecordsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
+
+  // 加载所有在线模型ID（用于默认全选）
+  useEffect(() => {
+    const loadModelIds = async () => {
+      try {
+        const { riskControlModelService } = await import('@/lib/services/fraudhunter/riskControlModelService');
+        const response = await riskControlModelService.list({
+          page: 1,
+          page_size: 1000,
+          status: 'online'
+        });
+        const modelIds = response.items?.map(m => m.id) || [];
+        setAllModelIds(modelIds);
+        // 默认全选所有模型
+        setFilters(prev => ({ ...prev, model_ids: modelIds }));
+      } catch (error) {
+        console.error('加载模型列表失败:', error);
+      }
+    };
+    loadModelIds();
+  }, []);
 
   // 加载告警管控记录列表
   const loadRecords = async () => {
@@ -166,7 +191,7 @@ export default function AlertControlRecordsPage() {
       {/* 筛选器 */}
       <Card className="mb-6">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
             {/* 日期范围 */}
             <div className="space-y-2">
               <Label htmlFor="start_date">开始日期</Label>
@@ -188,6 +213,16 @@ export default function AlertControlRecordsPage() {
                 onChange={(e) => setFilters(prev => ({ ...prev, end_date: e.target.value || undefined }))}
                 max={getTodayString()}
                 min={filters.start_date || ""}
+              />
+            </div>
+
+            {/* 模型多选 */}
+            <div className="space-y-2">
+              <Label>筛选模型</Label>
+              <ModelMultiSelect
+                selectedIds={filters.model_ids || []}
+                onChange={(ids) => setFilters(prev => ({ ...prev, model_ids: ids.length === allModelIds.length ? allModelIds : ids }))}
+                placeholder="选择模型"
               />
             </div>
 

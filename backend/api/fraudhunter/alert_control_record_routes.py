@@ -7,7 +7,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from urllib.parse import quote
 import io
@@ -43,7 +43,7 @@ async def list_alert_control_records(
     start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
     account_id: Optional[str] = Query(None, description="账号ID"),
-    model_id: Optional[int] = Query(None, description="模型ID"),
+    model_ids: Optional[List[int]] = Query(None, description="模型ID列表（多选）"),
     model_name: Optional[str] = Query(None, description="模型名称（模糊匹配）"),
     alert_status: Optional[str] = Query(None, description="告警状态：not_configured/sent/duplicate"),
     control_status: Optional[str] = Query(None, description="管控状态：not_configured/executed/duplicate"),
@@ -63,7 +63,7 @@ async def list_alert_control_records(
     - start_date: 开始日期，格式 YYYY-MM-DD
     - end_date: 结束日期，格式 YYYY-MM-DD
     - account_id: 精确匹配账号ID
-    - model_id: 精确匹配模型ID
+    - model_ids: 模型ID列表（多选，精确匹配）
     - model_name: 模糊匹配模型名称
     - alert_status: 告警状态筛选
     - control_status: 管控状态筛选
@@ -123,7 +123,7 @@ async def list_alert_control_records(
             start_date=start_date,
             end_date=end_date,
             account_id=account_id,
-            model_id=model_id,
+            model_ids=model_ids,
             model_name=model_name,
             alert_status=alert_status,
             control_status=control_status,
@@ -288,7 +288,7 @@ async def export_alert_control_records(
             start_date=start_date,
             end_date=end_date,
             account_id=account_id,
-            model_id=model_id,
+            model_ids=model_ids,
             model_name=model_name,
             alert_status=alert_status,
             control_status=control_status,

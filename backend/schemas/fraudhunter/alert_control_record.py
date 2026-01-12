@@ -18,7 +18,7 @@ class AlertControlFilters(BaseModel):
     account_id: Optional[str] = Field(None, description="账号ID")
     
     # 模型筛选
-    model_id: Optional[int] = Field(None, description="模型ID")
+    model_ids: Optional[List[int]] = Field(None, description="模型ID列表（多选）")
     model_name: Optional[str] = Field(None, description="模型名称")
     
     # 状态筛选

@@ -655,12 +655,13 @@ class ModelHitAlertManager:
             query = query.filter(FraudHunterModelAlertControlRecord.account_id == filters.account_id)
         
         # 模型筛选（JSON数组包含检查）
-        if filters.model_id:
-            # 使用JSON_CONTAINS检查数组中是否包含指定的model_id
+        if filters.model_ids:
+            # 使用JSON_CONTAINS检查数组中是否包含指定的model_ids
             # 注意：这里使用cast将JSON转为文本进行模糊匹配，兼容性更好
-            query = query.filter(
-                func.cast(FraudHunterModelAlertControlRecord.hit_model_ids, String).like(f'%{filters.model_id}%')
-            )
+            for model_id in filters.model_ids:
+                query = query.filter(
+                    func.cast(FraudHunterModelAlertControlRecord.hit_model_ids, String).like(f'%{model_id}%')
+                )
 
         if filters.model_name:
             # 检查JSON数组中是否包含指定的模型名称

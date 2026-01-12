@@ -48,7 +48,7 @@ export interface AlertControlFilters {
   start_date?: string;
   end_date?: string;
   account_id?: string;
-  model_id?: number;
+  model_ids?: number[];
   model_name?: string;
   alert_status?: string;
   control_status?: string;
@@ -94,7 +94,12 @@ export const alertControlRecordService = {
     // 添加筛选参数
     Object.entries(data.filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
-        params.append(key, String(value));
+        // 处理数组参数（如 model_ids）
+        if (Array.isArray(value)) {
+          value.forEach(v => params.append(key, String(v)));
+        } else {
+          params.append(key, String(value));
+        }
       }
     });
 
