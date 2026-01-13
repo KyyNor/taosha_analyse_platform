@@ -406,7 +406,8 @@ async def get_risk_control_model(
 async def update_risk_control_model(
     model_id: int,
     model_data: RiskControlModelUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
 ):
     """
     更新预警管控模型配置
@@ -420,7 +421,7 @@ async def update_risk_control_model(
     """
     try:
         manager = RiskControlModelManager(db)
-        model = manager.update_risk_control_model(model_id, model_data, updated_by="system")
+        model = manager.update_risk_control_model(model_id, model_data, updated_by=current_user.user_id)
         return model
 
     except ValueError as e:
@@ -467,7 +468,8 @@ async def delete_risk_control_model(
 async def publish_risk_control_model(
     model_id: int,
     publish_data: RiskControlModelPublishRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
 ):
     """
     发布预警管控模型到指定版本
@@ -485,7 +487,7 @@ async def publish_risk_control_model(
         model = manager.publish_risk_control_model(
             model_id,
             publish_data.version,
-            updated_by="system",
+            updated_by=current_user.user_id,
             change_description=publish_data.change_description
         )
         return model
@@ -504,7 +506,8 @@ async def publish_risk_control_model(
 )
 async def archive_risk_control_model(
     model_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
 ):
     """
     归档预警管控模型
@@ -517,7 +520,7 @@ async def archive_risk_control_model(
     """
     try:
         manager = RiskControlModelManager(db)
-        model = manager.archive_risk_control_model(model_id, updated_by="system")
+        model = manager.archive_risk_control_model(model_id, updated_by=current_user.user_id)
         return model
 
     except ValueError as e:

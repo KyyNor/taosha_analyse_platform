@@ -278,7 +278,8 @@ async def get_indicator(
 async def update_indicator(
     indicator_id: int,
     indicator_data: IndicatorUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
 ):
     """更新指标信息"""
     try:
@@ -286,7 +287,7 @@ async def update_indicator(
         indicator = manager.update_indicator(
             indicator_id,
             indicator_data,
-            updated_by="system"
+            updated_by=current_user.user_id
         )
 
         return indicator
@@ -301,12 +302,13 @@ async def update_indicator(
 @router.post("/{indicator_id}/archive", response_model=IndicatorResponse, summary="归档指标")
 async def archive_indicator(
     indicator_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
 ):
     """归档指标"""
     try:
         manager = IndicatorManager(db)
-        indicator = manager.archive_indicator(indicator_id, updated_by="system")
+        indicator = manager.archive_indicator(indicator_id, updated_by=current_user.user_id)
 
         return indicator
 

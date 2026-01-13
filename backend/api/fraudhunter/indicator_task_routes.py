@@ -148,7 +148,8 @@ async def get_indicator_task(
 async def update_indicator_task(
     task_id: int,
     task_data: IndicatorTaskUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user)
 ):
     """更新指标任务信息
 
@@ -176,7 +177,7 @@ async def update_indicator_task(
         task = manager.update_indicator_task(
             task_id,
             task_data,
-            updated_by="system"
+            updated_by=current_user.user_id
         )
 
         return {
