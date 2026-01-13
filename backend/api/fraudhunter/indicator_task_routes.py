@@ -2,32 +2,33 @@
 FraudHunter指标任务管理API路由
 """
 
+from datetime import datetime
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Optional
+
+from middleware.auth_middleware import get_current_user
 from models.db_base import get_db
 from schemas.fraudhunter.indicator import (
-    IndicatorTaskCreate,
-    IndicatorTaskUpdate,
-    IndicatorTaskResponse,
-    IndicatorTaskListResponse,
     DryRunRequest,
     DryRunResponse,
-    PublishRequest,
+    IndicatorTaskCreate,
+    IndicatorTaskListResponse,
+    IndicatorTaskResponse,
+    IndicatorTaskUpdate,
     PublishToDSRequest,
     PublishToDSResponse,
     RerunRequest,
     RerunResponse,
 )
+from services.fraudhunter.dry_run_task_service import dry_run_task_manager, indicator_executor
 from services.fraudhunter.indicator_service import (
     IndicatorTaskManager,
-    SQLValidator
+    SQLValidator,
 )
-from services.fraudhunter.dry_run_task_service import dry_run_task_manager, indicator_executor
-from utils.logger import logger
-from services.permission_service import PermissionService
-from middleware.auth_middleware import get_current_user
 from services.token_service import UserInfo
+from utils.logger import logger
 
 
 router = APIRouter(prefix="/indicator-tasks", tags=["指标任务管理"])
@@ -37,19 +38,16 @@ router = APIRouter(prefix="/indicator-tasks", tags=["指标任务管理"])
 async def create_indicator_task(
     task_data: IndicatorTaskCreate,
     db: Session = Depends(get_db),
-    current_user: UserInfo = Depends(get_current_user)
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> dict[str, object | bool | str | list]:
     """创建新的指标任务
 
     参数:
-    - task_code: 指标任务编码
-    - task_name: 指标任务名称
-    - logic_content: SQL加工逻辑
-    - source_tables: 依赖的源表（逗号分隔）
+        task_data: 包含 task_code, task_name, logic_content, source_tables
 
     返回:
-    - success=true: { success: true, data: IndicatorTask }
-    - success=false: { success: false, message: str, errors: list }
+        success=True 时: {success: true, data: IndicatorTask}
+        success=False 时: {success: false, message: str, errors: list}
     """
     try:
         # SQL验证
@@ -94,11 +92,19 @@ async def list_indicator_tasks(
     status: Optional[str] = Query(None, description="状态筛选"),
     search: Optional[str] = Query(None, description="搜索（模糊匹配编码和名称）"),
     object_type: Optional[str] = Query(None, description="对象类型筛选"),
-    db: Session = Depends(get_db)
-):
-    """获取指标任务列表
+    db: Session = Depends(get_db),
+) -> IndicatorTaskListResponse:
+    """获取指标任务列表，支持分页和筛选
 
-    支持分页和筛选
+    参数:
+        page: 页码
+        page_size: 每页数量
+        status: 状态筛选
+        search: 搜索关键字（模糊匹配编码和名称）
+        object_type: 对象类型筛选
+
+    返回:
+        包含 total, page, page_size, items 的分页结果
     """
     try:
         manager = IndicatorTaskManager(db)
@@ -125,9 +131,19 @@ async def list_indicator_tasks(
 @router.get("/{task_id}", response_model=IndicatorTaskResponse, summary="获取指标任务详情")
 async def get_indicator_task(
     task_id: int,
-    db: Session = Depends(get_db)
-):
-    """获取指定ID的指标任务详情"""
+    db: Session = Depends(get_db),
+) -> IndicatorTaskResponse:
+    """获取指定ID的指标任务详情
+
+    参数:
+        task_id: 指标任务ID
+
+    返回:
+        指标任务详情
+
+    异常:
+        404: 指标任务不存在
+    """
     try:
         manager = IndicatorTaskManager(db)
         task = manager.get_indicator_task(task_id)
@@ -149,15 +165,19 @@ async def update_indicator_task(
     task_id: int,
     task_data: IndicatorTaskUpdate,
     db: Session = Depends(get_db),
-    current_user: UserInfo = Depends(get_current_user)
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> dict[str, object | bool | str | list]:
     """更新指标任务信息
 
-    只有draft状态的指标任务才允许修改逻辑内容
+    注意：只有draft状态的指标任务才允许修改逻辑内容
+
+    参数:
+        task_id: 指标任务ID
+        task_data: 更新数据
 
     返回:
-    - success=true: { success: true, data: IndicatorTask }
-    - success=false: { success: false, message: str, errors: list }
+        success=True 时: {success: true, data: IndicatorTask}
+        success=False 时: {success: false, message: str, errors: list}
     """
     try:
         # 如果更新了SQL，需要验证
@@ -201,11 +221,16 @@ async def dry_run_indicator_task(
     task_id: int,
     dry_run_request: DryRunRequest,
     db: Session = Depends(get_db),
-    current_user: UserInfo = Depends(get_current_user)
-):
-    """提交指标任务试运行任务
+    current_user: UserInfo = Depends(get_current_user),
+) -> DryRunResponse:
+    """提交指标任务试运行任务（异步执行）
 
-    异步执行，返回task_id用于查询进度
+    参数:
+        task_id: 指标任务ID
+        dry_run_request: 试运行请求参数
+
+    返回:
+        包含 task_id 的执行信息，用于查询进度
     """
     try:
         # 验证指标任务是否存在
@@ -228,9 +253,9 @@ async def dry_run_indicator_task(
         )
 
         return {
-            'task_id': execution_id,
-            'status': 'pending',
-            'message': '任务已提交，请通过task_id查询进度'
+            "task_id": execution_id,
+            "status": "pending",
+            "message": "任务已提交，请通过task_id查询进度"
         }
 
     except HTTPException:
@@ -242,17 +267,23 @@ async def dry_run_indicator_task(
 @router.delete("/{task_id}", summary="删除指标任务")
 async def delete_indicator_task(
     task_id: int,
-    db: Session = Depends(get_db)
-):
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
     """删除指标任务（物理删除）
 
-    只能删除没有关联指标的指标任务
+    注意：只能删除没有关联指标的指标任务
+
+    参数:
+        task_id: 指标任务ID
+
+    返回:
+        删除成功消息
     """
     try:
         manager = IndicatorTaskManager(db)
         manager.delete_indicator_task(task_id)
 
-        return {'message': f'指标任务 {task_id} 已删除'}
+        return {"message": f"指标任务 {task_id} 已删除"}
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -268,21 +299,22 @@ async def publish_to_dolphinscheduler(
     task_id: int,
     request: PublishToDSRequest,
     db: Session = Depends(get_db),
-    current_user: UserInfo = Depends(get_current_user)
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> PublishToDSResponse:
     """将指标任务上线到 DolphinScheduler
 
-    Args:
+    参数:
         task_id: 指标任务ID
         request: 上线请求参数
 
-    Returns:
+    返回:
         PublishToDSResponse: 上线结果
     """
     try:
         from services.dolphinscheduler import DolphinSchedulerService
+        from services.fraudhunter.wide_table_service.version_manager import WideTableVersionManager
 
-        # 1. 验证指标任务是否存在
+        # 验证指标任务是否存在
         manager = IndicatorTaskManager(db)
         indicator_task = manager.get_indicator_task(task_id)
 
@@ -290,46 +322,42 @@ async def publish_to_dolphinscheduler(
             raise HTTPException(status_code=404, detail=f"指标任务不存在: {task_id}")
 
         indicators = indicator_task.indicators
-
         if not indicators:
             raise HTTPException(
                 status_code=400,
                 detail=f"指标任务 {task_id} 没有关联的指标，无法上线"
             )
 
-        # 3. 初始化 DS 服务
+        # 提交到 DolphinScheduler
         ds_service = DolphinSchedulerService()
         result = ds_service.submit_indicator_task_workflow(indicator_task, db)
 
-        # 6. 更新数据库中的 DS 任务信息和状态
+        # 更新数据库中的 DS 任务信息和状态
         indicator_task.ds_task_name = result.get("workflow_name")
         indicator_task.ds_task_code = result.get("workflow_code")
-        # 如果上线成功，将任务状态更新为 online
+
         if result.get("success", False):
             indicator_task.status = "online"
-            # 上线时将当前版本设置为最新版本
             indicator_task.current_version = indicator_task.latest_version
-            # 同时更新关联的指标状态为 online，并更新 current_version
+            # 同步更新关联指标状态
             for indicator in indicators:
                 indicator.status = "online"
                 indicator.current_version = indicator.latest_version
             logger.info(f"已同步更新 {len(indicators)} 个指标的状态和 current_version")
-        logger.info(indicator_task)
+
         db.commit()
         db.refresh(indicator_task)
 
-        # 触发宽表版本变更检查
+        # 触发宽表版本变更检查（不影响主流程）
         try:
-            from services.fraudhunter.wide_table_service.version_manager import WideTableVersionManager
-            
-            # 使用任务的object_type触发版本创建
-            object_type = indicator_task.object_type
             version_manager = WideTableVersionManager(db)
-            version_manager.create_new_version(object_type, created_by=current_user.user_id)
-            logger.info(f"已触发object_type={object_type}的宽表版本变更检查")
+            version_manager.create_new_version(
+                indicator_task.object_type,
+                created_by=current_user.user_id
+            )
+            logger.info(f"已触发 object_type={indicator_task.object_type} 的宽表版本变更检查")
         except Exception as e:
             logger.error(f"触发宽表版本变更检查失败: {e}", exc_info=True)
-            # 不影响主流程，继续返回
 
         logger.info(f"指标任务 {task_id} 已成功上线到 DolphinScheduler")
 
@@ -362,32 +390,31 @@ async def publish_to_dolphinscheduler(
 async def rerun_indicator_task(
     task_id: int,
     request: RerunRequest,
-    db: Session = Depends(get_db)
-):
+    db: Session = Depends(get_db),
+) -> RerunResponse:
     """对指标任务进行补数
 
-    Args:
+    参数:
         task_id: 指标任务ID
         request: 补数请求参数（开始日期、结束日期）
 
-    Returns:
+    返回:
         RerunResponse: 补数结果
     """
     try:
         from services.dolphinscheduler import DolphinSchedulerService
-        from datetime import datetime
 
-        # 1. 验证指标任务是否存在
+        # 验证指标任务是否存在
         manager = IndicatorTaskManager(db)
         indicator_task = manager.get_indicator_task(task_id)
 
         if not indicator_task:
             raise HTTPException(status_code=404, detail=f"指标任务不存在: {task_id}")
 
-        # 4. 处理结束日期（默认为今天）
-        end_date = request.end_date or datetime.now().strftime('%Y-%m-%d')
+        # 处理结束日期（默认为今天）
+        end_date = request.end_date or datetime.now().strftime("%Y-%m-%d")
 
-        # 5. 初始化 DS 服务并执行补数
+        # 执行补数
         ds_service = DolphinSchedulerService()
         result = ds_service.run_backfill(
             workflow_code=indicator_task.ds_task_code,

@@ -6,34 +6,32 @@ FraudHunter模型管理API路由
 提供规则验证、SQL预览、运行时评估、历史回测和预警管控模型CRUD的API端点
 """
 
+from typing import Any, Dict, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Dict, Any, Optional
 
+from middleware.auth_middleware import get_current_user
 from models.db_base import get_db
-from schemas.fraudhunter.rule import (
-    RuleConfig,
-    RuleValidationResult,
-    SQLPreviewResult,
-    RuleEvaluationResult
-)
 from schemas.fraudhunter.risk_control_model import (
-    RiskControlModelCreate,
-    RiskControlModelUpdate,
-    RiskControlModelResponse,
-    RiskControlModelListResponse,
-    RiskControlModelPublishRequest,
     ModelBacktestRequest,
     ModelBacktestResponse,
-    ModelOnlineRequest,
-    ModelOnlineResponse
+    RiskControlModelCreate,
+    RiskControlModelListResponse,
+    RiskControlModelPublishRequest,
+    RiskControlModelResponse,
+    RiskControlModelUpdate,
 )
-from services.fraudhunter.model_service.rule_engine import RuleEngine
+from schemas.fraudhunter.rule import (
+    RuleConfig,
+    RuleEvaluationResult,
+    RuleValidationResult,
+    SQLPreviewResult,
+)
 from services.fraudhunter.model_service import RiskControlModelManager
-from utils.logger import logger
-from services.permission_service import PermissionService
-from middleware.auth_middleware import get_current_user
+from services.fraudhunter.model_service.rule_engine import RuleEngine
 from services.token_service import UserInfo
+from utils.logger import logger
 
 
 router = APIRouter(prefix="/models", tags=["模型管理"])
@@ -47,28 +45,23 @@ risk_control_model_router = APIRouter(prefix="/risk-control-models", tags=["预�
 )
 async def validate_rule_config(
     rule_config: RuleConfig,
-    db: Session = Depends(get_db)
-):
-    """
-    验证规则配置的完整性和正确性
+    db: Session = Depends(get_db),
+) -> RuleValidationResult:
+    """验证规则配置的完整性和正确性
 
     验证内容：
-    - 检查指标是否存在
-    - 验证操作符与数据类型兼容性
-    - 检查规则结构完整性
-    - 验证正则表达式语法（regexp/not regexp）
-    - 验证多值数组格式（in/not in）
-    - 提供规则优化建议
+        - 检查指标是否存在
+        - 验证操作符与数据类型兼容性
+        - 检查规则结构完整性
+        - 验证正则表达式语法（regexp/not regexp）
+        - 验证多值数组格式（in/not in）
+        - 提供规则优化建议
 
     参数:
-    - logic: 根逻辑操作符（AND/OR）
-    - rules: 规则列表（支持嵌套）
+        rule_config: 包含 logic（根逻辑操作符AND/OR）和 rules（规则列表，支持嵌套）
 
     返回:
-    - valid: 是否验证通过
-    - errors: 错误信息列表
-    - warnings: 警告信息列表
-    - extracted_indicators: 提取到的指标编码列表
+        包含 valid, errors, warnings, extracted_indicators 的验证结果
     """
     try:
         rule_engine = RuleEngine(db)
@@ -98,31 +91,25 @@ async def validate_rule_config(
 )
 async def preview_rule_sql(
     rule_config: RuleConfig,
-    db: Session = Depends(get_db)
-):
-    """
-    生成规则的Spark SQL WHERE子句
+    db: Session = Depends(get_db),
+) -> SQLPreviewResult:
+    """生成规则的Spark SQL WHERE子句
 
     将可视化规则配置转换为Spark SQL表达式，用于在大数据平台上执行规则筛选。
 
     支持的SQL语法：
-    - 基础比较: >, >=, <, <=, =, !=
-    - 集合操作: IN, NOT IN
-    - 正则匹配: REGEXP, NOT REGEXP ...
+        - 基础比较: >, >=, <, <=, =, !=
+        - 集合操作: IN, NOT IN
+        - 正则匹配: REGEXP, NOT REGEXP
 
     示例输出:
-    ```sql
-    (i_login_cnt_7d > 10 AND (i_device_change_cnt >= 3 OR i_user_status IN ('suspended', 'banned')))
-    ```
+        (i_login_cnt_7d > 10 AND (i_device_change_cnt >= 3 OR i_user_status IN ('suspended', 'banned')))
 
     参数:
-    - rule_config: 规则配置
+        rule_config: 规则配置
 
     返回:
-    - sql_expression: SQL WHERE子句
-    - extracted_indicators: 提取到的指标列表
-    - rule_summary: 规则摘要信息
-    - warnings: 警告信息
+        包含 sql_expression, extracted_indicators, rule_summary, warnings 的SQL预览结果
     """
     try:
         rule_engine = RuleEngine(db)
@@ -172,50 +159,33 @@ async def preview_rule_sql(
 async def evaluate_rule_runtime(
     rule_config: RuleConfig,
     indicator_values: Dict[str, Any],
-    db: Session = Depends(get_db)
-):
-    """
-    在运行时评估规则是否命中
+    db: Session = Depends(get_db),
+) -> RuleEvaluationResult:
+    """在运行时评估规则是否命中
 
     用于测试规则是否会命中给定的指标值。支持所有操作符类型：
-    - 基础比较: >, >=, <, <=, =, !=
-    - 集合操作: in, not in
-    - 正则匹配: regexp, not regexp
+        - 基础比较: >, >=, <, <=, =, !=
+        - 集合操作: in, not in
+        - 正则匹配: regexp, not regexp
 
     参数:
-    - rule_config: 规则配置
-    - indicator_values: 指标值字典，格式 {"i_login_cnt_7d": 15, "i_user_status": "suspended", ...}
+        rule_config: 规则配置
+        indicator_values: 指标值字典，格式 {"i_login_cnt_7d": 15, "i_user_status": "suspended", ...}
 
     返回:
-    - is_hit: 规则是否命中
-    - indicator_values: 输入的指标值
+        包含 is_hit 和 indicator_values 的评估结果
 
     示例请求:
-    ```json
-    {
-      "rule_config": {
-        "logic": "AND",
-        "rules": [
-          {
-            "type": "condition",
-            "indicator": "i_login_cnt_7d",
-            "operator": ">",
-            "value": 10
+        {
+          "rule_config": {
+            "logic": "AND",
+            "rules": [
+              {"type": "condition", "indicator": "i_login_cnt_7d", "operator": ">", "value": 10},
+              {"type": "condition", "indicator": "i_user_status", "operator": "in", "value": ["suspended", "banned"]}
+            ]
           },
-          {
-            "type": "condition",
-            "indicator": "i_user_status",
-            "operator": "in",
-            "value": ["suspended", "banned"]
-          }
-        ]
-      },
-      "indicator_values": {
-        "i_login_cnt_7d": 15,
-        "i_user_status": "suspended"
-      }
-    }
-    ```
+          "indicator_values": {"i_login_cnt_7d": 15, "i_user_status": "suspended"}
+        }
     """
     try:
         rule_engine = RuleEngine(db)
@@ -258,13 +228,11 @@ async def evaluate_rule_runtime(
     "/health",
     summary="健康检查"
 )
-async def health_check():
-    """
-    检查规则引擎服务健康状态
+async def health_check() -> dict[str, Any]:
+    """检查规则引擎服务健康状态
 
     返回:
-    - status: 服务状态
-    - version: 规则引擎版本
+        包含 status, version, supported_operators 的服务状态信息
     """
     return {
         "status": "healthy",
@@ -287,22 +255,16 @@ async def health_check():
 async def create_risk_control_model(
     model_data: RiskControlModelCreate,
     db: Session = Depends(get_db),
-    current_user: UserInfo = Depends(get_current_user)
-):
-    """
-    创建新的预警管控模型
+    current_user: UserInfo = Depends(get_current_user),
+) -> RiskControlModelResponse:
+    """创建新的预警管控模型
 
     参数:
-    - model_code: 模型编码（唯一）
-    - model_name: 模型名称
-    - description: 模型描述
-    - rule_config: 规则配置JSON
-    - is_send_alert_message: 是否发送告警消息
-    - alert_message_target: 告警消息目标
-    - is_acct_control: 是否账户控制
+        model_data: 包含 model_code, model_name, description, rule_config,
+                   is_send_alert_message, alert_message_target, is_acct_control
 
     返回:
-    - 创建的预警管控模型完整信息
+        创建的预警管控模型完整信息
     """
     try:
         manager = RiskControlModelManager(db)
@@ -326,22 +288,18 @@ async def list_risk_control_models(
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     status: Optional[str] = Query(None, description="状态筛选"),
     search: Optional[str] = Query(None, description="搜索（模糊匹配模型编码、名称和描述）"),
-    db: Session = Depends(get_db)
-):
-    """
-    获取预警管控模型列表，支持分页和筛选
+    db: Session = Depends(get_db),
+) -> RiskControlModelListResponse:
+    """获取预警管控模型列表，支持分页和筛选
 
-    查询参数:
-    - page: 页码（默认1）
-    - page_size: 每页数量（默认20，最大100）
-    - status: 状态筛选（draft/testing/online/offline/archived）
-    - search: 搜索（模糊匹配模型编码、名称和描述）
+    参数:
+        page: 页码（默认1）
+        page_size: 每页数量（默认20，最大100）
+        status: 状态筛选（draft/testing/online/offline/archived）
+        search: 搜索关键字（模糊匹配模型编码、名称和描述）
 
     返回:
-    - total: 总记录数
-    - page: 当前页码
-    - page_size: 每页数量
-    - items: 预警管控模型列表
+        包含 total, page, page_size, items 的分页结果
     """
     try:
         manager = RiskControlModelManager(db)
@@ -371,16 +329,18 @@ async def list_risk_control_models(
 )
 async def get_risk_control_model(
     model_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    获取指定ID的预警管控模型详情
+    db: Session = Depends(get_db),
+) -> RiskControlModelResponse:
+    """获取指定ID的预警管控模型详情
 
     参数:
-    - model_id: 模型ID
+        model_id: 模型ID
 
     返回:
-    - 预警管控模型完整信息
+        预警管控模型完整信息
+
+    异常:
+        404: 模型不存在
     """
     try:
         manager = RiskControlModelManager(db)
@@ -407,17 +367,16 @@ async def update_risk_control_model(
     model_id: int,
     model_data: RiskControlModelUpdate,
     db: Session = Depends(get_db),
-    current_user: UserInfo = Depends(get_current_user)
-):
-    """
-    更新预警管控模型配置
+    current_user: UserInfo = Depends(get_current_user),
+) -> RiskControlModelResponse:
+    """更新预警管控模型配置
 
     参数:
-    - model_id: 模型ID
-    - 更新字段（所有字段可选）
+        model_id: 模型ID
+        model_data: 更新字段（所有字段可选）
 
     返回:
-    - 更新后的预警管控模型信息
+        更新后的预警管控模型信息
     """
     try:
         manager = RiskControlModelManager(db)
@@ -437,16 +396,15 @@ async def update_risk_control_model(
 )
 async def delete_risk_control_model(
     model_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    删除预警管控模型（级联删除历史记录）
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """删除预警管控模型（级联删除历史记录）
 
     参数:
-    - model_id: 模型ID
+        model_id: 模型ID
 
     返回:
-    - 删除成功消息
+        删除成功消息
     """
     try:
         manager = RiskControlModelManager(db)
@@ -469,18 +427,16 @@ async def publish_risk_control_model(
     model_id: int,
     publish_data: RiskControlModelPublishRequest,
     db: Session = Depends(get_db),
-    current_user: UserInfo = Depends(get_current_user)
-):
-    """
-    发布预警管控模型到指定版本
+    current_user: UserInfo = Depends(get_current_user),
+) -> RiskControlModelResponse:
+    """发布预警管控模型到指定版本
 
     参数:
-    - model_id: 模型ID
-    - version: 要发布的版本号
-    - change_description: 变更说明（可选）
+        model_id: 模型ID
+        publish_data: 包含 version（要发布的版本号）和 change_description（变更说明，可选）
 
     返回:
-    - 发布后的预警管控模型信息
+        发布后的预警管控模型信息
     """
     try:
         manager = RiskControlModelManager(db)
@@ -507,16 +463,15 @@ async def publish_risk_control_model(
 async def archive_risk_control_model(
     model_id: int,
     db: Session = Depends(get_db),
-    current_user: UserInfo = Depends(get_current_user)
-):
-    """
-    归档预警管控模型
+    current_user: UserInfo = Depends(get_current_user),
+) -> RiskControlModelResponse:
+    """归档预警管控模型
 
     参数:
-    - model_id: 模型ID
+        model_id: 模型ID
 
     返回:
-    - 归档后的预警管控模型信息
+        归档后的预警管控模型信息
     """
     try:
         manager = RiskControlModelManager(db)
@@ -541,10 +496,9 @@ async def submit_model_backtest(
     model_id: int,
     backtest_data: ModelBacktestRequest,
     db: Session = Depends(get_db),
-    current_user: UserInfo = Depends(get_current_user)
-):
-    """
-    提交模型历史回测任务
+    current_user: UserInfo = Depends(get_current_user),
+) -> ModelBacktestResponse:
+    """提交模型历史回测任务
 
     根据指定的日期范围，对每天执行模型回测。回测SQL会联接当天的宽表（实时指标）
     和前一天的宽表（离线指标）进行模型条件匹配。
@@ -552,18 +506,15 @@ async def submit_model_backtest(
     任务提交后后台异步执行，可通过试运行任务列表查看进度。
 
     参数:
-    - model_id: 模型ID
-    - start_date: 开始日期 (YYYY-MM-DD)
-    - end_date: 结束日期 (YYYY-MM-DD)
+        model_id: 模型ID
+        backtest_data: 包含 start_date 和 end_date（格式：YYYY-MM-DD）
 
     返回:
-    - success: 提交是否成功
-    - message: 提示消息
-    - execution_id: 任务执行ID（可用于查询进度）
+        包含 success, message, execution_id 的提交结果
 
     注意:
-    - 如果某天的宽表文件不存在，该日期会被跳过并产生警告
-    - 目前只支持 dep_acct_no 对象类型的宽表
+        - 如果某天的宽表文件不存在，该日期会被跳过并产生警告
+        - 目前只支持 dep_acct_no 对象类型的宽表
     """
     try:
         manager = RiskControlModelManager(db)

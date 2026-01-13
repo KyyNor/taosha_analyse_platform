@@ -2,30 +2,31 @@
 FraudHunter指标定义管理API路由
 """
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Optional
+
+from middleware.auth_middleware import get_current_user
 from models.db_base import get_db
-from schemas.fraudhunter.indicator import (
-    IndicatorCreate,
-    IndicatorUpdate,
-    IndicatorResponse,
-    IndicatorListResponse,
-    PublishRequest,
-)
 from schemas.fraudhunter.batch_create import (
-    IndicatorTaskBatchCreate,
-    IndicatorBatchCreateResponse,
     CreateTaskWithIndicatorsRequest,
     CreateTaskWithIndicatorsResponse,
+    IndicatorBatchCreateResponse,
+    IndicatorTaskBatchCreate,
     TaskPreExecuteRequest,
     TaskPreExecuteResponse,
 )
+from schemas.fraudhunter.indicator import (
+    IndicatorCreate,
+    IndicatorListResponse,
+    IndicatorResponse,
+    IndicatorUpdate,
+    PublishRequest,
+)
 from services.fraudhunter.indicator_service import IndicatorManager
-from utils.logger import logger
-from services.permission_service import PermissionService
-from middleware.auth_middleware import get_current_user
 from services.token_service import UserInfo
+from utils.logger import logger
 
 
 router = APIRouter(prefix="/indicators", tags=["指标管理"])
@@ -35,16 +36,16 @@ router = APIRouter(prefix="/indicators", tags=["指标管理"])
 async def create_indicator(
     indicator_data: IndicatorCreate,
     db: Session = Depends(get_db),
-    current_user: UserInfo = Depends(get_current_user)
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> IndicatorResponse:
     """创建新的指标定义
 
     参数:
-    - indicator_code: 指标编码
-    - indicator_name: 指标名称
-    - indicator_type: 指标类型（offline/realtime）
-    - data_type: 数据类型（numeric/text/date）
-    - indicator_task_id: 关联的指标组ID
+        indicator_data: 包含 indicator_code, indicator_name, indicator_type,
+                       data_type, indicator_task_id 等字段
+
+    返回:
+        创建的指标信息
     """
     try:
         manager = IndicatorManager(db)
@@ -66,22 +67,19 @@ async def create_indicator(
 async def batch_create_indicators(
     batch_data: IndicatorTaskBatchCreate,
     db: Session = Depends(get_db),
-    current_user: UserInfo = Depends(get_current_user)
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> IndicatorBatchCreateResponse:
     """批量创建指标
 
-    新建指标任务并批量创建指标，分两步：
-    1. 先创建所有指标，获得ID列表
-    2. 再创建指标任务，包含这些指标的ID
+    流程说明：
+        1. 先创建所有指标，获得ID列表
+        2. 再创建指标任务，包含这些指标的ID
 
     参数:
-    - indicator_type: 指标类型（所有指标共享）
-    - object_type: 对象类型（所有指标共享）
-    - task_data: 指标任务数据
-    - indicators: 指标列表（1-50个）
+        batch_data: 包含 indicator_type, object_type, task_data, indicators
 
     返回:
-    - 批量创建结果，包含每个指标的成功/失败状态
+        批量创建结果，包含每个指标的成功/失败状态
     """
     try:
         manager = IndicatorManager(db)
@@ -102,20 +100,18 @@ async def batch_create_indicators(
 @router.post("/batch/validate-task", response_model=TaskPreExecuteResponse, summary="预执行验证任务")
 async def validate_task_before_create(
     validation_request: TaskPreExecuteRequest,
-    db: Session = Depends(get_db)
-):
+    db: Session = Depends(get_db),
+) -> TaskPreExecuteResponse:
     """在创建任务前预执行验证SQL和字段
 
-    验证SQL逻辑是否正确，输出字段是否包含：
-    - target_id
-    - etl_date
-    - 所有关联指标的编码字段
+    验证内容：
+        - SQL逻辑是否正确
+        - 输出字段是否包含：target_id, etl_date, 所有关联指标的编码字段
 
-    Args:
+    参数:
         validation_request: 预执行验证请求
-        db: 数据库会话
 
-    Returns:
+    返回:
         验证结果，包含字段验证详情和样本数据
     """
     try:
@@ -160,16 +156,15 @@ async def validate_task_before_create(
 async def create_task_with_indicators(
     request_data: CreateTaskWithIndicatorsRequest,
     db: Session = Depends(get_db),
-    current_user: UserInfo = Depends(get_current_user)
-):
+    current_user: UserInfo = Depends(get_current_user),
+) -> CreateTaskWithIndicatorsResponse:
     """创建指标任务并关联已存在的指标
 
-    Args:
-        - task_data: 指标任务数据
-        - indicator_ids: 要关联的指标ID列表
+    参数:
+        request_data: 包含 task_data 和 indicator_ids
 
-    Returns:
-        - 创建的任务信息和关联结果
+    返回:
+        创建的任务信息和关联结果
     """
     try:
         from services.fraudhunter.indicator_service import IndicatorTaskManager
@@ -220,12 +215,23 @@ async def list_indicators(
     object_type: Optional[str] = Query(None, description="对象类型筛选"),
     indicator_task_id: Optional[int] = Query(None, description="指标组ID筛选"),
     search: Optional[str] = Query(None, description="搜索（模糊匹配指标编码和名称）"),
-    query_type: Optional[str] = Query('page', description="查询类型 all为全量查询"),
-    db: Session = Depends(get_db)
-):
-    """获取指标列表
+    query_type: Optional[str] = Query("page", description="查询类型，all为全量查询"),
+    db: Session = Depends(get_db),
+) -> IndicatorListResponse:
+    """获取指标列表，支持分页和多维度筛选
 
-    支持分页和多维度筛选
+    参数:
+        page: 页码
+        page_size: 每页数量
+        status: 状态筛选
+        indicator_type: 指标类型筛选
+        object_type: 对象类型筛选
+        indicator_task_id: 指标组ID筛选
+        search: 搜索关键字（模糊匹配指标编码和名称）
+        query_type: 查询类型，page为分页查询，all为全量查询
+
+    返回:
+        包含 total, page, page_size, items 的分页结果
     """
     try:
         manager = IndicatorManager(db)
@@ -255,9 +261,19 @@ async def list_indicators(
 @router.get("/{indicator_id}", response_model=IndicatorResponse, summary="获取指标详情")
 async def get_indicator(
     indicator_id: int,
-    db: Session = Depends(get_db)
-):
-    """获取指定ID的指标详情"""
+    db: Session = Depends(get_db),
+) -> IndicatorResponse:
+    """获取指定ID的指标详情
+
+    参数:
+        indicator_id: 指标ID
+
+    返回:
+        指标详情
+
+    异常:
+        404: 指标不存在
+    """
     try:
         manager = IndicatorManager(db)
         indicator = manager.get_indicator(indicator_id)
@@ -279,9 +295,17 @@ async def update_indicator(
     indicator_id: int,
     indicator_data: IndicatorUpdate,
     db: Session = Depends(get_db),
-    current_user: UserInfo = Depends(get_current_user)
-):
-    """更新指标信息"""
+    current_user: UserInfo = Depends(get_current_user),
+) -> IndicatorResponse:
+    """更新指标信息
+
+    参数:
+        indicator_id: 指标ID
+        indicator_data: 更新数据
+
+    返回:
+        更新后的指标信息
+    """
     try:
         manager = IndicatorManager(db)
         indicator = manager.update_indicator(
@@ -303,9 +327,16 @@ async def update_indicator(
 async def archive_indicator(
     indicator_id: int,
     db: Session = Depends(get_db),
-    current_user: UserInfo = Depends(get_current_user)
-):
-    """归档指标"""
+    current_user: UserInfo = Depends(get_current_user),
+) -> IndicatorResponse:
+    """归档指标
+
+    参数:
+        indicator_id: 指标ID
+
+    返回:
+        归档后的指标信息
+    """
     try:
         manager = IndicatorManager(db)
         indicator = manager.archive_indicator(indicator_id, updated_by=current_user.user_id)
@@ -322,14 +353,21 @@ async def archive_indicator(
 @router.delete("/{indicator_id}", summary="删除指标")
 async def delete_indicator(
     indicator_id: int,
-    db: Session = Depends(get_db)
-):
-    """删除指标（物理删除）"""
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """删除指标（物理删除）
+
+    参数:
+        indicator_id: 指标ID
+
+    返回:
+        删除成功消息
+    """
     try:
         manager = IndicatorManager(db)
         manager.delete_indicator(indicator_id)
 
-        return {'message': f'指标 {indicator_id} 已删除'}
+        return {"message": f"指标 {indicator_id} 已删除"}
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
