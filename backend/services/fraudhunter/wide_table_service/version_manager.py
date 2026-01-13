@@ -177,7 +177,7 @@ class WideTableVersionManager:
     def create_new_version(
         self,
         object_type: str,
-        created_by: str = "system"
+        created_by: str
     ) -> Optional[FraudHunterWideTableVersion]:
         """为指定object_type创建新的target版本
 
