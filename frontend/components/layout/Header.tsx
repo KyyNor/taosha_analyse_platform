@@ -14,20 +14,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { User, Building, Shield } from "lucide-react";
 
 type NavItem = {
   type: 'link';
   href: string;
   label: string;
-  requiresAdmin?: boolean;
+  requiredPath?: string;  // 需要的页面路径权限
 } | {
   type: 'dropdown';
   label: string;
-  requiresAdmin?: boolean;
+  requiredPath?: string;  // 需要的页面路径权限（可选，用于整个菜单）
   items: Array<
-    | { type: 'link'; href: string; label: string; requiresAdmin?: boolean }
+    | { type: 'link'; href: string; label: string; requiredPath?: string }
     | { type: 'separator' }
     | { type: 'group'; label: string }
   >;
@@ -35,52 +35,51 @@ type NavItem = {
 
 // 完整的导航菜单配置，包含所有功能
 const allNavItems: NavItem[] = [
-  { type: 'link', href: "/agent", label: "Agent" },
-  { type: 'link', href: "/deepagents", label: "DeepAgents" },
+  { type: 'link', href: "/agent", label: "Agent", requiredPath: "/agent" },
+  { type: 'link', href: "/deepagents", label: "DeepAgents", requiredPath: "/deepagents" },
   {
     type: 'dropdown',
     label: "猎诈",
     items: [
       { type: 'group', label: "指标管理" },
-      { type: 'link', href: "/fraudhunter/indicators", label: "指标定义" },
-      { type: 'link', href: "/fraudhunter/indicator-tasks", label: "指标任务" },
-      { type: 'link', href: "/fraudhunter/indicator-query", label: "指标数据查询" },
+      { type: 'link', href: "/fraudhunter/indicators", label: "指标定义", requiredPath: "/fraudhunter/indicators" },
+      { type: 'link', href: "/fraudhunter/indicator-tasks", label: "指标任务", requiredPath: "/fraudhunter/indicator-tasks" },
+      { type: 'link', href: "/fraudhunter/indicator-query", label: "指标数据查询", requiredPath: "/fraudhunter/indicator-query" },
       { type: 'separator' },
       { type: 'group', label: "模型管理" },
-      { type: 'link', href: "/fraudhunter/risk-control-models", label: "预警管控模型定义" },
-      { type: 'link', href: "/fraudhunter/alert-control-records", label: "模型预警记录" },
+      { type: 'link', href: "/fraudhunter/risk-control-models", label: "预警管控模型定义", requiredPath: "/fraudhunter/risk-control-models" },
+      { type: 'link', href: "/fraudhunter/alert-control-records", label: "模型预警记录", requiredPath: "/fraudhunter/alert-control-records" },
       { type: 'separator' },
       { type: 'group', label: "试运行" },
-      { type: 'link', href: "/fraudhunter/dry-run", label: "试运行详情" },
+      { type: 'link', href: "/fraudhunter/dry-run", label: "试运行详情", requiredPath: "/fraudhunter/dry-run" },
       { type: 'separator' },
       { type: 'group', label: "系统管理" },
-      { type: 'link', href: "/fraudhunter/system-config", label: "系统配置" },
-      { type: 'link', href: "/fraudhunter/wide-table-versions", label: "指标宽表版本" },
+      { type: 'link', href: "/fraudhunter/system-config", label: "系统配置", requiredPath: "/fraudhunter/system-config" },
+      { type: 'link', href: "/fraudhunter/wide-table-versions", label: "指标宽表版本", requiredPath: "/fraudhunter/wide-table-versions" },
     ]
   },
   {
     type: 'dropdown',
     label: "元数据",
     items: [
-      { type: 'link', href: "/metadata/tables", label: "数据表" },
-      { type: 'link', href: "/metadata/relations", label: "关系" },
-      { type: 'link', href: "/metadata/glossary", label: "术语表" },
-      { type: 'link', href: "/metadata/prompt-templates", label: "提示模板" },
-      { type: 'link', href: "/metadata/fine-reports", label: "帆软报表" }
+      { type: 'link', href: "/metadata/tables", label: "数据表", requiredPath: "/metadata/tables" },
+      { type: 'link', href: "/metadata/relations", label: "关系", requiredPath: "/metadata/relations" },
+      { type: 'link', href: "/metadata/glossary", label: "术语表", requiredPath: "/metadata/glossary" },
+      { type: 'link', href: "/metadata/prompt-templates", label: "提示模板", requiredPath: "/metadata/prompt-templates" },
+      { type: 'link', href: "/metadata/fine-reports", label: "帆软报表", requiredPath: "/metadata/fine-reports" }
     ]
   },
   {
     type: 'dropdown',
     label: "系统管理",
-    requiresAdmin: true,
     items: [
       { type: 'group', label: "权限管理" },
-      { type: 'link', href: "/admin/departments", label: "部门管理", requiresAdmin: true },
-      { type: 'link', href: "/admin/roles", label: "角色管理", requiresAdmin: true },
-      { type: 'link', href: "/admin/permissions", label: "权限分配", requiresAdmin: true },
+      { type: 'link', href: "/admin/departments", label: "部门管理", requiredPath: "/admin/departments" },
+      { type: 'link', href: "/admin/roles", label: "角色管理", requiredPath: "/admin/roles" },
+      { type: 'link', href: "/admin/permissions", label: "权限分配", requiredPath: "/admin/permissions" },
       { type: 'separator' },
       { type: 'group', label: "系统监控" },
-      { type: 'link', href: "/admin/login-records", label: "登录记录", requiresAdmin: true }
+      { type: 'link', href: "/admin/login-records", label: "登录记录", requiredPath: "/admin/login-records" }
     ]
   }
 ];
@@ -160,14 +159,33 @@ function UserInfoPopover({ user }: { user: { user_name: string; user_id: string;
 }
 
 export default function Header() {
-  const { isAuthenticated, isAdmin, user } = useAuth();
+  const { isAuthenticated, isAdmin, user, accessiblePages } = useAuth();
+
+  // 调试：输出权限状态和用户信息
+  useEffect(() => {
+    console.log('[Header] Auth state:', {
+      isAuthenticated,
+      isAdmin,
+      userId: user?.user_id,
+      userName: user?.user_name,
+      isAdminFromUser: user?.is_admin,
+      accessiblePagesCount: accessiblePages.length,
+      accessiblePages: accessiblePages.slice(0, 5) // 只显示前5个
+    });
+  }, [isAuthenticated, isAdmin, user, accessiblePages]);
+
   const visibleNavItems = useMemo(() => {
     return allNavItems.filter(item => {
-      // 如果菜单项需要管理员权限但用户不是管理员，则隐藏
-      if (item.requiresAdmin && !isAdmin) {
-        return false;
+      // 对于链接类型，检查是否有访问权限
+      if (item.type === 'link') {
+        // 如果有 requiredPath 且用户没有该页面权限，则隐藏
+        if (item.requiredPath && !accessiblePages.includes(item.requiredPath)) {
+          console.log(`[Header] Filtering out link (no permission): ${item.label} - ${item.requiredPath}`);
+          return false;
+        }
+        return true;
       }
-      
+
       // 对于下拉菜单，需要过滤其子项
       if (item.type === 'dropdown') {
         const visibleSubItems = item.items.filter(subItem => {
@@ -175,51 +193,37 @@ export default function Header() {
           if (subItem.type === 'separator' || subItem.type === 'group') {
             return true;
           }
-          
+
           // 链接项需要检查权限
           if (subItem.type === 'link') {
-            return !subItem.requiresAdmin || isAdmin;
+            // 如果有 requiredPath 且用户没有该页面权限，则隐藏
+            const hasPermission = !subItem.requiredPath || accessiblePages.includes(subItem.requiredPath);
+            if (!hasPermission) {
+              console.log(`[Header] Filtering out submenu item (no permission): ${subItem.label} - ${subItem.requiredPath}`);
+            }
+            return hasPermission;
           }
-          
+
           return true;
         });
-        
+
         // 如果过滤后没有可见的链接项，则隐藏整个下拉菜单
         const hasVisibleLinks = visibleSubItems.some(subItem => subItem.type === 'link');
         if (!hasVisibleLinks) {
+          console.log(`[Header] Filtering out dropdown (no visible links): ${item.label}`);
           return false;
         }
-        
+
         // 返回过滤后的下拉菜单
         return {
           ...item,
           items: visibleSubItems
         };
       }
-      
+
       return true;
-    }).map(item => {
-      // 对于下拉菜单，应用子项过滤
-      if (item.type === 'dropdown') {
-        const visibleSubItems = item.items.filter(subItem => {
-          if (subItem.type === 'separator' || subItem.type === 'group') {
-            return true;
-          }
-          if (subItem.type === 'link') {
-            return !subItem.requiresAdmin || isAdmin;
-          }
-          return true;
-        });
-        
-        return {
-          ...item,
-          items: visibleSubItems
-        };
-      }
-      
-      return item;
     });
-  }, [isAdmin]);
+  }, [accessiblePages]);
   
   const renderNavItem = (item: NavItem) => {
     if (item.type === 'link') {

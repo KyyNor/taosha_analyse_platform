@@ -31,6 +31,7 @@ export interface AuthState {
   isLoading: boolean
   user: UserInfo | null
   token: string | null
+  accessiblePages: string[]  // 用户可访问的页面路径列表
 }
 
 // 权限检查结果接口
@@ -89,6 +90,24 @@ function clearToken(): void {
 }
 
 /**
+ * 获取用户可访问的页面列表
+ */
+async function getAccessiblePages(token: string): Promise<string[]> {
+  try {
+    const response = await api.get('/permissions/my-pages', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+
+    return response.data.page_paths || []
+  } catch (error) {
+    console.error('Get accessible pages error:', error)
+    return []
+  }
+}
+
+/**
  * 验证token并获取用户信息
  */
 async function validateTokenAndGetUser(token: string): Promise<{ valid: boolean; userInfo?: UserInfo }> {
@@ -133,7 +152,8 @@ export function useAuth(): AuthState & {
     isAuthenticated: false,
     isLoading: true,
     user: null,
-    token: null
+    token: null,
+    accessiblePages: []
   })
   
   const router = useRouter()
@@ -142,25 +162,30 @@ export function useAuth(): AuthState & {
   useEffect(() => {
     const initAuth = async () => {
       const token = getToken()
-      
+
       if (!token) {
         setAuthState({
           isAuthenticated: false,
           isLoading: false,
           user: null,
-          token: null
+          token: null,
+          accessiblePages: []
         })
         return
       }
-      
+
       const validation = await validateTokenAndGetUser(token)
-      
+
       if (validation.valid && validation.userInfo) {
+        // 获取可访问页面列表
+        const accessiblePages = await getAccessiblePages(token)
+
         setAuthState({
           isAuthenticated: true,
           isLoading: false,
           user: validation.userInfo,
-          token
+          token,
+          accessiblePages
         })
       } else {
         // Token无效，清除并重定向
@@ -169,33 +194,38 @@ export function useAuth(): AuthState & {
           isAuthenticated: false,
           isLoading: false,
           user: null,
-          token: null
+          token: null,
+          accessiblePages: []
         })
         router.push(`${getBasePath()}/info?reason=invalid_token`)
       }
     }
-    
+
     initAuth()
   }, [router])
   
   // 登录函数
   const login = useCallback(async (token: string): Promise<boolean> => {
     const validation = await validateTokenAndGetUser(token)
-    
+
     if (validation.valid && validation.userInfo) {
       setToken(token)
+      // 获取可访问页面列表
+      const accessiblePages = await getAccessiblePages(token)
+
       setAuthState({
         isAuthenticated: true,
         isLoading: false,
         user: validation.userInfo,
-        token
+        token,
+        accessiblePages
       })
       return true
     }
-    
+
     return false
   }, [])
-  
+
   // 登出函数
   const logout = useCallback(() => {
     clearToken()
@@ -203,27 +233,32 @@ export function useAuth(): AuthState & {
       isAuthenticated: false,
       isLoading: false,
       user: null,
-      token: null
+      token: null,
+      accessiblePages: []
     })
     router.push(`${getBasePath()}/info?reason=no_token`)
   }, [router])
-  
+
   // 刷新认证状态
   const refreshAuth = useCallback(async () => {
     const token = getToken()
-    
+
     if (!token) {
       logout()
       return
     }
-    
+
     const validation = await validateTokenAndGetUser(token)
-    
+
     if (validation.valid && validation.userInfo) {
+      // 获取可访问页面列表
+      const accessiblePages = await getAccessiblePages(token)
+
       setAuthState(prev => ({
         ...prev,
         user: validation.userInfo!,
-        token
+        token,
+        accessiblePages
       }))
     } else {
       logout()

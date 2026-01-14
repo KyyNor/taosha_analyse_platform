@@ -637,6 +637,75 @@ class PageAccessCheckResponse(BaseModel):
     is_admin: bool = False
 
 
+class UserPagesResponse(BaseModel):
+    """用户可访问页面列表响应模型"""
+    page_paths: List[str]
+    total: int
+    is_admin: bool = False
+
+
+@router.get("/my-pages", response_model=UserPagesResponse)
+async def get_my_accessible_pages(
+    current_user: UserInfo = Depends(get_current_user)
+):
+    """
+    获取当前用户可访问的所有页面列表
+
+    返回用户有权访问的所有页面路径，用于前端动态菜单渲染
+    """
+    try:
+        from services.permission_service import PermissionService
+
+        with get_db_session() as db:
+            permission_service = PermissionService(db)
+
+            # 检查是否为管理员
+            is_admin = permission_service.is_admin_user(
+                current_user.branch_no,
+                current_user.role_id_list
+            )
+
+            # 管理员可以访问所有已配置的页面
+            if is_admin:
+                all_pages = permission_service.repo.get_all_pages()
+                page_paths = [page.path for page in all_pages]
+
+                logger.debug(
+                    f"获取用户可访问页面: 管理员用户 - "
+                    f"用户={current_user.user_id}, 页面数={len(page_paths)}"
+                )
+
+                return UserPagesResponse(
+                    page_paths=page_paths,
+                    total=len(page_paths),
+                    is_admin=True
+                )
+
+            # 普通用户获取具体权限
+            page_paths = list(permission_service.get_user_permissions(
+                current_user.branch_no,
+                current_user.role_id_list
+            ))
+
+            logger.debug(
+                f"获取用户可访问页面: 普通用户 - "
+                f"用户={current_user.user_id}, 页面数={len(page_paths)}"
+            )
+
+            return UserPagesResponse(
+                page_paths=page_paths,
+                total=len(page_paths),
+                is_admin=False
+            )
+
+    except Exception as e:
+        logger.error(f"获取用户可访问页面失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="获取用户可访问页面失败"
+        )
+
+
 @router.post("/check-access", response_model=PageAccessCheckResponse)
 async def check_page_access(
     request: PageAccessCheckRequest,
