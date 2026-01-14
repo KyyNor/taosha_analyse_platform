@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from models.db_base import get_db_session
-from models.permission_models import SystemPage, SystemEntity, EntityType
+from models.permission_models import EntityType
 from services.permission_service import PageService
 from services.page_discovery_service import PageDiscoveryService
 from services.permission_assignment_service import PermissionAssignmentService
@@ -21,18 +21,26 @@ from utils.logger import logger
 router = APIRouter(prefix="/permissions", tags=["权限管理"])
 
 
+def _handle_error(error: Exception, operation: str) -> None:
+    """统一的错误处理函数"""
+    logger.error(f"{operation}失败: {error}")
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail=f"{operation}失败"
+    )
+
+
 # Pydantic模型定义
 class PageResponse(BaseModel):
     """页面响应模型"""
     id: str
     path: str
     name: str
-    description: Optional[str]
+    description: Optional[str] = None
     created_at: str
     updated_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class PageListResponse(BaseModel):
@@ -84,88 +92,59 @@ class PermissionSummaryResponse(BaseModel):
 @router.get("/pages", response_model=PageListResponse)
 async def list_pages(
     current_user: UserInfo = Depends(get_current_user)
-):
+) -> PageListResponse:
     """获取所有页面列表"""
-    try:
-        with get_db_session() as db:
-            page_service = PageService(db)
-            pages = page_service.get_all_pages()
-            
-            page_responses = [
-                PageResponse(
-                    id=page.id,
-                    path=page.path,
-                    name=page.name,
-                    description=page.description,
-                    created_at=page.created_at.isoformat(),
-                    updated_at=page.updated_at.isoformat()
-                )
-                for page in pages
-            ]
-            
-            return PageListResponse(
-                pages=page_responses,
-                total=len(page_responses)
-            )
-            
-    except Exception as e:
-        logger.error(f"获取页面列表失败: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="获取页面列表失败"
+    with get_db_session() as db:
+        page_service = PageService(db)
+        pages = page_service.get_all_pages()
+
+        return PageListResponse(
+            pages=[PageResponse(
+                id=page.id,
+                path=page.path,
+                name=page.name,
+                description=page.description,
+                created_at=page.created_at.isoformat(),
+                updated_at=page.updated_at.isoformat()
+            ) for page in pages],
+            total=len(pages)
         )
 
 
 @router.post("/pages/sync", status_code=status.HTTP_200_OK)
 async def sync_pages_from_config(
     admin_user: UserInfo = Depends(require_admin_role)
-):
+) -> dict[str, str | int]:
     """
     从配置文件同步页面到数据库
-    
+
     需要管理员权限
     """
-    try:
-        with get_db_session() as db:
-            discovery_service = PageDiscoveryService(db)
-            count = discovery_service.sync_pages_from_config()
-            
-            logger.info(f"管理员 {admin_user.user_id} 触发了页面同步，处理了 {count} 个页面")
-            
-            return {
-                "message": "页面同步完成",
-                "synced_count": count
-            }
-            
-    except Exception as e:
-        logger.error(f"页面同步失败: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="页面同步失败"
-        )
+    with get_db_session() as db:
+        discovery_service = PageDiscoveryService(db)
+        count = discovery_service.sync_pages_from_config()
+
+        logger.info(f"管理员 {admin_user.user_id} 触发了页面同步，处理了 {count} 个页面")
+
+        return {
+            "message": "页面同步完成",
+            "synced_count": count
+        }
 
 
 @router.get("/pages/config")
 async def get_pages_from_config(
     current_user: UserInfo = Depends(get_current_user)
-):
+) -> dict[str, list | int]:
     """获取配置文件中的页面信息"""
-    try:
-        with get_db_session() as db:
-            discovery_service = PageDiscoveryService(db)
-            pages_config = discovery_service.get_all_pages_from_config()
+    with get_db_session() as db:
+        discovery_service = PageDiscoveryService(db)
+        pages_config = discovery_service.get_all_pages_from_config()
 
-            return {
-                "pages": pages_config,
-                "total": len(pages_config)
-            }
-
-    except Exception as e:
-        logger.error(f"获取配置页面信息失败: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="获取配置页面信息失败"
-        )
+        return {
+            "pages": pages_config,
+            "total": len(pages_config)
+        }
 
 
 # 权限分配路由
@@ -173,40 +152,30 @@ async def get_pages_from_config(
 async def assign_permissions(
     request: PermissionAssignmentRequest,
     admin_user: UserInfo = Depends(require_admin_role)
-):
+) -> dict[str, str | int]:
     """
     为实体分配页面权限
-    
+
     需要管理员权限
     """
-    try:
-        with get_db_session() as db:
-            assignment_service = PermissionAssignmentService(db)
-            
-            success = assignment_service.assign_pages_to_entity(
-                entity_id=request.entity_id,
-                page_ids=request.page_ids
-            )
-            
-            if success:
-                logger.info(f"管理员 {admin_user.user_id} 为实体 {request.entity_id} 分配了 {len(request.page_ids)} 个页面权限")
-                return {
-                    "message": "权限分配成功",
-                    "entity_id": request.entity_id,
-                    "assigned_pages": len(request.page_ids)
-                }
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="权限分配失败"
-                )
-                
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"权限分配失败: {e}")
+    with get_db_session() as db:
+        assignment_service = PermissionAssignmentService(db)
+
+        success = assignment_service.assign_pages_to_entity(
+            entity_id=request.entity_id,
+            page_ids=request.page_ids
+        )
+
+        if success:
+            logger.info(f"管理员 {admin_user.user_id} 为实体 {request.entity_id} 分配了 {len(request.page_ids)} 个页面权限")
+            return {
+                "message": "权限分配成功",
+                "entity_id": request.entity_id,
+                "assigned_pages": len(request.page_ids)
+            }
+
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="权限分配失败"
         )
 
@@ -252,50 +221,35 @@ async def bulk_assign_permissions(
 async def get_entity_permissions(
     entity_id: str,
     current_user: UserInfo = Depends(get_current_user)
-):
+) -> EntityPermissionResponse:
     """获取实体的权限页面列表"""
-    try:
-        with get_db_session() as db:
-            assignment_service = PermissionAssignmentService(db)
-            
-            # 获取实体信息
-            entity = assignment_service.repo.get_entity_by_id(entity_id)
-            if not entity:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"实体 {entity_id} 不存在"
-                )
-            
-            # 获取权限页面
-            pages = assignment_service.get_entity_permissions(entity_id)
-            
-            page_responses = [
-                PageResponse(
-                    id=page.id,
-                    path=page.path,
-                    name=page.name,
-                    description=page.description,
-                    created_at=page.created_at.isoformat(),
-                    updated_at=page.updated_at.isoformat()
-                )
-                for page in pages
-            ]
-            
-            return EntityPermissionResponse(
-                entity_id=entity.id,
-                entity_code=entity.code,
-                entity_name=entity.name,
-                entity_type=entity.type.value,
-                pages=page_responses
+    with get_db_session() as db:
+        assignment_service = PermissionAssignmentService(db)
+
+        # 获取实体信息
+        entity = assignment_service.repo.get_entity_by_id(entity_id)
+        if not entity:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"实体 {entity_id} 不存在"
             )
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"获取实体权限失败: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="获取实体权限失败"
+
+        # 获取权限页面
+        pages = assignment_service.get_entity_permissions(entity_id)
+
+        return EntityPermissionResponse(
+            entity_id=entity.id,
+            entity_code=entity.code,
+            entity_name=entity.name,
+            entity_type=entity.type.value,
+            pages=[PageResponse(
+                id=page.id,
+                path=page.path,
+                name=page.name,
+                description=page.description,
+                created_at=page.created_at.isoformat(),
+                updated_at=page.updated_at.isoformat()
+            ) for page in pages]
         )
 
 

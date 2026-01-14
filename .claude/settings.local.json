@@ -73,7 +73,10 @@
       "Bash(git stash:*)",
       "mcp__tavily__tavily_crawl",
       "Skill(gogit)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(git diff-tree:*)",
+      "Bash(npm run lint)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": [],

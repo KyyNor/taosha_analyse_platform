@@ -41,52 +41,59 @@ export interface PermissionResult {
   error?: string
 }
 
-/**
- * 获取token的工具函数（简化版：只从cookie和localStorage获取）
- */
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null
-  
-  // 优先从cookie获取
-  const cookies = document.cookie.split(';')
-  for (const cookie of cookies) {
-    const [name, value] = cookie.trim().split('=')
-    if (name === 'auth_token') {
-      return decodeURIComponent(value)
+// Token管理工具函数
+const tokenManager = {
+  get(): string | null {
+    if (typeof window === 'undefined') return null
+
+    const cookies = document.cookie.split(';')
+    for (const cookie of cookies) {
+      const [name, value] = cookie.trim().split('=')
+      if (name === 'auth_token') {
+        return decodeURIComponent(value)
+      }
     }
+
+    return localStorage.getItem('auth_token')
+  },
+
+  set(token: string): void {
+    if (typeof window === 'undefined') return
+
+    const expires = new Date()
+    expires.setDate(expires.getDate() + 7)
+    document.cookie = `auth_token=${encodeURIComponent(token)}; expires=${expires.toUTCString()}; path=/`
+    localStorage.setItem('auth_token', token)
+  },
+
+  clear(): void {
+    if (typeof window === 'undefined') return
+
+    document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('user_info')
   }
-  
-  // 备用：从localStorage获取
-  return localStorage.getItem('auth_token')
 }
 
 /**
- * 设置token的工具函数
+ * 设置认证状态的辅助函数
  */
-function setToken(token: string): void {
-  if (typeof window === 'undefined') return
-  
-  // 设置cookie（7天过期）
-  const expires = new Date()
-  expires.setDate(expires.getDate() + 7)
-  document.cookie = `auth_token=${encodeURIComponent(token)}; expires=${expires.toUTCString()}; path=/`
-  
-  // 设置localStorage
-  localStorage.setItem('auth_token', token)
-}
-
-/**
- * 清除token的工具函数
- */
-function clearToken(): void {
-  if (typeof window === 'undefined') return
-  
-  // 清除cookie
-  document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
-  
-  // 清除localStorage
-  localStorage.removeItem('auth_token')
-  localStorage.removeItem('user_info')
+function updateAuthState(
+  state: Partial<AuthState>,
+  isAuthenticated: boolean,
+  userInfo?: UserInfo,
+  token?: string,
+  accessiblePages: string[] = []
+) {
+  setAuthState((prev: AuthState) => ({
+    ...prev,
+    ...state,
+    isAuthenticated,
+    user: userInfo,
+    token,
+    accessiblePages,
+    isLoading: false
+  }))
 }
 
 /**
@@ -95,46 +102,33 @@ function clearToken(): void {
 async function getAccessiblePages(token: string): Promise<string[]> {
   try {
     const response = await api.get('/permissions/my-pages', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      headers: { 'Authorization': `Bearer ${token}` }
     })
-
     return response.data.page_paths || []
-  } catch (error) {
-    console.error('Get accessible pages error:', error)
+  } catch {
     return []
   }
 }
 
-/**
- * 验证token并获取用户信息
- */
-async function validateTokenAndGetUser(token: string): Promise<{ valid: boolean; userInfo?: UserInfo }> {
+async function validateTokenAndGetUser(token: string) {
   try {
-    // 使用临时axios实例，手动设置token
     const response = await api.get('/login-records/current/info', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      headers: { 'Authorization': `Bearer ${token}` }
     })
 
-    const data = response.data
     return {
       valid: true,
       userInfo: {
-        user_id: data.user_id,
-        user_name: data.user_name,
-        branch_no: data.branch_no,
-        branch_name: data.branch_name,
-        role_id_list: data.role_id_list,
-        role_name_list: data.role_name_list,
-        is_admin: data.is_admin || false
+        user_id: response.data.user_id,
+        user_name: response.data.user_name,
+        branch_no: response.data.branch_no,
+        branch_name: response.data.branch_name,
+        role_id_list: response.data.role_id_list,
+        role_name_list: response.data.role_name_list,
+        is_admin: response.data.is_admin || false
       }
     }
-
-  } catch (error) {
-    console.error('Token validation error:', error)
+  } catch {
     return { valid: false }
   }
 }
@@ -161,65 +155,37 @@ export function useAuth(): AuthState & {
   // 初始化认证状态
   useEffect(() => {
     const initAuth = async () => {
-      const token = getToken()
+      const token = tokenManager.get()
 
       if (!token) {
-        setAuthState({
-          isAuthenticated: false,
-          isLoading: false,
-          user: null,
-          token: null,
-          accessiblePages: []
-        })
+        updateAuthState({}, false)
+        router.push(`${getBasePath()}/info?reason=no_token`)
         return
       }
 
       const validation = await validateTokenAndGetUser(token)
 
       if (validation.valid && validation.userInfo) {
-        // 获取可访问页面列表
         const accessiblePages = await getAccessiblePages(token)
-
-        setAuthState({
-          isAuthenticated: true,
-          isLoading: false,
-          user: validation.userInfo,
-          token,
-          accessiblePages
-        })
+        updateAuthState({}, true, validation.userInfo, token, accessiblePages)
       } else {
-        // Token无效，清除并重定向
-        clearToken()
-        setAuthState({
-          isAuthenticated: false,
-          isLoading: false,
-          user: null,
-          token: null,
-          accessiblePages: []
-        })
+        tokenManager.clear()
+        updateAuthState({}, false)
         router.push(`${getBasePath()}/info?reason=invalid_token`)
       }
     }
 
     initAuth()
   }, [router])
-  
+
   // 登录函数
   const login = useCallback(async (token: string): Promise<boolean> => {
     const validation = await validateTokenAndGetUser(token)
 
     if (validation.valid && validation.userInfo) {
-      setToken(token)
-      // 获取可访问页面列表
+      tokenManager.set(token)
       const accessiblePages = await getAccessiblePages(token)
-
-      setAuthState({
-        isAuthenticated: true,
-        isLoading: false,
-        user: validation.userInfo,
-        token,
-        accessiblePages
-      })
+      updateAuthState({}, true, validation.userInfo, token, accessiblePages)
       return true
     }
 
@@ -228,20 +194,14 @@ export function useAuth(): AuthState & {
 
   // 登出函数
   const logout = useCallback(() => {
-    clearToken()
-    setAuthState({
-      isAuthenticated: false,
-      isLoading: false,
-      user: null,
-      token: null,
-      accessiblePages: []
-    })
+    tokenManager.clear()
+    updateAuthState({}, false)
     router.push(`${getBasePath()}/info?reason=no_token`)
   }, [router])
 
   // 刷新认证状态
   const refreshAuth = useCallback(async () => {
-    const token = getToken()
+    const token = tokenManager.get()
 
     if (!token) {
       logout()
@@ -251,23 +211,15 @@ export function useAuth(): AuthState & {
     const validation = await validateTokenAndGetUser(token)
 
     if (validation.valid && validation.userInfo) {
-      // 获取可访问页面列表
       const accessiblePages = await getAccessiblePages(token)
-
-      setAuthState(prev => ({
-        ...prev,
-        user: validation.userInfo!,
-        token,
-        accessiblePages
-      }))
+      updateAuthState({}, true, validation.userInfo, token, accessiblePages)
     } else {
       logout()
     }
   }, [logout])
-  
-  // 检查是否为管理员（完全依赖后端返回的is_admin字段）
+
   const isAdmin = authState.user?.is_admin || false
-  
+
   return {
     ...authState,
     login,

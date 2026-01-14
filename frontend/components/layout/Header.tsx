@@ -158,72 +158,40 @@ function UserInfoPopover({ user }: { user: { user_name: string; user_id: string;
   );
 }
 
+// 辅助函数：过滤导航项的子项
+function filterDropdownItems(items: NavItem['items'], accessiblePages: string[]): NavItem['items'] {
+  return items.filter(subItem => {
+    if (subItem.type === 'separator' || subItem.type === 'group') {
+      return true
+    }
+    if (subItem.type === 'link') {
+      return !subItem.requiredPath || accessiblePages.includes(subItem.requiredPath)
+    }
+    return true
+  })
+}
+
 export default function Header() {
   const { isAuthenticated, isAdmin, user, accessiblePages } = useAuth();
 
-  // 调试：输出权限状态和用户信息
-  useEffect(() => {
-    console.log('[Header] Auth state:', {
-      isAuthenticated,
-      isAdmin,
-      userId: user?.user_id,
-      userName: user?.user_name,
-      isAdminFromUser: user?.is_admin,
-      accessiblePagesCount: accessiblePages.length,
-      accessiblePages: accessiblePages.slice(0, 5) // 只显示前5个
-    });
-  }, [isAuthenticated, isAdmin, user, accessiblePages]);
-
   const visibleNavItems = useMemo(() => {
     return allNavItems.filter(item => {
-      // 对于链接类型，检查是否有访问权限
       if (item.type === 'link') {
-        // 如果有 requiredPath 且用户没有该页面权限，则隐藏
-        if (item.requiredPath && !accessiblePages.includes(item.requiredPath)) {
-          console.log(`[Header] Filtering out link (no permission): ${item.label} - ${item.requiredPath}`);
-          return false;
-        }
-        return true;
+        return !item.requiredPath || accessiblePages.includes(item.requiredPath)
       }
 
-      // 对于下拉菜单，需要过滤其子项
       if (item.type === 'dropdown') {
-        const visibleSubItems = item.items.filter(subItem => {
-          // 分隔符和分组标题总是显示
-          if (subItem.type === 'separator' || subItem.type === 'group') {
-            return true;
-          }
+        const visibleSubItems = filterDropdownItems(item.items, accessiblePages)
+        const hasVisibleLinks = visibleSubItems.some(subItem => subItem.type === 'link')
 
-          // 链接项需要检查权限
-          if (subItem.type === 'link') {
-            // 如果有 requiredPath 且用户没有该页面权限，则隐藏
-            const hasPermission = !subItem.requiredPath || accessiblePages.includes(subItem.requiredPath);
-            if (!hasPermission) {
-              console.log(`[Header] Filtering out submenu item (no permission): ${subItem.label} - ${subItem.requiredPath}`);
-            }
-            return hasPermission;
-          }
+        if (!hasVisibleLinks) return false
 
-          return true;
-        });
-
-        // 如果过滤后没有可见的链接项，则隐藏整个下拉菜单
-        const hasVisibleLinks = visibleSubItems.some(subItem => subItem.type === 'link');
-        if (!hasVisibleLinks) {
-          console.log(`[Header] Filtering out dropdown (no visible links): ${item.label}`);
-          return false;
-        }
-
-        // 返回过滤后的下拉菜单
-        return {
-          ...item,
-          items: visibleSubItems
-        };
+        return { ...item, items: visibleSubItems }
       }
 
-      return true;
-    });
-  }, [accessiblePages]);
+      return true
+    })
+  }, [accessiblePages])
   
   const renderNavItem = (item: NavItem) => {
     if (item.type === 'link') {

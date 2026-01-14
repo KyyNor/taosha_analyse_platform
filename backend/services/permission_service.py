@@ -2,111 +2,78 @@
 权限管理服务层
 """
 
-from typing import List, Optional, Set, Dict, Any
+from typing import List, Set
 from sqlalchemy.orm import Session
-from datetime import datetime
-import uuid
 
-from models.permission_models import SystemEntity, SystemPage, SystemPermission, SystemLoginRecord, EntityType
+from models.permission_models import SystemEntity, EntityType
 from repositories.permission_repository import PermissionRepository
 from utils.logger import logger
 
 
 class PermissionService:
     """权限管理服务"""
-    
+
     def __init__(self, db: Session):
         self.db = db
         self.repo = PermissionRepository(db)
-    
+
     def get_user_permissions(self, branch_no: str, role_id_list: List[str]) -> Set[str]:
         """获取用户的页面权限集合（部门权限 + 角色权限的并集）"""
-        try:
-            # 获取部门实体
-            dept_entity = self.repo.get_entity_by_code_and_type(branch_no, EntityType.DEPARTMENT)
-            dept_entity_ids = [dept_entity.id] if dept_entity else []
+        # 获取部门实体
+        dept_entity = self.repo.get_entity_by_code_and_type(branch_no, EntityType.DEPARTMENT)
+        dept_entity_ids = [dept_entity.id] if dept_entity else []
 
-            # 获取角色实体
-            role_entities = self.repo.get_entities_by_codes(role_id_list, EntityType.ROLE)
-            role_entity_ids = [entity.id for entity in role_entities]
+        # 获取角色实体
+        role_entities = self.repo.get_entities_by_codes(role_id_list, EntityType.ROLE)
+        role_entity_ids = [entity.id for entity in role_entities]
 
-            # 合并实体ID列表
-            all_entity_ids = dept_entity_ids + role_entity_ids
+        # 合并实体ID列表
+        all_entity_ids = dept_entity_ids + role_entity_ids
 
-            if not all_entity_ids:
-                return set()
-
-            # 获取所有权限对应的页面路径
-            page_paths = self.repo.get_page_paths_by_entity_ids(all_entity_ids)
-
-            logger.info(f"用户权限计算: 部门={branch_no}, 角色={role_id_list}, 权限页面数={len(page_paths)}")
-            return page_paths
-
-        except Exception as e:
-            logger.error(f"获取用户权限失败: {e}")
+        if not all_entity_ids:
             return set()
-    
+
+        # 获取所有权限对应的页面路径
+        page_paths = self.repo.get_page_paths_by_entity_ids(all_entity_ids)
+
+        logger.info(f"用户权限计算: 部门={branch_no}, 角色={role_id_list}, 权限页面数={len(page_paths)}")
+        return page_paths
+
     def check_page_access(self, branch_no: str, role_id_list: List[str], page_path: str) -> bool:
         """检查用户是否有访问指定页面的权限"""
-        try:
-            # 首先检查页面是否存在
-            page_exists = self.repo.get_page_by_path(page_path) is not None
-            if not page_exists:
-                logger.debug(f"页面访问检查: 页面={page_path}, 页面不存在")
-                return False
-
-            # 管理员有所有存在页面的访问权限
-            if self.is_admin_user(branch_no, role_id_list):
-                logger.debug(f"页面访问检查: 页面={page_path}, 管理员用户，允许访问")
-                return True
-
-            # 普通用户检查具体权限
-            user_permissions = self.get_user_permissions(branch_no, role_id_list)
-            has_access = page_path in user_permissions
-
-            logger.debug(f"页面访问检查: 页面={page_path}, 有权限={has_access}")
-            return has_access
-
-        except Exception as e:
-            logger.error(f"检查页面访问权限失败: {e}")
+        # 首先检查页面是否存在
+        if not self.repo.get_page_by_path(page_path):
+            logger.debug(f"页面访问检查: 页面={page_path}, 页面不存在")
             return False
+
+        # 管理员有所有存在页面的访问权限
+        if self.is_admin_user(branch_no, role_id_list):
+            logger.debug(f"页面访问检查: 页面={page_path}, 管理员用户，允许访问")
+            return True
+
+        # 普通用户检查具体权限
+        user_permissions = self.get_user_permissions(branch_no, role_id_list)
+        has_access = page_path in user_permissions
+
+        logger.debug(f"页面访问检查: 页面={page_path}, 有权限={has_access}")
+        return has_access
     
     def is_admin_user(self, branch_no: str, role_id_list: List[str]) -> bool:
-        """
-        检查用户是否为管理员
+        """检查用户是否为管理员"""
+        # 检查部门是否为管理员
+        dept_entity = self.repo.get_entity_by_code_and_type(branch_no, EntityType.DEPARTMENT)
+        if dept_entity and dept_entity.is_admin:
+            logger.debug(f"用户所属部门 {branch_no} 为管理员部门")
+            return True
 
-        管理员判断逻辑：
-        1. 用户的角色中有任意一个角色的 is_admin=True
-        2. 用户的部门 is_admin=True
-
-        Args:
-            branch_no: 部门编号
-            role_id_list: 角色编码列表
-
-        Returns:
-            bool: 是否为管理员
-        """
-        try:
-            # 检查部门是否为管理员
-            dept_entity = self.repo.get_entity_by_code_and_type(branch_no, EntityType.DEPARTMENT)
-            if dept_entity and dept_entity.is_admin:
-                logger.debug(f"用户所属部门 {branch_no} 为管理员部门")
+        # 检查角色是否有管理员角色
+        role_entities = self.repo.get_entities_by_codes(role_id_list, EntityType.ROLE)
+        for role in role_entities:
+            if role.is_admin:
+                logger.debug(f"用户拥有管理员角色: {role.code}")
                 return True
 
-            # 检查角色是否有管理员角色
-            role_entities = self.repo.get_entities_by_codes(role_id_list, EntityType.ROLE)
-            for role in role_entities:
-                if role.is_admin:
-                    logger.debug(f"用户拥有管理员角色: {role.code}")
-                    return True
-
-            return False
-
-        except Exception as e:
-            logger.error(f"检查管理员权限时发生错误: {e}")
-            # 发生错误时返回 False，不进行硬编码降级
-            # 系统应该完全依赖数据库中的 is_admin 字段
-            return False
+        return False
 
 
 class EntityService:
