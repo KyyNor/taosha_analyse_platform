@@ -553,6 +553,7 @@ FROM (
     FROM {self.source_table}
     WHERE etl_date = '{etl_date_str}'
       AND object_type = '{object_type}'
+      AND target_id is not null
 ) AS source_data
 PIVOT (
     MAX(indicator_value)

@@ -242,12 +242,12 @@ class AnalyzeDBPartitionManager:
         type_mapping = {
             'integer': 'integer',
             'float': 'decimal(18,2)',
-            'string': 'varchar(255)',
-            'date': 'date',
-            'enum': 'varchar(255)',
+            'string': 'varchar(1000)',
+            'date': 'varchar(30)',
+            'enum': 'varchar(100)',
             'boolean': 'boolean'
         }
-        return type_mapping.get(indicator_type, 'varchar(255)')
+        return type_mapping.get(indicator_type, 'varchar(1000)')
 
     @staticmethod
     def create_wide_table(
@@ -256,13 +256,21 @@ class AnalyzeDBPartitionManager:
         is_realtime: bool = False
     ) -> bool:
         columns = [
-            ("target_id", "varchar(255) NOT NULL"),
-            ("etl_date", "date NOT NULL")
+            ("target_id", "varchar(100) NOT NULL"),
+            ("etl_date", "varchar(30) NOT NULL")
+        ]
+        long_text_indicator_list = [
+            'i_dep_acct_no_offline_00015',
+            'i_dep_acct_no_offline_00016',
+            'i_dep_acct_no_offline_00017',
+            'i_dep_acct_no_offline_00036'
         ]
         for meta in indicator_metadata.values():
             indicator_code = meta.get('indicator_code')
             if indicator_code:
                 pg_type = AnalyzeDBPartitionManager._map_pg_type(meta.get('data_type', 'string'))
+                if indicator_code in long_text_indicator_list:
+                    pg_type = 'text'
                 columns.append((indicator_code, pg_type))
 
         success = AnalyzeDBPartitionManager.create_partitioned_table(table_name, columns, "etl_date")

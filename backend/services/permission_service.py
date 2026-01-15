@@ -4,9 +4,10 @@
 
 from typing import List, Set, Dict, Optional
 from sqlalchemy.orm import Session
+from datetime import datetime
 import uuid
 
-from models.permission_models import SystemEntity, EntityType, SystemPage, SystemLoginRecord
+from models.permission_models import SystemEntity, EntityType, SystemPage, SystemLoginRecord, SystemPermission
 from repositories.permission_repository import PermissionRepository
 from utils.logger import logger
 
@@ -44,19 +45,19 @@ class PermissionService:
         """检查用户是否有访问指定页面的权限"""
         # 首先检查页面是否存在
         if not self.repo.get_page_by_path(page_path):
-            logger.debug(f"页面访问检查: 页面={page_path}, 页面不存在")
+            logger.info(f"页面访问检查: 页面={page_path}, 页面不存在")
             return False
 
         # 管理员有所有存在页面的访问权限
         if self.is_admin_user(branch_no, role_id_list):
-            logger.debug(f"页面访问检查: 页面={page_path}, 管理员用户，允许访问")
+            logger.info(f"页面访问检查: 页面={page_path}, 管理员用户，允许访问")
             return True
 
         # 普通用户检查具体权限
         user_permissions = self.get_user_permissions(branch_no, role_id_list)
         has_access = page_path in user_permissions
 
-        logger.debug(f"页面访问检查: 页面={page_path}, 有权限={has_access}")
+        logger.info(f"页面访问检查: 页面={page_path}, 有权限={has_access}")
         return has_access
     
     def is_admin_user(self, branch_no: str, role_id_list: List[str]) -> bool:
@@ -64,14 +65,14 @@ class PermissionService:
         # 检查部门是否为管理员
         dept_entity = self.repo.get_entity_by_code_and_type(branch_no, EntityType.DEPARTMENT)
         if dept_entity and dept_entity.is_admin:
-            logger.debug(f"用户所属部门 {branch_no} 为管理员部门")
+            logger.info(f"用户所属部门 {branch_no} 为管理员部门")
             return True
 
         # 检查角色是否有管理员角色
         role_entities = self.repo.get_entities_by_codes(role_id_list, EntityType.ROLE)
         for role in role_entities:
             if role.is_admin:
-                logger.debug(f"用户拥有管理员角色: {role.code}")
+                logger.info(f"用户拥有管理员角色: {role.code}")
                 return True
 
         return False

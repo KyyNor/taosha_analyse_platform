@@ -87,6 +87,9 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
       }
     })
 
+    console.log(userResponse.status)
+    console.log(userResponse.json)
+
     if (!userResponse.ok) {
       if (userResponse.status === 401) {
         return { valid: false, reason: 'expired_token' }
@@ -124,6 +127,9 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
         },
         body: JSON.stringify({ page_path: pagePath })
       })
+
+      console.log(permissionResponse.status)
+      console.log(permissionResponse.json)
 
       if (!permissionResponse.ok) {
         console.error(`Permission check failed: ${permissionResponse.status}`)
