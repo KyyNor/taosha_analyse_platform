@@ -18,17 +18,37 @@ from utils.logger import logger
 from utils.config import settings
 from utils.analyze_db_utils import AnalyzeDBConnector, AnalyzeDBPartitionManager
 
+def _get_latest_offline_table_name(
+    db: Session,
+    wide_table_name: str
+) -> Optional[str]:
+    """获取最新的离线宽表快照
 
-def _get_current_version_table_name(db: Session, wide_table_name: str) -> Optional[str]:
-    version = db.query(FraudHunterWideTableVersion).filter(
+    Args:
+        db: 数据库会话
+        wide_table_name: 宽表名称
+
+    Returns:
+        最新的快照记录，如果不存在返回None
+    """
+    # 获取最新日期的快照
+    snapshot = db.query(FraudHunterWideTableSnapshot).filter(
         and_(
-            FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-            FraudHunterWideTableVersion.status == 'current'
+            FraudHunterWideTableSnapshot.wide_table_name == wide_table_name,
+            FraudHunterWideTableSnapshot.status == 'ready'
         )
+    ).order_by(
+        desc(FraudHunterWideTableSnapshot.etl_date),
+        desc(FraudHunterWideTableSnapshot.generation_time)
     ).first()
-    if not version:
+
+    if not snapshot:
+        logger.warning(f"未找到 {wide_table_name} 的任何ready状态快照")
         return None
-    return f"{wide_table_name}_{version.version_hash[:8]}"
+
+    latest_table_name = f"{snapshot.wide_table_name}_{snapshot.version_hash}_{snapshot.etl_date.replace('-','')}"
+
+    return latest_table_name
 
 
 def _update_realtime_snapshot(
@@ -78,6 +98,8 @@ async def generate_realtime_wide_table_job():
         try:
             today = date.today()
             today_str = today.strftime('%Y-%m-%d')
+            now_str = datetime.now().strftime('%Y%m%d%H%M')
+
 
             logger.debug("=" * 60)
             logger.debug("步骤1: 实时指标加工")
@@ -123,14 +145,14 @@ async def generate_realtime_wide_table_job():
                 'cust_no': 'cust_wide_table',
                 'loan_acct_no': 'loan_acct_wide_table'
             }
+            offline_dep_acct_table_name = _get_latest_offline_table_name(db, object_type_to_wide_table['dep_acct_no'])
+            offline_cust_table_name = _get_latest_offline_table_name(db, object_type_to_wide_table['cust_no'])
 
             # 获取所有离线宽表
-            offline_tables = {}
-            for object_type, wide_table_name in object_type_to_wide_table.items():
-                table_name = _get_current_version_table_name(db, wide_table_name)
-                if table_name:
-                    offline_tables[object_type] = table_name
-                    logger.debug(f"离线宽表 ({object_type}): {table_name}")
+            offline_tables = {
+                'dep_acct_no': offline_dep_acct_table_name,
+                'cust_no': offline_cust_table_name,
+            }
 
             # 处理每个 object_type 的实时指标
             user_variable_config = _build_all_user_variable_config(db)
@@ -154,16 +176,16 @@ async def generate_realtime_wide_table_job():
                 current_version = db.query(FraudHunterWideTableVersion).filter(
                     and_(
                         FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-                        FraudHunterWideTableVersion.status == 'current'
+                        FraudHunterWideTableVersion.status.in_('current', 'target')
                     )
-                ).first()
+                ).order_by(desc(FraudHunterWideTableVersion.created_at)).first()
 
                 if not current_version:
                     logger.warning(f"没有找到 {wide_table_name} 的current版本，跳过")
                     continue
 
                 realtime_table_name = f"{wide_table_name}_realtime_{current_version.version_hash[:8]}"
-                generated_realtime_tables[object_type] = realtime_table_name
+                
 
                 # 创建实时表（如果不存在）
                 table_exists_sql = """
@@ -178,12 +200,12 @@ async def generate_realtime_wide_table_job():
 
                 if table_exists is not None and not table_exists.iloc[0]['exists']:
                     AnalyzeDBPartitionManager.create_wide_table(
-                        realtime_table_name, current_version.indicator_metadata, is_realtime=True
+                        realtime_table_name, current_version.indicator_metadata, partition_col='run_time'
                     )
                     logger.info(f"创建实时宽表: {realtime_table_name}")
 
                 # 确保分区存在
-                AnalyzeDBPartitionManager.ensure_partition(realtime_table_name, today)
+                AnalyzeDBPartitionManager.ensure_partition(realtime_table_name, today, partition_str=now_str)
 
                 # 执行该 object_type 的所有实时指标任务
                 all_indicator_results = []
@@ -226,6 +248,7 @@ async def generate_realtime_wide_table_job():
                         all_indicator_results[i], on='target_id', how='outer', suffixes=('', f'_dup_{i}')
                     )
                 final_result['etl_date'] = today
+                final_result['run_time'] = now_str
 
                 # 写入实时表
                 batch_size = settings.fraudhunter_realtime_writer_batch_insert_size
@@ -237,9 +260,12 @@ async def generate_realtime_wide_table_job():
                 column_count = len(final_result.columns)
                 logger.debug(f"实时宽表已写入PG: {realtime_table_name}, 行数: {row_count}, 列数: {column_count}")
 
+                realtime_table_name_with_partition = f'{realtime_table_name}_{now_str}'
+                generated_realtime_tables[object_type] = realtime_table_name_with_partition
+
                 # 更新快照
                 _update_realtime_snapshot(
-                    db, f'{wide_table_name}_realtime', today, realtime_table_name, row_count, column_count
+                    db, f'{wide_table_name}_realtime', today, realtime_table_name_with_partition, row_count, column_count
                 )
 
             db.commit()

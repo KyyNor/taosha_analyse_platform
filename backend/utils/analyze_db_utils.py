@@ -150,35 +150,46 @@ class AnalyzeDBPartitionManager:
         )
 
     @staticmethod
-    def _get_partition_name(table_name: str, partition_date: date) -> str:
-        return f"{table_name}_{partition_date.strftime('%Y%m%d')}"
+    def _get_partition_name(table_name: str, partition_date: date, partition_str:str = None) -> str:
+        if partition_str:
+            return f"{table_name}_{partition_str}"
+        else:
+            return f"{table_name}_{partition_date.strftime('%Y%m%d')}"
 
     @staticmethod
-    def create_partition(table_name: str, partition_date: date) -> bool:
-        partition_name = AnalyzeDBPartitionManager._get_partition_name(table_name, partition_date)
-        start_date = partition_date.strftime('%Y-%m-%d')
-        end_date = (partition_date + timedelta(days=1)).strftime('%Y-%m-%d')
-        sql = f"""
-            CREATE TABLE IF NOT EXISTS {partition_name}
-            PARTITION OF {table_name}
-            FOR VALUES FROM ('{start_date}') TO ('{end_date}');
-        """
+    def create_partition(table_name: str, partition_date: date, partition_str:str = None) -> bool:
+        partition_name = AnalyzeDBPartitionManager._get_partition_name(table_name, partition_date, partition_str)
+        if partition_str:
+            sql = f"""
+                CREATE TABLE IF NOT EXISTS {partition_name}
+                PARTITION OF {table_name}
+                FOR VALUES IN ('{partition_str}');
+            """
+        else:
+            start_date = partition_date.strftime('%Y-%m-%d')
+            end_date = (partition_date + timedelta(days=1)).strftime('%Y-%m-%d')
+            sql = f"""
+                CREATE TABLE IF NOT EXISTS {partition_name}
+                PARTITION OF {table_name}
+                FOR VALUES FROM ('{start_date}') TO ('{end_date}');
+            """
         return AnalyzeDBPartitionManager._execute_ddl(
             sql, f"分区创建成功: {partition_name}", f"分区创建失败: {partition_name}"
         )
 
     @staticmethod
-    def drop_partition(table_name: str, partition_date: date) -> bool:
-        partition_name = AnalyzeDBPartitionManager._get_partition_name(table_name, partition_date)
+    def drop_partition(table_name: str, partition_date: date, partition_str:str = None) -> bool:
+        partition_name = AnalyzeDBPartitionManager._get_partition_name(table_name, partition_date, partition_str)
         sql = f"DROP TABLE IF EXISTS {partition_name};"
         return AnalyzeDBPartitionManager._execute_ddl(
             sql, f"分区删除成功: {partition_name}", f"分区删除失败: {partition_name}"
         )
 
     @staticmethod
-    def partition_exists(table_name: str, partition_date: date) -> bool:
+    def partition_exists(table_name: str, partition_date: date, partition_str: str = None) -> bool:
         engine = AnalyzeDBConnector.get_engine()
-        partition_name = AnalyzeDBPartitionManager._get_partition_name(table_name, partition_date)
+        partition_name = AnalyzeDBPartitionManager._get_partition_name(table_name, partition_date, partition_str)
+
         sql = """
             SELECT EXISTS (
                 SELECT 1 FROM pg_tables
@@ -193,9 +204,9 @@ class AnalyzeDBPartitionManager:
             return False
 
     @staticmethod
-    def ensure_partition(table_name: str, partition_date: date) -> bool:
-        if not AnalyzeDBPartitionManager.partition_exists(table_name, partition_date):
-            return AnalyzeDBPartitionManager.create_partition(table_name, partition_date)
+    def ensure_partition(table_name: str, partition_date: date,partition_str: str = None) -> bool:
+        if not AnalyzeDBPartitionManager.partition_exists(table_name, partition_date, partition_str):
+            return AnalyzeDBPartitionManager.create_partition(table_name, partition_date, partition_str)
         return True
 
     @staticmethod
@@ -253,12 +264,16 @@ class AnalyzeDBPartitionManager:
     def create_wide_table(
         table_name: str,
         indicator_metadata: Dict[str, Any],
-        is_realtime: bool = False
+        partition_col: str = None
     ) -> bool:
         columns = [
             ("target_id", "varchar(100) NOT NULL"),
             ("etl_date", "varchar(30) NOT NULL")
         ]
+        
+        if partition_col:
+            columns.append((partition_col, "varchar(50) NOT NULL"))
+
         long_text_indicator_list = [
             'i_dep_acct_no_offline_00015',
             'i_dep_acct_no_offline_00016',
@@ -273,7 +288,11 @@ class AnalyzeDBPartitionManager:
                     pg_type = 'text'
                 columns.append((indicator_code, pg_type))
 
-        success = AnalyzeDBPartitionManager.create_partitioned_table(table_name, columns, "etl_date")
+        if partition_col:
+            success = AnalyzeDBPartitionManager.create_partitioned_table(table_name, columns, partition_col)
+        else:
+            success = AnalyzeDBPartitionManager.create_partitioned_table(table_name, columns, "etl_date")
+
         if success:
             engine = AnalyzeDBConnector.get_engine()
             with engine.connect() as conn:
