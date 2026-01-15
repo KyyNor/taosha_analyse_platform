@@ -616,7 +616,7 @@ PIVOT (
             )
 
             logger.info(f"开始写入PG表: {pg_table_name}, 预计{row_count}行")
-            df.write.mode("append").jdbc(
+            df.write.mode("append").option("driver", "org.postgresql.Driver").jdbc(
                 url=jdbc_url,
                 table=pg_table_name,
                 properties={

@@ -2,10 +2,11 @@
 权限管理服务层
 """
 
-from typing import List, Set
+from typing import List, Set, Dict, Optional
 from sqlalchemy.orm import Session
+import uuid
 
-from models.permission_models import SystemEntity, EntityType
+from models.permission_models import SystemEntity, EntityType, SystemPage, SystemLoginRecord
 from repositories.permission_repository import PermissionRepository
 from utils.logger import logger
 

@@ -113,8 +113,8 @@ export default function TableDetailPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const tableId = params.tableId as string;
-  const mode = searchParams.get('mode');
+  const tableId = params?.tableId as string;
+  const mode = searchParams?.get('mode');
   const { confirm, DialogComponent } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);

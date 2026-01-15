@@ -36,7 +36,7 @@ import type { WideTableVersionDetail, WideTableVersionProgress, DateProgressDeta
 export default function WideTableVersionDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const versionHash = params.versionHash as string;
+  const versionHash = params?.versionHash as string;
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<WideTableVersionDetail | null>(null);

@@ -77,7 +77,7 @@ class AnalyzeDBConnector:
         engine = cls.get_engine()
         try:
             if fetch_df:
-                return pd.read_sql_query(sql, engine, params=params)
+                return pd.read_sql_query(text(sql), engine, params=params)
             with engine.connect() as conn:
                 conn.execute(text(sql), params or {})
                 conn.commit()
@@ -100,7 +100,7 @@ class AnalyzeDBConnector:
                 table_name, engine, if_exists=if_exists,
                 index=False, method='multi', chunksize=chunksize
             )
-            logger.info(f"批量插入成功: 表={table_name}, 行数={rows_inserted}")
+            logger.debug(f"批量插入成功: 表={table_name}, 行数={rows_inserted}")
             return rows_inserted
         except SQLAlchemyError as e:
             logger.error(f"批量插入失败: 表={table_name}, 错误: {e}", exc_info=True)
@@ -263,14 +263,14 @@ class AnalyzeDBPartitionManager:
             indicator_code = meta.get('indicator_code')
             if indicator_code:
                 pg_type = AnalyzeDBPartitionManager._map_pg_type(meta.get('data_type', 'string'))
-                columns.append((f"i_{indicator_code}", pg_type))
+                columns.append((indicator_code, pg_type))
 
         success = AnalyzeDBPartitionManager.create_partitioned_table(table_name, columns, "etl_date")
         if success:
             engine = AnalyzeDBConnector.get_engine()
             with engine.connect() as conn:
-                conn.execute(text(f"CREATE INDEX idx_{table_name}_target_id ON {table_name} (target_id);"))
-                conn.execute(text(f"CREATE INDEX idx_{table_name}_etl_date ON {table_name} (etl_date);"))
+                conn.execute(text(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_target_id ON {table_name} (target_id);"))
+                conn.execute(text(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_etl_date ON {table_name} (etl_date);"))
                 conn.commit()
             logger.info(f"宽表版本表创建成功: {table_name}, 指标数={len(indicator_metadata)}")
         return success

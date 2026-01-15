@@ -25,8 +25,8 @@ export default function RelationConfigDetailPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const configId = params.configId as string;
-  const mode = searchParams.get("mode") || "view";
+  const configId = params?.configId as string;
+  const mode = searchParams?.get("mode") || "view";
   const { confirm, DialogComponent } = useConfirmDialog();
 
   const [relationData, setRelationData] = useState<RelationConfig | null>(null);
