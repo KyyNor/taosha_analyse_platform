@@ -46,7 +46,7 @@ def _get_latest_offline_table_name(
         logger.warning(f"未找到 {wide_table_name} 的任何ready状态快照")
         return None
 
-    latest_table_name = f"{snapshot.wide_table_name}_{snapshot.version_hash}_{snapshot.etl_date.replace('-','')}"
+    latest_table_name = f"{snapshot.wide_table_name}_{snapshot.version_hash}_{snapshot.etl_date.strftime('%Y%m%d')}"
 
     return latest_table_name
 
@@ -176,7 +176,7 @@ async def generate_realtime_wide_table_job():
                 current_version = db.query(FraudHunterWideTableVersion).filter(
                     and_(
                         FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-                        FraudHunterWideTableVersion.status.in_('current', 'target')
+                        FraudHunterWideTableVersion.status.in_(['current', 'target'])
                     )
                 ).order_by(desc(FraudHunterWideTableVersion.created_at)).first()
 
@@ -230,6 +230,7 @@ async def generate_realtime_wide_table_job():
                     try:
                         result_df = AnalyzeDBConnector.execute_sql(sql, fetch_df=True)
                         if result_df is not None and not result_df.empty:
+                            result_df = result_df.drop(columns=['etl_date'], errors='ignore')
                             all_indicator_results.append(result_df)
                             logger.debug(f"  -> 返回 {len(result_df)} 行，{len(result_df.columns)} 列")
                     except Exception as e:
@@ -329,7 +330,9 @@ async def generate_realtime_wide_table_job():
             logger.debug("模型匹配SQL已生成")
 
             try:
-                matched_df = AnalyzeDBConnector.execute_sql(model_sql, fetch_df=True) or pd.DataFrame()
+                matched_df = AnalyzeDBConnector.execute_sql(model_sql, fetch_df=True)
+                if matched_df is None or matched_df.empty:
+                    matched_df = pd.DataFrame()
                 logger.info(f"实时模型匹配完成, 命中 {len(matched_df)} 条记录")
             except Exception as e:
                 logger.error(f"执行模型匹配SQL失败: {e}", exc_info=True)
@@ -524,7 +527,7 @@ def _build_model_matching_sql(
     select_fields = [
         f"COALESCE(dep_acct_realtime_indicator.target_id, dep_acct_offline_indicator.target_id) AS \"目标ID\"",
         "dep_acct_offline_indicator.i_dep_acct_no_offline_00007 AS \"客户类型\"",
-        "COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_offline_00002, dep_acct_offline_indicator.i_dep_acct_no_offline_00002) AS \"branch_no\"",
+        "COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_offline_00002, dep_acct_offline_indicator.i_dep_acct_no_offline_00002) AS \"机构号\"",
         "dep_acct_realtime_indicator.etl_date AS \"[实时]ETL日期\"",
     ]
 
@@ -586,10 +589,12 @@ def _build_model_matching_sql(
 -- 模型数量: {len(models)}
 -- 指标数量: {len(online_indicators)}
 -- 关联表: 离线账户、离线客户、实时账户、实时客户
-
+with temp as (
 SELECT
     {select_clause}
 {chr(10).join(join_clauses)}
+)
+select * from temp
 {where_clause}
 """
 

@@ -139,11 +139,16 @@ class AnalyzeDBPartitionManager:
         partition_column: str = 'etl_date'
     ) -> bool:
         columns_sql = ",\n    ".join(f"{name} {typ}" for name, typ in columns)
+        if partition_column == 'etl_date':
+            partition_type = 'RANGE'
+        else:
+            partition_type = 'LIST'
+            
         sql = f"""
             CREATE TABLE IF NOT EXISTS {table_name} (
                 {columns_sql},
                 created_at timestamptz DEFAULT now()
-            ) PARTITION BY RANGE ({partition_column});
+            ) PARTITION BY {partition_type} ({partition_column});
         """
         return AnalyzeDBPartitionManager._execute_ddl(
             sql, f"分区表创建成功: {table_name}", f"分区表创建失败: {table_name}"

@@ -823,7 +823,7 @@ class RuleEngine:
         # 获取指标数据类型
         indicator = self._get_indicator_cached(indicator_code)
         if indicator and indicator.data_type == 'numeric':
-            return f"CAST({base_sql} AS DOUBLE)"
+            return f"{base_sql}::DOUBLE PRECISION"
         
         if indicator and indicator.data_type == 'date':
             return f"CAST({base_sql} AS DATE)"
