@@ -9,6 +9,7 @@ from pydantic import BaseModel, ValidationError
 import os
 
 from utils.logger import logger
+from utils.config import settings
 
 
 class UserInfo(BaseModel):
@@ -37,7 +38,7 @@ class TokenService:
         
         # 获取密钥
         if secret_key is None:
-            secret_key = os.getenv("TOKEN_SECRET_KEY", "default_secret_key_for_development")
+            secret_key = settings.taosha_secret_key
         
         self.secret_key = secret_key
     

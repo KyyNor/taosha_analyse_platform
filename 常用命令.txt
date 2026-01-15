@@ -3,15 +3,7 @@ mv ../$bak_path/.venv .
 mv ../$bak_path/backend/config/config.yaml backend/config/
 mv ../$bak_path/frontend/node_modules frontend/
 mv ../$bak_path/frontend/.env frontend/
-mv ../$bak_path/embeddings_model/local-ai-v3.7.0-linux-amd64 embeddings_model/
-mv ../$bak_path/embeddings_model/backends embeddings_model/
-mv ../$bak_path/embeddings_model/configuration embeddings_model/
-mv ../$bak_path/embeddings_model/models embeddings_model/
 
-
-chmod a+x sbackend.sh
-chmod a+x sfrontend.sh
-chmod a+x embeddings_model/local-ai-v3.7.0-linux-amd64
 
 # 启动后端
 source .venv/bin/activate

@@ -7,6 +7,8 @@ app:
   debug: false
   workers: 2
 
+secret_key: "default_secret_key_for_development"
+
 # 查询引擎配置
 query_engine:
   dir: "./database"

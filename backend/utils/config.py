@@ -64,6 +64,8 @@ class ConfigManager:
             database_dir: Path = Path(self._config_data.get('database', {}).get('dir', './database'))
             duckdb_path: str = self._config_data.get('database', {}).get('duckdb_path', './database/taosha.duckdb')
 
+            taosha_secret_key: str = self._config_data.get('secret_key', 'default_secret_key_for_development')
+
             # 元数据配置
             taosha_db_type: str = self._config_data.get('taosha_db', {}).get('db_type', 'mysql')
 
