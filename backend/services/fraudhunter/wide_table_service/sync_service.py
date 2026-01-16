@@ -553,6 +553,7 @@ FROM (
     FROM {self.source_table}
     WHERE etl_date = '{etl_date_str}'
       AND object_type = '{object_type}'
+      AND target_id is not null
 ) AS source_data
 PIVOT (
     MAX(indicator_value)
@@ -616,7 +617,7 @@ PIVOT (
             )
 
             logger.info(f"开始写入PG表: {pg_table_name}, 预计{row_count}行")
-            df.write.mode("append").jdbc(
+            df.write.mode("append").option("driver", "org.postgresql.Driver").jdbc(
                 url=jdbc_url,
                 table=pg_table_name,
                 properties={

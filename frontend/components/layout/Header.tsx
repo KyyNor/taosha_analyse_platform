@@ -32,6 +32,7 @@ type NavItem = {
     | { type: 'group'; label: string }
   >;
 };
+type DropdownNavItem = Extract<NavItem, { type: 'dropdown' }>;
 
 // 完整的导航菜单配置，包含所有功能
 const allNavItems: NavItem[] = [
@@ -159,7 +160,7 @@ function UserInfoPopover({ user }: { user: { user_name: string; user_id: string;
 }
 
 // 辅助函数：过滤导航项的子项
-function filterDropdownItems(items: NavItem['items'], accessiblePages: string[]): NavItem['items'] {
+function filterDropdownItems(items: DropdownNavItem['items'], accessiblePages: string[]): DropdownNavItem['items'] {
   return items.filter(subItem => {
     if (subItem.type === 'separator' || subItem.type === 'group') {
       return true

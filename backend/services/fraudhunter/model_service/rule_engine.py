@@ -823,7 +823,7 @@ class RuleEngine:
         # 获取指标数据类型
         indicator = self._get_indicator_cached(indicator_code)
         if indicator and indicator.data_type == 'numeric':
-            return f"CAST({base_sql} AS DOUBLE)"
+            return f"{base_sql}::DOUBLE PRECISION"
         
         if indicator and indicator.data_type == 'date':
             return f"CAST({base_sql} AS DATE)"
@@ -890,21 +890,21 @@ class RuleEngine:
             # 使用 INTERVAL 语法
             if value_expr.unit == "days":
                 if offset >= 0:
-                    return f"(cast({ind_sql} as date) + INTERVAL {offset} DAY)"
+                    return f"(cast({ind_sql} as date) + INTERVAL '{offset} DAY')"
                 else:
-                    return f"(cast({ind_sql} as date) - INTERVAL {-offset} DAY)"
+                    return f"(cast({ind_sql} as date) - INTERVAL '{-offset} DAY')"
 
             elif value_expr.unit == "months":
                 if offset >= 0:
-                    return f"(cast({ind_sql} as date) + INTERVAL {offset} MONTH)"
+                    return f"(cast({ind_sql} as date) + INTERVAL '{offset} MONTH')"
                 else:
-                    return f"(cast({ind_sql} as date) - INTERVAL {-offset} MONTH)"
+                    return f"(cast({ind_sql} as date) - INTERVAL '{-offset} MONTH')"
 
             elif value_expr.unit == "years":
                 if offset >= 0:
-                    return f"(cast({ind_sql} as date) + INTERVAL {offset} YEAR)"
+                    return f"(cast({ind_sql} as date) + INTERVAL '{offset} YEAR')"
                 else:
-                    return f"(cast({ind_sql} as date) - INTERVAL {-offset} YEAR)"
+                    return f"(cast({ind_sql} as date) - INTERVAL '{-offset} YEAR')"
 
         # 数学函数
         elif isinstance(value_expr, MathFunction):
@@ -1029,9 +1029,9 @@ class RuleEngine:
                     pattern = str(value_expr.value).replace("'", "''")
 
                 if operator == 'regexp':
-                    return f"regexp_matches({left_sql}, '{pattern}')"
+                    return f"{left_sql} ~* '{pattern}'"
                 else:
-                    return f"not regexp_matches({left_sql}, '{pattern}')"
+                    return f"not {left_sql} ~* '{pattern}'"
 
             return "1=1"
 

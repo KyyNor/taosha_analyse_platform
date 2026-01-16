@@ -24,8 +24,8 @@ export default function FineReportDetailPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
-  const reportId = parseInt(params.reportId as string);
-  const isEditMode = searchParams.get('mode') === 'edit';
+  const reportId = parseInt(params?.reportId as string);
+  const isEditMode = searchParams?.get('mode') === 'edit';
   const { confirm, DialogComponent } = useConfirmDialog();
 
   const [report, setReport] = useState<FineReport | null>(null);

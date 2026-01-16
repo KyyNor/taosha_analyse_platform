@@ -44,6 +44,8 @@ OBJECT_TYPE_TO_WIDE_TABLE = {
 class VersionSelectionResult:
     """版本选择结果"""
     version_hash: str
+    wide_table_name: str
+    etl_date: str
     parquet_path: Optional[str]  # PG表名 (保留字段名以兼容)
     is_fallback: bool = False
     fallback_reason: Optional[str] = None
@@ -53,7 +55,7 @@ class VersionSelectionResult:
     @property
     def pg_table_name(self) -> Optional[str]:
         """获取PG表名"""
-        return self.parquet_path
+        return f"{self.wide_table_name}_{self.version_hash}_{self.etl_date.strftime('%Y%m%d')}"
 
     def get_fallback_summary(self) -> str:
         """获取降级摘要信息"""
@@ -231,6 +233,8 @@ class ModelExecutor:
 
         return VersionSelectionResult(
             version_hash=version.version_hash,
+            wide_table_name=snapshot.wide_table_name,
+            etl_date=snapshot.etl_date,
             parquet_path=snapshot.parquet_file_path if snapshot else None,
             is_fallback=is_fallback,
             fallback_reason=fallback_reason,

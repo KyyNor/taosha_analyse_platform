@@ -25,8 +25,8 @@ export default function PromptTemplateDetailPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const templateId = params.templateId as string;
-  const mode = searchParams.get("mode") || "view";
+  const templateId = params?.templateId as string;
+  const mode = searchParams?.get("mode") || "view";
   const { confirm, DialogComponent } = useConfirmDialog();
 
   const [templateData, setTemplateData] = useState<PromptTemplate | null>(null);

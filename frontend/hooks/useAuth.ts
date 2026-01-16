@@ -76,27 +76,6 @@ const tokenManager = {
 }
 
 /**
- * 设置认证状态的辅助函数
- */
-function updateAuthState(
-  state: Partial<AuthState>,
-  isAuthenticated: boolean,
-  userInfo?: UserInfo,
-  token?: string,
-  accessiblePages: string[] = []
-) {
-  setAuthState((prev: AuthState) => ({
-    ...prev,
-    ...state,
-    isAuthenticated,
-    user: userInfo,
-    token,
-    accessiblePages,
-    isLoading: false
-  }))
-}
-
-/**
  * 获取用户可访问的页面列表
  */
 async function getAccessiblePages(token: string): Promise<string[]> {
@@ -150,6 +129,27 @@ export function useAuth(): AuthState & {
     accessiblePages: []
   })
   
+  /**
+   * 设置认证状态的辅助函数
+   */
+  function updateAuthState(
+    state: Partial<AuthState>,
+    isAuthenticated: boolean,
+    userInfo: UserInfo | null = null,
+    token: string | null = null,
+    accessiblePages: string[] = []
+  ) {
+    setAuthState((prev: AuthState) => ({
+      ...prev,
+      ...state,
+      isAuthenticated,
+      user: userInfo,
+      token,
+      accessiblePages,
+      isLoading: false
+    }))
+  }
+
   const router = useRouter()
   
   // 初始化认证状态

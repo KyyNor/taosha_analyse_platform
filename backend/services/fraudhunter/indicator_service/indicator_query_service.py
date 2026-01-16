@@ -313,7 +313,7 @@ class IndicatorQueryService:
     def _get_cast_expression(field: str, data_type: str) -> str:
         """根据数据类型获取CAST表达式"""
         if data_type == 'numeric':
-            return f"CAST({field} AS DOUBLE)"
+            return f"{field}::DOUBLE PRECISION"
         elif data_type == 'date':
             return f"CAST({field} AS DATE)"
         else:

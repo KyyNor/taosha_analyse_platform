@@ -77,7 +77,7 @@ class AnalyzeDBConnector:
         engine = cls.get_engine()
         try:
             if fetch_df:
-                return pd.read_sql_query(sql, engine, params=params)
+                return pd.read_sql_query(text(sql), engine, params=params)
             with engine.connect() as conn:
                 conn.execute(text(sql), params or {})
                 conn.commit()
@@ -100,7 +100,7 @@ class AnalyzeDBConnector:
                 table_name, engine, if_exists=if_exists,
                 index=False, method='multi', chunksize=chunksize
             )
-            logger.info(f"批量插入成功: 表={table_name}, 行数={rows_inserted}")
+            logger.debug(f"批量插入成功: 表={table_name}, 行数={rows_inserted}")
             return rows_inserted
         except SQLAlchemyError as e:
             logger.error(f"批量插入失败: 表={table_name}, 错误: {e}", exc_info=True)
@@ -139,46 +139,62 @@ class AnalyzeDBPartitionManager:
         partition_column: str = 'etl_date'
     ) -> bool:
         columns_sql = ",\n    ".join(f"{name} {typ}" for name, typ in columns)
+        if partition_column == 'etl_date':
+            partition_type = 'RANGE'
+        else:
+            partition_type = 'LIST'
+            
         sql = f"""
             CREATE TABLE IF NOT EXISTS {table_name} (
                 {columns_sql},
                 created_at timestamptz DEFAULT now()
-            ) PARTITION BY RANGE ({partition_column});
+            ) PARTITION BY {partition_type} ({partition_column});
         """
         return AnalyzeDBPartitionManager._execute_ddl(
             sql, f"分区表创建成功: {table_name}", f"分区表创建失败: {table_name}"
         )
 
     @staticmethod
-    def _get_partition_name(table_name: str, partition_date: date) -> str:
-        return f"{table_name}_{partition_date.strftime('%Y%m%d')}"
+    def _get_partition_name(table_name: str, partition_date: date, partition_str:str = None) -> str:
+        if partition_str:
+            return f"{table_name}_{partition_str}"
+        else:
+            return f"{table_name}_{partition_date.strftime('%Y%m%d')}"
 
     @staticmethod
-    def create_partition(table_name: str, partition_date: date) -> bool:
-        partition_name = AnalyzeDBPartitionManager._get_partition_name(table_name, partition_date)
-        start_date = partition_date.strftime('%Y-%m-%d')
-        end_date = (partition_date + timedelta(days=1)).strftime('%Y-%m-%d')
-        sql = f"""
-            CREATE TABLE IF NOT EXISTS {partition_name}
-            PARTITION OF {table_name}
-            FOR VALUES FROM ('{start_date}') TO ('{end_date}');
-        """
+    def create_partition(table_name: str, partition_date: date, partition_str:str = None) -> bool:
+        partition_name = AnalyzeDBPartitionManager._get_partition_name(table_name, partition_date, partition_str)
+        if partition_str:
+            sql = f"""
+                CREATE TABLE IF NOT EXISTS {partition_name}
+                PARTITION OF {table_name}
+                FOR VALUES IN ('{partition_str}');
+            """
+        else:
+            start_date = partition_date.strftime('%Y-%m-%d')
+            end_date = (partition_date + timedelta(days=1)).strftime('%Y-%m-%d')
+            sql = f"""
+                CREATE TABLE IF NOT EXISTS {partition_name}
+                PARTITION OF {table_name}
+                FOR VALUES FROM ('{start_date}') TO ('{end_date}');
+            """
         return AnalyzeDBPartitionManager._execute_ddl(
             sql, f"分区创建成功: {partition_name}", f"分区创建失败: {partition_name}"
         )
 
     @staticmethod
-    def drop_partition(table_name: str, partition_date: date) -> bool:
-        partition_name = AnalyzeDBPartitionManager._get_partition_name(table_name, partition_date)
+    def drop_partition(table_name: str, partition_date: date, partition_str:str = None) -> bool:
+        partition_name = AnalyzeDBPartitionManager._get_partition_name(table_name, partition_date, partition_str)
         sql = f"DROP TABLE IF EXISTS {partition_name};"
         return AnalyzeDBPartitionManager._execute_ddl(
             sql, f"分区删除成功: {partition_name}", f"分区删除失败: {partition_name}"
         )
 
     @staticmethod
-    def partition_exists(table_name: str, partition_date: date) -> bool:
+    def partition_exists(table_name: str, partition_date: date, partition_str: str = None) -> bool:
         engine = AnalyzeDBConnector.get_engine()
-        partition_name = AnalyzeDBPartitionManager._get_partition_name(table_name, partition_date)
+        partition_name = AnalyzeDBPartitionManager._get_partition_name(table_name, partition_date, partition_str)
+
         sql = """
             SELECT EXISTS (
                 SELECT 1 FROM pg_tables
@@ -193,9 +209,9 @@ class AnalyzeDBPartitionManager:
             return False
 
     @staticmethod
-    def ensure_partition(table_name: str, partition_date: date) -> bool:
-        if not AnalyzeDBPartitionManager.partition_exists(table_name, partition_date):
-            return AnalyzeDBPartitionManager.create_partition(table_name, partition_date)
+    def ensure_partition(table_name: str, partition_date: date,partition_str: str = None) -> bool:
+        if not AnalyzeDBPartitionManager.partition_exists(table_name, partition_date, partition_str):
+            return AnalyzeDBPartitionManager.create_partition(table_name, partition_date, partition_str)
         return True
 
     @staticmethod
@@ -242,35 +258,51 @@ class AnalyzeDBPartitionManager:
         type_mapping = {
             'integer': 'integer',
             'float': 'decimal(18,2)',
-            'string': 'varchar(255)',
-            'date': 'date',
-            'enum': 'varchar(255)',
+            'string': 'varchar(1000)',
+            'date': 'varchar(30)',
+            'enum': 'varchar(100)',
             'boolean': 'boolean'
         }
-        return type_mapping.get(indicator_type, 'varchar(255)')
+        return type_mapping.get(indicator_type, 'varchar(1000)')
 
     @staticmethod
     def create_wide_table(
         table_name: str,
         indicator_metadata: Dict[str, Any],
-        is_realtime: bool = False
+        partition_col: str = None
     ) -> bool:
         columns = [
-            ("target_id", "varchar(255) NOT NULL"),
-            ("etl_date", "date NOT NULL")
+            ("target_id", "varchar(100) NOT NULL"),
+            ("etl_date", "varchar(30) NOT NULL")
+        ]
+        
+        if partition_col:
+            columns.append((partition_col, "varchar(50) NOT NULL"))
+
+        long_text_indicator_list = [
+            'i_dep_acct_no_offline_00015',
+            'i_dep_acct_no_offline_00016',
+            'i_dep_acct_no_offline_00017',
+            'i_dep_acct_no_offline_00036'
         ]
         for meta in indicator_metadata.values():
             indicator_code = meta.get('indicator_code')
             if indicator_code:
                 pg_type = AnalyzeDBPartitionManager._map_pg_type(meta.get('data_type', 'string'))
-                columns.append((f"i_{indicator_code}", pg_type))
+                if indicator_code in long_text_indicator_list:
+                    pg_type = 'text'
+                columns.append((indicator_code, pg_type))
 
-        success = AnalyzeDBPartitionManager.create_partitioned_table(table_name, columns, "etl_date")
+        if partition_col:
+            success = AnalyzeDBPartitionManager.create_partitioned_table(table_name, columns, partition_col)
+        else:
+            success = AnalyzeDBPartitionManager.create_partitioned_table(table_name, columns, "etl_date")
+
         if success:
             engine = AnalyzeDBConnector.get_engine()
             with engine.connect() as conn:
-                conn.execute(text(f"CREATE INDEX idx_{table_name}_target_id ON {table_name} (target_id);"))
-                conn.execute(text(f"CREATE INDEX idx_{table_name}_etl_date ON {table_name} (etl_date);"))
+                conn.execute(text(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_target_id ON {table_name} (target_id);"))
+                conn.execute(text(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_etl_date ON {table_name} (etl_date);"))
                 conn.commit()
             logger.info(f"宽表版本表创建成功: {table_name}, 指标数={len(indicator_metadata)}")
         return success

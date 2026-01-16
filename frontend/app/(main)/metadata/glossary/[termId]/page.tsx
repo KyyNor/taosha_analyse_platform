@@ -50,8 +50,8 @@ export default function GlossaryTermDetailPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const termId = params.termId as string;
-  const mode = searchParams.get("mode") || "view";
+  const termId = params?.termId as string;
+  const mode = searchParams?.get("mode") || "view";
   const { confirm, DialogComponent } = useConfirmDialog();
 
   const [termData, setTermData] = useState<GlossaryTerm | null>(null);

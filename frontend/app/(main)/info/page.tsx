@@ -77,9 +77,9 @@ function InfoPageContent() {
   const [mounted, setMounted] = useState(false)
   
   // 获取URL参数
-  const reason = (searchParams.get('reason') as InfoReason) || 'no_token'
-  const userName = searchParams.get('user_name')
-  const userId = searchParams.get('user_id')
+  const reason = (searchParams?.get('reason') as InfoReason) || 'no_token'
+  const userName = searchParams?.get('user_name')
+  const userId = searchParams?.get('user_id')
   
   // 获取配置
   const config = INFO_CONFIG[reason] || INFO_CONFIG.no_token

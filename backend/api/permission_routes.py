@@ -710,7 +710,7 @@ async def check_page_access(
 
             # 管理员有所有已配置页面的访问权限
             if is_admin:
-                logger.debug(
+                logger.info(
                     f"页面访问检查: 管理员用户访问 - "
                     f"用户={current_user.user_id}, 页面={request.page_path}"
                 )
@@ -742,7 +742,7 @@ async def check_page_access(
                     is_admin=False
                 )
 
-            logger.debug(
+            logger.info(
                 f"页面访问检查: 权限验证通过 - "
                 f"用户={current_user.user_id}, 页面={request.page_path}"
             )

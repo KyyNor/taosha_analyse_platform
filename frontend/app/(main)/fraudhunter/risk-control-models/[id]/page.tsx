@@ -46,8 +46,8 @@ export default function RiskControlModelDetailPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
-  const modelId = Number(params.id);
-  const mode = searchParams.get("mode");
+  const modelId = Number(params?.id);
+  const mode = searchParams?.get("mode");
   const { confirm, DialogComponent } = useConfirmDialog();
 
   const [loading, setLoading] = useState(true);
