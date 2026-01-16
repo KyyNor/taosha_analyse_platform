@@ -87,8 +87,8 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
       }
     })
 
-    console.log(userResponse.status)
-    console.log(userResponse.json)
+    console.log("userResponse:" + userResponse.status)
+
 
     if (!userResponse.ok) {
       if (userResponse.status === 401) {
@@ -101,6 +101,8 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
     }
 
     const userInfo = await userResponse.json()
+
+    console.log("userResponse:" + JSON.stringify(userInfo, null, 2))
 
     // 2. 检查是否为管理员（完全依赖后端返回的 is_admin 字段）
     // 后端会根据实体的 is_admin 字段进行判断，不再硬编码角色名称
@@ -128,8 +130,7 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
         body: JSON.stringify({ page_path: pagePath })
       })
 
-      console.log(permissionResponse.status)
-      console.log(permissionResponse.json)
+      console.log("permissionResponse:" + permissionResponse.status)
 
       if (!permissionResponse.ok) {
         console.error(`Permission check failed: ${permissionResponse.status}`)
@@ -144,6 +145,8 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
       }
 
       const permissionData = await permissionResponse.json()
+
+      console.log("permissionResponse:" + JSON.stringify(permissionData, null, 2))
 
       // 统一reason为标准code，确保info页面能正确显示提示
       // 优先使用后端返回的reason，如果没有则使用默认值

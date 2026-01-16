@@ -61,6 +61,8 @@ class PermissionService:
             False
         """
         # 1. 精确匹配（处理普通路径）
+        print(permitted_path)
+        print(actual_path)
         if permitted_path == actual_path:
             return True
 
@@ -71,17 +73,23 @@ class PermissionService:
             # 将模板路径转换为正则表达式
             # "/metadata/tables/[tableId]" -> r"^/metadata/tables/[^/]+$"
             # "/metadata/tables/[id]/column/[colId]" -> r"^/metadata/tables/[^/]+/column/[^/]+$"
-            pattern = permitted_path
-            pattern = pattern.replace("[", "").replace("]", "")  # 移除括号
-            # 将参数名替换为通配符模式
-            parts = pattern.split("/")
+            parts = permitted_path.split("/")
             regex_parts = []
+
             for part in parts:
-                if not part:  # 空字符串（连续斜杠）
+                if not part:  # 空字符串（连续斜杠或路径开头/结尾）
                     regex_parts.append("")
-                else:
+                elif part.startswith("[") and part.endswith("]"):
+                    # 参数部分（如 [id]）
                     regex_parts.append("[^/]+")
-            regex_pattern = "^/" + "/".join(regex_parts) + "$"
+                else:
+                    # 静态部分（如 fraudhunter, indicator-tasks）
+                    regex_parts.append(part)
+
+            # 构建正则表达式
+            regex_pattern = "^" + "/".join(regex_parts) + "$"
+
+            print(regex_pattern)
 
             # 匹配路径
             if re.match(regex_pattern, actual_path):
@@ -92,9 +100,9 @@ class PermissionService:
     def check_page_access(self, branch_no: str, role_id_list: List[str], page_path: str) -> bool:
         """检查用户是否有访问指定页面的权限（支持动态路由匹配）"""
         # 首先检查页面是否存在
-        if not self.repo.get_page_by_path(page_path):
-            logger.info(f"页面访问检查: 页面={page_path}, 页面不存在")
-            return False
+        # if not self.repo.get_page_by_path(page_path):
+        #     logger.info(f"页面访问检查: 页面={page_path}, 页面不存在")
+        #     return False
 
         # 管理员有所有存在页面的访问权限
         if self.is_admin_user(branch_no, role_id_list):
@@ -103,6 +111,7 @@ class PermissionService:
 
         # 普通用户检查具体权限（支持动态路由匹配）
         user_permissions = self.get_user_permissions(branch_no, role_id_list)
+        logger.info(f"用户权限页面清单：{user_permissions}")
 
         # 遍历所有权限路径，使用模式匹配
         for permitted_path in user_permissions:

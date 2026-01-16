@@ -687,20 +687,20 @@ async def check_page_access(
         with get_db_session() as db:
             permission_service = PermissionService(db)
 
-            # 检查页面是否存在
-            page = permission_service.repo.get_page_by_path(request.page_path)
+            # # 检查页面是否存在
+            # page = permission_service.repo.get_page_by_path(request.page_path)
 
-            if not page:
-                logger.warning(
-                    f"页面访问检查失败: 页面不在配置中 - "
-                    f"用户={current_user.user_id}, 页面={request.page_path}"
-                )
-                return PageAccessCheckResponse(
-                    has_access=False,
-                    page_path=request.page_path,
-                    reason="page_not_found",
-                    is_admin=False
-                )
+            # if not page:
+            #     logger.warning(
+            #         f"页面访问检查失败: 页面不在配置中 - "
+            #         f"用户={current_user.user_id}, 页面={request.page_path}"
+            #     )
+            #     return PageAccessCheckResponse(
+            #         has_access=False,
+            #         page_path=request.page_path,
+            #         reason="page_not_found",
+            #         is_admin=False
+            #     )
 
             # 检查是否为管理员
             is_admin = permission_service.is_admin_user(
