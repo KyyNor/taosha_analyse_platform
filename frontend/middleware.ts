@@ -221,6 +221,7 @@ function createRedirectWithTokenCookie(request: NextRequest, token: string, targ
   
   // 创建重定向响应
   const response = NextResponse.redirect(url)
+  console.log("redirect to url:" + url)
   
   // 设置token到cookie（7天过期）
   const expires = new Date()
@@ -233,6 +234,7 @@ function createRedirectWithTokenCookie(request: NextRequest, token: string, targ
     secure: process.env.NODE_ENV === 'production', // 生产环境使用HTTPS
     sameSite: 'lax'
   })
+  console.log("respose cookies auth_token: " + token)
   
   return response
 }
@@ -260,6 +262,7 @@ export async function middleware(request: NextRequest) {
   if (fromSearchParam) {
     // 验证token
     const result = await checkTokenAndPermission(token, pathname)
+    console.log("check token permission result[SearchParam]:" + JSON.stringify(result, null, 2))
 
     if (!result.valid) {
       return createInfoRedirect(request, result.reason!, result.userInfo)
@@ -271,6 +274,7 @@ export async function middleware(request: NextRequest) {
 
   // 验证token并检查权限
   const result = await checkTokenAndPermission(token, pathname)
+  console.log("check token permission result[NotSearchParam]:" + JSON.stringify(result, null, 2))
 
   if (!result.valid) {
     return createInfoRedirect(request, result.reason!, result.userInfo)
