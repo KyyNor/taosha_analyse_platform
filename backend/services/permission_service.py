@@ -107,10 +107,10 @@ class PermissionService:
         # 遍历所有权限路径，使用模式匹配
         for permitted_path in user_permissions:
             if self._match_page_permission(permitted_path, page_path):
-                logger.debug(f"页面访问检查: 页面={page_path}, 匹配到权限模板 {permitted_path}")
+                logger.info(f"页面访问检查: 页面={page_path}, 匹配到权限模板 {permitted_path}")
                 return True
 
-        logger.debug(f"页面访问检查: 页面={page_path}, 无权限")
+        logger.info(f"页面访问检查: 页面={page_path}, 无权限")
         return False
     
     def is_admin_user(self, branch_no: str, role_id_list: List[str]) -> bool:

@@ -232,7 +232,7 @@ class WideTableSyncService:
 
         # 2. 确保PG表和分区存在
         AnalyzeDBPartitionManager.create_wide_table(
-            pg_table_name, indicator_metadata, is_realtime=False
+            pg_table_name, indicator_metadata
         )
         AnalyzeDBPartitionManager.ensure_partition(pg_table_name, etl_date)
 

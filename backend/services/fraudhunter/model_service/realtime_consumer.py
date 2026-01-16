@@ -3,7 +3,7 @@
 import asyncio
 import json
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Dict, Optional
 
 import pandas as pd
@@ -147,11 +147,12 @@ class RealtimeDataConsumer:
 
         try:
             df = pd.DataFrame(self.buffer)
-            if 'tran_date' in df.columns and not df['tran_date'].isna().all():
-                sample_date = df['tran_date'].dropna().iloc[0] if len(df) > 0 else None
-                if sample_date:
-                    tran_date = self._parse_tran_date(sample_date)
-                    AnalyzeDBPartitionManager.ensure_partition('realtime_oss_inct_new', tran_date)
+            current_date = datetime.now()
+            next_date = (datetime.now() + timedelta(days=1))
+            
+            # 确保当前日期和第二天的分区存在
+            AnalyzeDBPartitionManager.ensure_partition('realtime_oss_inct_new', current_date)
+            AnalyzeDBPartitionManager.ensure_partition('realtime_oss_inct_new', next_date)
 
             AnalyzeDBConnector.batch_insert(
                 'realtime_oss_inct_new', df,
