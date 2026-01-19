@@ -247,6 +247,7 @@ function PageTreeView({ pages, permissions, onToggle, level = 0 }: PageTreeViewP
                   <Badge variant="outline">L{page.level}</Badge>
                 )}
               </div>
+              <p className="text-xs text-muted-foreground font-mono">{page.path}</p>
               {page.description && (
                 <p className="text-xs text-muted-foreground">{page.description}</p>
               )}

@@ -246,6 +246,7 @@ function PageTreeSelector({ pages, selectedPage, onSelect, level = 0 }: PageTree
                   <Badge variant="outline">L{page.level}</Badge>
                 )}
               </div>
+              <p className="text-xs text-muted-foreground font-mono">{page.path}</p>
               {page.description && (
                 <p className="text-xs text-muted-foreground">{page.description}</p>
               )}
