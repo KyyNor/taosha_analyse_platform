@@ -54,6 +54,7 @@ dependencies = [
     "kafka-python>=2.3.0",
     "pyjwt>=2.10.1",
     "psycopg2-binary>=2.9.11",
+    "filelock>=3.20.1",  # 显式依赖，修复TOCTOU安全漏洞
 ]
 
 [[tool.uv.index]]
