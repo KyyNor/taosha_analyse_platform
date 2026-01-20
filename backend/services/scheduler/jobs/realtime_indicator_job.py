@@ -586,8 +586,8 @@ def _build_model_matching_sql(
 
     # 构建JOIN子句（从离线账户表出发）
     join_clauses = [
-        f"FROM {dep_acct_offline_table} AS dep_acct_offline_indicator",
-        f"LEFT JOIN {dep_acct_realtime_table} AS dep_acct_realtime_indicator",
+        f"FROM {dep_acct_realtime_table} AS dep_acct_realtime_indicator",
+        f"LEFT JOIN {dep_acct_offline_table} AS dep_acct_offline_indicator",
         f"  ON dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id"
     ]
 

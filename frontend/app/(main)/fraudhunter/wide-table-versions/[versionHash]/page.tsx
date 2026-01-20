@@ -109,8 +109,13 @@ export default function WideTableVersionDetailPage() {
   // 打开补数对话框
   const handleOpenRerunDialog = (progress: DateProgressDetail) => {
     setSelectedDateProgress(progress);
-    setRerunStartDate(progress.etl_date);
-    setRerunEndDate(progress.etl_date);
+    const d = new Date(progress.etl_date)
+    d.setDate(d.getDate() + 1);
+    const nextDayStr = d.getFullYear() + '-' + 
+                String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                String(d.getDate()).padStart(2, '0');
+    setRerunStartDate(nextDayStr);
+    setRerunEndDate(nextDayStr);
     setRerunDialogOpen(true);
   };
 

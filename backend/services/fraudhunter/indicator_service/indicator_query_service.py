@@ -396,7 +396,7 @@ LIMIT {page_size} OFFSET {offset}'''
         elif operator == "=":
             if data_type == 'numeric':
                 try:
-                    return f"{field} = {float(value)}"
+                    return f"{field}::DOUBLE PRECISION = {float(value)}"
                 except (ValueError, TypeError):
                     return f"CAST({field} AS VARCHAR) = '{value}'"
             else:
@@ -404,7 +404,7 @@ LIMIT {page_size} OFFSET {offset}'''
         elif operator in [">", "<", ">=", "<="]:
             if data_type == 'numeric':
                 try:
-                    return f"{field} {operator} {float(value)}"
+                    return f"{field}::DOUBLE PRECISION {operator} {float(value)}"
                 except (ValueError, TypeError):
                     return f"CAST({field} AS VARCHAR) {operator} '{value}'"
             elif data_type == 'date':

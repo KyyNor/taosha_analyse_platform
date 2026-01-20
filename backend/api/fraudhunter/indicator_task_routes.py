@@ -39,7 +39,7 @@ async def create_indicator_task(
     task_data: IndicatorTaskCreate,
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(get_current_user),
-) -> dict[str, object | bool | str | list]:
+):
     """创建新的指标任务
 
     参数:
@@ -166,7 +166,7 @@ async def update_indicator_task(
     task_data: IndicatorTaskUpdate,
     db: Session = Depends(get_db),
     current_user: UserInfo = Depends(get_current_user),
-) -> dict[str, object | bool | str | list]:
+):
     """更新指标任务信息
 
     注意：只有draft状态的指标任务才允许修改逻辑内容
