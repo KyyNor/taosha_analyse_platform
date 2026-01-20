@@ -339,7 +339,7 @@ def step2_online_model_executor(db, offline_tables, generated_realtime_tables):
         return None, None
 
     if len(matched_df) == 0:
-        logger.debug("没有命中任何模型的记录")
+        logger.info("没有命中任何模型的记录")
         execution_record.execution_end_time = datetime.now()
         execution_record.status = 'success'
         db.commit()
@@ -452,17 +452,23 @@ async def generate_realtime_wide_table_job():
     
     try:
         with get_db_session() as db:
+            logger.info("step1 start")
             offline_tables, generated_realtime_tables = step1_generate_realtime_indicators(db, today, today_str, now_str)
+            logger.info("step1 end")
             if offline_tables is None:
                 return
 
         with get_db_session() as db:
+            logger.info("step2 start")
             matched_df, execution_record = step2_online_model_executor(db, offline_tables, generated_realtime_tables)
+            logger.info("step2 end")
 
             if matched_df is None:
                 return
 
+            logger.info("step3 start")
             step3_hit_record(db, today, matched_df, execution_record)
+            logger.info("step3 end")
 
             logger.debug("实时指标宽表生成及模型匹配完成")
 

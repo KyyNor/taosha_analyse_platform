@@ -139,7 +139,7 @@ class AnalyzeDBPartitionManager:
         partition_column: str = 'etl_date'
     ) -> bool:
         columns_sql = ",\n    ".join(f"{name} {typ}" for name, typ in columns)
-        if partition_column == 'etl_date':
+        if partition_column in ('etl_date', 'tran_date'):
             partition_type = 'RANGE'
         else:
             partition_type = 'LIST'

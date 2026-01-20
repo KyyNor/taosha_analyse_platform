@@ -264,7 +264,7 @@ class WideTableVersionManager:
         pg_table_name = f"{wide_table_name}_{version_hash[:HASH_SHORT_LENGTH]}"
         try:
             AnalyzeDBPartitionManager.create_wide_table(
-                pg_table_name, indicator_metadata, is_realtime=False
+                pg_table_name, indicator_metadata
             )
             logger.info(f"创建PG表成功: {pg_table_name}")
         except Exception as e:

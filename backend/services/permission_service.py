@@ -41,24 +41,86 @@ class PermissionService:
         logger.info(f"用户权限计算: 部门={branch_no}, 角色={role_id_list}, 权限页面数={len(page_paths)}")
         return page_paths
 
+    def _match_page_permission(self, permitted_path: str, actual_path: str) -> bool:
+        """
+        匹配页面权限路径（支持动态路由模式）
+
+        Args:
+            permitted_path: 用户有权限的路径（可能是模板，如 "/metadata/tables/[tableId]"）
+            actual_path: 实际访问的路径（如 "/metadata/tables/123"）
+
+        Returns:
+            bool: 是否匹配
+
+        Examples:
+            >>> _match_page_permission("/metadata/tables/[tableId]", "/metadata/tables/123")
+            True
+            >>> _match_page_permission("/agent", "/agent")
+            True
+            >>> _match_page_permission("/metadata/tables/[tableId]", "/metadata/relations/123")
+            False
+        """
+        # 1. 精确匹配（处理普通路径）
+        print(permitted_path)
+        print(actual_path)
+        if permitted_path == actual_path:
+            return True
+
+        # 2. 动态路由匹配（处理 [param] 模式）
+        if "[" in permitted_path and "]" in permitted_path:
+            import re
+
+            # 将模板路径转换为正则表达式
+            # "/metadata/tables/[tableId]" -> r"^/metadata/tables/[^/]+$"
+            # "/metadata/tables/[id]/column/[colId]" -> r"^/metadata/tables/[^/]+/column/[^/]+$"
+            parts = permitted_path.split("/")
+            regex_parts = []
+
+            for part in parts:
+                if not part:  # 空字符串（连续斜杠或路径开头/结尾）
+                    regex_parts.append("")
+                elif part.startswith("[") and part.endswith("]"):
+                    # 参数部分（如 [id]）
+                    regex_parts.append("[^/]+")
+                else:
+                    # 静态部分（如 fraudhunter, indicator-tasks）
+                    regex_parts.append(part)
+
+            # 构建正则表达式
+            regex_pattern = "^" + "/".join(regex_parts) + "$"
+
+            print(regex_pattern)
+
+            # 匹配路径
+            if re.match(regex_pattern, actual_path):
+                return True
+
+        return False
+
     def check_page_access(self, branch_no: str, role_id_list: List[str], page_path: str) -> bool:
-        """检查用户是否有访问指定页面的权限"""
+        """检查用户是否有访问指定页面的权限（支持动态路由匹配）"""
         # 首先检查页面是否存在
-        if not self.repo.get_page_by_path(page_path):
-            logger.info(f"页面访问检查: 页面={page_path}, 页面不存在")
-            return False
+        # if not self.repo.get_page_by_path(page_path):
+        #     logger.info(f"页面访问检查: 页面={page_path}, 页面不存在")
+        #     return False
 
         # 管理员有所有存在页面的访问权限
         if self.is_admin_user(branch_no, role_id_list):
             logger.info(f"页面访问检查: 页面={page_path}, 管理员用户，允许访问")
             return True
 
-        # 普通用户检查具体权限
+        # 普通用户检查具体权限（支持动态路由匹配）
         user_permissions = self.get_user_permissions(branch_no, role_id_list)
-        has_access = page_path in user_permissions
+        logger.info(f"用户权限页面清单：{user_permissions}")
 
-        logger.info(f"页面访问检查: 页面={page_path}, 有权限={has_access}")
-        return has_access
+        # 遍历所有权限路径，使用模式匹配
+        for permitted_path in user_permissions:
+            if self._match_page_permission(permitted_path, page_path):
+                logger.info(f"页面访问检查: 页面={page_path}, 匹配到权限模板 {permitted_path}")
+                return True
+
+        logger.info(f"页面访问检查: 页面={page_path}, 无权限")
+        return False
     
     def is_admin_user(self, branch_no: str, role_id_list: List[str]) -> bool:
         """检查用户是否为管理员"""
