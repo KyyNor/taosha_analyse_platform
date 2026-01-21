@@ -165,7 +165,11 @@ export function ConditionRuleEditor({
               onChange={(e) => {
                 let newValue: string | number | boolean | string[] | number[]
                 if (currentIndicator?.data_type === 'int' || currentIndicator?.data_type === 'float' || currentIndicator?.data_type === 'numeric') {
-                  newValue = parseFloat(e.target.value) || 0
+                  if (isNaN(parseFloat(e.target.value)) || parseFloat(e.target.value) === 0){
+                    newValue = '0'
+                  } else {
+                    newValue = parseFloat(e.target.value)
+                  }
                 } else {
                   newValue = e.target.value
                 }
