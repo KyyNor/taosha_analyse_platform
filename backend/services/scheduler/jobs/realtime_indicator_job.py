@@ -201,7 +201,9 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
 
         # 执行该 object_type 的所有实时指标任务
         all_indicator_results = []
-
+        
+        logger.info(f"[{object_type}] 实时指标任务开始...")
+        
         for task in tasks:
             sql = task.realtime_logic_content
             for k, v in user_variable_config.items():
@@ -229,12 +231,14 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
                 logger.error(f"执行指标任务 {task.task_code} 失败: {e}")
                 continue
 
+        logger.info(f"[{object_type}] 实时指标任务完成...")
+
         if not all_indicator_results:
             logger.warning(f"object_type '{object_type}' 没有成功执行的实时指标任务")
             continue
 
         # 合并所有指标结果
-        logger.debug("合并所有指标结果...")
+        logger.info(f"[{object_type}] 合并所有指标结果开始...")
         final_result = all_indicator_results[0]
         for i in range(1, len(all_indicator_results)):
             final_result = final_result.merge(
@@ -243,15 +247,20 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
         final_result['etl_date'] = today
         final_result['run_time'] = now_str
 
+        logger.info(f"[{object_type}] 合并所有指标结果完成...")
+
+        logger.info(f"[{object_type}] 写入实时指标宽表开始...")
+
         # 写入实时表
         batch_size = settings.fraudhunter_realtime_writer_batch_insert_size
+
         AnalyzeDBConnector.batch_insert(
             realtime_table_name, final_result, chunksize=batch_size, if_exists='append'
         )
 
         row_count = len(final_result)
         column_count = len(final_result.columns)
-        logger.debug(f"实时宽表已写入PG: {realtime_table_name}, 行数: {row_count}, 列数: {column_count}")
+        logger.info(f"[{object_type}] 写入实时指标宽表完成: {realtime_table_name}, 行数: {row_count}, 列数: {column_count}")
 
         realtime_table_name_with_partition = f'{realtime_table_name}_{now_str}'
         generated_realtime_tables[object_type] = realtime_table_name_with_partition
