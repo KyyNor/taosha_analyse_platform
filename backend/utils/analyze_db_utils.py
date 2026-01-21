@@ -115,6 +115,58 @@ class AnalyzeDBConnector:
             logger.error(f"数据库连接测试失败: {e}", exc_info=True)
             return False
 
+    @classmethod
+    def batch_insert_copy(
+        cls,
+        table_name: str,
+        df: pd.DataFrame,
+        if_exists: str = 'append'
+    ) -> int:
+        """使用 PostgreSQL COPY 命令快速批量插入数据
+
+        性能：比 to_sql 快 10-20 倍
+        适用：大数据量批量导入场景
+
+        Args:
+            table_name: 目标表名
+            df: 要插入的 DataFrame
+            if_exists: 如果表存在时的处理方式 (仅支持 'append')
+
+        Returns:
+            插入的行数
+        """
+        import io
+
+        engine = cls.get_engine()
+        raw_conn = engine.raw_connection()
+
+        try:
+            # 处理特殊类型
+            df_for_copy = df.copy()
+            for col in df_for_copy.columns:
+                if pd.api.types.is_datetime64_any_dtype(df_for_copy[col]):
+                    df_for_copy[col] = df_for_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+            # 将 DataFrame 转换为 CSV 格式的内存缓冲区
+            buffer = io.StringIO()
+            df_for_copy.to_csv(buffer, index=False, header=False, na='\\N', date_format='%Y-%m-%d %H:%M:%S')
+            buffer.seek(0)
+
+            cursor = raw_conn.cursor()
+            cursor.copy_from(buffer, table_name, null='\\N')
+            raw_conn.commit()
+
+            rows_inserted = len(df)
+            logger.debug(f"COPY批量插入成功: 表={table_name}, 行数={rows_inserted}")
+            return rows_inserted
+
+        except Exception as e:
+            raw_conn.rollback()
+            logger.error(f"COPY批量插入失败: 表={table_name}, 错误: {e}", exc_info=True)
+            raise
+        finally:
+            raw_conn.close()
+
 
 class AnalyzeDBPartitionManager:
     """PostgreSQL分区管理器"""
