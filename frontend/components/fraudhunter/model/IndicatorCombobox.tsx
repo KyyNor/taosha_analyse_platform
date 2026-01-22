@@ -61,13 +61,14 @@ export function IndicatorCombobox({
     ? indicators.filter(filterFn)
     : indicators
 
-  // 根据搜索查询筛选
+  // 根据搜索查询筛选（支持ID、指标编码、名称）
   const searchedIndicators = filteredIndicators.filter(indicator => {
     if (!searchQuery) return true
     const query = searchQuery.toLowerCase()
     const code = indicator.indicator_code.toLowerCase()
     const name = indicator.indicator_name.toLowerCase()
-    return code.includes(query) || name.includes(query)
+    const id = indicator.id?.toString() || ''
+    return code.includes(query) || name.includes(query) || id.includes(query)
   })
 
   // 获取当前选中的指标
@@ -164,7 +165,7 @@ export function IndicatorCombobox({
           <div className="flex items-center border-b px-3">
             <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
             <input
-              placeholder="搜索指标编码或名称..."
+              placeholder="搜索指标ID、编码或名称..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
@@ -208,6 +209,12 @@ export function IndicatorCombobox({
                       )}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {indicator.id && (
+                        <>
+                          <span className="text-xs font-mono text-primary/70">#{indicator.id}</span>
+                          <span>•</span>
+                        </>
+                      )}
                       <span className="truncate">{indicator.indicator_code}</span>
                       <span>•</span>
                       <span>{indicator.data_type}</span>

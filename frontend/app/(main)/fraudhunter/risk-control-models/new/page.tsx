@@ -46,6 +46,7 @@ export default function NewRiskControlModelPage() {
         });
         // 转换为规则引擎需要的格式，包含object_type和indicator_type
         const transformedIndicators: Indicator[] = (response.items || []).map(item => ({
+          id: item.id,
           indicator_code: item.indicator_code,
           indicator_name: item.indicator_name,
           data_type: item.data_type,

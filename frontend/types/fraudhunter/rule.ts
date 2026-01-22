@@ -141,6 +141,7 @@ export interface RuleConfig {
  * 指标信息（用于下拉选择）
  */
 export interface Indicator {
+  id?: number                 // 自增ID
   indicator_code: string
   indicator_name: string
   data_type: IndicatorDataType
