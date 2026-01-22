@@ -228,10 +228,9 @@ class ModelHitAlertManager:
                     control_serial_number=control_serial_number
                 )
 
-                # 从配置获取告警通知人
-                alert_notice_no = self.config_manager.get_config_value(
-                    'alert_notice_no',
-                    default='whwangzeqi'  # 默认值
+                # 从配置获取告警通知人（支持按机构号获取）
+                alert_notice_no = self._get_branch_alert_recipients(
+                    branch_no=hit_record.branch_no
                 )
 
                 # 调用消息提醒接口
@@ -375,11 +374,88 @@ class ModelHitAlertManager:
             logger.error(f"管控接口调用失败: account_id={account_id}, error={str(e)}")
             return None
 
+    def _get_branch_alert_recipients(self, branch_no: Optional[str]) -> str:
+        """获取分支机构的告警提醒人列表
+
+        处理流程：
+        1. 从 branch_no_lay 配置获取原始 branch_no 到 branch_no_lay2 的映射
+        2. 从 branch_alert_notice_no 配置获取 branch_no_lay2 对应的提醒人列表
+        3. 与全局 alert_notice_no 合并去重
+
+        Args:
+            branch_no: 原始部门编号
+
+        Returns:
+            逗号分隔的提醒人列表
+        """
+        # 获取全局默认提醒人
+        global_alert_no = self.config_manager.get_config_value(
+            'alert_notice_no',
+            default='whwangzeqi'
+        )
+
+        # 如果没有 branch_no，直接返回全局提醒人
+        if not branch_no:
+            return global_alert_no
+
+        # 1. 获取 branch_no 映射配置
+        # 格式: [{'branch_no':'1151','branch_no_lay2':'1150'},{...}]
+        branch_no_lay_config = self.config_manager.get_config_value(
+            'branch_no_lay',
+            default=[]
+        )
+
+        # 2. 查找映射后的 branch_no_lay2
+        mapped_branch_no = None
+        if branch_no_lay_config:
+            for item in branch_no_lay_config:
+                if item.get('branch_no') == branch_no:
+                    mapped_branch_no = item.get('branch_no_lay2')
+                    logger.debug(f"机构号映射: {branch_no} -> {mapped_branch_no}")
+                    break
+
+        # 如果没有找到映射，使用原始 branch_no
+        if not mapped_branch_no:
+            mapped_branch_no = branch_no
+
+        # 3. 获取机构级提醒人配置
+        # 格式: [{'机构号':'1150','提醒人':'whxxxxz'},{...}]
+        branch_alert_config = self.config_manager.get_config_value(
+            'branch_alert_notice_no',
+            default=[]
+        )
+
+        # 4. 收集该机构的提醒人
+        branch_recipients = []
+        if branch_alert_config:
+            for item in branch_alert_config:
+                if item.get('机构号') == mapped_branch_no:
+                    recipient = item.get('提醒人', '')
+                    if recipient:
+                        branch_recipients.append(recipient)
+
+        # 5. 合并全局提醒人和机构提醒人，去重
+        all_recipients = set()
+        # 添加全局提醒人（可能是逗号分隔的）
+        if global_alert_no:
+            all_recipients.update(r.strip() for r in global_alert_no.split(',') if r.strip())
+        # 添加机构提醒人
+        all_recipients.update(branch_recipients)
+
+        final_recipients = ','.join(sorted(all_recipients))
+        logger.debug(
+            f"提醒人列表: branch_no={branch_no}, mapped_branch_no={mapped_branch_no}, "
+            f"branch_recipients={branch_recipients}, global={global_alert_no}, "
+            f"final={final_recipients}"
+        )
+
+        return final_recipients
+
     def send_alert_message(self, notice_no: str, notice: str) -> bool:
         """发送告警消息
 
         Args:
-            notice_no: 通知编号（账号ID）
+            notice_no: 通知编号（账号ID，可能是逗号分隔的多个账号）
             notice: 通知内容
 
         Returns:
