@@ -61,8 +61,6 @@ class PermissionService:
             False
         """
         # 1. 精确匹配（处理普通路径）
-        print(permitted_path)
-        print(actual_path)
         if permitted_path == actual_path:
             return True
 
@@ -89,7 +87,6 @@ class PermissionService:
             # 构建正则表达式
             regex_pattern = "^" + "/".join(regex_parts) + "$"
 
-            print(regex_pattern)
 
             # 匹配路径
             if re.match(regex_pattern, actual_path):

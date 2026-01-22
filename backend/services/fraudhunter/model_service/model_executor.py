@@ -153,6 +153,7 @@ class ModelExecutor:
         """
         current_version = self._get_version_by_status(db, wide_table_name, 'current')
         target_version = self._get_version_by_status(db, wide_table_name, 'target')
+        logger.debug(f'目标版本:{target_version} 当前版本:{current_version}')
 
         # 如果没有current版本，直接使用target
         if not current_version:
@@ -173,6 +174,8 @@ class ModelExecutor:
         mismatched_indicators = self._check_indicators_version_match(
             db, current_version, model_indicator_codes
         )
+
+        logger.debug(f'未匹配的指标清单:{mismatched_indicators}')
 
         # 如果存在不匹配，尝试使用target版本
         if mismatched_indicators and target_version:
@@ -223,6 +226,7 @@ class ModelExecutor:
         message: str = ""
     ) -> VersionSelectionResult:
         """构建版本选择结果"""
+        logger.debug(f'构建版本选择:{version.version_hash}, 数据日期:{etl_date}')
         snapshot = db.query(FraudHunterWideTableSnapshot).filter(
             and_(
                 FraudHunterWideTableSnapshot.version_hash == version.version_hash,
@@ -233,8 +237,8 @@ class ModelExecutor:
 
         return VersionSelectionResult(
             version_hash=version.version_hash,
-            wide_table_name=snapshot.wide_table_name,
-            etl_date=snapshot.etl_date,
+            wide_table_name=snapshot.wide_table_name if snapshot else None,
+            etl_date=snapshot.etl_date if snapshot else None,
             parquet_path=snapshot.parquet_file_path if snapshot else None,
             is_fallback=is_fallback,
             fallback_reason=fallback_reason,
@@ -542,6 +546,7 @@ LIMIT 10000
         # 获取current版本信息（用于降级日志记录）
         current_dep_version = self._get_version_by_status(db, dep_acct_wide_table_name, 'current')
         current_cust_version = self._get_version_by_status(db, cust_wide_table_name, 'current')
+        logger.info(f'存款最新版本 :{current_dep_version} ; 客户最新版本:{current_cust_version}')
         
         # 按日执行
         current_date = start_dt
@@ -676,6 +681,7 @@ LIMIT 10000
             except Exception as e:
                 error_msg = f"日期 {current_date} 回测失败: {str(e)}"
                 logger.error(error_msg, exc_info=True)
+                logger.exception(error_msg)
                 results['failed_days'] += 1
                 day_result['status'] = 'failed'
                 day_result['message'] = str(e)
