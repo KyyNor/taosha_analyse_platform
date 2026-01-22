@@ -143,19 +143,48 @@ class AnalyzeDBConnector:
         raw_conn = engine.raw_connection()
 
         try:
+            cursor = raw_conn.cursor()
+            cursor.execute(f"""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = '{table_name}' 
+                ORDER BY ordinal_position
+            """)
+            table_columns = [row[0] for row in cursor.fetchall()]
+            dt = pd.Timestamp.utcnow()
+            
             # 处理特殊类型
             df_for_copy = df.copy()
+            df_for_copy['created_at'] = dt
+
+            # 1. 处理DataFrame中有但目标表中没有的列 - 删除
+            cols_to_drop = [col for col in df_for_copy.columns if col not in table_columns]
+            if cols_to_drop:
+                logger.info(f"删除DataFrame中多余列: {cols_to_drop}")
+                df_for_copy = df_for_copy.drop(columns=cols_to_drop)
+            
+            # 2. 处理目标表中有但DataFrame中没有的列 - 添加空列
+            cols_to_add = [col for col in table_columns if col not in df_for_copy.columns]
+            if cols_to_add:
+                logger.debug(f"为DataFrame添加缺失列: {cols_to_add}")
+                for col in cols_to_add:
+                    df_for_copy[col] = None  # 添加空值
+            
+            # 4. 重新排列列的顺序，与目标表一致
+            df_for_copy = df_for_copy[table_columns]
+            
+            logger.debug(f"DataFrame列对齐完成: {list(df_for_copy.columns)}")
+
             for col in df_for_copy.columns:
                 if pd.api.types.is_datetime64_any_dtype(df_for_copy[col]):
                     df_for_copy[col] = df_for_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S')
 
             # 将 DataFrame 转换为 CSV 格式的内存缓冲区
             buffer = io.StringIO()
-            df_for_copy.to_csv(buffer, index=False, header=False, na='\\N', date_format='%Y-%m-%d %H:%M:%S')
+            df_for_copy.to_csv(buffer, index=False, header=False, na_rep='\\N', date_format='%Y-%m-%d %H:%M:%S', sep=',')
             buffer.seek(0)
 
-            cursor = raw_conn.cursor()
-            cursor.copy_from(buffer, table_name, null='\\N')
+            cursor.copy_from(buffer, table_name, null='\\N', sep=',')
             raw_conn.commit()
 
             rows_inserted = len(df)

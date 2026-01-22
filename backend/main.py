@@ -80,10 +80,10 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
 
         # 定义默认任务组（二维数组）
         default_task_groups = [
-            ['offline_wide_table_sync'],                          # 组0：离线宽表同步
-            ['generate_realtime_wide_table_job', 'metadata_sync'],  # 组1：实时宽表生成 + 元数据同步
-            ['fine_report_sync'],                                 # 组2：FineReport同步
-            ['vector_training', 'postgres_data_cleanup']         # 组3：向量训练 + 数据清理
+            ['generate_realtime_wide_table_job'],                   # 组0：实时宽表生成
+            ['offline_wide_table_sync'],                            # 组1：离线宽表同步
+            ['fine_report_sync', 'metadata_sync'],                  # 组2：FineReport同步
+            ['vector_training', 'postgres_data_cleanup']            # 组3：向量训练 + 数据清理
         ]
 
         # 获取当前worker分配的任务（轮询算法）
@@ -94,7 +94,7 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
             if target_worker == worker_index:
                 assigned_tasks.extend(group)
 
-        logger.info(f"Worker {worker_index}/{worker_count} (PID:{os.getpid()}) 负责运行任务: {assigned_tasks}")
+        logger.info(f"Worker {worker_index + 1}/{worker_count} (PID:{os.getpid()}) 负责运行任务: {assigned_tasks}")
 
         # 定义所有可注册的任务
         jobs_to_register = [
@@ -219,7 +219,7 @@ async def lifespan(app: FastAPI):
         # 初始化WorkerManager（最先执行，获取稳定的worker序号）
         _worker_manager = get_worker_manager()
         worker_index = _worker_manager.initialize(worker_count=settings.workers)
-        logger.info(f"Worker序号分配完成: {worker_index}/{settings.workers}")
+        logger.info(f"Worker序号分配完成: {worker_index + 1}/{settings.workers}")
 
         # 初始化异步 Playwright 浏览器（每个worker都需要）
         if not settings.fine_report_disable_browser_init:

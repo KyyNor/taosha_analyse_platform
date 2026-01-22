@@ -418,7 +418,7 @@ def step3_hit_record(db, today, matched_df, execution_record):
         # 检查模型白名单（如果账号在任何一个命中模型的白名单中，则跳过该记录）
         is_model_whitelist = False
         for hit_model in hit_models:
-            model_whitelist = model_whitelist_acct.get(hit_model.model_name, [])
+            model_whitelist = model_whitelist_acct.get(hit_model.id, [])
             if model_whitelist and account_id in model_whitelist:
                 logger.debug(
                     f"跳过模型白名单账户: 账号={account_id}, "
@@ -490,23 +490,17 @@ async def generate_realtime_wide_table_job():
     
     try:
         with get_db_session() as db:
-            logger.info("step1 start")
             offline_tables, generated_realtime_tables = step1_generate_realtime_indicators(db, today, today_str, now_str)
-            logger.info("step1 end")
             if offline_tables is None:
                 return
 
         with get_db_session() as db:
-            logger.info("step2 start")
             matched_df, execution_record = step2_online_model_executor(db, offline_tables, generated_realtime_tables)
-            logger.info("step2 end")
 
             if matched_df is None:
                 return
 
-            logger.info("step3 start")
             step3_hit_record(db, today, matched_df, execution_record)
-            logger.info("step3 end")
 
             logger.debug("实时指标宽表生成及模型匹配完成")
 
