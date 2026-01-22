@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import QueuePool
 
 from utils.config import settings
+from models.db_base import get_db_session
+from services.fraudhunter.system_config_service import SystemConfigManager
 
 
 def _get_pg_config() -> Dict[str, Any]:
@@ -327,16 +329,22 @@ class AnalyzeDBPartitionManager:
             ("target_id", "varchar(100) NOT NULL"),
             ("etl_date", "varchar(30) NOT NULL")
         ]
-        
+
         if partition_col:
             columns.append((partition_col, "varchar(50) NOT NULL"))
 
-        long_text_indicator_list = [
-            'i_dep_acct_no_offline_00015',
-            'i_dep_acct_no_offline_00016',
-            'i_dep_acct_no_offline_00017',
-            'i_dep_acct_no_offline_00036'
-        ]
+        # 从系统配置获取长文本指标列表
+        long_text_indicator_list = []
+        try:
+            with get_db_session() as db:
+                config_manager = SystemConfigManager(db)
+                long_text_indicator_list = config_manager.get_config_value(
+                    'long_text_indicator_list',
+                    default=[]
+                )
+        except Exception as e:
+            logger.warning(f"获取系统配置 long_text_indicator_list 失败: {e}，使用空列表")
+
         for meta in indicator_metadata.values():
             indicator_code = meta.get('indicator_code')
             if indicator_code:
