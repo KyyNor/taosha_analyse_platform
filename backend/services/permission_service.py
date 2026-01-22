@@ -38,7 +38,7 @@ class PermissionService:
         # 获取所有权限对应的页面路径
         page_paths = self.repo.get_page_paths_by_entity_ids(all_entity_ids)
 
-        logger.info(f"用户权限计算: 部门={branch_no}, 角色={role_id_list}, 权限页面数={len(page_paths)}")
+        logger.debug(f"用户权限计算: 部门={branch_no}, 角色={role_id_list}, 权限页面数={len(page_paths)}")
         return page_paths
 
     def _match_page_permission(self, permitted_path: str, actual_path: str) -> bool:
@@ -108,7 +108,7 @@ class PermissionService:
 
         # 普通用户检查具体权限（支持动态路由匹配）
         user_permissions = self.get_user_permissions(branch_no, role_id_list)
-        logger.info(f"用户权限页面清单：{user_permissions}")
+        logger.debug(f"用户权限页面清单：{user_permissions}")
 
         # 遍历所有权限路径，使用模式匹配
         for permitted_path in user_permissions:
@@ -124,14 +124,14 @@ class PermissionService:
         # 检查部门是否为管理员
         dept_entity = self.repo.get_entity_by_code_and_type(branch_no, EntityType.DEPARTMENT)
         if dept_entity and dept_entity.is_admin:
-            logger.info(f"用户所属部门 {branch_no} 为管理员部门")
+            logger.debug(f"用户所属部门 {branch_no} 为管理员部门")
             return True
 
         # 检查角色是否有管理员角色
         role_entities = self.repo.get_entities_by_codes(role_id_list, EntityType.ROLE)
         for role in role_entities:
             if role.is_admin:
-                logger.info(f"用户拥有管理员角色: {role.code}")
+                logger.debug(f"用户拥有管理员角色: {role.code}")
                 return True
 
         return False

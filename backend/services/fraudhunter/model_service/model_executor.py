@@ -55,7 +55,10 @@ class VersionSelectionResult:
     @property
     def pg_table_name(self) -> Optional[str]:
         """获取PG表名"""
-        return f"{self.wide_table_name}_{self.version_hash}_{self.etl_date.strftime('%Y%m%d')}"
+        if self.wide_table_name and self.version_hash and self.etl_date:
+            return f"{self.wide_table_name}_{self.version_hash}_{self.etl_date.strftime('%Y%m%d')}"
+        else:
+            return None
 
     def get_fallback_summary(self) -> str:
         """获取降级摘要信息"""
