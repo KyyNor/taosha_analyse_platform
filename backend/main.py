@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from utils.config import settings
+from utils.worker_manager import get_worker_manager
 from api.metadata_routes import router as metadata_router
 from api.user_routes import router as user_router
 from api.agents_routes import router as agents_router
@@ -44,6 +45,9 @@ _realtime_consumer = None
 # 全局变量：启动锁实例（服务运行期间持续持有）
 _startup_lock = None
 
+# 全局变量：Worker管理器实例
+_worker_manager = None
+
 
 async def _run_realtime_consumer(consumer):
     """运行实时数据消费者（后台任务）
@@ -57,11 +61,12 @@ async def _run_realtime_consumer(consumer):
         logger.error(f"实时数据消费服务运行异常: {e}", exc_info=True)
 
 
-async def _start_scheduler_service():
+async def _start_scheduler_service(worker_index: int, worker_count: int):
     """启动统一调度服务（每个worker都会执行，通过任务分片决定注册哪些任务）
 
-    这个函数在启动锁保护之外执行，所有worker都会运行
-    通过 PID 取模和任务组配置实现任务分片
+    Args:
+        worker_index: Worker序号（由WorkerManager分配）
+        worker_count: Worker总数
     """
     try:
         from services.scheduler import scheduler_service
@@ -72,12 +77,6 @@ async def _start_scheduler_service():
             fine_report_sync_job,
             vector_training_job
         )
-
-        # 计算当前worker应该运行的任务
-        pid = os.getpid()
-        worker_count = settings.workers
-        worker_index = pid % worker_count
-        
 
         # 定义默认任务组（二维数组）
         default_task_groups = [
@@ -213,9 +212,15 @@ async def _initialize_system_services():
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时的初始化
+    global _worker_manager
     logger.info("=== 淘沙分析平台启动中 ===")
 
     try:
+        # 初始化WorkerManager（最先执行，获取稳定的worker序号）
+        _worker_manager = get_worker_manager()
+        worker_index = _worker_manager.initialize(worker_count=settings.workers)
+        logger.info(f"Worker序号分配完成: {worker_index}/{settings.workers}")
+
         # 初始化异步 Playwright 浏览器（每个worker都需要）
         if not settings.fine_report_disable_browser_init:
             logger.info("初始化异步 Playwright 浏览器...")
@@ -254,7 +259,7 @@ async def lifespan(app: FastAPI):
         await _initialize_system_services()
 
         # 启动统一调度服务（所有worker都会启动，通过任务分片决定注册哪些任务）
-        await _start_scheduler_service()
+        await _start_scheduler_service(worker_index, settings.workers)
 
         # 启动 DeepAgents 任务执行器（每个 worker 都需要启动）
         try:
@@ -275,6 +280,14 @@ async def lifespan(app: FastAPI):
     # 关闭时的清理
     logger.info("=== 淘沙分析平台关闭中 ===")
     try:
+        # 关闭WorkerManager（释放worker序号）
+        if _worker_manager:
+            try:
+                _worker_manager.shutdown()
+                logger.info("WorkerManager已关闭")
+            except Exception as e:
+                logger.error(f"WorkerManager关闭失败: {e}", exc_info=True)
+
         # 停止 DeepAgents 任务执行器
         try:
             from services.agents.deepagents import get_task_runner

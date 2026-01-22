@@ -168,3 +168,6 @@ embeddings_model/*
 
 # Startup lock file
 .startup_lock
+
+# Worker registry (runtime generated)
+backend/.worker_registry/
