@@ -209,33 +209,38 @@ function createInfoRedirect(request: NextRequest, reason: string, userInfo?: any
 function createRedirectWithTokenCookie(request: NextRequest, token: string, targetPath?: string): NextResponse {
   // 构建重定向URL，保持basePath
   const url = new URL(request.url)
-  
+
   // 如果指定了目标路径，使用目标路径；否则使用当前路径
   if (targetPath) {
     url.pathname = targetPath
   }
   // 如果没有指定目标路径，保持当前路径不变（已经包含basePath）
-  
+
   // 移除token参数
   url.searchParams.delete('token')
-  
+
   // 创建重定向响应
   const response = NextResponse.redirect(url)
   console.log("redirect to url:" + url)
-  
+
   // 设置token到cookie（7天过期）
   const expires = new Date()
   expires.setDate(expires.getDate() + 7)
-  
+
+  // 动态判断secure属性：HTTPS时为true，HTTP时为false
+  const protocol = request.headers.get('x-forwarded-proto') || (request.url.startsWith('https://') ? 'https' : 'http')
+  const isSecure = protocol === 'https'
+
   response.cookies.set('auth_token', token, {
     expires: expires,
     path: '/',
     httpOnly: false, // 允许前端JavaScript访问
-    secure: process.env.NODE_ENV === 'production', // 生产环境使用HTTPS
+    secure: isSecure, // 根据协议动态判断，不依赖NODE_ENV
     sameSite: 'lax'
   })
   console.log("respose cookies auth_token: " + token)
-  
+  console.log("cookie secure flag: " + isSecure + " (protocol: " + protocol + ")")
+
   return response
 }
 

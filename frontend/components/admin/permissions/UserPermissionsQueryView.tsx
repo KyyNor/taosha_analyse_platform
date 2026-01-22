@@ -247,7 +247,7 @@ function PermissionTreeNodeView({ nodes, level = 0 }: PermissionTreeNodeViewProp
                   L{node.level}
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground">{node.path}</p>
+              <p className="text-xs text-muted-foreground font-mono">{node.path}</p>
               {node.description && (
                 <p className="text-xs text-muted-foreground mt-1">{node.description}</p>
               )}

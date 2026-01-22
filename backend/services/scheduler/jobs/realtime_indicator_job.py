@@ -251,12 +251,11 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
 
         logger.info(f"[{object_type}] 写入实时指标宽表开始...")
 
-        # 写入实时表
-        batch_size = settings.fraudhunter_realtime_writer_batch_insert_size
-
-        AnalyzeDBConnector.batch_insert(
-            realtime_table_name, final_result, chunksize=batch_size, if_exists='append'
+        # 写入实时表（使用 COPY 命令优化性能）
+        rows_inserted = AnalyzeDBConnector.batch_insert_copy(
+            realtime_table_name, final_result, if_exists='append'
         )
+        logger.debug(f"COPY批量插入完成: {rows_inserted} 行")
 
         row_count = len(final_result)
         column_count = len(final_result.columns)

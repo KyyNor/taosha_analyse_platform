@@ -1,7 +1,7 @@
 """
 淘沙分析平台 - FastAPI主应用
 """
-import asyncio, platform, os, time
+import asyncio, platform, os
 if platform.system() == "Windows":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
@@ -9,6 +9,7 @@ if platform.system() == "Windows":
 from contextlib import asynccontextmanager
 from pathlib import Path
 from utils.logger import logger
+from filelock import FileLock, Timeout
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,93 +41,8 @@ from services.tracking_service.observability_service import initialize_observabi
 # 全局变量：实时数据消费者实例
 _realtime_consumer = None
 
-
-def _acquire_startup_lock():
-    """获取启动锁，确保在多worker环境下只有一个进程执行初始化
-
-    Returns:
-        bool: 是否成功获取锁
-    """
-    lock_file_path = Path(__file__).parent / ".startup_lock"
-
-    try:
-        # 检查锁文件是否已存在
-        if lock_file_path.exists():
-            try:
-                # 读取锁文件内容，获取PID和创建时间
-                lock_content = lock_file_path.read_text().strip()
-                if lock_content:
-                    parts = lock_content.split(':')
-                    if len(parts) >= 2:
-                        stored_pid = parts[0]
-                        stored_time = float(parts[1])
-
-                        # 检查锁文件是否过期（超过10分钟）
-                        current_time = time.time()
-                        if current_time - stored_time < 600:  # 10分钟
-                            logger.info(f"检测到其他worker (PID: {stored_pid}) 正在进行初始化，跳过...")
-                            return False
-                        else:
-                            logger.info(f"发现过期的锁文件 (PID: {stored_pid})，重新获取锁")
-
-                # 尝试删除过期的锁文件
-                lock_file_path.unlink()
-
-            except (ValueError, IndexError, FileNotFoundError) as e:
-                logger.warning(f"读取锁文件失败，尝试重新创建: {e}")
-                if lock_file_path.exists():
-                    lock_file_path.unlink()
-
-        # 创建新的锁文件，包含PID和时间戳
-        current_pid = str(os.getpid())
-        current_time = str(time.time())
-        lock_content = f"{current_pid}:{current_time}"
-
-        # 使用原子操作创建锁文件
-        with open(lock_file_path, 'w') as f:
-            f.write(lock_content)
-
-        # 短暂等待后验证锁文件仍然是我们创建的
-        time.sleep(0.1)
-        if lock_file_path.exists():
-            verify_content = lock_file_path.read_text().strip()
-            if verify_content.startswith(current_pid):
-                logger.info(f"成功获取启动锁 (PID: {current_pid})")
-                return True
-            else:
-                logger.warning("锁文件被其他进程抢占，获取锁失败")
-                return False
-        else:
-            logger.warning("锁文件创建后消失，获取锁失败")
-            return False
-
-    except Exception as e:
-        logger.error(f"获取启动锁时出错: {e}")
-        return False
-
-
-def _release_startup_lock():
-    """释放启动锁"""
-    lock_file_path = Path(__file__).parent / ".startup_lock"
-
-    try:
-        if lock_file_path.exists():
-            # 验证锁文件是否属于当前进程
-            try:
-                lock_content = lock_file_path.read_text().strip()
-                current_pid = str(os.getpid())
-                if lock_content.startswith(current_pid):
-                    lock_file_path.unlink()
-                    logger.info(f"成功释放启动锁 (PID: {current_pid})")
-                else:
-                    logger.info("锁文件不属于当前进程，无需释放")
-            except Exception as e:
-                logger.warning(f"验证锁文件时出错，强制删除: {e}")
-                lock_file_path.unlink()
-        else:
-            logger.info("锁文件不存在，无需释放")
-    except Exception as e:
-        logger.error(f"释放启动锁时出错: {e}")
+# 全局变量：启动锁实例（服务运行期间持续持有）
+_startup_lock = None
 
 
 async def _run_realtime_consumer(consumer):
@@ -141,26 +57,129 @@ async def _run_realtime_consumer(consumer):
         logger.error(f"实时数据消费服务运行异常: {e}", exc_info=True)
 
 
+async def _start_scheduler_service():
+    """启动统一调度服务（每个worker都会执行，通过任务分片决定注册哪些任务）
+
+    这个函数在启动锁保护之外执行，所有worker都会运行
+    通过 PID 取模和任务组配置实现任务分片
+    """
+    try:
+        from services.scheduler import scheduler_service
+        from services.scheduler.jobs import (
+            sync_all_wide_tables_job,
+            generate_realtime_wide_table_job,
+            metadata_sync_job,
+            fine_report_sync_job,
+            vector_training_job
+        )
+
+        # 计算当前worker应该运行的任务
+        pid = os.getpid()
+        worker_count = settings.workers
+        worker_index = pid % worker_count
+        
+
+        # 定义默认任务组（二维数组）
+        default_task_groups = [
+            ['offline_wide_table_sync'],                          # 组0：离线宽表同步
+            ['generate_realtime_wide_table_job', 'metadata_sync'],  # 组1：实时宽表生成 + 元数据同步
+            ['fine_report_sync'],                                 # 组2：FineReport同步
+            ['vector_training', 'postgres_data_cleanup']         # 组3：向量训练 + 数据清理
+        ]
+
+        # 获取当前worker分配的任务（轮询算法）
+        assigned_tasks = []
+        for group_idx, group in enumerate(default_task_groups):
+            # 使用组索引取模决定该组归属哪个worker（轮询分配）
+            target_worker = group_idx % worker_count
+            if target_worker == worker_index:
+                assigned_tasks.extend(group)
+
+        logger.info(f"Worker {worker_index}/{worker_count} (PID:{os.getpid()}) 负责运行任务: {assigned_tasks}")
+
+        # 定义所有可注册的任务
+        jobs_to_register = [
+            ('offline_wide_table_sync', sync_all_wide_tables_job,
+             settings.scheduler_offline_wide_table_sync, '离线指标宽表同步'),
+            ('generate_realtime_wide_table_job', generate_realtime_wide_table_job,
+             settings.scheduler_model_runner_interval, '实时指标宽表生成'),
+            ('metadata_sync', metadata_sync_job,
+             settings.scheduler_metadata_sync_interval, '元数据同步'),
+            ('fine_report_sync', fine_report_sync_job,
+             settings.scheduler_fine_report_sync_interval, 'FineReport报表同步'),
+            ('vector_training', vector_training_job,
+             settings.scheduler_vector_training_interval, '向量数据库训练'),
+        ]
+
+        registered_count = 0
+        for job_id, job_func, interval, job_name in jobs_to_register:
+            # 检查任务是否在当前worker的分配列表中
+            if job_id not in assigned_tasks:
+                logger.info(f"跳过任务 {job_name}（未分配给当前worker）")
+                continue
+
+            scheduler_service.add_interval_job(
+                func=job_func,
+                seconds=interval,
+                job_id=job_id,
+                job_name=job_name
+            )
+            registered_count += 1
+
+        # PostgreSQL数据清理任务
+        if settings.fraudhunter_realtime_data_enabled:
+            from services.scheduler.jobs.postgres_data_cleanup_job import postgres_data_cleanup_job
+            job_id = 'postgres_data_cleanup'
+
+            if job_id in assigned_tasks:
+                scheduler_service.add_cron_job(
+                    func=postgres_data_cleanup_job,
+                    cron=settings.scheduler_postgres_data_cleanup_cron,
+                    job_id=job_id,
+                    job_name='PostgreSQL数据清理'
+                )
+                registered_count += 1
+            else:
+                logger.info(f"跳过任务 PostgreSQL数据清理（未分配给当前worker）")
+
+        # 启动调度器
+        scheduler_service.start()
+
+        logger.info(f"统一调度服务已启动（当前worker注册{registered_count}个任务）")
+    except Exception as e:
+        logger.error(f"统一调度服务启动失败: {e}", exc_info=True)
+
+
 async def _initialize_system_services():
     """初始化系统服务，包括向量数据库训练、元数据同步、可观测服务、PySpark
 
-    这个方法确保在多worker环境下只运行一次
+    使用 filelock 确保在多worker环境下只运行一次，锁在服务运行期间持续持有
     """
-    if not _acquire_startup_lock():
-        logger.info("跳过系统服务初始化，由其他worker处理")
+    global _startup_lock, _realtime_consumer
+
+    lock_file_path = Path(__file__).parent / ".startup_lock"
+
+    # 尝试获取锁（非阻塞模式）
+    # timeout=0 表示立即返回，不等待
+    try:
+        _startup_lock = FileLock(str(lock_file_path), timeout=0)
+        _startup_lock.acquire()
+        logger.info(f"成功获取启动锁 (PID: {os.getpid()})")
+    except Timeout:
+        logger.info("检测到其他worker正在进行初始化，跳过...")
+        return
+    except Exception as e:
+        logger.error(f"获取启动锁时出错: {e}", exc_info=True)
         return
 
     try:
         logger.info("=== 开始系统服务初始化（仅此worker执行） ===")
 
         # 启动实时数据服务（如果配置启用）
-        # 注意：在启动锁保护内启动，确保只有一个worker执行
         if settings.fraudhunter_realtime_data_enabled:
             try:
                 from services.fraudhunter.model_service import RealtimeDataConsumer
 
-                # 全局保存consumer引用（用于关闭时停止）
-                global _realtime_consumer
                 _realtime_consumer = RealtimeDataConsumer()
 
                 # 创建后台任务
@@ -172,84 +191,21 @@ async def _initialize_system_services():
                 # 启动异常不影响其他功能，只记录错误
                 logger.error(f"实时数据消费服务启动失败: {e}", exc_info=True)
 
-        # 启动统一调度服务（在启动锁保护下，确保单进程）
-        try:
-            from services.scheduler import scheduler_service
-            from services.scheduler.jobs import (
-                sync_all_wide_tables_job,
-                generate_realtime_wide_table_job,
-                metadata_sync_job,
-                fine_report_sync_job,
-                vector_training_job
-            )
-
-            # 注册离线宽表同步任务
-            scheduler_service.add_interval_job(
-                func=sync_all_wide_tables_job,
-                seconds=settings.scheduler_offline_wide_table_sync,
-                job_id='offline_wide_table_sync',
-                job_name='离线指标宽表同步'
-            )
-
-            # 注册实时指标生成任务
-            scheduler_service.add_interval_job(
-                func=generate_realtime_wide_table_job,
-                seconds=settings.scheduler_model_runner_interval,
-                job_id='generate_realtime_wide_table_job',
-                job_name='实时指标宽表生成'
-            )
-
-            # 注册元数据同步任务
-            scheduler_service.add_interval_job(
-                func=metadata_sync_job,
-                seconds=settings.scheduler_metadata_sync_interval,
-                job_id='metadata_sync',
-                job_name='元数据同步'
-            )
-
-            # 注册FineReport报表同步任务
-            scheduler_service.add_interval_job(
-                func=fine_report_sync_job,
-                seconds=settings.scheduler_fine_report_sync_interval,
-                job_id='fine_report_sync',
-                job_name='FineReport报表同步'
-            )
-
-            # 注册向量数据库训练任务
-            scheduler_service.add_interval_job(
-                func=vector_training_job,
-                seconds=settings.scheduler_vector_training_interval,
-                job_id='vector_training',
-                job_name='向量数据库训练'
-            )
-
-            # 注册PostgreSQL数据清理任务（每日凌晨2点）
-            # 包含: 实时交易表分区、实时宽表分区、历史版本表、孤立快照
-            if settings.fraudhunter_realtime_data_enabled:
-                from services.scheduler.jobs.postgres_data_cleanup_job import postgres_data_cleanup_job
-                scheduler_service.add_cron_job(
-                    func=postgres_data_cleanup_job,
-                    cron=settings.scheduler_postgres_data_cleanup_cron,
-                    job_id='postgres_data_cleanup',
-                    job_name='PostgreSQL数据清理'
-                )
-
-            # 启动调度器
-            scheduler_service.start()
-
-            logger.info("统一调度服务已启动（仅此worker执行）")
-        except Exception as e:
-            logger.error(f"统一调度服务启动失败: {e}", exc_info=True)
-            # 不影响系统服务初始化
-
         logger.info("=== 系统服务初始化完成 ===")
+        logger.info("启动锁将在服务运行期间持续持有，应用关闭时释放")
 
     except Exception as e:
         logger.error(f"系统服务初始化失败: {e}", exc_info=True)
+        # 初始化失败时释放锁，允许其他worker尝试
+        try:
+            if _startup_lock is not None:
+                _startup_lock.release()
+                _startup_lock = None
+                logger.info("初始化失败，已释放启动锁")
+        except Exception as release_error:
+            logger.error(f"释放启动锁失败: {release_error}", exc_info=True)
         raise
-    finally:
-        # 在初始化完成后立即释放锁，允许其他worker继续启动
-        _release_startup_lock()
+    # 注意：成功初始化后不释放锁，锁将一直持有到应用关闭
 
 
 
@@ -293,9 +249,12 @@ async def lifespan(app: FastAPI):
             logger.error(f"数据库初始化或页面同步失败: {e}", exc_info=True)
             # 不影响系统启动，继续运行
 
-        # 初始化系统服务（向量数据库训练、元数据同步）
-        # 这些服务在多worker环境下只需要运行一次
+        # 初始化系统服务（实时数据消费者等单例服务）
+        # 这些服务在多worker环境下只需要运行一次（使用启动锁保护）
         await _initialize_system_services()
+
+        # 启动统一调度服务（所有worker都会启动，通过任务分片决定注册哪些任务）
+        await _start_scheduler_service()
 
         # 启动 DeepAgents 任务执行器（每个 worker 都需要启动）
         try:
@@ -354,6 +313,17 @@ async def lifespan(app: FastAPI):
         query_engine = get_query_engine()
         query_engine.close()
         logger.info("查询引擎连接已关闭")
+
+        # 释放启动锁（仅在持有锁的worker中执行）
+        global _startup_lock
+        if _startup_lock is not None:
+            try:
+                _startup_lock.release()
+                logger.info("启动锁已释放")
+            except Exception as e:
+                logger.error(f"释放启动锁失败: {e}", exc_info=True)
+            finally:
+                _startup_lock = None
 
         logger.info("=== 淘沙分析平台已关闭 ===")
     except Exception as e:

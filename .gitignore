@@ -165,3 +165,6 @@ embeddings_model/*
 
 .gemini/
 .kiro/
+
+# Startup lock file
+.startup_lock
