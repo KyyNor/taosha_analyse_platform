@@ -288,7 +288,7 @@ async def export_alert_control_records(
             start_date=start_date,
             end_date=end_date,
             account_id=account_id,
-            model_ids=model_ids,
+            model_ids=[model_id] if model_id else None,
             model_name=model_name,
             alert_status=alert_status,
             control_status=control_status,

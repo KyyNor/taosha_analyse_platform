@@ -374,6 +374,39 @@ class ModelHitAlertManager:
             logger.error(f"管控接口调用失败: account_id={account_id}, error={str(e)}")
             return None
 
+    def _get_related_branch_nos(self, branch_no: str) -> List[str]:
+        """获取当前用户有权查看的所有机构号
+
+        根据机构号层级映射配置，获取用户有权限查看的所有机构号：
+        1. 包含用户自己的机构号
+        2. 包含所有映射到该机构号的下级机构号（branch_no_lay2 == branch_no）
+
+        Args:
+            branch_no: 用户的部门编号
+
+        Returns:
+            相关的机构号列表
+        """
+        related_branch_nos = [branch_no]
+
+        # 获取 branch_no_lay 配置
+        branch_no_lay_config = self.config_manager.get_config_value(
+            'branch_no_lay',
+            default=[]
+        )
+
+        # 反向查找：找到所有 branch_no_lay2 等于当前用户 branch_no 的原始 branch_no
+        if branch_no_lay_config:
+            for item in branch_no_lay_config:
+                if item.get('branch_no_lay2') == branch_no:
+                    original_branch_no = item.get('branch_no')
+                    if original_branch_no and original_branch_no not in related_branch_nos:
+                        related_branch_nos.append(original_branch_no)
+                        logger.debug(f"机构号权限映射: user_branch_no={branch_no}, include_child_branch_no={original_branch_no}")
+
+        logger.debug(f"用户 {branch_no} 可查看的机构号列表: {related_branch_nos}")
+        return related_branch_nos
+
     def _get_branch_alert_recipients(self, branch_no: Optional[str]) -> str:
         """获取分支机构的告警提醒人列表
 
@@ -577,9 +610,10 @@ class ModelHitAlertManager:
 
         # 应用权限过滤
         if current_user_branch_no and len(current_user_branch_no) == 4 and current_user_branch_no.isdigit():
-            # 普通部门用户：只能查看本部门的记录
-            query = query.filter(FraudHunterModelAlertControlRecord.branch_no == current_user_branch_no)
-            logger.debug(f"应用部门权限过滤: branch_no={current_user_branch_no}")
+            # 普通部门用户：可以查看本部门及其下级部门的记录
+            related_branch_nos = self._get_related_branch_nos(current_user_branch_no)
+            query = query.filter(FraudHunterModelAlertControlRecord.branch_no.in_(related_branch_nos))
+            logger.debug(f"应用部门权限过滤: user_branch_no={current_user_branch_no}, related_branch_nos={related_branch_nos}")
         # 否则（管理员或其他长度）：可以查看所有记录
         
         # 应用筛选条件
@@ -661,8 +695,10 @@ class ModelHitAlertManager:
 
         # 应用权限过滤
         if current_user_branch_no and len(current_user_branch_no) == 4 and current_user_branch_no.isdigit():
-            query = query.filter(FraudHunterModelAlertControlRecord.branch_no == current_user_branch_no)
-            logger.debug(f"导出应用部门权限过滤: branch_no={current_user_branch_no}")
+            # 普通部门用户：可以查看本部门及其下级部门的记录
+            related_branch_nos = self._get_related_branch_nos(current_user_branch_no)
+            query = query.filter(FraudHunterModelAlertControlRecord.branch_no.in_(related_branch_nos))
+            logger.debug(f"导出应用部门权限过滤: user_branch_no={current_user_branch_no}, related_branch_nos={related_branch_nos}")
 
         query = self._apply_filters(query, filters)
         records = query.order_by(FraudHunterModelAlertControlRecord.created_at.desc()).limit(5000).all()
