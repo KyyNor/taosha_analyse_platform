@@ -524,6 +524,21 @@ LIMIT 10000
         if whitelist_set:
             logger.info(f"加载白名单账户 {len(whitelist_set)} 个")
 
+        # 获取模型级别的白名单账户列表
+        # 配置格式: [{'模型编号':'55', '白名单账号':'124124'}, {'模型编号':'32', '白名单账号':'22323'}]
+        # 转换为: {"model_code_1": ["acct1", "acct2"], "model_code_2": ["acct3"]}
+        model_whitelist_acct_raw = SystemConfigManager(db).get_config_value('model_whitelist_acct', default=[])
+        model_whitelist_acct = {}
+        if model_whitelist_acct_raw:
+            for item in model_whitelist_acct_raw:
+                model_code = item.get('模型编号', '')
+                account_id = item.get('白名单账号', '')
+                if model_code and account_id:
+                    if model_code not in model_whitelist_acct:
+                        model_whitelist_acct[model_code] = []
+                    model_whitelist_acct[model_code].append(account_id)
+            logger.info(f"加载模型白名单配置，模型数={len(model_whitelist_acct)}")
+
         # 获取current版本信息（用于降级日志记录）
         current_dep_version = self._get_version_by_status(db, dep_acct_wide_table_name, 'current')
         current_cust_version = self._get_version_by_status(db, cust_wide_table_name, 'current')
@@ -634,11 +649,27 @@ LIMIT 10000
                 # 收集命中记录到结果集
                 if execute_result is not None and len(execute_result) > 0:
                     records = execute_result.to_dict('records')
-                    # 为每条记录添加白名单标记
+                    # 为每条记录添加白名单标记并过滤模型白名单
+                    filtered_records = []
                     for record in records:
                         account_id = str(record.get('账号', ''))
-                        record['是否白名单'] = account_id in whitelist_set
-                    results['matched_records'].extend(records)
+
+                        # 检查全局白名单
+                        is_global_whitelist = account_id in whitelist_set
+                        record['是否白名单'] = is_global_whitelist
+
+                        # 检查模型白名单（如果账号在模型白名单中，则跳过该记录）
+                        model_whitelist = model_whitelist_acct.get(model.model_code, [])
+                        if model_whitelist and account_id in model_whitelist:
+                            logger.debug(
+                                f"跳过模型白名单账户: 账号={account_id}, "
+                                f"模型={model.model_code}"
+                            )
+                            continue
+
+                        filtered_records.append(record)
+
+                    results['matched_records'].extend(filtered_records)
 
                 logger.info(f"日期 {current_date} 回测完成，命中 {day_result['rows_matched']} 条记录")
 

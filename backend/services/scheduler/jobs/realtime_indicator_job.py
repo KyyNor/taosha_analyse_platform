@@ -371,6 +371,21 @@ def step3_hit_record(db, today, matched_df, execution_record):
     if whitelist_set:
         logger.debug(f"加载白名单账户 {len(whitelist_set)} 个")
 
+    # 获取模型级别的白名单账户列表
+    # 配置格式: [{'模型编号':'55', '白名单账号':'124124'}, {'模型编号':'32', '白名单账号':'22323'}]
+    # 转换为: {"model_code_1": ["acct1", "acct2"], "model_code_2": ["acct3"]}
+    model_whitelist_acct_raw = SystemConfigManager(db).get_config_value('model_whitelist_acct', default=[])
+    model_whitelist_acct = {}
+    if model_whitelist_acct_raw:
+        for item in model_whitelist_acct_raw:
+            model_code = item.get('模型编号', '')
+            account_id = item.get('白名单账号', '')
+            if model_code and account_id:
+                if model_code not in model_whitelist_acct:
+                    model_whitelist_acct[model_code] = []
+                model_whitelist_acct[model_code].append(account_id)
+        logger.info(f"加载模型白名单配置，模型数={len(model_whitelist_acct)}")
+
     all_hit_accounts = set()
     new_hit_accounts = set()
     whitelist_hit_accounts = set()
@@ -398,6 +413,21 @@ def step3_hit_record(db, today, matched_df, execution_record):
                 hit_models.append(ModelHit(model_id=model.id, model_name=model.model_name))
 
         if not hit_models:
+            continue
+
+        # 检查模型白名单（如果账号在任何一个命中模型的白名单中，则跳过该记录）
+        is_model_whitelist = False
+        for hit_model in hit_models:
+            model_whitelist = model_whitelist_acct.get(hit_model.model_name, [])
+            if model_whitelist and account_id in model_whitelist:
+                logger.debug(
+                    f"跳过模型白名单账户: 账号={account_id}, "
+                    f"模型={hit_model.model_name}"
+                )
+                is_model_whitelist = True
+                break
+
+        if is_model_whitelist:
             continue
 
         all_hit_accounts.add(account_id)
