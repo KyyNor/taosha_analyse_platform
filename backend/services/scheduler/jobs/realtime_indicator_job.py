@@ -418,7 +418,7 @@ def step3_hit_record(db, today, matched_df, execution_record):
         # 检查模型白名单（如果账号在任何一个命中模型的白名单中，则跳过该记录）
         is_model_whitelist = False
         for hit_model in hit_models:
-            model_whitelist = model_whitelist_acct.get(hit_model.id, [])
+            model_whitelist = model_whitelist_acct.get(hit_model.model_id, [])
             if model_whitelist and account_id in model_whitelist:
                 logger.debug(
                     f"跳过模型白名单账户: 账号={account_id}, "
@@ -589,7 +589,7 @@ def _build_model_matching_sql(
     select_fields = [
         f"COALESCE(dep_acct_realtime_indicator.target_id, dep_acct_offline_indicator.target_id) AS \"目标ID\"",
         "dep_acct_offline_indicator.i_dep_acct_no_offline_00007 AS \"客户类型\"",
-        "COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_offline_00002, dep_acct_offline_indicator.i_dep_acct_no_offline_00002) AS \"机构号\"",
+        "COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_offline_00002, dep_acct_offline_indicator.i_dep_acct_no_offline_00002) AS branch_no",
         "dep_acct_realtime_indicator.etl_date AS \"[实时]ETL日期\"",
     ]
 
