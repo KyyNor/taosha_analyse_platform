@@ -4,9 +4,10 @@ FraudHunter宽表版本管理API路由
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, distinct
-from datetime import datetime, date
+from sqlalchemy import and_, func, distinct
+from datetime import datetime, timedelta
 from typing import List, Optional
+from services.fraudhunter.wide_table_service.version_manager import WideTableVersionManager
 from models.db_base import get_db
 from utils.config import settings
 from schemas.fraudhunter.wide_table import (
@@ -195,6 +196,8 @@ async def get_version(
     Returns:
         版本详情（含指标和进度）
     """
+    lookback_days = settings.fraudhunter_wide_table_sync_lookback_days
+
     version = db.query(FraudHunterWideTableVersion).filter(
         FraudHunterWideTableVersion.version_hash == version_hash
     ).first()
@@ -206,6 +209,8 @@ async def get_version(
     indicators = []
     indicator_metadata = version.indicator_metadata or {}
 
+    indicator_dict = {}
+
     for indicator_id_str, meta in indicator_metadata.items():
         indicators.append(IndicatorProgressInfo(
             indicator_id=int(indicator_id_str),
@@ -215,6 +220,7 @@ async def get_version(
             indicator_version=meta.get('version', 1),
             indicator_task_id=meta.get('indicator_task_id')
         ))
+        indicator_dict[str(meta.get('indicator_task_id'))] = str(meta.get('version', 1))
 
     # 查询快照数量
     snapshot_count = db.query(func.count(FraudHunterWideTableSnapshot.id)).filter(
@@ -226,34 +232,34 @@ async def get_version(
     # 根据indicator_metadata中的indicator_task_id找到所有相关的运行进度
     completed_dates = []
 
-    if indicator_metadata:
-        # 获取所有关联的indicator_task_id列表
-        task_ids = [
-            meta.get('indicator_task_id')
-            for meta in indicator_metadata.values()
-            if meta.get('indicator_task_id')
-        ]
+    now_date = datetime.now().date()
+    start_date_str = (now_date - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
 
-        if task_ids:
-            # 查询所有任务都完成的ETL日期
-            # 首先获取每个日期对应的已完成任务数量
-            date_progress = db.query(
-                FraudHunterIndicatorRunProgress.etl_date,
-                func.count(distinct(FraudHunterIndicatorRunProgress.indicator_task_id)).label('completed_count')
-            ).filter(
-                FraudHunterIndicatorRunProgress.indicator_task_id.in_(task_ids)
-            ).group_by(
-                FraudHunterIndicatorRunProgress.etl_date
-            ).all()
+    all_run_progress = db.query(
+        FraudHunterIndicatorRunProgress.etl_date, 
+        FraudHunterIndicatorRunProgress.indicator_task_id, 
+        func.max(FraudHunterIndicatorRunProgress.indicator_version).label('indicator_version')
+    ).filter(
+        and_(
+                FraudHunterIndicatorRunProgress.etl_date >= start_date_str,
+            )
+    ).group_by(
+        FraudHunterIndicatorRunProgress.etl_date, 
+        FraudHunterIndicatorRunProgress.indicator_task_id
+    ).all()
 
-            # 筛选出所有任务都完成的日期
-            total_task_count = len(set(task_ids))
-            for etl_date, completed_count in date_progress:
-                if completed_count >= total_task_count:
-                    completed_dates.append(etl_date.strftime('%Y-%m-%d'))
+    for i in range(lookback_days, 0, -1):  # 倒序，从 version_manager 到 1
+        date_obj = now_date - timedelta(days=i)
+        formatted_date = date_obj.strftime("%Y-%m-%d")
+        is_completed = True
+        for _indicator_task_id, _indicator_version in indicator_dict.items():
+            r = list(filter(lambda p: p[0] == date_obj and str(p[1]) == _indicator_task_id and str(p[2]) == _indicator_version, all_run_progress))
+            if not r:
+                is_completed = False
+        if is_completed:
+            completed_dates.append(formatted_date)
 
-            # 按日期降序排列
-            completed_dates.sort(reverse=True)
+    completed_dates.sort(reverse=True)
 
     return WideTableVersionDetailInfo(
         id=version.id,
@@ -316,50 +322,65 @@ async def get_version_progress(
     completed_dates = []
     recent_progress = []
 
-    if task_ids:
-        total_task_count = len(task_ids)
+    tasks_map = {
+        task.id: task
+        for task in db.query(FraudHunterIndicatorTask).filter(
+            FraudHunterIndicatorTask.id.in_(task_ids)
+        ).all()
+    }
 
-        # 一次性查询所有任务信息（避免N+1查询）
-        tasks_map = {
-            task.id: task
-            for task in db.query(FraudHunterIndicatorTask).filter(
-                FraudHunterIndicatorTask.id.in_(task_ids)
-            ).all()
-        }
+    indicator_dict = {}
 
-        # 查询每个日期的完成情况
-        date_progress_query = db.query(
-            FraudHunterIndicatorRunProgress.etl_date,
-            func.count(distinct(FraudHunterIndicatorRunProgress.indicator_task_id)).label('completed_count'),
-            func.max(FraudHunterIndicatorRunProgress.finish_time).label('last_finish_time')
-        ).filter(
-            FraudHunterIndicatorRunProgress.indicator_task_id.in_(task_ids)
-        ).group_by(
-            FraudHunterIndicatorRunProgress.etl_date
-        ).order_by(
-            FraudHunterIndicatorRunProgress.etl_date.desc()
-        ).limit(lookback_days).all()
+    for indicator_id_str, meta in indicator_metadata.items():
+        indicator_dict[str(meta.get('indicator_task_id'))] = str(meta.get('version', 1))
 
-        for etl_date, completed_count, last_finish_time in date_progress_query:
-            is_complete = completed_count >= total_task_count
-            if is_complete:
-                completed_dates.append(etl_date.strftime('%Y-%m-%d'))
 
-            # 获取该日期已完成任务的ID列表
-            completed_task_ids_result = db.query(
-                FraudHunterIndicatorRunProgress.indicator_task_id
-            ).filter(
-                FraudHunterIndicatorRunProgress.etl_date == etl_date,
-                FraudHunterIndicatorRunProgress.indicator_task_id.in_(task_ids)
-            ).all()
-            completed_task_ids_set = set([tid for (tid,) in completed_task_ids_result])
+    now_date = datetime.now().date()
+    start_date_str = (now_date - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
 
-            # 找出未完成的任务
-            incomplete_task_ids = set(task_ids) - completed_task_ids_set
-            incomplete_tasks = []
+    all_run_progress = db.query(
+        FraudHunterIndicatorRunProgress.etl_date, 
+        FraudHunterIndicatorRunProgress.indicator_task_id, 
+        func.max(FraudHunterIndicatorRunProgress.indicator_version).label('indicator_version'),
+        func.max(FraudHunterIndicatorRunProgress.finish_time).label('finish_time')
+    ).filter(
+        and_(
+                FraudHunterIndicatorRunProgress.etl_date >= start_date_str,
+            )
+    ).group_by(
+        FraudHunterIndicatorRunProgress.etl_date, 
+        FraudHunterIndicatorRunProgress.indicator_task_id
+    ).all()
 
-            for task_id in incomplete_task_ids:
-                task = tasks_map.get(task_id)
+    total_count = len(indicator_dict)
+
+    for i in range(1, lookback_days + 1):  # 倒序，从 version_manager 到 1
+        date_obj = now_date - timedelta(days=i)
+        formatted_date = date_obj.strftime("%Y-%m-%d")
+        is_completed = True
+        incomplete_task_ids = set()
+        last_finish_time = None
+
+        for _indicator_task_id, _indicator_version in indicator_dict.items():
+            r = list(filter(lambda p: p[0] == date_obj and str(p[1]) == _indicator_task_id and str(p[2]) == _indicator_version, all_run_progress))
+            if not r:
+                is_completed = False
+                incomplete_task_ids.add(_indicator_task_id)
+            else:
+                if last_finish_time:
+                    last_finish_time = max(r[0][3], last_finish_time)
+                else:
+                    last_finish_time = r[0][3]
+
+        if is_completed:
+            completed_dates.append(formatted_date)
+        
+        missing_task_count = len(incomplete_task_ids)
+        completed_count = total_count - missing_task_count
+        incomplete_tasks = []
+
+        for task_id in incomplete_task_ids:
+                task = tasks_map.get(int(task_id))
                 if task:
                     incomplete_tasks.append(IncompleteTaskInfo(
                         task_id=task.id,
@@ -368,14 +389,16 @@ async def get_version_progress(
                         object_type=task.object_type
                     ))
 
-            recent_progress.append(DateProgressDetail(
-                etl_date=etl_date.strftime('%Y-%m-%d'),
-                completed_count=completed_count,
-                total_count=total_task_count,
-                is_complete=is_complete,
-                last_finish_time=last_finish_time.isoformat() if last_finish_time else None,
-                incomplete_tasks=incomplete_tasks
-            ))
+        recent_progress.append(DateProgressDetail(
+            etl_date=formatted_date,
+            completed_count=completed_count,
+            total_count=total_count,
+            is_complete=is_completed,
+            last_finish_time=last_finish_time.isoformat() if last_finish_time else None,
+            incomplete_tasks=incomplete_tasks
+        ))
+    
+    completed_dates.sort(reverse=True)
 
     return WideTableVersionProgressInfo(
         version_hash=version_hash,
