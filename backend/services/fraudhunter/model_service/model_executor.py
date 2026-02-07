@@ -3,24 +3,23 @@
 
 负责执行模型的历史回测任务，生成SQL并按日执行
 
-支持主备版本智能降级:
-- 优先使用current版本宽表
-- 当指标版本不匹配时自动降级到target版本
-- 记录降级日志供排查
+版本选择策略:
+- 直接使用指定日期的最新版本宽表（根据版本创建时间排序）
+- 不考虑current/target状态
+- 不检查指标版本匹配
 """
 
 import asyncio
 import json
-from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
 
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, desc
 
 from models.db_base import get_db_session
 from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
-from models.fraudhunter.indicator import FraudHunterIndicatorDefinition
 from models.fraudhunter.wide_table import (
     FraudHunterWideTableVersion,
     FraudHunterWideTableSnapshot
@@ -45,27 +44,16 @@ class VersionSelectionResult:
     """版本选择结果"""
     version_hash: str
     wide_table_name: str
-    etl_date: str
-    parquet_path: Optional[str]  # PG表名 (保留字段名以兼容)
-    is_fallback: bool = False
-    fallback_reason: Optional[str] = None
-    mismatched_indicators: List[Dict] = field(default_factory=list)
+    etl_date: date
+    parquet_path: Optional[str]
     message: str = ""
 
     @property
     def pg_table_name(self) -> Optional[str]:
         """获取PG表名"""
+        if not self.version_hash:
+            return None
         return f"{self.wide_table_name}_{self.version_hash}_{self.etl_date.strftime('%Y%m%d')}"
-
-    def get_fallback_summary(self) -> str:
-        """获取降级摘要信息"""
-        if not self.is_fallback:
-            return ""
-
-        lines = [f"[版本降级] 使用target版本宽表，原因: {self.fallback_reason}"]
-        for ind in self.mismatched_indicators:
-            lines.append(f"  - {ind.get('indicator_code')}: {ind.get('message')}")
-        return "\n".join(lines)
 
 
 class ModelExecutor:
@@ -87,266 +75,64 @@ class ModelExecutor:
         """
         return OBJECT_TYPE_TO_WIDE_TABLE.get(object_type, 'dep_acct_wide_table')
 
-    def _get_parquet_path(
+    def _get_latest_version_snapshot(
         self,
         db: Session,
         wide_table_name: str,
         etl_date: date
-    ) -> Optional[str]:
-        """获取指定日期的宽表PG表名（简单版本，无降级）
-
-        Args:
-            db: 数据库会话
-            wide_table_name: 宽表名称
-            etl_date: ETL日期
-
-        Returns:
-            PG表名，如果不存在返回None
-        """
-        current_version = db.query(FraudHunterWideTableVersion).filter(
-            and_(
-                FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-                FraudHunterWideTableVersion.status == 'current'
-            )
-        ).first()
-
-        if not current_version:
-            logger.warning(f"未找到 {wide_table_name} 的当前版本")
-            return None
-
-        snapshot = db.query(FraudHunterWideTableSnapshot).filter(
-            and_(
-                FraudHunterWideTableSnapshot.version_hash == current_version.version_hash,
-                FraudHunterWideTableSnapshot.etl_date == etl_date,
-                FraudHunterWideTableSnapshot.status == 'ready'
-            )
-        ).first()
-
-        if not snapshot:
-            logger.warning(f"未找到 {wide_table_name} 在 {etl_date} 的快照")
-            return None
-
-        return snapshot.parquet_file_path
-
-    def _get_parquet_path_with_fallback(
-        self,
-        db: Session,
-        wide_table_name: str,
-        etl_date: date,
-        model_indicator_codes: List[str]
     ) -> VersionSelectionResult:
-        """获取指定日期的宽表PG表名（支持智能降级）
+        """获取指定日期的最新版本快照
 
-        降级逻辑：
-        1. 如果current版本不存在 → 使用target版本
-        2. 如果模型使用的指标仅在target版本存在 → 使用target版本
-        3. 如果指标的current_version > 宽表记录的版本号 → 使用target版本
+        策略：
+        1. 查找该宽表在该日期的所有 ready 状态的快照
+        2. 按版本创建时间降序排序，取最新版本
+        3. 如果没有快照，返回空结果
 
         Args:
             db: 数据库会话
             wide_table_name: 宽表名称
             etl_date: ETL日期
-            model_indicator_codes: 模型使用的指标编码列表
 
         Returns:
             VersionSelectionResult: 版本选择结果
         """
-        current_version = self._get_version_by_status(db, wide_table_name, 'current')
-        target_version = self._get_version_by_status(db, wide_table_name, 'target')
-
-        # 如果没有current版本，直接使用target
-        if not current_version:
-            if target_version:
-                return self._build_selection_result(
-                    db, target_version, etl_date,
-                    is_fallback=True,
-                    fallback_reason='current_not_exist',
-                    message=f"{wide_table_name} 没有current版本，使用target版本"
-                )
-            return VersionSelectionResult(
-                version_hash='',
-                parquet_path=None,
-                message=f"{wide_table_name} 没有可用的版本"
-            )
-
-        # 检查指标版本匹配
-        mismatched_indicators = self._check_indicators_version_match(
-            db, current_version, model_indicator_codes
-        )
-
-        # 如果存在不匹配，尝试使用target版本
-        if mismatched_indicators and target_version:
-            target_result = self._build_selection_result(
-                db, target_version, etl_date,
-                is_fallback=True,
-                fallback_reason=mismatched_indicators[0].get('reason', 'indicator_mismatch'),
-                mismatched_indicators=mismatched_indicators,
-                message=self._build_fallback_message(mismatched_indicators)
-            )
-            if target_result.parquet_path:
-                return target_result
-
-            # target也没有数据，记录警告后使用current
-            logger.warning(
-                f"指标版本不匹配但target版本也无数据，尝试使用current版本: "
-                f"{[i['indicator_code'] for i in mismatched_indicators]}"
-            )
-
-        # 使用current版本
-        return self._build_selection_result(
-            db, current_version, etl_date,
-            is_fallback=False
-        )
-
-    def _get_version_by_status(
-        self,
-        db: Session,
-        wide_table_name: str,
-        status: str
-    ) -> Optional[FraudHunterWideTableVersion]:
-        """根据状态获取宽表版本"""
-        return db.query(FraudHunterWideTableVersion).filter(
+        # 查找该日期所有 ready 状态的快照
+        latest_snapshot = db.query(FraudHunterWideTableSnapshot).join(
+            FraudHunterWideTableVersion,
+            FraudHunterWideTableSnapshot.version_hash == FraudHunterWideTableVersion.version_hash
+        ).filter(
             and_(
-                FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-                FraudHunterWideTableVersion.status == status
-            )
-        ).first()
-
-    def _build_selection_result(
-        self,
-        db: Session,
-        version: FraudHunterWideTableVersion,
-        etl_date: date,
-        is_fallback: bool = False,
-        fallback_reason: Optional[str] = None,
-        mismatched_indicators: List[Dict] = None,
-        message: str = ""
-    ) -> VersionSelectionResult:
-        """构建版本选择结果"""
-        snapshot = db.query(FraudHunterWideTableSnapshot).filter(
-            and_(
-                FraudHunterWideTableSnapshot.version_hash == version.version_hash,
+                FraudHunterWideTableSnapshot.wide_table_name == wide_table_name,
                 FraudHunterWideTableSnapshot.etl_date == etl_date,
                 FraudHunterWideTableSnapshot.status == 'ready'
             )
+        ).order_by(
+            desc(FraudHunterWideTableVersion.created_at)
         ).first()
 
-        return VersionSelectionResult(
-            version_hash=version.version_hash,
-            wide_table_name=snapshot.wide_table_name,
-            etl_date=snapshot.etl_date,
-            parquet_path=snapshot.parquet_file_path if snapshot else None,
-            is_fallback=is_fallback,
-            fallback_reason=fallback_reason,
-            mismatched_indicators=mismatched_indicators or [],
-            message=message
-        )
+        if not latest_snapshot:
+            return VersionSelectionResult(
+                version_hash='',
+                wide_table_name=wide_table_name,
+                etl_date=etl_date,
+                parquet_path=None,
+                message=f"未找到 {wide_table_name} 在 {etl_date} 的可用快照"
+            )
 
-    def _check_indicators_version_match(
-        self,
-        db: Session,
-        current_version: FraudHunterWideTableVersion,
-        indicator_codes: List[str]
-    ) -> List[Dict]:
-        """检查指标版本是否与宽表版本匹配
-        
-        Args:
-            db: 数据库会话
-            current_version: 当前版本对象
-            indicator_codes: 模型使用的指标编码列表
-            
-        Returns:
-            不匹配的指标列表
-        """
-        mismatched = []
-        metadata = current_version.indicator_metadata or {}
-        
-        # 构建indicator_code到metadata的映射
-        code_to_meta = {}
-        for ind_id, ind_meta in metadata.items():
-            code = ind_meta.get('indicator_code')
-            if code:
-                code_to_meta[code] = ind_meta
-        
-        for indicator_code in indicator_codes:
-            # 查询当前指标定义
-            indicator = db.query(FraudHunterIndicatorDefinition).filter(
-                FraudHunterIndicatorDefinition.indicator_code == indicator_code
-            ).first()
-            
-            if not indicator:
-                # 指标不存在，可能是配置错误，跳过
-                continue
-            
-            # 只检查离线指标
-            if indicator.indicator_type != 'offline':
-                continue
-            
-            # 检查是否在current版本的metadata中
-            indicator_in_version = code_to_meta.get(indicator_code)
-            
-            # 情况1：指标不在current版本中（新上线的指标）
-            if not indicator_in_version:
-                mismatched.append({
-                    'indicator_code': indicator_code,
-                    'indicator_name': indicator.indicator_name,
-                    'reason': 'indicator_not_in_current',
-                    'message': f'指标 [{indicator.indicator_name}] 仅在target版本存在（新上线指标）'
-                })
-                continue
-            
-            # 情况2：指标版本已升级
-            version_in_wide_table = indicator_in_version.get('version', 0)
-            if indicator.current_version > version_in_wide_table:
-                mismatched.append({
-                    'indicator_code': indicator_code,
-                    'indicator_name': indicator.indicator_name,
-                    'reason': 'indicator_version_upgraded',
-                    'message': f'指标 [{indicator.indicator_name}] 已升级: v{version_in_wide_table} → v{indicator.current_version}',
-                    'old_version': version_in_wide_table,
-                    'new_version': indicator.current_version
-                })
-        
-        return mismatched
-
-    @staticmethod
-    def _build_fallback_message(mismatched_indicators: List[Dict]) -> str:
-        """构建降级提示信息"""
-        if not mismatched_indicators:
-            return ""
-
-        reasons = [
-            f"- {ind.get('message', ind.get('indicator_code'))}"
-            for ind in mismatched_indicators
-        ]
-        return "因以下指标变动切换到target版本:\n" + "\n".join(reasons)
-
-    def _collect_fallback_info(
-        self,
-        wide_table_name: str,
-        etl_date: date,
-        selection_result: VersionSelectionResult,
-        expected_version: str,
-        fallback_logs: List[Dict]
-    ) -> None:
-        """收集版本降级信息到列表"""
-        if not selection_result.is_fallback:
-            return
-
-        fallback_logs.append({
-            'wide_table_name': wide_table_name,
-            'etl_date': str(etl_date),
-            'expected_version': expected_version[:8] if expected_version else '',
-            'actual_version': selection_result.version_hash[:8] if selection_result.version_hash else '',
-            'fallback_reason': selection_result.fallback_reason or 'unknown',
-            'mismatched_indicators': selection_result.mismatched_indicators,
-            'message': selection_result.message
-        })
+        # 使用最新版本
+        version_hash = latest_snapshot.version_hash or ''
 
         logger.info(
-            f"[版本降级] 宽表={wide_table_name}, 日期={etl_date}, "
-            f"原因={selection_result.fallback_reason}, "
-            f"影响指标={[i['indicator_code'] for i in selection_result.mismatched_indicators]}"
+            f"选择最新版本: {wide_table_name}, 日期={etl_date}, "
+            f"版本={version_hash[:8]}..., 创建时间={latest_snapshot.generation_time}"
+        )
+
+        return VersionSelectionResult(
+            version_hash=version_hash,
+            wide_table_name=latest_snapshot.wide_table_name,
+            etl_date=latest_snapshot.etl_date,
+            parquet_path=latest_snapshot.parquet_file_path,
+            message=f"使用版本 {version_hash[:8]}"
         )
 
     @staticmethod
@@ -454,14 +240,14 @@ LIMIT 10000
         end_date: str
     ) -> Dict[str, Any]:
         """执行模型历史回测
-        
+
         Args:
             db: 数据库会话
             execution_id: 执行ID
             model_id: 模型ID
             start_date: 开始日期 (YYYY-MM-DD)
             end_date: 结束日期 (YYYY-MM-DD)
-            
+
         Returns:
             执行结果摘要
         """
@@ -539,10 +325,6 @@ LIMIT 10000
                     model_whitelist_acct[model_code].append(account_id)
             logger.info(f"加载模型白名单配置，模型数={len(model_whitelist_acct)}")
 
-        # 获取current版本信息（用于降级日志记录）
-        current_dep_version = self._get_version_by_status(db, dep_acct_wide_table_name, 'current')
-        current_cust_version = self._get_version_by_status(db, cust_wide_table_name, 'current')
-        
         # 按日执行
         current_date = start_dt
         while current_date <= end_dt:
@@ -554,46 +336,34 @@ LIMIT 10000
                 'status': 'pending',
                 'message': '',
                 'rows_matched': 0,
-                'version_fallback': None  # 新增：记录降级信息
+                'version_fallbacks': {}
             }
 
             try:
-                # 获取当天的parquet路径（实时指标）- 使用智能降级
-                dep_acct_realtime_result = self._get_parquet_path_with_fallback(
-                    db, dep_acct_wide_table_name, current_date, model_indicator_codes
+                # 获取当天的最新版本快照（实时指标）
+                dep_acct_realtime_result = self._get_latest_version_snapshot(
+                    db, dep_acct_wide_table_name, current_date
                 )
-                
-                # 获取前一天的parquet路径（离线指标）- 使用智能降级
-                dep_acct_offline_result = self._get_parquet_path_with_fallback(
-                    db, dep_acct_wide_table_name, previous_date, model_indicator_codes
+
+                # 获取前一天的最新版本快照（离线指标）
+                dep_acct_offline_result = self._get_latest_version_snapshot(
+                    db, dep_acct_wide_table_name, previous_date
                 )
-                cust_offline_result = self._get_parquet_path_with_fallback(
-                    db, cust_wide_table_name, previous_date, model_indicator_codes
+                cust_offline_result = self._get_latest_version_snapshot(
+                    db, cust_wide_table_name, previous_date
                 )
-                
-                # 收集降级信息
-                if dep_acct_realtime_result.is_fallback:
-                    self._collect_fallback_info(
-                        dep_acct_wide_table_name, current_date, dep_acct_realtime_result,
-                        current_dep_version.version_hash if current_dep_version else '',
-                        results['version_fallbacks']
-                    )
-                    day_result['version_fallback'] = dep_acct_realtime_result.get_fallback_summary()
-                
-                if dep_acct_offline_result.is_fallback:
-                    self._collect_fallback_info(
-                        dep_acct_wide_table_name, previous_date, dep_acct_offline_result,
-                        current_dep_version.version_hash if current_dep_version else '',
-                        results['version_fallbacks']
-                    )
-                
-                if cust_offline_result.is_fallback:
-                    self._collect_fallback_info(
-                        cust_wide_table_name, previous_date, cust_offline_result,
-                        current_cust_version.version_hash if current_cust_version else '',
-                        results['version_fallbacks']
-                    )
-                
+
+                # 记录版本信息
+                day_result['version_fallbacks'] = {
+                    'realtime': dep_acct_realtime_result.version_hash[:8] if dep_acct_realtime_result.version_hash else '',
+                    'offline': dep_acct_offline_result.version_hash[:8] if dep_acct_offline_result.version_hash else '',
+                    'cust': cust_offline_result.version_hash[:8] if cust_offline_result.version_hash else ''
+                }
+                results['version_fallbacks'].append({
+                    'date': current_date.strftime('%Y-%m-%d'),
+                    **day_result['version_fallbacks']
+                })
+
                 dep_acct_realtime_table = dep_acct_realtime_result.pg_table_name
                 dep_acct_offline_table = dep_acct_offline_result.pg_table_name
                 cust_offline_table = cust_offline_result.pg_table_name
@@ -689,7 +459,7 @@ LIMIT 10000
         # 更新执行记录
         execution.rows_processed = results['total_days']
         execution.rows_output = results['success_days']
-        
+
         total_matched = sum(r.get('rows_matched', 0) for r in results['daily_results'])
         results['total_rows_matched'] = total_matched
 
@@ -713,18 +483,18 @@ LIMIT 10000
 """
         execution.log_content = log_content
         results['log_content'] = log_content  # 将日志内容也加入返回结果
-        
-        # 将降级信息和完整结果保存到 result_summary
+
+        # 将版本信息和完整结果保存到 result_summary
         execution.result_summary = {
             'total_days': results['total_days'],
             'success_days': results['success_days'],
             'skipped_days': results['skipped_days'],
             'failed_days': results['failed_days'],
             'total_rows_matched': total_matched,
-            'version_fallbacks': results['version_fallbacks'],  # 降级信息
+            'version_fallbacks': results['version_fallbacks'],
             'warnings': results['warnings']
         }
-        
+
         db.commit()
 
         logger.info(f"模型历史回测完成: {model.model_code}, 成功 {results['success_days']}/{results['total_days']} 天")
@@ -733,10 +503,10 @@ LIMIT 10000
 
     def _format_daily_results(self, daily_results: List[Dict[str, Any]]) -> str:
         """格式化每日执行结果为日志文本
-        
+
         Args:
             daily_results: 每日执行结果列表
-            
+
         Returns:
             格式化的文本
         """
@@ -749,11 +519,12 @@ LIMIT 10000
                 'pending': '○'
             }.get(dr['status'], '?')
             base_info = f"  {status_emoji} {dr['date']}: {dr['message']} (命中: {dr['rows_matched']})"
-            
-            # 如果有降级信息，追加显示
-            if dr.get('version_fallback'):
-                base_info += f"\n      ⚠️ {dr['version_fallback']}"
-            
+
+            # 如果有版本信息，追加显示
+            if dr.get('version_fallbacks'):
+                ver = dr['version_fallbacks']
+                base_info += f" [实时:{ver.get('realtime', '')} 离线:{ver.get('offline', '')} 客户:{ver.get('cust', '')}]"
+
             lines.append(base_info)
         return chr(10).join(lines) if lines else '无'
 
