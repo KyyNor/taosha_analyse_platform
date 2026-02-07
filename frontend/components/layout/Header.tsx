@@ -80,7 +80,10 @@ const allNavItems: NavItem[] = [
       { type: 'link', href: "/admin/permissions", label: "权限分配", requiredPath: "/admin/permissions" },
       { type: 'separator' },
       { type: 'group', label: "系统监控" },
-      { type: 'link', href: "/admin/login-records", label: "登录记录", requiredPath: "/admin/login-records" }
+      { type: 'link', href: "/admin/login-records", label: "登录记录", requiredPath: "/admin/login-records" },
+      { type: 'separator' },
+      { type: 'group', label: "公共服务" },
+      { type: 'link', href: "/common-services/ocr", label: "OCR识别", requiredPath: "/common-services/ocr" }
     ]
   }
 ];

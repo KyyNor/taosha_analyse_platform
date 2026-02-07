@@ -24,6 +24,7 @@ from api.deepagents_routes import router as deepagents_router
 from api.entity_routes import router as entity_router
 from api.permission_routes import router as permission_router
 from api.login_record_routes import router as login_record_router
+from api.common_services_routes import router as common_services_router
 from api.fraudhunter import (
     indicator_task_router,
     indicator_router,
@@ -372,6 +373,9 @@ app.include_router(deepagents_router, prefix=api_prefix)
 app.include_router(entity_router, prefix=api_prefix)
 app.include_router(permission_router, prefix=api_prefix)
 app.include_router(login_record_router, prefix=api_prefix)
+
+# 注册公共服务路由
+app.include_router(common_services_router, prefix=api_prefix)
 
 # 注册 FraudHunter 路由
 fraudhunter_prefix = f"{api_prefix}/fraudhunter"

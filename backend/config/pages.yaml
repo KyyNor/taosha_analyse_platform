@@ -2,6 +2,19 @@
 # 定义所有需要权限控制的页面（支持层级结构）
 
 pages:
+  # ===== 公共服务模块 =====
+  - path: "/common-services"
+    name: "公共服务"
+    description: "公共服务模块根路径"
+    level: 0
+    sort_order: 6
+    children:
+      - path: "/common-services/ocr"
+        name: "OCR识别"
+        description: "OCR识别页面，支持图片上传和多种输出格式"
+        level: 1
+        sort_order: 1
+
   # ===== 系统管理模块 =====
   - path: "/admin"
     name: "系统管理"

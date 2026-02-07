@@ -231,6 +231,11 @@ class ConfigManager:
             fraudhunter_wide_table_sync_scheduler_interval: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('sync_scheduler_interval', 600)
             fraudhunter_wide_table_source_table: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('source_table', 'hxb_dh_data_dwm.dwm_taosha_indicator_details')
 
+            # GLM-OCR配置
+            glm_ocr_api_key: Optional[str] = os.getenv("GLM_OCR_API_KEY") or self._config_data.get('glm_ocr', {}).get('api_key')
+            glm_ocr_base_url: Optional[str] = os.getenv("GLM_OCR_BASE_URL") or self._config_data.get('glm_ocr', {}).get('base_url', "https://open.bigmodel.cn/api/paas/v4")
+            glm_ocr_timeout: int = self._config_data.get('glm_ocr', {}).get('timeout', 60)
+
             # FraudHunter 实时数据配置
             fraudhunter_realtime_data_enabled: bool = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('enabled', False)
             fraudhunter_realtime_data_storage_path: str = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('storage_path', './realtime_data')
