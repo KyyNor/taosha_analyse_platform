@@ -226,7 +226,7 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
                 if result_df is not None and not result_df.empty:
                     result_df = result_df.drop(columns=['etl_date'], errors='ignore')
                     all_indicator_results.append(result_df)
-                    logger.debug(f"  -> 返回 {len(result_df)} 行，{len(result_df.columns)} 列")
+                    logger.info(f" {task.task_name} -> 返回 {len(result_df)} 行，{len(result_df.columns)} 列")
             except Exception as e:
                 logger.error(f"执行指标任务 {task.task_code} 失败: {e}")
                 continue
