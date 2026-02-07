@@ -770,13 +770,16 @@ class ModelHitAlertManager:
         if filters.model_ids:
             # 使用 JSON_CONTAINS 精确检查数组中是否包含指定的 model_ids
             # 避免模糊匹配导致的误匹配（如查找 2 时匹配到 12）
+            # 使用 OR 逻辑：命中任意一个模型即可
+            conditions = []
             for model_id in filters.model_ids:
-                query = query.filter(
+                conditions.append(
                     func.json_contains(
                         FraudHunterModelAlertControlRecord.hit_model_ids,
                         f'{model_id}'
                     ) == True
                 )
+            query = query.filter(or_(*conditions))
 
         if filters.model_name:
             # 检查JSON数组中是否包含指定的模型名称
