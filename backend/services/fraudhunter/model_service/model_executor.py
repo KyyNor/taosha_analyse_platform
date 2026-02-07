@@ -51,9 +51,10 @@ class VersionSelectionResult:
     @property
     def pg_table_name(self) -> Optional[str]:
         """获取PG表名"""
-        if not self.version_hash:
+        if self.wide_table_name and self.version_hash and self.etl_date:
+            return f"{self.wide_table_name}_{self.version_hash}_{self.etl_date.strftime('%Y%m%d')}"
+        else:
             return None
-        return f"{self.wide_table_name}_{self.version_hash}_{self.etl_date.strftime('%Y%m%d')}"
 
 
 class ModelExecutor:
@@ -446,6 +447,7 @@ LIMIT 10000
             except Exception as e:
                 error_msg = f"日期 {current_date} 回测失败: {str(e)}"
                 logger.error(error_msg, exc_info=True)
+                logger.exception(error_msg)
                 results['failed_days'] += 1
                 day_result['status'] = 'failed'
                 day_result['message'] = str(e)

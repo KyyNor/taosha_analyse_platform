@@ -419,7 +419,7 @@ class WideTableVersionManager:
         # 计算切换阈值
         threshold = current_count * promote_threshold if current_version else 1
 
-        if target_count < threshold:
+        if target_count < threshold and target_count < 30:
             logger.info(
                 f"{wide_table_name} 未满足切换条件: "
                 f"target快照={target_count}, current快照={current_count}, "

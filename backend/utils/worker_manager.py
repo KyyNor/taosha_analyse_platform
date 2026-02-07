@@ -152,7 +152,7 @@ class WorkerRegistry:
             worker_file = self.registry_dir / f"worker_{worker_index}.json"
             try:
                 if worker_file.exists():
-                    worker_file.remove()
+                    worker_file.unlink()
             except Exception as e:
                 logger.warning(f"删除worker文件失败: {e}")
 
@@ -315,7 +315,7 @@ class WorkerRegistry:
                 # 删除worker文件
                 worker_file = self.registry_dir / f"worker_{worker_index}.json"
                 if worker_file.exists():
-                    worker_file.remove()
+                    worker_file.unlink()
 
                 logger.info(f"[Worker注销] Worker {worker_index}/{self.worker_count} (PID={pid})")
 

@@ -226,7 +226,7 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
                 if result_df is not None and not result_df.empty:
                     result_df = result_df.drop(columns=['etl_date'], errors='ignore')
                     all_indicator_results.append(result_df)
-                    logger.debug(f"  -> 返回 {len(result_df)} 行，{len(result_df.columns)} 列")
+                    logger.info(f" {task.task_name} -> 返回 {len(result_df)} 行，{len(result_df.columns)} 列")
             except Exception as e:
                 logger.error(f"执行指标任务 {task.task_code} 失败: {e}")
                 continue
@@ -418,7 +418,7 @@ def step3_hit_record(db, today, matched_df, execution_record):
         # 检查模型白名单（如果账号在任何一个命中模型的白名单中，则跳过该记录）
         is_model_whitelist = False
         for hit_model in hit_models:
-            model_whitelist = model_whitelist_acct.get(hit_model.model_name, [])
+            model_whitelist = model_whitelist_acct.get(hit_model.model_id, [])
             if model_whitelist and account_id in model_whitelist:
                 logger.debug(
                     f"跳过模型白名单账户: 账号={account_id}, "
@@ -490,23 +490,17 @@ async def generate_realtime_wide_table_job():
     
     try:
         with get_db_session() as db:
-            logger.info("step1 start")
             offline_tables, generated_realtime_tables = step1_generate_realtime_indicators(db, today, today_str, now_str)
-            logger.info("step1 end")
             if offline_tables is None:
                 return
 
         with get_db_session() as db:
-            logger.info("step2 start")
             matched_df, execution_record = step2_online_model_executor(db, offline_tables, generated_realtime_tables)
-            logger.info("step2 end")
 
             if matched_df is None:
                 return
 
-            logger.info("step3 start")
             step3_hit_record(db, today, matched_df, execution_record)
-            logger.info("step3 end")
 
             logger.debug("实时指标宽表生成及模型匹配完成")
 
@@ -595,7 +589,7 @@ def _build_model_matching_sql(
     select_fields = [
         f"COALESCE(dep_acct_realtime_indicator.target_id, dep_acct_offline_indicator.target_id) AS \"目标ID\"",
         "dep_acct_offline_indicator.i_dep_acct_no_offline_00007 AS \"客户类型\"",
-        "COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_offline_00002, dep_acct_offline_indicator.i_dep_acct_no_offline_00002) AS \"机构号\"",
+        "COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_offline_00002, dep_acct_offline_indicator.i_dep_acct_no_offline_00002) AS branch_no",
         "dep_acct_realtime_indicator.etl_date AS \"[实时]ETL日期\"",
     ]
 

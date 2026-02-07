@@ -1,5 +1,25 @@
 import api from "../api";
 
+
+/**
+ * 获取token的工具函数
+ */
+function getToken(): string | null {
+  if (typeof window === 'undefined') return null
+  
+  // 优先从cookie获取
+  const cookies = document.cookie.split(';')
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=')
+    if (name === 'auth_token') {
+      return decodeURIComponent(value)
+    }
+  }
+  
+  // 从localStorage获取
+  return localStorage.getItem('auth_token')
+}
+
 export interface ChatRequest {
   message: string;
   session_id?: string;
@@ -36,6 +56,7 @@ export async function chatStream(request: ChatRequest, signal?: AbortSignal): Pr
     || process.env.NEXT_PUBLIC_API_BASE
     || "/api/taosha/v1";
   const url = `${baseUrl}/agents/chat/stream`;
+  const token = getToken()
 
   const response = await fetch(url, {
     method: "POST",
@@ -43,6 +64,7 @@ export async function chatStream(request: ChatRequest, signal?: AbortSignal): Pr
       "Content-Type": "application/json",
       "Accept": "text/event-stream",
       "Cache-Control": "no-cache",
+      "Authorization": `Bearer ${token}`
     },
     body: JSON.stringify(request),
     signal,

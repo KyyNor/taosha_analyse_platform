@@ -9,7 +9,7 @@ mv ../$bak_path/frontend/.env frontend/
 source .venv/bin/activate
 cd backend
 uvicorn main:app --workers=1 --port 50020 --host 0.0.0.0
-nohup uvicorn main:app --workers=2 --port 50020 --host 0.0.0.0 &
+nohup uvicorn main:app --workers=4 --port 50020 --host 0.0.0.0 &
 
 # 启动前端
 cd frontend
