@@ -10,16 +10,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Download, Upload, Eye, X, FileText, Image as ImageIcon, CheckCircle, XCircle, Loader2 } from "lucide-react";
-import { commonServices, type OCRMode, type OCRImageData, type PDFImageData, type HealthCheckResult } from "@/lib/services/commonServices";
+import { Copy, Download, Upload, Eye, X, FileText, Image as ImageIcon, CheckCircle, XCircle, Loader2, Link, FolderOpen } from "lucide-react";
+import { commonServices, type OCRMode, type OCRImageData, type PDFImageData, type FileInputMode } from "@/lib/services/commonServices";
 import { toast } from "sonner";
 
-type FileType = "image" | "pdf" | null;
-
 export default function OCRPage() {
-  const [apiKey, setApiKey] = useState("");
+  const [fileInputMode, setFileInputMode] = useState<FileInputMode>("upload");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileType, setFileType] = useState<FileType>(null);
+  const [fileUrl, setFileUrl] = useState("");
+  const [localPath, setLocalPath] = useState("");
+  const [fileType, setFileType] = useState<"image" | "pdf" | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isHealthChecking, setIsHealthChecking] = useState(false);
@@ -29,24 +29,13 @@ export default function OCRPage() {
   const [healthStatus, setHealthStatus] = useState<"running" | "unavailable" | "error" | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 从localStorage加载API Key
+  // 从localStorage加载JSON Schema
   useEffect(() => {
-    const savedKey = localStorage.getItem("glm_ocr_api_key");
-    if (savedKey) {
-      setApiKey(savedKey);
-    }
     const savedSchema = localStorage.getItem("glm_ocr_json_schema");
     if (savedSchema) {
       setJsonSchema(savedSchema);
     }
   }, []);
-
-  // 保存API Key到localStorage
-  useEffect(() => {
-    if (apiKey) {
-      localStorage.setItem("glm_ocr_api_key", apiKey);
-    }
-  }, [apiKey]);
 
   // 保存JSON Schema到localStorage
   useEffect(() => {
@@ -59,7 +48,7 @@ export default function OCRPage() {
   const handleHealthCheck = async () => {
     setIsHealthChecking(true);
     try {
-      const response = await commonServices.ocrHealthCheck(apiKey || undefined);
+      const response = await commonServices.ocrHealthCheck();
       setHealthStatus(response.data.status);
       if (response.data.status === "running") {
         toast.success("OCR服务运行正常");
@@ -108,40 +97,53 @@ export default function OCRPage() {
 
   // 处理识别
   const handleRecognize = async () => {
-    if (!selectedFile) {
-      toast.error("请先选择要识别的文件");
-      return;
-    }
-
-    if (!apiKey) {
-      toast.error("请输入API Key");
-      return;
-    }
-
     if (mode === "json" && !jsonSchema) {
       toast.error("JSON模式需要配置JSON Schema");
       return;
+    }
+
+    // 验证输入
+    if (fileInputMode === "upload") {
+      if (!selectedFile) {
+        toast.error("请先选择要识别的文件");
+        return;
+      }
+    } else if (fileInputMode === "url") {
+      if (!fileUrl) {
+        toast.error("请输入文件URL");
+        return;
+      }
+      // 简单的URL验证
+      try {
+        new URL(fileUrl);
+      } catch {
+        toast.error("请输入有效的URL");
+        return;
+      }
+    } else if (fileInputMode === "local") {
+      if (!localPath) {
+        toast.error("请输入本地文件路径");
+        return;
+      }
     }
 
     setIsLoading(true);
     setResult(null);
 
     try {
+      const params = {
+        mode,
+        jsonSchema: mode === "json" ? jsonSchema : undefined,
+        file: fileInputMode === "upload" ? selectedFile! : undefined,
+        fileUrl: fileInputMode === "url" ? fileUrl : undefined,
+        localPath: fileInputMode === "local" ? localPath : undefined,
+      };
+
       let response;
-      if (fileType === "pdf") {
-        response = await commonServices.ocrParsePDF(
-          selectedFile,
-          mode,
-          mode === "json" ? jsonSchema : undefined,
-          apiKey
-        );
+      if (selectedFile?.type === "application/pdf" || fileUrl?.toLowerCase().endsWith(".pdf")) {
+        response = await commonServices.ocrParsePDF(params);
       } else {
-        response = await commonServices.ocrRecognize(
-          selectedFile,
-          mode,
-          mode === "json" ? jsonSchema : undefined,
-          apiKey
-        );
+        response = await commonServices.ocrRecognize(params);
       }
 
       if (response.success) {
@@ -237,6 +239,18 @@ export default function OCRPage() {
     }
   };
 
+  // 获取输入模式描述
+  const getInputModeDescription = (m: FileInputMode) => {
+    switch (m) {
+      case "upload":
+        return "上传本地文件";
+      case "url":
+        return "输入文件远程URL";
+      case "local":
+        return "输入服务器本地文件路径（调试用）";
+    }
+  };
+
   return (
     <div className="flex-1 space-y-6 p-8">
       <div className="flex items-center justify-between">
@@ -273,26 +287,39 @@ export default function OCRPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>API配置</CardTitle>
+          <CardTitle>识别配置</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {/* 文件输入模式选择 */}
             <div className="space-y-2">
-              <Label htmlFor="api-key">GLM-OCR API Key</Label>
-              <Input
-                id="api-key"
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="请输入API Key"
-              />
-              <p className="text-sm text-muted-foreground">
-                请输入您的GLM-OCR API Key，系统会记住您的密钥以便下次使用
-              </p>
+              <Label>文件输入方式</Label>
+              <Tabs value={fileInputMode} onValueChange={(v) => setFileInputMode(v as FileInputMode)}>
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="upload">
+                    <Upload className="mr-2 h-4 w-4" />
+                    上传文件
+                  </TabsTrigger>
+                  <TabsTrigger value="url">
+                    <Link className="mr-2 h-4 w-4" />
+                    远程URL
+                  </TabsTrigger>
+                  <TabsTrigger value="local">
+                    <FolderOpen className="mr-2 h-4 w-4" />
+                    本地路径
+                  </TabsTrigger>
+                </TabsList>
+                <div className="mt-2">
+                  <p className="text-sm text-muted-foreground">
+                    {getInputModeDescription(fileInputMode)}
+                  </p>
+                </div>
+              </Tabs>
             </div>
 
             <Separator />
 
+            {/* 识别模式选择 */}
             <div className="space-y-2">
               <Label>识别模式</Label>
               <Tabs value={mode} onValueChange={(v) => setMode(v as OCRMode)}>
@@ -310,21 +337,25 @@ export default function OCRPage() {
               </Tabs>
             </div>
 
+            {/* JSON Schema配置 */}
             {mode === "json" && (
-              <div className="space-y-2">
-                <Label htmlFor="json-schema">JSON Schema（结构化数据模板）</Label>
-                <Textarea
-                  id="json-schema"
-                  value={jsonSchema}
-                  onChange={(e) => setJsonSchema(e.target.value)}
-                  placeholder='{"id_number":"","name":"","date_of_birth":"","address":"","sex":""}'
-                  rows={4}
-                  className="font-mono text-sm"
-                />
-                <p className="text-sm text-muted-foreground">
-                  定义要提取的字段及结构，OCR将按此模板返回结构化数据
-                </p>
-              </div>
+              <>
+                <Separator />
+                <div className="space-y-2">
+                  <Label htmlFor="json-schema">JSON Schema（结构化数据模板）</Label>
+                  <Textarea
+                    id="json-schema"
+                    value={jsonSchema}
+                    onChange={(e) => setJsonSchema(e.target.value)}
+                    placeholder='{"id_number":"","name":"","date_of_birth":"","address":"","sex":""}'
+                    rows={4}
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    定义要提取的字段及结构，OCR将按此模板返回结构化数据
+                  </p>
+                </div>
+              </>
             )}
           </div>
         </CardContent>
@@ -332,86 +363,122 @@ export default function OCRPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>文件上传</CardTitle>
+          <CardTitle>
+            {fileInputMode === "upload" && "文件上传"}
+            {fileInputMode === "url" && "远程URL"}
+            {fileInputMode === "local" && "本地文件路径"}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="border-2 border-dashed rounded-lg p-8 text-center">
-              {selectedFile ? (
-                <div className="space-y-4">
-                  {fileType === "image" && previewUrl ? (
-                    <div className="relative inline-block">
-                      <img
-                        src={previewUrl}
-                        alt="预览"
-                        className="max-h-64 max-w-full object-contain rounded"
-                      />
-                      <button
-                        onClick={clearSelectedFile}
-                        className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+            {fileInputMode === "upload" && (
+              <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                {selectedFile ? (
+                  <div className="space-y-4">
+                    {fileType === "image" && previewUrl ? (
+                      <div className="relative inline-block">
+                        <img
+                          src={previewUrl!}
+                          alt="预览"
+                          className="max-h-64 max-w-full object-contain rounded"
+                        />
+                        <button
+                          onClick={clearSelectedFile}
+                          className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center space-x-3">
+                        <FileText className="h-12 w-12 text-muted-foreground" />
+                        <button
+                          onClick={clearSelectedFile}
+                          className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium flex items-center justify-center gap-2">
+                        {fileType === "image" ? (
+                          <>
+                            <ImageIcon className="h-4 w-4" />
+                            {selectedFile.name}
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="h-4 w-4" />
+                            {selectedFile.name}
+                          </>
+                        )}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-center space-x-3">
-                      <FileText className="h-12 w-12 text-muted-foreground" />
-                      <button
-                        onClick={clearSelectedFile}
-                        className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <Upload className="mx-auto h-12 w-12 text-muted-foreground" />
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">点击或拖拽文件到此处</p>
+                      <p className="text-xs text-muted-foreground">
+                        支持 JPG、PNG、BMP、GIF、WEBP、TIFF 图片格式
+                        <br />
+                        支持 PDF 文档格式
+                        <br />
+                        文件大小不超过 200 MB
+                      </p>
                     </div>
-                  )}
-                  <div>
-                    <p className="font-medium flex items-center justify-center gap-2">
-                      {fileType === "image" ? (
-                        <>
-                          <ImageIcon className="h-4 w-4" />
-                          {selectedFile.name}
-                        </>
-                      ) : (
-                        <>
-                          <FileText className="h-4 w-4" />
-                          {selectedFile.name}
-                        </>
-                      )}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
+                    <Input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={handleFileChange}
+                      className="hidden"
+                      id="file-input"
+                    />
+                    <Button asChild>
+                      <label htmlFor="file-input">选择文件</label>
+                    </Button>
                   </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <Upload className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">点击或拖拽文件到此处</p>
-                    <p className="text-xs text-muted-foreground">
-                      支持 JPG、PNG、BMP、GIF、WEBP、TIFF 图片格式
-                      <br />
-                      支持 PDF 文档格式
-                      <br />
-                      文件大小不超过 200 MB
-                    </p>
-                  </div>
-                  <Input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*,.pdf"
-                    onChange={handleFileChange}
-                    className="hidden"
-                    id="file-input"
-                  />
-                  <Button asChild>
-                    <label htmlFor="file-input">选择文件</label>
-                  </Button>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
-            {selectedFile && (
+            {fileInputMode === "url" && (
+              <div className="space-y-2">
+                <Label htmlFor="file-url">文件URL</Label>
+                <Input
+                  id="file-url"
+                  value={fileUrl}
+                  onChange={(e) => setFileUrl(e.target.value)}
+                  placeholder="https://example.com/image.png"
+                />
+                <p className="text-sm text-muted-foreground">
+                  输入图片或PDF文件的完整URL地址
+                </p>
+              </div>
+            )}
+
+            {fileInputMode === "local" && (
+              <div className="space-y-2">
+                <Label htmlFor="local-path">本地文件路径</Label>
+                <Input
+                  id="local-path"
+                  value={localPath}
+                  onChange={(e) => setLocalPath(e.target.value)}
+                  placeholder="/path/to/file.png"
+                />
+                <p className="text-sm text-muted-foreground">
+                  输入服务器上的本地文件路径（仅用于调试）
+                </p>
+              </div>
+            )}
+
+            {(selectedFile || fileUrl || localPath) && (
               <div className="flex justify-end">
                 <Button onClick={handleRecognize} disabled={isLoading}>
                   {isLoading ? (
@@ -500,11 +567,12 @@ export default function OCRPage() {
         <Eye className="h-4 w-4" />
         <AlertTitle>注意事项</AlertTitle>
         <AlertDescription>
-          - 请确保输入有效的GLM-OCR API Key
+          - 支持三种文件输入方式：上传文件、远程URL、本地路径（调试）
           - 图片大小不超过 200 MB，支持 JPG、PNG、BMP、GIF、WEBP、TIFF 格式
           - PDF 文件大小不超过 200 MB，无页数限制
           - 识别结果将保留在当前会话中，刷新页面后会丢失
           - JSON 模式需要配置 JSON Schema 以定义提取的字段结构
+          - 本地路径模式仅用于调试，请确保服务器有访问该文件的权限
         </AlertDescription>
       </Alert>
     </div>

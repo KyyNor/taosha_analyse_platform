@@ -68,49 +68,90 @@ def _cleanup_temp_file(file_path: str) -> None:
 
 @router.post("/ocr/recognize", summary="图片OCR识别")
 async def ocr_recognize(
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
+    file_url: Optional[str] = Form(None),
+    local_path: Optional[str] = Form(None),
     mode: str = Form("text"),
     json_schema: Optional[str] = Form(None),
-    api_key: Optional[str] = Form(None),
     current_user: UserInfo = Depends(get_current_user),
 ):
     """
     图片OCR识别接口
 
+    支持三种文件输入模式（三选一）：
+    1. file: 上传图片文件（支持 jpg, png, bmp, gif, webp, tiff）
+    2. file_url: 图片远程URL
+    3. local_path: 本地文件路径（仅用于调试）
+
     Args:
-        file: 上传的图片文件（支持 jpg, png, bmp, gif, webp, tiff）
+        file: 上传的图片文件
+        file_url: 图片远程URL
+        local_path: 本地文件路径
         mode: 识别模式（text/formula/table/json），默认 text
         json_schema: JSON格式模板（当mode=json时必填）
-        api_key: GLM-OCR API密钥（可选，可配置在系统中）
         current_user: 当前用户信息
 
     Returns:
         识别结果
     """
     temp_file_path = None
+
+    # 验证至少提供一种文件来源
+    if not any([file, file_url, local_path]):
+        raise HTTPException(
+            status_code=400,
+            detail="必须提供 file、file_url 或 local_path 参数"
+        )
+
+    # 验证没有提供多种文件来源
+    if sum([bool(file), bool(file_url), bool(local_path)]) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="file、file_url、local_path 参数只能提供一个"
+        )
+
     try:
-        logger.info(f"OCR识别请求 - 用户: {current_user.user_id}, 文件名: {file.filename}, 模式: {mode}")
-
-        # 验证文件格式
-        file_ext = Path(file.filename or "").suffix.lower()
-        if file_ext not in SUPPORTED_IMAGE_FORMATS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"不支持的图片格式: {file_ext}，支持的格式: {', '.join(SUPPORTED_IMAGE_FORMATS)}"
-            )
-
-        # 保存到临时文件
-        temp_file_path = _save_upload_file_tmp(file)
+        logger.info(f"OCR识别请求 - 用户: {current_user.user_id}, 模式: {mode}")
 
         # 初始化OCR服务
-        ocr_service = OCRService(api_key=api_key)
+        ocr_service = OCRService()
 
-        # 调用OCR识别
-        result = ocr_service.parse_image(
-            file_path=temp_file_path,
-            mode=mode,
-            json_schema=json_schema
-        )
+        # 根据不同的输入模式处理
+        if file:
+            # 上传文件模式
+            file_ext = Path(file.filename or "").suffix.lower()
+            if file_ext not in SUPPORTED_IMAGE_FORMATS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"不支持的图片格式: {file_ext}，支持的格式: {', '.join(SUPPORTED_IMAGE_FORMATS)}"
+                )
+            temp_file_path = _save_upload_file_tmp(file)
+            result = ocr_service.parse_image(
+                file_path=temp_file_path,
+                mode=mode,
+                json_schema=json_schema
+            )
+
+        elif file_url:
+            # 远程URL模式
+            result = ocr_service.parse_image(
+                file_url=file_url,
+                mode=mode,
+                json_schema=json_schema
+            )
+
+        else:  # local_path
+            # 本地路径模式（仅调试）
+            if not os.path.exists(local_path):
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"本地文件不存在: {local_path}"
+                )
+            result = ocr_service.parse_image(
+                file_path=local_path,
+                mode=mode,
+                json_schema=json_schema
+            )
 
         logger.info(f"OCR识别成功 - 用户: {current_user.user_id}")
 
@@ -137,49 +178,90 @@ async def ocr_recognize(
 
 @router.post("/ocr/parse_pdf", summary="PDF OCR识别")
 async def ocr_parse_pdf(
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
+    file_url: Optional[str] = Form(None),
+    local_path: Optional[str] = Form(None),
     mode: str = Form("text"),
     json_schema: Optional[str] = Form(None),
-    api_key: Optional[str] = Form(None),
     current_user: UserInfo = Depends(get_current_user),
 ):
     """
     PDF OCR识别接口
 
+    支持三种文件输入模式（三选一）：
+    1. file: 上传PDF文件
+    2. file_url: PDF远程URL
+    3. local_path: 本地文件路径（仅用于调试）
+
     Args:
         file: 上传的PDF文件
+        file_url: PDF远程URL
+        local_path: 本地文件路径
         mode: 识别模式（text/formula/table/json），默认 text
         json_schema: JSON格式模板（当mode=json时必填）
-        api_key: GLM-OCR API密钥（可选，可配置在系统中）
         current_user: 当前用户信息
 
     Returns:
         识别结果（包含每页的识别内容）
     """
     temp_file_path = None
+
+    # 验证至少提供一种文件来源
+    if not any([file, file_url, local_path]):
+        raise HTTPException(
+            status_code=400,
+            detail="必须提供 file、file_url 或 local_path 参数"
+        )
+
+    # 验证没有提供多种文件来源
+    if sum([bool(file), bool(file_url), bool(local_path)]) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="file、file_url、local_path 参数只能提供一个"
+        )
+
     try:
-        logger.info(f"PDF OCR识别请求 - 用户: {current_user.user_id}, 文件名: {file.filename}, 模式: {mode}")
-
-        # 验证文件格式
-        file_ext = Path(file.filename or "").suffix.lower()
-        if file_ext not in SUPPORTED_PDF_FORMATS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"不支持的文件格式: {file_ext}，仅支持PDF格式"
-            )
-
-        # 保存到临时文件
-        temp_file_path = _save_upload_file_tmp(file)
+        logger.info(f"PDF OCR识别请求 - 用户: {current_user.user_id}, 模式: {mode}")
 
         # 初始化OCR服务
-        ocr_service = OCRService(api_key=api_key)
+        ocr_service = OCRService()
 
-        # 调用PDF OCR识别
-        result = ocr_service.parse_pdf(
-            file_path=temp_file_path,
-            mode=mode,
-            json_schema=json_schema
-        )
+        # 根据不同的输入模式处理
+        if file:
+            # 上传文件模式
+            file_ext = Path(file.filename or "").suffix.lower()
+            if file_ext not in SUPPORTED_PDF_FORMATS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"不支持的文件格式: {file_ext}，仅支持PDF格式"
+                )
+            temp_file_path = _save_upload_file_tmp(file)
+            result = ocr_service.parse_pdf(
+                file_path=temp_file_path,
+                mode=mode,
+                json_schema=json_schema
+            )
+
+        elif file_url:
+            # 远程URL模式
+            result = ocr_service.parse_pdf(
+                file_url=file_url,
+                mode=mode,
+                json_schema=json_schema
+            )
+
+        else:  # local_path
+            # 本地路径模式（仅调试）
+            if not os.path.exists(local_path):
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"本地文件不存在: {local_path}"
+                )
+            result = ocr_service.parse_pdf(
+                file_path=local_path,
+                mode=mode,
+                json_schema=json_schema
+            )
 
         logger.info(f"PDF OCR识别成功 - 用户: {current_user.user_id}, 总页数: {result.total_pages}")
 
@@ -206,21 +288,19 @@ async def ocr_parse_pdf(
 
 @router.get("/ocr/health", summary="OCR服务健康检查")
 async def ocr_health_check(
-    api_key: Optional[str] = None,
     current_user: UserInfo = Depends(get_current_user),
 ):
     """
     OCR服务健康检查接口
 
     Args:
-        api_key: GLM-OCR API密钥（可选）
         current_user: 当前用户信息
 
     Returns:
         服务状态
     """
     try:
-        ocr_service = OCRService(api_key=api_key)
+        ocr_service = OCRService()
         is_healthy = ocr_service.health_check()
 
         return JSONResponse(

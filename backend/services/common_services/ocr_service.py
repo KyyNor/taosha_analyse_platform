@@ -8,6 +8,8 @@ import requests
 import os
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel
+import tempfile
+from urllib.parse import urlparse
 
 
 class ImagePreprocessInfo(BaseModel):
@@ -81,9 +83,75 @@ class OCRService:
             "X-API-Key": self.api_key
         }
 
+    def _download_file_from_url(self, url: str) -> str:
+        """
+        从URL下载文件到临时目录
+
+        Args:
+            url: 文件URL
+
+        Returns:
+            临时文件路径
+        """
+        try:
+            logger.info(f"从URL下载文件: {url}")
+            response = requests.get(url, timeout=30, stream=True)
+            response.raise_for_status()
+
+            # 从URL或Content-Type推断文件扩展名
+            content_type = response.headers.get("Content-Type", "")
+            url_path = urlparse(url).path
+
+            if ".pdf" in url_path.lower() or "application/pdf" in content_type:
+                ext = ".pdf"
+            elif ".png" in url_path.lower() or "image/png" in content_type:
+                ext = ".png"
+            elif ".jpg" in url_path.lower() or ".jpeg" in url_path.lower() or "image/jpeg" in content_type:
+                ext = ".jpg"
+            elif ".gif" in url_path.lower() or "image/gif" in content_type:
+                ext = ".gif"
+            elif ".webp" in url_path.lower() or "image/webp" in content_type:
+                ext = ".webp"
+            elif ".bmp" in url_path.lower() or "image/bmp" in content_type:
+                ext = ".bmp"
+            elif ".tiff" in url_path.lower() or "image/tiff" in content_type:
+                ext = ".tiff"
+            else:
+                ext = ".bin"  # 默认扩展名
+
+            # 保存到临时文件
+            temp_dir = tempfile.gettempdir()
+            temp_file_path = os.path.join(temp_dir, f"ocr_download_{os.urandom(8).hex()}{ext}")
+
+            with open(temp_file_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+            logger.info(f"文件已下载到: {temp_file_path}")
+            return temp_file_path
+
+        except Exception as e:
+            logger.error(f"下载文件失败: {str(e)}")
+            raise Exception(f"下载文件失败: {str(e)}")
+
+    def _cleanup_temp_file(self, file_path: str) -> None:
+        """
+        清理临时文件
+
+        Args:
+            file_path: 临时文件路径
+        """
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                logger.info(f"临时文件已删除: {file_path}")
+        except Exception as e:
+            logger.warning(f"删除临时文件失败: {file_path}, 错误: {str(e)}")
+
     def parse_image(
         self,
-        file_path: str,
+        file_path: Optional[str] = None,
+        file_url: Optional[str] = None,
         mode: str = MODE_TEXT,
         json_schema: Optional[str] = None
     ) -> OCRResult:
@@ -91,7 +159,8 @@ class OCRService:
         对单张图片进行OCR文字识别
 
         Args:
-            file_path: 图片文件的完整路径
+            file_path: 图片文件的完整路径（本地文件）
+            file_url: 图片文件的远程URL（远程文件）
             mode: 识别模式（text/formula/table/json）
             json_schema: JSON格式模板（当mode=json时必填）
 
@@ -102,28 +171,39 @@ class OCRService:
             ValueError: 参数校验失败
             Exception: API调用失败
         """
-        # 参数校验
-        if mode not in self.ALL_MODES:
-            raise ValueError(f"不支持的识别模式: {mode}，支持的模式: {', '.join(self.ALL_MODES)}")
-
-        if mode == self.MODE_JSON and not json_schema:
-            raise ValueError("使用 json 模式时必须提供 json_schema 参数")
-
-        # 检查文件是否存在
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"文件不存在: {file_path}")
+        temp_file = None
+        actual_file_path = file_path
 
         try:
+            # 参数校验
+            if mode not in self.ALL_MODES:
+                raise ValueError(f"不支持的识别模式: {mode}，支持的模式: {', '.join(self.ALL_MODES)}")
+
+            if mode == self.MODE_JSON and not json_schema:
+                raise ValueError("使用 json 模式时必须提供 json_schema 参数")
+
+            # 确定文件来源
+            if file_url:
+                # 从URL下载文件
+                temp_file = self._download_file_from_url(file_url)
+                actual_file_path = temp_file
+            elif not file_path:
+                raise ValueError("必须提供 file_path 或 file_url 参数")
+
+            # 检查文件是否存在
+            if not os.path.exists(actual_file_path):
+                raise FileNotFoundError(f"文件不存在: {actual_file_path}")
+
             # 构建请求参数
             data = {
-                "file_path": file_path,
+                "file_path": actual_file_path,
                 "mode": mode
             }
 
             if json_schema:
                 data["json_schema"] = json_schema
 
-            logger.info(f"调用GLM-OCR API - 文件: {file_path}, 模式: {mode}")
+            logger.info(f"调用GLM-OCR API - 文件: {actual_file_path}, 模式: {mode}")
 
             # 发送请求
             response = requests.post(
@@ -137,7 +217,7 @@ class OCRService:
             response.raise_for_status()
             result = response.json()
 
-            logger.info(f"GLM-OCR API调用成功 - 文件: {file_path}")
+            logger.info(f"GLM-OCR API调用成功 - 文件: {actual_file_path}")
 
             return OCRResult(**result)
 
@@ -148,10 +228,15 @@ class OCRService:
         except Exception as e:
             logger.error(f"OCR识别过程中出错: {str(e)}")
             raise
+        finally:
+            # 清理临时文件
+            if temp_file:
+                self._cleanup_temp_file(temp_file)
 
     def parse_pdf(
         self,
-        file_path: str,
+        file_path: Optional[str] = None,
+        file_url: Optional[str] = None,
         mode: str = MODE_TEXT,
         json_schema: Optional[str] = None
     ) -> PDFResult:
@@ -159,7 +244,8 @@ class OCRService:
         对PDF文件进行多页OCR文字识别
 
         Args:
-            file_path: PDF文件的完整路径
+            file_path: PDF文件的完整路径（本地文件）
+            file_url: PDF文件的远程URL（远程文件）
             mode: 识别模式（text/formula/table/json）
             json_schema: JSON格式模板（当mode=json时必填）
 
@@ -170,28 +256,39 @@ class OCRService:
             ValueError: 参数校验失败
             Exception: API调用失败
         """
-        # 参数校验
-        if mode not in self.ALL_MODES:
-            raise ValueError(f"不支持的识别模式: {mode}，支持的模式: {', '.join(self.ALL_MODES)}")
-
-        if mode == self.MODE_JSON and not json_schema:
-            raise ValueError("使用 json 模式时必须提供 json_schema 参数")
-
-        # 检查文件是否存在
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"文件不存在: {file_path}")
+        temp_file = None
+        actual_file_path = file_path
 
         try:
+            # 参数校验
+            if mode not in self.ALL_MODES:
+                raise ValueError(f"不支持的识别模式: {mode}，支持的模式: {', '.join(self.ALL_MODES)}")
+
+            if mode == self.MODE_JSON and not json_schema:
+                raise ValueError("使用 json 模式时必须提供 json_schema 参数")
+
+            # 确定文件来源
+            if file_url:
+                # 从URL下载文件
+                temp_file = self._download_file_from_url(file_url)
+                actual_file_path = temp_file
+            elif not file_path:
+                raise ValueError("必须提供 file_path 或 file_url 参数")
+
+            # 检查文件是否存在
+            if not os.path.exists(actual_file_path):
+                raise FileNotFoundError(f"文件不存在: {actual_file_path}")
+
             # 构建请求参数
             data = {
-                "file_path": file_path,
+                "file_path": actual_file_path,
                 "mode": mode
             }
 
             if json_schema:
                 data["json_schema"] = json_schema
 
-            logger.info(f"调用GLM-OCR PDF API - 文件: {file_path}, 模式: {mode}")
+            logger.info(f"调用GLM-OCR PDF API - 文件: {actual_file_path}, 模式: {mode}")
 
             # 发送请求
             response = requests.post(
@@ -205,7 +302,7 @@ class OCRService:
             response.raise_for_status()
             result = response.json()
 
-            logger.info(f"GLM-OCR PDF API调用成功 - 文件: {file_path}, 总页数: {result.get('total_pages', 0)}")
+            logger.info(f"GLM-OCR PDF API调用成功 - 文件: {actual_file_path}, 总页数: {result.get('total_pages', 0)}")
 
             return PDFResult(**result)
 
@@ -216,6 +313,10 @@ class OCRService:
         except Exception as e:
             logger.error(f"PDF OCR识别过程中出错: {str(e)}")
             raise
+        finally:
+            # 清理临时文件
+            if temp_file:
+                self._cleanup_temp_file(temp_file)
 
     def health_check(self) -> bool:
         """

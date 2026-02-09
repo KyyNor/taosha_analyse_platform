@@ -61,22 +61,34 @@ export interface HealthCheckResult {
   message: string;
 }
 
+// 文件输入模式
+export type FileInputMode = "upload" | "url" | "local";
+
 export const commonServices = {
   // 图片OCR识别
   async ocrRecognize(
-    file: File,
-    mode: OCRMode = "text",
-    jsonSchema?: string,
-    apiKey?: string
+    params: {
+      mode: OCRMode;
+      jsonSchema?: string;
+      file?: File;
+      fileUrl?: string;
+      localPath?: string;
+    }
   ): Promise<OCRResult<OCRImageData>> {
     const formData = new FormData();
-    formData.append("file", file);
-    formData.append("mode", mode);
-    if (jsonSchema) {
-      formData.append("json_schema", jsonSchema);
+    formData.append("mode", params.mode);
+
+    if (params.jsonSchema) {
+      formData.append("json_schema", params.jsonSchema);
     }
-    if (apiKey) {
-      formData.append("api_key", apiKey);
+
+    // 根据输入模式添加不同的参数
+    if (params.file) {
+      formData.append("file", params.file);
+    } else if (params.fileUrl) {
+      formData.append("file_url", params.fileUrl);
+    } else if (params.localPath) {
+      formData.append("local_path", params.localPath);
     }
 
     const response = await api.post(`${BASE_PATH}/ocr/recognize`, formData, {
@@ -89,19 +101,28 @@ export const commonServices = {
 
   // PDF OCR识别
   async ocrParsePDF(
-    file: File,
-    mode: OCRMode = "text",
-    jsonSchema?: string,
-    apiKey?: string
+    params: {
+      mode: OCRMode;
+      jsonSchema?: string;
+      file?: File;
+      fileUrl?: string;
+      localPath?: string;
+    }
   ): Promise<OCRResult<PDFImageData>> {
     const formData = new FormData();
-    formData.append("file", file);
-    formData.append("mode", mode);
-    if (jsonSchema) {
-      formData.append("json_schema", jsonSchema);
+    formData.append("mode", params.mode);
+
+    if (params.jsonSchema) {
+      formData.append("json_schema", params.jsonSchema);
     }
-    if (apiKey) {
-      formData.append("api_key", apiKey);
+
+    // 根据输入模式添加不同的参数
+    if (params.file) {
+      formData.append("file", params.file);
+    } else if (params.fileUrl) {
+      formData.append("file_url", params.fileUrl);
+    } else if (params.localPath) {
+      formData.append("local_path", params.localPath);
     }
 
     const response = await api.post(`${BASE_PATH}/ocr/parse_pdf`, formData, {
@@ -113,9 +134,8 @@ export const commonServices = {
   },
 
   // OCR服务健康检查
-  async ocrHealthCheck(apiKey?: string): Promise<HealthCheckResult> {
-    const params = apiKey ? { api_key: apiKey } : {};
-    const response = await api.get(`${BASE_PATH}/ocr/health`, { params });
+  async ocrHealthCheck(): Promise<HealthCheckResult> {
+    const response = await api.get(`${BASE_PATH}/ocr/health`);
     return response.data;
   },
 };
