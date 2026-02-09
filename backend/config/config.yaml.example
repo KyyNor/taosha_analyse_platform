@@ -69,10 +69,11 @@ embedding:
   dimensions: 1024  # embedding维度（可选，系统会自动检测）
   reranker_model: "bge-reranker-v2-m3"  # reranker模型名称
 
+# GLM-OCR 本地服务配置
 glm_ocr:
-  api_key: ""  # 从环境变量 GLM_OCR_API_KEY 读取
-  base_url: "https://open.bigmodel.cn/api/paas/v4"  # 从环境变量 GLM_OCR_BASE_URL 读取
-  timeout: 60  # 请求超时时间（秒）
+  api_key: ""  # 从环境变量 GLM_OCR_API_KEY 读取（默认: test-key）
+  base_url: "http://localhost:8000"  # 从环境变量 GLM_OCR_BASE_URL 读取
+  timeout: 120  # 请求超时时间（秒），建议适当增加以支持PDF处理
 
 # 向量存储配置
 vector_store:
