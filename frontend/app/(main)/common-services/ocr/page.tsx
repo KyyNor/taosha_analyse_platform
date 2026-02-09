@@ -10,7 +10,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Download, Upload, Eye, X, FileText, Image as ImageIcon, CheckCircle, XCircle, Loader2, Link, FolderOpen } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Copy, Download, Upload, Eye, X, FileText, Image as ImageIcon, CheckCircle, XCircle, Loader2, Link, FolderOpen, BookOpen, Code } from "lucide-react";
 import { commonServices, type OCRMode, type OCRImageData, type PDFImageData, type FileInputMode } from "@/lib/services/commonServices";
 import { toast } from "sonner";
 
@@ -27,6 +36,7 @@ export default function OCRPage() {
   const [mode, setMode] = useState<OCRMode>("text");
   const [jsonSchema, setJsonSchema] = useState("");
   const [healthStatus, setHealthStatus] = useState<"running" | "unavailable" | "error" | null>(null);
+  const [showApiDocs, setShowApiDocs] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 从localStorage加载JSON Schema
@@ -260,29 +270,268 @@ export default function OCRPage() {
             支持图片和PDF文件识别，提供多种识别模式
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={handleHealthCheck}
-          disabled={isHealthChecking}
-        >
-          {isHealthChecking ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              检查中
-            </>
-          ) : (
-            <>
-              {healthStatus === "running" ? (
-                <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
-              ) : healthStatus === "error" ? (
-                <XCircle className="mr-2 h-4 w-4 text-red-500" />
-              ) : (
-                <Eye className="mr-2 h-4 w-4" />
-              )}
-              服务状态
-            </>
-          )}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Dialog open={showApiDocs} onOpenChange={setShowApiDocs}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <BookOpen className="mr-2 h-4 w-4" />
+                API文档
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[80vh]">
+              <DialogHeader>
+                <DialogTitle>OCR API 文档</DialogTitle>
+                <DialogDescription>
+                  提供 RESTful API 接口，支持图片和PDF文件的OCR文字识别
+                </DialogDescription>
+              </DialogHeader>
+              <ScrollArea className="max-h-[60vh] pr-4">
+                <div className="space-y-6">
+                  {/* API端点 */}
+                  <section>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <Code className="h-5 w-5" />
+                      API端点
+                    </h3>
+                    <div className="space-y-3">
+                      <Card>
+                        <CardContent className="pt-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="default">POST</Badge>
+                              <code className="text-sm bg-muted px-2 py-1 rounded">
+                                /api/taosha/v1/common-services/ocr/recognize
+                              </code>
+                            </div>
+                            <p className="text-sm text-muted-foreground">图片OCR识别接口</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="default">POST</Badge>
+                              <code className="text-sm bg-muted px-2 py-1 rounded">
+                                /api/taosha/v1/common-services/ocr/parse_pdf
+                              </code>
+                            </div>
+                            <p className="text-sm text-muted-foreground">PDF OCR识别接口</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </section>
+
+                  <Separator />
+
+                  {/* 请求参数 */}
+                  <section>
+                    <h3 className="text-lg font-semibold mb-3">请求参数</h3>
+                    <div className="space-y-4">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">文件输入（三选一）</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3 text-sm">
+                            <div className="flex items-start gap-3">
+                              <Badge variant="outline">file</Badge>
+                              <div className="flex-1">
+                                <p className="font-medium">上传文件</p>
+                                <p className="text-muted-foreground">通过 FormData 上传图片或PDF文件</p>
+                              </div>
+                            </div>
+                            <Separator />
+                            <div className="flex items-start gap-3">
+                              <Badge variant="outline">file_url</Badge>
+                              <div className="flex-1">
+                                <p className="font-medium">远程URL</p>
+                                <p className="text-muted-foreground">服务器自动下载文件进行识别</p>
+                              </div>
+                            </div>
+                            <Separator />
+                            <div className="flex items-start gap-3">
+                              <Badge variant="outline">local_path</Badge>
+                              <div className="flex-1">
+                                <p className="font-medium">本地路径</p>
+                                <p className="text-muted-foreground">服务器本地文件路径（仅调试使用）</p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">识别参数</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3 text-sm">
+                            <div className="flex items-start gap-3">
+                              <Badge variant="secondary">mode</Badge>
+                              <div className="flex-1">
+                                <p className="font-medium">识别模式</p>
+                                <p className="text-muted-foreground">可选值: text（默认）、formula、table、json</p>
+                              </div>
+                            </div>
+                            <Separator />
+                            <div className="flex items-start gap-3">
+                              <Badge variant="secondary">json_schema</Badge>
+                              <div className="flex-1">
+                                <p className="font-medium">JSON Schema</p>
+                                <p className="text-muted-foreground">当 mode=json 时必填，定义结构化数据提取模板</p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </section>
+
+                  <Separator />
+
+                  {/* 识别模式 */}
+                  <section>
+                    <h3 className="text-lg font-semibold mb-3">识别模式说明</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Card>
+                        <CardContent className="pt-4">
+                          <div className="space-y-1">
+                            <Badge variant="outline">text</Badge>
+                            <p className="text-sm font-medium">普通文本</p>
+                            <p className="text-xs text-muted-foreground">识别文档、截图中的文字内容</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-4">
+                          <div className="space-y-1">
+                            <Badge variant="outline">formula</Badge>
+                            <p className="text-sm font-medium">公式识别</p>
+                            <p className="text-xs text-muted-foreground">识别数学公式、化学式等</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-4">
+                          <div className="space-y-1">
+                            <Badge variant="outline">table</Badge>
+                            <p className="text-sm font-medium">表格识别</p>
+                            <p className="text-xs text-muted-foreground">识别表格结构及内容</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-4">
+                          <div className="space-y-1">
+                            <Badge variant="outline">json</Badge>
+                            <p className="text-sm font-medium">结构化提取</p>
+                            <p className="text-xs text-muted-foreground">按指定JSON格式提取信息</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </section>
+
+                  <Separator />
+
+                  {/* 响应格式 */}
+                  <section>
+                    <h3 className="text-lg font-semibold mb-3">响应格式</h3>
+                    <Card>
+                      <CardContent className="pt-4">
+                        <pre className="text-xs bg-muted p-4 rounded-lg overflow-x-auto">
+{`{
+  "success": true,
+  "data": {
+    "success": true,
+    "result": "识别出的文字内容",
+    "mode": "text",
+    "preprocess": {
+      "original_size": [1920, 1080],
+      "processed_size": [1920, 1080],
+      "image_type": "normal_photo",
+      "resized": false
+    }
+  },
+  "message": "识别成功"
+}`}
+                        </pre>
+                      </CardContent>
+                    </Card>
+                  </section>
+
+                  <Separator />
+
+                  {/* 使用示例 */}
+                  <section>
+                    <h3 className="text-lg font-semibold mb-3">使用示例</h3>
+                    <Card>
+                      <CardContent className="pt-4">
+                        <Tabs defaultValue="upload">
+                          <TabsList className="grid w-full grid-cols-3">
+                            <TabsTrigger value="upload">上传文件</TabsTrigger>
+                            <TabsTrigger value="url">远程URL</TabsTrigger>
+                            <TabsTrigger value="local">本地路径</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="upload" className="mt-4">
+                            <pre className="text-xs bg-muted p-4 rounded-lg overflow-x-auto">
+{`curl -X POST \\
+  http://localhost:50020/api/taosha/v1/common-services/ocr/recognize \\
+  -F "file=@image.png" \\
+  -F "mode=text"`}
+                            </pre>
+                          </TabsContent>
+                          <TabsContent value="url" className="mt-4">
+                            <pre className="text-xs bg-muted p-4 rounded-lg overflow-x-auto">
+{`curl -X POST \\
+  http://localhost:50020/api/taosha/v1/common-services/ocr/recognize \\
+  -F "file_url=https://example.com/image.png" \\
+  -F "mode=text"`}
+                            </pre>
+                          </TabsContent>
+                          <TabsContent value="local" className="mt-4">
+                            <pre className="text-xs bg-muted p-4 rounded-lg overflow-x-auto">
+{`curl -X POST \\
+  http://localhost:50020/api/taosha/v1/common-services/ocr/recognize \\
+  -F "local_path=/tmp/test.png" \\
+  -F "mode=text"`}
+                            </pre>
+                          </TabsContent>
+                        </Tabs>
+                      </CardContent>
+                    </Card>
+                  </section>
+                </div>
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
+
+          <Button
+            variant="outline"
+            onClick={handleHealthCheck}
+            disabled={isHealthChecking}
+          >
+            {isHealthChecking ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                检查中
+              </>
+            ) : (
+              <>
+                {healthStatus === "running" ? (
+                  <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
+                ) : healthStatus === "error" ? (
+                  <XCircle className="mr-2 h-4 w-4 text-red-500" />
+                ) : (
+                  <Eye className="mr-2 h-4 w-4" />
+                )}
+                服务状态
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       <Card>
