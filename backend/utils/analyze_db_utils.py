@@ -488,6 +488,18 @@ class AnalyzeDBPartitionManager:
                             f"删除分区失败: {partition_name}"
                         ):
                             deleted_count += 1
+                elif len(date_str) == 12 and date_str.isdigit(): # (实时分区格式: table_name_YYYYMMDDHHmmSS)
+                    partition_date = datetime.strptime(date_str, '%Y%m%d%H%M')
+
+                    # 删除超过保留期的分区
+                    if partition_date < cutoff_date:
+                        sql = f"DROP TABLE IF EXISTS {partition_name};"
+                        if AnalyzeDBPartitionManager._execute_ddl(
+                            sql,
+                            f"删除旧分区: {partition_name}",
+                            f"删除分区失败: {partition_name}"
+                        ):
+                            deleted_count += 1
             except (ValueError, IndexError) as e:
                 logger.warning(f"跳过无法解析日期的分区: {partition_name}, 错误={e}")
                 continue

@@ -235,6 +235,7 @@ class ConfigManager:
             glm_ocr_api_key: Optional[str] = os.getenv("GLM_OCR_API_KEY") or self._config_data.get('glm_ocr', {}).get('api_key', 'test-key')
             glm_ocr_base_url: Optional[str] = os.getenv("GLM_OCR_BASE_URL") or self._config_data.get('glm_ocr', {}).get('base_url', 'http://localhost:8000')
             glm_ocr_timeout: int = self._config_data.get('glm_ocr', {}).get('timeout', 120)
+            glm_ocr_images_path: Optional[str] = self._config_data.get('glm_ocr', {}).get('images_path', "/data/taosha/glm_ocr_images")
 
             # FraudHunter 实时数据配置
             fraudhunter_realtime_data_enabled: bool = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('enabled', False)
