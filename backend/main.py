@@ -127,20 +127,19 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
             registered_count += 1
 
         # PostgreSQL数据清理任务
-        if settings.fraudhunter_realtime_data_enabled:
-            from services.scheduler.jobs.postgres_data_cleanup_job import postgres_data_cleanup_job
-            job_id = 'postgres_data_cleanup'
+        from services.scheduler.jobs.postgres_data_cleanup_job import postgres_data_cleanup_job
+        job_id = 'postgres_data_cleanup'
 
-            if job_id in assigned_tasks:
-                scheduler_service.add_cron_job(
-                    func=postgres_data_cleanup_job,
-                    cron=settings.scheduler_postgres_data_cleanup_cron,
-                    job_id=job_id,
-                    job_name='PostgreSQL数据清理'
-                )
-                registered_count += 1
-            else:
-                logger.info(f"跳过任务 PostgreSQL数据清理（未分配给当前worker）")
+        if job_id in assigned_tasks:
+            scheduler_service.add_cron_job(
+                func=postgres_data_cleanup_job,
+                cron=settings.scheduler_postgres_data_cleanup_cron,
+                job_id=job_id,
+                job_name='PostgreSQL数据清理'
+            )
+            registered_count += 1
+        else:
+            logger.info(f"跳过任务 PostgreSQL数据清理（未分配给当前worker）")
 
         # 启动调度器
         scheduler_service.start()
