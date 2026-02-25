@@ -76,7 +76,9 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
             generate_realtime_wide_table_job,
             metadata_sync_job,
             fine_report_sync_job,
-            vector_training_job
+            vector_training_job,
+            mysql_data_cleanup_job,
+            postgres_data_cleanup_job
         )
 
         # 定义默认任务组（二维数组）
@@ -84,7 +86,7 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
             ['generate_realtime_wide_table_job'],                   # 组0：实时宽表生成
             ['offline_wide_table_sync'],                            # 组1：离线宽表同步
             ['fine_report_sync', 'metadata_sync'],                  # 组2：FineReport同步
-            ['vector_training', 'postgres_data_cleanup']            # 组3：向量训练 + 数据清理
+            ['vector_training', 'postgres_data_cleanup', 'mysql_data_cleanup']            # 组3：向量训练 + 数据清理
         ]
 
         # 获取当前worker分配的任务（轮询算法）
@@ -100,46 +102,44 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
         # 定义所有可注册的任务
         jobs_to_register = [
             ('offline_wide_table_sync', sync_all_wide_tables_job,
-             settings.scheduler_offline_wide_table_sync, '离线指标宽表同步'),
+             settings.scheduler_offline_wide_table_sync, '离线指标宽表同步', 'interval'),
             ('generate_realtime_wide_table_job', generate_realtime_wide_table_job,
-             settings.scheduler_model_runner_interval, '实时指标宽表生成'),
+             settings.scheduler_model_runner_interval, '实时指标宽表生成', 'interval'),
             ('metadata_sync', metadata_sync_job,
-             settings.scheduler_metadata_sync_interval, '元数据同步'),
+             settings.scheduler_metadata_sync_interval, '元数据同步', 'interval'),
             ('fine_report_sync', fine_report_sync_job,
-             settings.scheduler_fine_report_sync_interval, 'FineReport报表同步'),
+             settings.scheduler_fine_report_sync_interval, 'FineReport报表同步', 'interval'),
             ('vector_training', vector_training_job,
-             settings.scheduler_vector_training_interval, '向量数据库训练'),
+             settings.scheduler_vector_training_interval, '向量数据库训练', 'interval'),
+            ('postgres_data_cleanup', postgres_data_cleanup_job,
+             settings.scheduler_postgres_data_cleanup_cron, 'PostgreSQL数据清理', 'cron'),
+            ('mysql_data_cleanup', mysql_data_cleanup_job,
+             settings.scheduler_mysql_data_cleanup_cron, 'MysqlSQL数据清理', 'cron'),
         ]
 
         registered_count = 0
-        for job_id, job_func, interval, job_name in jobs_to_register:
+        for job_id, job_func, trigger_info, job_name, job_type in jobs_to_register:
             # 检查任务是否在当前worker的分配列表中
             if job_id not in assigned_tasks:
                 logger.info(f"跳过任务 {job_name}（未分配给当前worker）")
                 continue
 
-            scheduler_service.add_interval_job(
-                func=job_func,
-                seconds=interval,
-                job_id=job_id,
-                job_name=job_name
-            )
+            if job_type == 'interval':
+                scheduler_service.add_interval_job(
+                    func=job_func,
+                    seconds=trigger_info,
+                    job_id=job_id,
+                    job_name=job_name
+                )
+            elif job_type == 'cron':
+                scheduler_service.add_cron_job(
+                    func=job_func,
+                    cron=trigger_info,
+                    job_id=job_id,
+                    job_name=job_name
+                )
             registered_count += 1
 
-        # PostgreSQL数据清理任务
-        from services.scheduler.jobs.postgres_data_cleanup_job import postgres_data_cleanup_job
-        job_id = 'postgres_data_cleanup'
-
-        if job_id in assigned_tasks:
-            scheduler_service.add_cron_job(
-                func=postgres_data_cleanup_job,
-                cron=settings.scheduler_postgres_data_cleanup_cron,
-                job_id=job_id,
-                job_name='PostgreSQL数据清理'
-            )
-            registered_count += 1
-        else:
-            logger.info(f"跳过任务 PostgreSQL数据清理（未分配给当前worker）")
 
         # 启动调度器
         scheduler_service.start()
