@@ -27,7 +27,7 @@ async def _cleanup_history_model_execution():
     try:
         with get_db_session() as session:
             # 计算一个月前的时间
-            max_delete_num = 30000
+            max_delete_num = 50000
             cleanup_timeline = datetime.now() - timedelta(days=30)
 
             formatted_date = cleanup_timeline.strftime('%Y-%m-%d %H:%M:%S')
