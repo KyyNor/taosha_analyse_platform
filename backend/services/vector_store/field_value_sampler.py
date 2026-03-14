@@ -58,6 +58,9 @@ class FieldValueSampler(LoggerMixin):
         # 采样结果缓存
         self._cache: Dict[str, Dict] = {}
 
+        # 日期分区字段缓存（避免重复查询元数据库）
+        self._date_partition_cache: Dict[str, Optional[str]] = {}
+
     def sample_field_values(
         self,
         table_name: str,
@@ -166,26 +169,52 @@ class FieldValueSampler(LoggerMixin):
     def _detect_date_partition_column(self, table_name: str) -> Optional[str]:
         """检测表的日期分区字段
 
+        使用缓存避免重复查询元数据库
+
         Args:
-            table_name: 表名
+            table_name: 表名（可能包含数据库前缀，如database.table）
 
         Returns:
             日期分区字段名，如果未找到则返回None
         """
+        # 检查缓存
+        if table_name in self._date_partition_cache:
+            return self._date_partition_cache[table_name]
+
         try:
-            # 获取表的所有字段
-            columns = self.column_repo.search_columns("")
+            from repositories.metadata_repository import MetadataTableRepository
+            table_repo = MetadataTableRepository(self.db)
+
+            # 从表名中提取实际表名（可能包含数据库前缀，如database.table）
+            actual_table_name = table_name.split('.')[-1] if '.' in table_name else table_name
+
+            # 根据表名获取表信息
+            table = table_repo.get_by_name(actual_table_name)
+
+            if not table:
+                # 未找到表，缓存None
+                self._date_partition_cache[table_name] = None
+                return None
+
+            # 获取该表的所有字段
+            columns = self.column_repo.get_by_table_id(table.id)
 
             # 查找可能的日期分区字段
             for col in columns:
                 if col.name.lower() in self.DATE_PARTITION_FIELDS:
-                    self.logger.debug(f"检测到日期分区字段: {col.name}")
+                    self.logger.debug(f"检测到日期分区字段: {col.name} (表: {table_name})")
+                    # 缓存结果
+                    self._date_partition_cache[table_name] = col.name
                     return col.name
 
+            # 未找到日期分区字段，缓存None避免重复查询
+            self._date_partition_cache[table_name] = None
             return None
 
         except Exception as e:
-            self.logger.warning(f"检测日期分区字段失败: {e}")
+            self.logger.warning(f"检测日期分区字段失败 (表: {table_name}): {e}")
+            # 出错时也缓存None，避免重复出错
+            self._date_partition_cache[table_name] = None
             return None
 
     def _build_sample_query(
