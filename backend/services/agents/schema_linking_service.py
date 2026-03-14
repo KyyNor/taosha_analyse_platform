@@ -27,12 +27,15 @@ class SchemaLinkingResult:
         selected_tables: List[str],
         reasoning: str,
         candidate_count: int,
-        use_fallback: bool = False
+        use_fallback: bool = False,
+        table_schemas: Optional[Dict[str, str]] = None
     ):
         self.selected_tables = selected_tables
         self.reasoning = reasoning
         self.candidate_count = candidate_count
         self.use_fallback = use_fallback
+        # 新增：每个选中表的完整schema信息（包含表级+字段级）
+        self.table_schemas = table_schemas or {}
 
     def to_dict(self) -> Dict:
         """转换为字典"""
@@ -40,7 +43,8 @@ class SchemaLinkingResult:
             "selected_tables": self.selected_tables,
             "reasoning": self.reasoning,
             "candidate_count": self.candidate_count,
-            "use_fallback": self.use_fallback
+            "use_fallback": self.use_fallback,
+            "table_schemas": self.table_schemas
         }
 
 
@@ -176,14 +180,17 @@ class SchemaLinkingService(LoggerMixin):
         question: str,
         top_k: int = 10
     ) -> List[Dict]:
-        """向量检索候选表
+        """两阶段向量检索候选表（适配分块存储）
+
+        第一阶段：检索表级chunks，找到候选表
+        第二阶段：对于每个候选表，检索其字段级chunks，组装完整schema
 
         Args:
             question: 用户问题
             top_k: 召回数量
 
         Returns:
-            候选表列表，每个元素包含表名、schema摘要、分数等信息
+            候选表列表，每个元素包含表名、完整schema摘要、分数等信息
         """
         try:
             # 检查向量存储是否可用
@@ -191,37 +198,109 @@ class SchemaLinkingService(LoggerMixin):
                 self.logger.warning("向量存储不可用，无法进行向量检索")
                 return []
 
-            # 使用向量存储检索相关表
+            # ===== 第一阶段：检索表级chunks =====
+            self.logger.info("第一阶段：检索表级chunks")
             search_results = self.vector_store.search(
                 query_text=question,
-                collection_name="table",  # 表向量集合
+                collection_name="table",
                 limit=top_k
             )
 
             if not search_results:
                 return []
 
-            # 解析搜索结果
-            candidates = []
+            # 解析搜索结果，提取候选表
+            candidate_tables = {}  # {table_name: {score, table_chunk, field_chunks}}
+
             for result in search_results:
                 metadata = result.get("metadata", {})
                 table_name = metadata.get("table_name", "")
                 score = result.get("score", 0.0)
+                chunk_type = metadata.get("chunk_type", "single")
+                separated = metadata.get("separated", 0)
 
-                if table_name:
-                    candidates.append({
-                        "table_name": table_name,
+                if not table_name:
+                    continue
+
+                # 初始化表记录
+                if table_name not in candidate_tables:
+                    candidate_tables[table_name] = {
                         "score": score,
-                        "summary": result.get("payload", ""),  # Schema摘要
-                        "metadata": metadata
-                    })
+                        "table_level_summary": "",
+                        "field_level_summaries": []
+                    }
 
-            self.logger.info(f"向量检索召回 {len(candidates)} 个候选表")
+                # 根据chunk类型分别存储
+                if chunk_type == "table_level" or separated == 0:
+                    # 表级chunk（包含小表的完整信息或大表的表级信息）
+                    candidate_tables[table_name]["table_level_summary"] = result.get("payload", "")
+                    candidate_tables[table_name]["score"] = score  # 更新分数
+                elif chunk_type == "field_level":
+                    # 字段级chunk
+                    candidate_tables[table_name]["field_level_summaries"].append(result.get("payload", ""))
+
+            self.logger.info(f"第一阶段召回 {len(candidate_tables)} 个候选表")
+
+            # ===== 第二阶段：组装完整schema =====
+            self.logger.info("第二阶段：组装完整schema")
+            candidates = []
+            for table_name, table_data in candidate_tables.items():
+                # 组合表级和字段级信息
+                full_schema = self._assemble_table_schema(
+                    table_data["table_level_summary"],
+                    table_data["field_level_summaries"]
+                )
+
+                candidates.append({
+                    "table_name": table_name,
+                    "score": table_data["score"],
+                    "summary": full_schema,  # 完整的schema信息
+                    "table_level": table_data["table_level_summary"],  # 表级信息（用于LLM筛选）
+                    "field_level": "\n".join(table_data["field_level_summaries"]),  # 字段级信息
+                    "metadata": {
+                        "table_name": table_name,
+                        "has_field_chunks": len(table_data["field_level_summaries"]) > 0
+                    }
+                })
+
+            self.logger.info(f"第二阶段组装完成，返回 {len(candidates)} 个候选表的完整schema")
             return candidates
 
         except Exception as e:
             self.logger.error(f"向量检索失败: {e}")
             return []
+
+    def _assemble_table_schema(
+        self,
+        table_level_summary: str,
+        field_level_summaries: List[str]
+    ) -> str:
+        """组装表的完整schema（表级 + 字段级）
+
+        Args:
+            table_level_summary: 表级摘要
+            field_level_summaries: 字段级摘要列表
+
+        Returns:
+            完整的schema字符串
+        """
+        parts = []
+
+        # 添加表级信息
+        if table_level_summary:
+            parts.append(table_level_summary)
+
+        # 添加字段级信息
+        if field_level_summaries:
+            parts.append("\n【字段详细信息】")
+            for field_summary in field_level_summaries:
+                # 移除每个字段级chunk的标题，避免重复
+                clean_summary = field_summary.replace("【字段详细信息 Part 1】", "")
+                clean_summary = clean_summary.replace("【字段详细信息 Part 2】", "")
+                clean_summary = clean_summary.replace("【字段详细信息 Part 3】", "")
+                parts.append(clean_summary)
+
+        return "\n".join(parts)
 
     async def _llm_filter_tables(
         self,
@@ -274,21 +353,44 @@ class SchemaLinkingService(LoggerMixin):
                 ]
                 result["use_fallback"] = True
 
+            # 构建每个选中表的完整schema（包含字段级信息）
+            table_schemas = {}
+            for table_name in result["selected_tables"]:
+                table_info = next(
+                    (t for t in candidate_tables if t["table_name"] == table_name),
+                    None
+                )
+                if table_info:
+                    table_schemas[table_name] = table_info.get("summary", "")
+
             return SchemaLinkingResult(
                 selected_tables=result["selected_tables"],
                 reasoning=result["reasoning"],
                 candidate_count=len(candidate_tables),
-                use_fallback=result.get("use_fallback", False)
+                use_fallback=result.get("use_fallback", False),
+                table_schemas=table_schemas
             )
 
         except Exception as e:
             self.logger.error(f"LLM筛选失败: {e}")
             # 降级：返回向量检索top 3
+            selected = [t["table_name"] for t in candidate_tables[:3]]
+            # 构建降级情况下的schema
+            table_schemas = {}
+            for table_name in selected:
+                table_info = next(
+                    (t for t in candidate_tables if t["table_name"] == table_name),
+                    None
+                )
+                if table_info:
+                    table_schemas[table_name] = table_info.get("summary", "")
+
             return SchemaLinkingResult(
-                selected_tables=[t["table_name"] for t in candidate_tables[:3]],
+                selected_tables=selected,
                 reasoning=f"LLM筛选失败: {str(e)}，使用向量检索top 3",
                 candidate_count=len(candidate_tables),
-                use_fallback=True
+                use_fallback=True,
+                table_schemas=table_schemas
             )
 
     def _extract_table_description(self, table_name: str, summary: str) -> str:

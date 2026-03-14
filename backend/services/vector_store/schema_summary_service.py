@@ -34,7 +34,7 @@ class SchemaSummaryService(LoggerMixin):
 
     # 分块配置
     LARGE_TABLE_COLUMN_THRESHOLD = 20  # 大表字段数量阈值
-    FIELD_CHUNK_SIZE = 10  # 每个字段chunk包含的字段数量
+    FIELD_CHUNK_SIZE = 20  # 每个字段chunk包含的字段数量
     MAX_CHARS_PER_CHUNK = 1000  # 每个chunk的最大字符数（参考DB-GPT的512，适当放大）
 
     def __init__(self, db: Session):
