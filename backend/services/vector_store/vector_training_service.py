@@ -17,6 +17,7 @@ from repositories.glossary_repository import GlossaryTermRepository
 from repositories.relation_repository import RelationFieldConfigRepository
 from repositories.fine_report_repository import FineReportRepository
 from services.vector_store.field_value_sampler import FieldValueSampler
+from services.vector_store.schema_summary_service import SchemaSummaryService
 
 
 class VectorTrainingService:
@@ -49,13 +50,13 @@ class VectorTrainingService:
             logger.error(f"向量存储初始化失败: {e}")
             raise
 
-        # 初始化字段值采样器
+        # 初始化Schema摘要服务（包含字段值采样功能）
         try:
-            self.field_sampler = FieldValueSampler(db)
-            logger.info("字段值采样器初始化成功")
+            self.schema_summary_service = SchemaSummaryService(db)
+            logger.info("Schema摘要服务初始化成功")
         except Exception as e:
-            logger.warning(f"字段值采样器初始化失败: {e}")
-            self.field_sampler = None
+            logger.warning(f"Schema摘要服务初始化失败: {e}")
+            self.schema_summary_service = None
 
     def train_vector_database(self, session_name: str = "增量向量数据库训练") -> Dict[str, Any]:
         """增量训练向量数据库
@@ -425,6 +426,41 @@ class VectorTrainingService:
     def _generate_table_document(self, table_id: int) -> Tuple[str, Dict]:
         """生成表文档
 
+        使用Schema摘要服务生成包含字段值样例、统计信息的丰富schema描述
+
+        Args:
+            table_id: 表ID
+
+        Returns:
+            (文档内容, 元数据)
+        """
+        try:
+            # 使用Schema摘要服务生成文档
+            if self.schema_summary_service:
+                document, metadata = self.schema_summary_service.generate_table_summary(
+                    table_id=table_id,
+                    include_field_samples=True,
+                    include_table_stats=True
+                )
+
+                if document:
+                    return document, metadata
+                else:
+                    logger.warning(f"Schema摘要服务生成文档失败 table_id={table_id}")
+                    return "", {}
+
+            else:
+                # 降级：使用简单的表描述
+                logger.warning("Schema摘要服务不可用，使用简单的表描述")
+                return self._generate_simple_table_document(table_id)
+
+        except Exception as e:
+            logger.error(f"生成表文档失败 {table_id}: {e}")
+            return "", {}
+
+    def _generate_simple_table_document(self, table_id: int) -> Tuple[str, Dict]:
+        """生成简单的表文档（降级方案）
+
         Args:
             table_id: 表ID
 
@@ -437,58 +473,21 @@ class VectorTrainingService:
                 return "", {}
 
             columns = self.column_repo.get_by_table_id(table_id)
-
-            # 只保留可用的字段（is_available == 0）
             available_columns = [col for col in columns if col.is_available == 0]
 
-            # 构建表结构描述
+            # 构建基础表结构描述
             comment = ''
             if table.comment:
                 comment = f"表描述: {table.comment}"
 
             doc_lines = [f"表名: {table.name} {comment}", "字段信息:"]
 
-            # 采样字段值（如果采样器可用）
-            field_samples = {}
-            if self.field_sampler:
-                try:
-                    field_samples = self.field_sampler.sample_table_fields(table_id, limit=10)
-                    logger.debug(f"成功采样表 {table.name} 的字段值，共 {len(field_samples)} 个字段")
-                except Exception as e:
-                    logger.warning(f"字段值采样失败: {e}")
-
             for col in available_columns:
                 col_name = col.name
                 col_type = col.business_type or col.type
-                col_comment = col.comment
+                col_comment = col.comment or ""
 
-                relation_info = ''
-                if col.relation_config_id:
-                    relation = self.relation_repo.get_by_id(col.relation_config_id)
-                    relation_info = f'关联ID: {relation.relation_family}|{relation.relation_subfamily}'
-
-                col_line = f"  - {col_name} ({col_type}) 描述: {col_comment} {relation_info}"
-
-                # 添加字段值样例
-                if col_name in field_samples:
-                    sample_data = field_samples[col_name]
-                    if sample_data.get('values'):
-                        # 显示前5个样例值
-                        sample_values = sample_data['values'][:5]
-                        sample_str = ', '.join([str(v) for v in sample_values if v is not None])
-                        if sample_str:
-                            col_line += f" 值样例: [{sample_str}]"
-
-                        # 如果是枚举类型（去重值较少），显示去重值数量
-                        if sample_data.get('count') and sample_data['count'] <= 50:
-                            col_line += f" (共{sample_data['count']}个不同值)"
-
-                    # 添加数值统计信息
-                    if sample_data.get('stats'):
-                        stats = sample_data['stats']
-                        if stats.get('min') is not None and stats.get('max') is not None:
-                            col_line += f" 范围: {stats['min']} ~ {stats['max']}"
-
+                col_line = f"  - {col_name} ({col_type}) 描述: {col_comment}"
                 doc_lines.append(col_line)
 
             document = "\n".join(doc_lines)
@@ -499,13 +498,13 @@ class VectorTrainingService:
                 "resource_id": table_id,
                 "table_name": table.name,
                 "column_count": len(available_columns),
-                "has_field_samples": len(field_samples) > 0
+                "has_field_samples": False
             }
 
             return document, metadata
 
         except Exception as e:
-            logger.error(f"生成表文档失败 {table_id}: {e}")
+            logger.error(f"生成简单表文档失败 {table_id}: {e}")
             return "", {}
 
     def _generate_glossary_document(self, glossary_id: int) -> Tuple[str, Dict]:
