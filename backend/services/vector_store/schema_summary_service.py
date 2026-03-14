@@ -32,8 +32,10 @@ class SchemaSummaryService(LoggerMixin):
     支持大表字段分离：对于字段过多的表，分离表级和字段级摘要
     """
 
-    # 大表字段数量阈值（超过此数量将分离表级和字段级摘要）
-    LARGE_TABLE_COLUMN_THRESHOLD = 20
+    # 分块配置
+    LARGE_TABLE_COLUMN_THRESHOLD = 20  # 大表字段数量阈值
+    FIELD_CHUNK_SIZE = 10  # 每个字段chunk包含的字段数量
+    MAX_CHARS_PER_CHUNK = 1000  # 每个chunk的最大字符数（参考DB-GPT的512，适当放大）
 
     def __init__(self, db: Session):
         """初始化Schema摘要服务
@@ -59,8 +61,11 @@ class SchemaSummaryService(LoggerMixin):
         table_id: int,
         include_field_samples: bool = True,
         include_table_stats: bool = True
-    ) -> Tuple[str, Dict]:
-        """生成表的Schema摘要
+    ) -> List[Tuple[str, Dict]]:
+        """生成表的Schema摘要（支持分块）
+
+        对于小表：返回单个chunk
+        对于大表：返回多个chunks（1个表级 + N个字段级）
 
         Args:
             table_id: 表ID
@@ -68,7 +73,7 @@ class SchemaSummaryService(LoggerMixin):
             include_table_stats: 是否包含表统计信息
 
         Returns:
-            (摘要文本, 元数据字典)
+            [(摘要文本, 元数据字典), ...] 列表
         """
         try:
             # 获取表信息
@@ -113,35 +118,36 @@ class SchemaSummaryService(LoggerMixin):
 
             # 生成摘要
             if is_large_table:
-                # 大表：分别生成表级和字段级摘要
-                summary_text = self._generate_large_table_summary(
+                # 大表：生成多个chunks（表级 + 字段级）
+                chunks = self._generate_large_table_chunks(
                     table,
                     available_columns,
                     field_samples,
-                    table_stats
+                    table_stats,
+                    table_id
                 )
             else:
-                # 小表：生成完整的单摘要
+                # 小表：生成单个chunk
                 summary_text = self._generate_single_table_summary(
                     table,
                     available_columns,
                     field_samples,
                     table_stats
                 )
+                metadata = {
+                    "resource_type": "table",
+                    "resource_id": table_id,
+                    "table_name": table.name,
+                    "column_count": len(available_columns),
+                    "is_large_table": False,
+                    "has_field_samples": len(field_samples) > 0,
+                    "has_table_stats": len(table_stats) > 0,
+                    "chunk_type": "single",
+                    "separated": 0
+                }
+                chunks = [(summary_text, metadata)]
 
-            # 构建元数据
-            metadata = {
-                "resource_type": "table",
-                "resource_id": table_id,
-                "table_name": table.name,
-                "column_count": len(available_columns),
-                "is_large_table": is_large_table,
-                "has_field_samples": len(field_samples) > 0,
-                "has_table_stats": len(table_stats) > 0,
-                "summary_type": "large_table" if is_large_table else "single"
-            }
-
-            return summary_text, metadata
+            return chunks
 
         except Exception as e:
             self.logger.error(f"生成表摘要失败 table_id={table_id}: {e}")
@@ -199,77 +205,132 @@ class SchemaSummaryService(LoggerMixin):
 
         return "\n".join(lines)
 
-    def _generate_large_table_summary(
+    def _generate_large_table_chunks(
         self,
         table,
         columns: List,
         field_samples: Dict[str, Dict],
-        table_stats: Dict
-    ) -> str:
+        table_stats: Dict,
+        table_id: int
+    ) -> List[Tuple[str, Dict]]:
         """生成分离摘要格式（适用于字段较多的表）
 
-        将表级信息和字段级信息分离，便于向量检索时分别匹配
+        将表级信息和字段级信息分离为多个chunks，便于向量检索时分别匹配
 
         Args:
             table: 表对象
             columns: 字段列表
             field_samples: 字段值采样结果
             table_stats: 表统计信息
+            table_id: 表ID
 
         Returns:
-            摘要文本
+            [(摘要文本, 元数据字典), ...] 列表
+            - Chunk 0: 表级信息
+            - Chunk 1-N: 字段级信息（按FIELD_CHUNK_SIZE分组）
         """
-        lines = []
+        chunks = []
 
-        # 1. 表级别摘要
-        lines.append("【表级信息】")
-        lines.append(f"表名：{table.name}")
+        # ===== Chunk 0: 表级信息 =====
+        table_lines = []
+        table_lines.append("【表级信息】")
+        table_lines.append(f"表名：{table.name}")
 
         if table.comment:
-            lines.append(f"表注释：{table.comment}")
+            table_lines.append(f"表注释：{table.comment}")
 
         # 表统计信息
         if table_stats:
-            lines.append("\n表统计：")
+            table_lines.append("\n表统计：")
             if table_stats.get("row_count"):
-                lines.append(f"- 总行数：{table_stats['row_count']}")
+                table_lines.append(f"- 总行数：{table_stats['row_count']}")
             if table_stats.get("etl_date_range"):
-                lines.append(f"- ETL_DATE范围：{table_stats['etl_date_range']}")
+                table_lines.append(f"- ETL_DATE范围：{table_stats['etl_date_range']}")
 
         # 字段概览
-        lines.append(f"\n字段概览：共 {len(columns)} 个字段")
+        table_lines.append(f"\n字段概览：共 {len(columns)} 个字段")
 
         # 按类型分组统计
         type_stats = self._group_columns_by_type(columns)
-        lines.append("字段类型分布：")
+        table_lines.append("字段类型分布：")
         for col_type, count in sorted(type_stats.items()):
-            lines.append(f"  - {col_type}: {count} 个")
+            table_lines.append(f"  - {col_type}: {count} 个")
 
         # 关键字段（有值样例且基数较低的字段）
         key_columns = self._identify_key_columns(columns, field_samples)
         if key_columns:
-            lines.append("\n关键字段（重要业务字段）：")
+            table_lines.append("\n关键字段（重要业务字段）：")
             for col_name in key_columns[:5]:  # 最多显示5个
                 col = next(c for c in columns if c.name == col_name)
-                lines.append(f"  - {col.name} ({col.business_type or col.type}): {col.comment}")
+                table_lines.append(f"  - {col.name} ({col.business_type or col.type}): {col.comment}")
 
-        # 2. 字段级别摘要
-        lines.append("\n【字段详细信息】")
-        for idx, col in enumerate(columns, 1):
-            col_summary = self._generate_column_summary(
-                col,
-                field_samples.get(col.name),
-                idx
-            )
-            lines.append(col_summary)
-
-        # 3. 业务关系（如果有）
+        # 业务关系（如果有）
         relations = self._get_table_relations(columns)
         if relations:
-            lines.append("\n【业务关系】")
-            lines.extend(relations)
+            table_lines.append("\n业务关系：")
+            table_lines.extend(relations)
 
-        return "\n".join(lines)
+        table_summary = "\n".join(table_lines)
+
+        # 表级chunk的元数据
+        table_metadata = {
+            "resource_type": "table",
+            "resource_id": table_id,
+            "table_name": table.name,
+            "column_count": len(columns),
+            "is_large_table": True,
+            "has_field_samples": len(field_samples) > 0,
+            "has_table_stats": len(table_stats) > 0,
+            "chunk_type": "table_level",
+            "separated": 1,  # 标记为分块
+            "part": "table"
+        }
+
+        chunks.append((table_summary, table_metadata))
+
+        # ===== Chunk 1-N: 字段级信息 =====
+        # 按FIELD_CHUNK_SIZE将字段分组
+        field_chunks = self._split_columns_into_chunks(
+            columns,
+            field_samples,
+            chunk_size=self.FIELD_CHUNK_SIZE
+        )
+
+        for chunk_idx, field_chunk in enumerate(field_chunks):
+            field_lines = [f"【字段详细信息 Part {chunk_idx + 1}】"]
+
+            for col_info in field_chunk:
+                col = col_info['column']
+                col_sample = col_info['sample']
+                col_idx = col_info['index']
+
+                col_summary = self._generate_column_summary(
+                    col,
+                    col_sample,
+                    col_idx
+                )
+                field_lines.append(col_summary)
+
+            field_summary = "\n".join(field_lines)
+
+            # 字段级chunk的元数据
+            field_metadata = {
+                "resource_type": "table",
+                "resource_id": table_id,
+                "table_name": table.name,
+                "column_count": len(columns),
+                "is_large_table": True,
+                "has_field_samples": len(field_samples) > 0,
+                "chunk_type": "field_level",
+                "separated": 1,  # 标记为分块
+                "part": "field",
+                "chunk_index": chunk_idx,
+                "total_chunks": len(field_chunks)
+            }
+
+            chunks.append((field_summary, field_metadata))
+
+        return chunks
 
     def _generate_column_summary(
         self,
@@ -435,6 +496,61 @@ class SchemaSummaryService(LoggerMixin):
             count = sample_data.get('count', 0)
             if count > 0 and count <= 100 and col.comment:
                 key_columns.append(col.name)
+
+        return key_columns
+
+    def _split_columns_into_chunks(
+        self,
+        columns: List,
+        field_samples: Dict[str, Dict],
+        chunk_size: int = 10
+    ) -> List[List[Dict]]:
+        """将字段分组为多个chunks
+
+        Args:
+            columns: 字段列表
+            field_samples: 字段值采样结果
+            chunk_size: 每个chunk的字段数量
+
+        Returns:
+            分组后的字段列表，每个元素包含:
+            [{'column': col, 'sample': sample_data, 'index': idx}, ...]
+        """
+        chunks = []
+        current_chunk = []
+        current_chars = 0
+
+        for idx, col in enumerate(columns, 1):
+            # 生成字段摘要（预估字符数）
+            col_sample = field_samples.get(col.name)
+            col_summary = self._generate_column_summary(col, col_sample, idx)
+            col_chars = len(col_summary)
+
+            # 如果添加当前字段会超过字符限制，先保存当前chunk
+            if current_chunk and current_chars + col_chars > self.MAX_CHARS_PER_CHUNK:
+                chunks.append(current_chunk)
+                current_chunk = []
+                current_chars = 0
+
+            # 添加到当前chunk
+            current_chunk.append({
+                'column': col,
+                'sample': col_sample,
+                'index': idx
+            })
+            current_chars += col_chars
+
+            # 如果达到字段数量限制，也保存当前chunk
+            if len(current_chunk) >= chunk_size:
+                chunks.append(current_chunk)
+                current_chunk = []
+                current_chars = 0
+
+        # 保存最后一个chunk
+        if current_chunk:
+            chunks.append(current_chunk)
+
+        return chunks
 
         return key_columns
 

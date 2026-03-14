@@ -244,18 +244,21 @@ class VectorTrainingService:
                 # 删除旧的向量数据
                 self._delete_vector_by_resource("table", table_id)
 
-                # 生成新的文档
-                document, metadata = self._generate_table_document(table_id)
+                # 生成新的文档（可能包含多个chunks）
+                documents = self._generate_table_document(table_id)
 
-                if document:
+                if documents:
                     # 添加到向量数据库
-                    vector_ids = self.vector_store.add(documents=[document], metadatas=[metadata])
-                    vector_id = vector_ids[0] if vector_ids else ""
+                    vector_ids = []
+                    for document, metadata in documents:
+                        ids = self.vector_store.add(documents=[document], metadatas=[metadata])
+                        vector_ids.extend(ids)
 
-                    # 更新训练记录
-                    self.training_repo.update_training_time("table", table_id, vector_id)
+                    # 更新训练记录（使用第一个vector_id作为主ID）
+                    primary_vector_id = vector_ids[0] if vector_ids else ""
+                    self.training_repo.update_training_time("table", table_id, primary_vector_id)
                     trained += 1
-                    logger.debug(f"成功训练表: {table_name}")
+                    logger.debug(f"成功训练表: {table_name}，生成了 {len(documents)} 个chunks")
                 else:
                     self.training_repo.mark_as_failed("table", table_id)
                     failed += 1
@@ -423,8 +426,8 @@ class VectorTrainingService:
 
         return {"trained": trained, "failed": failed}
 
-    def _generate_table_document(self, table_id: int) -> Tuple[str, Dict]:
-        """生成表文档
+    def _generate_table_document(self, table_id: int) -> List[Tuple[str, Dict]]:
+        """生成表文档（支持分块）
 
         使用Schema摘要服务生成包含字段值样例、统计信息的丰富schema描述
 
@@ -432,22 +435,22 @@ class VectorTrainingService:
             table_id: 表ID
 
         Returns:
-            (文档内容, 元数据)
+            [(文档内容, 元数据), ...] 列表
         """
         try:
             # 使用Schema摘要服务生成文档
             if self.schema_summary_service:
-                document, metadata = self.schema_summary_service.generate_table_summary(
+                documents = self.schema_summary_service.generate_table_summary(
                     table_id=table_id,
                     include_field_samples=True,
                     include_table_stats=True
                 )
 
-                if document:
-                    return document, metadata
+                if documents:
+                    return documents
                 else:
                     logger.warning(f"Schema摘要服务生成文档失败 table_id={table_id}")
-                    return "", {}
+                    return []
 
             else:
                 # 降级：使用简单的表描述
@@ -456,21 +459,21 @@ class VectorTrainingService:
 
         except Exception as e:
             logger.error(f"生成表文档失败 {table_id}: {e}")
-            return "", {}
+            return []
 
-    def _generate_simple_table_document(self, table_id: int) -> Tuple[str, Dict]:
+    def _generate_simple_table_document(self, table_id: int) -> List[Tuple[str, Dict]]:
         """生成简单的表文档（降级方案）
 
         Args:
             table_id: 表ID
 
         Returns:
-            (文档内容, 元数据)
+            [(文档内容, 元数据), ...] 列表
         """
         try:
             table = self.table_repo.get_by_id(table_id)
             if not table:
-                return "", {}
+                return []
 
             columns = self.column_repo.get_by_table_id(table_id)
             available_columns = [col for col in columns if col.is_available == 0]
@@ -498,14 +501,16 @@ class VectorTrainingService:
                 "resource_id": table_id,
                 "table_name": table.name,
                 "column_count": len(available_columns),
-                "has_field_samples": False
+                "has_field_samples": False,
+                "chunk_type": "simple",
+                "separated": 0
             }
 
-            return document, metadata
+            return [(document, metadata)]
 
         except Exception as e:
             logger.error(f"生成简单表文档失败 {table_id}: {e}")
-            return "", {}
+            return []
 
     def _generate_glossary_document(self, glossary_id: int) -> Tuple[str, Dict]:
         """生成术语表文档
