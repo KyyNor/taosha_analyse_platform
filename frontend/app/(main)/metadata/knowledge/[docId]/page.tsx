@@ -44,7 +44,7 @@ export default function DocumentDetailPage() {
   const [extracting, setExtracting] = useState(false);
 
   // 片段选择状态
-  const [selectedFragmentIds, setSelectedFragmentIds] = useState<Set<number>>([]);
+  const [selectedFragmentIds, setSelectedFragmentIds] = useState<Set<number>>(new Set());
   const [savingFragments, setSavingFragments] = useState(false);
 
   // 片段编辑状态

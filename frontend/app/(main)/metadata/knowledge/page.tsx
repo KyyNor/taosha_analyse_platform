@@ -120,6 +120,22 @@ export default function Page() {
         <p className="text-muted-foreground">管理知识文档，支持LLM自动生成和主题提取</p>
       </div>
 
+      {/* 源类型过滤器 */}
+      <div className="mb-4 flex items-center gap-2">
+        <label className="text-sm text-muted-foreground">源类型:</label>
+        <select
+          value={sourceTypeFilter}
+          onChange={(e) => setSourceTypeFilter(e.target.value)}
+          className="px-3 py-1.5 border border-input rounded-md text-sm bg-background"
+        >
+          {sourceTypeOptions.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <MetadataTable
         data={data}
         columns={columns}
@@ -138,22 +154,6 @@ export default function Page() {
           total,
           onPageChange: handlePageChange,
         }}
-        filters={
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-muted-foreground">源类型:</label>
-            <select
-              value={sourceTypeFilter}
-              onChange={(e) => setSourceTypeFilter(e.target.value)}
-              className="px-3 py-1.5 border border-input rounded-md text-sm bg-background"
-            >
-              {sourceTypeOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        }
       />
     </div>
   );
