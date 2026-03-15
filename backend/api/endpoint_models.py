@@ -148,10 +148,11 @@ class TopicExtractionRequest(BaseModel):
 
 class SaveFragmentsRequest(BaseModel):
     """保存选中片段请求"""
-    fragment_ids: List[int] = Field(..., description="选中的片段ID列表")
-    edited_contents: Optional[Dict[int, Dict[str, str]]] = Field(
-        default_factory=dict,
-        description="编辑后的片段内容，格式: {fragment_id: {title: xxx, content: xxx, summary: xxx}}"
+    fragments: List[FragmentData] = Field(
+        ...,
+        description="要保存的片段列表（包含完整数据）",
+        min_items=1,
+        max_items=30
     )
 
 

@@ -2,7 +2,7 @@
 元数据相关的Repository
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import joinedload, Session
 from sqlalchemy import and_, or_
 from utils.logger import logger

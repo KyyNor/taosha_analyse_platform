@@ -432,30 +432,21 @@ async def save_selected_fragments(
     """
     保存选中的片段到数据库
 
-    用户勾选想要的片段后，调用此接口保存到数据库。
-    只有选中的片段会被保存，未选中的片段会被丢弃。
-    支持用户编辑片段内容后再保存。
+    前端传递完整的片段数据列表，直接保存到数据库。
+    不区分编辑前编辑后，所有片段以前端传递的数据为准。
     """
     try:
-        # 准备片段数据
+        # 将FragmentData转换为字典格式
         fragments_to_save = []
-
-        # 如果用户提供了编辑内容，应用编辑
-        for frag_id in request.fragment_ids:
-            if frag_id in request.edited_contents:
-                # 用户编辑过的片段
-                edited = request.edited_contents[frag_id]
-                fragments_to_save.append({
-                    'id': frag_id,
-                    'title': edited.get('title'),
-                    'content': edited.get('content'),
-                    'summary': edited.get('summary'),
-                    'is_modified': True
-                })
-            else:
-                # 未编辑的片段（从候选列表中选择）
-                # 注意：这里需要从前端传递完整的片段数据
-                fragments_to_save.append({'id': frag_id})
+        for frag in request.fragments:
+            fragments_to_save.append({
+                'title': frag.title,
+                'content': frag.content,
+                'summary': frag.summary,
+                'generation_method': frag.generation_method,
+                'extraction_theme': frag.extraction_theme,
+                'is_modified': frag.is_modified
+            })
 
         # 保存片段
         result = frag_gen_service.save_selected_fragments(

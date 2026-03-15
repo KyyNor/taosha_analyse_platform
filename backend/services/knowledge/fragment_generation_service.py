@@ -3,7 +3,7 @@
 """
 
 import json
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from sqlalchemy.orm import Session
 from models.metadata_models import MetadataKnowledgeDocument, MetadataKnowledgeFragment
 from repositories.metadata_repository import KnowledgeDocumentRepository, KnowledgeFragmentRepository
@@ -36,7 +36,7 @@ class FragmentGenerationService:
         self,
         document_id: int,
         fragment_count: int = DEFAULT_FRAGMENT_COUNT
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         生成N个候选片段（暂存，不直接入库）
 
@@ -113,17 +113,20 @@ class FragmentGenerationService:
     def save_selected_fragments(
         self,
         document_id: int,
-        selected_fragments: List[Dict[str, any]]
-    ) -> Dict[str, any]:
+        selected_fragments: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """
         保存用户选中的片段到数据库
 
+        前端传递完整的片段数据列表，直接保存到数据库。
+        不区分编辑前编辑后，所有片段以前端传递的数据为准。
+
         Args:
             document_id: 文档ID
-            selected_fragments: 选中的片段列表，每个片段包含：
-                - title: 标题
-                - content: 内容
-                - summary: 摘要
+            selected_fragments: 要保存的片段列表（完整数据），每个片段包含：
+                - title: 标题（必需）
+                - content: 内容（必需）
+                - summary: 摘要（可选）
                 - generation_method: 生成方式（auto/user_extraction/manual）
                 - extraction_theme: 提取主题（可选）
                 - is_modified: 是否被修改
