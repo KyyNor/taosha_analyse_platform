@@ -242,11 +242,29 @@ pages:
             level: 2
             sort_order: 2
 
+      - path: "/metadata/knowledge"
+        name: "知识库管理"
+        description: "知识库管理页面，支持LLM智能片段生成和主题提取"
+        level: 1
+        sort_order: 4
+        children:
+          - path: "/metadata/knowledge/new"
+            name: "新建知识文档"
+            description: "创建新的知识文档"
+            level: 2
+            sort_order: 1
+
+          - path: "/metadata/knowledge/[docId]"
+            name: "文档详情"
+            description: "知识文档详情和片段管理页面"
+            level: 2
+            sort_order: 2
+
       - path: "/metadata/prompt-templates"
         name: "提示模板管理"
         description: "AI提示模板管理页面"
         level: 1
-        sort_order: 4
+        sort_order: 5
         children:
           - path: "/metadata/prompt-templates/new"
             name: "新建提示模板"
@@ -264,7 +282,7 @@ pages:
         name: "FineReport管理"
         description: "FineReport报表管理页面"
         level: 1
-        sort_order: 5
+        sort_order: 6
         children:
           - path: "/metadata/fine-reports/new"
             name: "新建报表"
