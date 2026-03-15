@@ -25,6 +25,7 @@ from api.entity_routes import router as entity_router
 from api.permission_routes import router as permission_router
 from api.login_record_routes import router as login_record_router
 from api.common_services_routes import router as common_services_router
+from api.knowledge_routes import router as knowledge_router
 from api.fraudhunter import (
     indicator_task_router,
     indicator_router,
@@ -365,6 +366,7 @@ api_prefix = "/api/taosha/v1"
 
 # 注册 API 路由
 app.include_router(metadata_router, prefix=api_prefix)
+app.include_router(knowledge_router, prefix=f"{api_prefix}/knowledge", tags=["knowledge"])
 app.include_router(user_router, prefix=api_prefix)
 app.include_router(agents_router, prefix=api_prefix)
 app.include_router(deepagents_router, prefix=api_prefix)

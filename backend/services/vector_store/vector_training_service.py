@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from services.vector_store.qdrant_vector_store import qdrant_vector_store
 from utils.logger import logger
 from repositories.training_repository import TrainingRecordRepository
-from repositories.metadata_repository import MetadataTableRepository, MetadataColumnRepository
+from repositories.metadata_repository import MetadataTableRepository, MetadataColumnRepository, KnowledgeFragmentRepository
 from repositories.glossary_repository import GlossaryTermRepository
 from repositories.relation_repository import RelationFieldConfigRepository
 from repositories.fine_report_repository import FineReportRepository
@@ -41,6 +41,7 @@ class VectorTrainingService:
         self.glossary_repo = GlossaryTermRepository(db)
         self.relation_repo = RelationFieldConfigRepository(db)
         self.fine_report_repo = FineReportRepository(db)
+        self.fragment_repo = KnowledgeFragmentRepository(db)
 
         # 使用全局向量存储实例
         try:
@@ -107,6 +108,11 @@ class VectorTrainingService:
             trained_count += fine_report_result["trained"]
             failed_count += fine_report_result["failed"]
 
+            # 5. 训练知识片段资源
+            fragment_result = self._train_knowledge_fragment_resources(resources_to_train.get("knowledge_fragment", []))
+            trained_count += fragment_result["trained"]
+            failed_count += fragment_result["failed"]
+
             # 5. 清理无效资源的向量数据
             self._cleanup_orphaned_vectors()
 
@@ -142,7 +148,8 @@ class VectorTrainingService:
             "table": [],
             "glossary": [],
             "relation": [],
-            "fine_report": []
+            "fine_report": [],
+            "knowledge_fragment": []
         }
 
         try:
@@ -189,7 +196,18 @@ class VectorTrainingService:
                         "last_modified": report.updated_at
                     })
 
-            logger.info(f"发现需要训练的资源: 表({len(resources['table'])}), 术语({len(resources['glossary'])}), 关联({len(resources['relation'])}), FineReport({len(resources['fine_report'])})")
+            # 5. 检查知识片段资源
+            from models.metadata_models import MetadataKnowledgeFragment
+            fragments = self.fragment_repo.db.query(MetadataKnowledgeFragment).all()
+            for fragment in fragments:
+                if self.training_repo.needs_training("knowledge_fragment", fragment.id, fragment.updated_at):
+                    resources["knowledge_fragment"].append({
+                        "id": fragment.id,
+                        "name": fragment.title,
+                        "last_modified": fragment.updated_at
+                    })
+
+            logger.info(f"发现需要训练的资源: 表({len(resources['table'])}), 术语({len(resources['glossary'])}), 关联({len(resources['relation'])}), FineReport({len(resources['fine_report'])}), 知识片段({len(resources['knowledge_fragment'])})")
 
         except Exception as e:
             logger.error(f"获取需要训练的资源失败: {e}")
@@ -425,6 +443,118 @@ class VectorTrainingService:
                     self.training_repo.mark_as_failed("fine_report", report_id)
 
         return {"trained": trained, "failed": failed}
+
+    def _train_knowledge_fragment_resources(self, fragments: List[Dict]) -> Dict[str, int]:
+        """训练知识片段资源
+
+        Args:
+            fragments: 需要训练的知识片段列表
+
+        Returns:
+            训练结果统计
+        """
+        trained = 0
+        failed = 0
+
+        for fragment_info in fragments:
+            try:
+                fragment_id = fragment_info["id"]
+                fragment_name = fragment_info["name"]
+
+                # 确保训练记录存在（新资源会创建记录）
+                self.training_repo.create_or_update_record("knowledge_fragment", fragment_id, fragment_info["last_modified"])
+
+                # 标记为正在训练
+                self.training_repo.mark_as_training("knowledge_fragment", fragment_id)
+
+                # 删除旧的向量数据
+                self._delete_vector_by_resource("knowledge_fragment", fragment_id)
+
+                # 生成新的文档
+                document, metadata = self._generate_knowledge_fragment_document(fragment_id)
+
+                if document:
+                    # 添加到向量数据库
+                    vector_ids = self.vector_store.add(documents=[document], metadatas=[metadata])
+                    vector_id = vector_ids[0] if vector_ids else ""
+
+                    # 更新训练记录
+                    self.training_repo.update_training_time("knowledge_fragment", fragment_id, vector_id)
+                    trained += 1
+                    logger.debug(f"成功训练知识片段: {fragment_name}")
+                else:
+                    self.training_repo.mark_as_failed("knowledge_fragment", fragment_id)
+                    failed += 1
+                    logger.warning(f"生成知识片段文档失败: {fragment_name}")
+
+            except Exception as e:
+                failed += 1
+                logger.error(f"训练知识片段资源失败: {e}")
+                if "fragment_id" in locals():
+                    self.training_repo.mark_as_failed("knowledge_fragment", fragment_id)
+
+        return {"trained": trained, "failed": failed}
+
+    def _generate_knowledge_fragment_document(self, fragment_id: int) -> Tuple[str, Dict]:
+        """生成知识片段文档
+
+        Args:
+            fragment_id: 片段ID
+
+        Returns:
+            (文档内容, 元数据)
+        """
+        try:
+            from models.metadata_models import MetadataKnowledgeFragment
+
+            fragment = self.fragment_repo.db.query(MetadataKnowledgeFragment).filter(
+                MetadataKnowledgeFragment.id == fragment_id
+            ).first()
+
+            if not fragment:
+                return "", {}
+
+            # 构建知识片段描述
+            doc_lines = []
+
+            # 添加标题
+            doc_lines.append(f"知识片段: {fragment.title}")
+
+            # 添加摘要（如果有）
+            if fragment.summary:
+                doc_lines.append(f"摘要: {fragment.summary}")
+
+            # 添加内容
+            doc_lines.append(f"内容: {fragment.content}")
+
+            # 添加生成方式
+            if fragment.generation_method == "auto":
+                doc_lines.append("来源: AI自动生成")
+            elif fragment.generation_method == "user_extraction":
+                if fragment.extraction_theme:
+                    doc_lines.append(f"来源: 用户主题提取 ({fragment.extraction_theme})")
+                else:
+                    doc_lines.append("来源: 用户主题提取")
+            else:
+                doc_lines.append("来源: 用户手动创建")
+
+            # 合并所有行
+            document = "\n".join(doc_lines)
+
+            # 构建元数据
+            metadata = {
+                "resource_type": "knowledge_fragment",
+                "resource_id": str(fragment_id),
+                "title": fragment.title,
+                "generation_method": fragment.generation_method,
+                "document_id": str(fragment.document_id)
+            }
+
+            return document, metadata
+
+        except Exception as e:
+            logger.error(f"生成知识片段文档失败: {e}")
+            return "", {}
 
     def _generate_table_document(self, table_id: int) -> List[Tuple[str, Dict]]:
         """生成表文档（支持分块）

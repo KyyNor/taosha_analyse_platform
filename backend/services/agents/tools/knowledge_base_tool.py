@@ -31,19 +31,21 @@ def knowledge_base_retrieve(
     - 业务术语（glossary）：业务概念定义、SQL问答示例、字典映射规则
     - 关联配置（relation）：表之间的关联关系
     - FineReport报表（fine_report）：报表配置信息
+    - 知识片段（knowledge_fragment）：LLM生成或用户提取的知识片段
 
     与 schema_linking_retrieve 的区别：
     - schema_linking_retrieve: 检索表结构，返回表的完整schema
-    - knowledge_base_retrieve: 检索业务知识，返回术语/关联/报表信息
+    - knowledge_base_retrieve: 检索业务知识，返回术语/关联/报表/知识片段信息
 
     Args:
         query: 查询文本，描述你想要查找的内容
         top_k: 返回结果数量，默认5条。建议范围 3-10。
-        resource_types: 资源类型列表，默认 ["glossary", "relation", "fine_report"]
+        resource_types: 资源类型列表，默认 ["glossary", "relation", "fine_report", "knowledge_fragment"]
                      - ["glossary"]: 只检索业务术语
                      - ["relation"]: 只检索关联配置
                      - ["fine_report"]: 只检索报表
-                     - ["glossary", "relation"]: 检索术语和关联
+                     - ["knowledge_fragment"]: 只检索知识片段
+                     - ["glossary", "knowledge_fragment"]: 检索术语和知识片段
         search_mode: 搜索模式，可选值:
                     - "vector_only": 纯向量语义搜索，适合概念理解和语义相似
                     - "fulltext_only": 纯全文关键词搜索，适合精确匹配
@@ -60,7 +62,7 @@ def knowledge_base_retrieve(
             - content: str, 文档内容
             - score: float, 相似度分数
             - rerank_score: float, 重排序分数
-            - resource_type: str, 资源类型（glossary/relation/fine_report）
+            - resource_type: str, 资源类型（glossary/relation/fine_report/knowledge_fragment）
             - metadata: dict, 元数据（如来源、标签等）
         - error: str, 错误信息（仅在失败时）
 
@@ -73,6 +75,9 @@ def knowledge_base_retrieve(
 
         # 只检索报表
         knowledge_base_retrieve("销售业绩报表", resource_types=["fine_report"])
+
+        # 检索知识片段
+        knowledge_base_retrieve("积分计算规则", resource_types=["knowledge_fragment"])
 
         # 使用关键词精确搜索
         knowledge_base_retrieve("DAU MAU", search_mode="fulltext_only")
@@ -87,7 +92,7 @@ def knowledge_base_retrieve(
 
         # 默认检索所有非表结构资源
         if resource_types is None:
-            resource_types = ["glossary", "relation", "fine_report"]
+            resource_types = ["glossary", "relation", "fine_report", "knowledge_fragment"]
 
         # 构建过滤条件：只检索指定的资源类型，排除表结构
         logger.info(f"检索资源类型: {resource_types}")
