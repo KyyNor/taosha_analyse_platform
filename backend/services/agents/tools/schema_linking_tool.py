@@ -15,7 +15,7 @@ from langfuse import observe
 
 from utils.logger import logger
 from models.db_base import get_db_session
-from services.agents.schema_linking_service import SchemaLinkingService
+from services.agents.schema_linking_service import SchemaLinkingService, SchemaLinkingResult
 from services.agents.models.deep_agent_context import DataAnalysisContext
 
 
@@ -76,19 +76,39 @@ def schema_linking_retrieve(
 
             # 调用两阶段检索（同步执行）
             import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                result = loop.run_until_complete(
-                    service.select_relevant_tables(
-                        question=question,
-                        candidate_top_k=candidate_top_k,
-                        selected_top_k=selected_top_k,
-                        use_cache=use_cache,
+            import inspect
+
+            # 检查 select_relevant_tables 是否是协程函数
+            if inspect.iscoroutinefunction(service.select_relevant_tables):
+                # 协程函数，使用 asyncio.run
+                try:
+                    # 尝试在当前线程中运行
+                    result = asyncio.run(
+                        service.select_relevant_tables(
+                            question=question,
+                            candidate_top_k=candidate_top_k,
+                            selected_top_k=selected_top_k,
+                            use_cache=use_cache,
+                        ),
+                        debug=False
                     )
+                except RuntimeError as e:
+                    # 如果已有 event loop 在运行，使用同步降级策略
+                    logger.warning(f"无法在当前 context 运行异步函数: {e}，使用降级策略")
+                    result = SchemaLinkingResult(
+                        selected_tables=[],
+                        reasoning="当前环境不支持异步调用",
+                        candidate_count=0,
+                        use_fallback=True
+                    )
+            else:
+                # 非协程函数，直接调用
+                result = service.select_relevant_tables(
+                    question=question,
+                    candidate_top_k=candidate_top_k,
+                    selected_top_k=selected_top_k,
+                    use_cache=use_cache,
                 )
-            finally:
-                loop.close()
 
         # 格式化返回结果
         response = {

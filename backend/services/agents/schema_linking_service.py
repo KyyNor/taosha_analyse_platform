@@ -200,10 +200,19 @@ class SchemaLinkingService(LoggerMixin):
 
             # ===== 第一阶段：检索表级chunks =====
             self.logger.info("第一阶段：检索表级chunks")
+
+            # 使用 filters 过滤只检索表结构（resource_type="table"）
+            from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+
+            filters = Filter(must=[
+                FieldCondition(key="resource_type", match=MatchValue(value="table"))
+            ])
+
             search_results = self.vector_store.search(
-                query_text=question,
-                collection_name="table",
-                limit=top_k
+                query=question,
+                top_k=top_k * 2,  # 召回更多，因为需要按表名聚合
+                filters=filters,
+                search_mode="hybrid"  # 使用混合搜索提高准确性
             )
 
             if not search_results:
