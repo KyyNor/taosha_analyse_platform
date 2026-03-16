@@ -5,14 +5,12 @@ import { getDocuments, deleteDocument } from "@/lib/services/knowledgeService";
 import { useRouter } from "next/navigation";
 import { BookOpen } from "lucide-react";
 import { toast } from "sonner";
-import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { documentSourceTypeBadgeConfig, documentProcessingStatusBadgeConfig } from "@/lib/utils/badgeConfigs";
 
 export default function Page() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
   const router = useRouter();
-  const { confirm } = useConfirmDialog();
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -85,21 +83,14 @@ export default function Page() {
   };
 
   const handleDelete = async (item: any, index: number) => {
-    confirm({
-      title: "确认删除",
-      description: `确定要删除文档"${item.title}"吗？删除后无法恢复，其关联的所有片段也将被删除。`,
-      variant: "destructive",
-      onConfirm: async () => {
-        try {
-          await deleteDocument(item.id);
-          toast.success("文档删除成功");
-          load();
-        } catch (error) {
-          console.error("删除文档失败:", error);
-          toast.error("删除文档失败，请重试");
-        }
-      }
-    });
+    try {
+      await deleteDocument(item.id);
+      toast.success("文档删除成功");
+      load();
+    } catch (error) {
+      console.error("删除文档失败:", error);
+      toast.error("删除文档失败，请重试");
+    }
   };
 
   // 源类型过滤器选项

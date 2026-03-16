@@ -314,6 +314,28 @@ export default function DocumentDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 主要内容 */}
         <div className="lg:col-span-2 space-y-6">
+          {/* 文档原始内容 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileText className="h-5 w-5 text-gray-500" />
+                文档原始内容
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-muted/50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                <pre className="text-sm whitespace-pre-wrap font-mono break-words">
+                  {document.raw_content || '(无内容)'}
+                </pre>
+              </div>
+              {document.file_size && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  文件大小: {(document.file_size / 1024).toFixed(2)} KB
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
           {/* LLM自动生成片段 */}
           <Card>
             <CardHeader>
