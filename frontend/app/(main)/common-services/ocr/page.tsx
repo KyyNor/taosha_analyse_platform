@@ -755,11 +755,6 @@ export default function OCRPage() {
                 {"pages" in result && (
                   <Badge variant="secondary">共 {result.total_pages} 页</Badge>
                 )}
-                {result.preprocess && (
-                  <Badge variant="secondary" className="text-xs">
-                    {result.preprocess.image_type || "图片已处理"}
-                  </Badge>
-                )}
               </div>
             </div>
             <div className="flex space-x-2">

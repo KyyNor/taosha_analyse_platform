@@ -420,7 +420,7 @@ class AnalyzeDBPartitionManager:
               );
         """
         try:
-            df = pd.read_sql_query(sql, engine, params={"cutoff_date": cutoff_date})
+            df = pd.read_sql_query(text(sql), engine, params={"cutoff_date": cutoff_date})
             table_names = df['tablename'].tolist()
             logger.info(f"找到 {len(table_names)} 个超过{retention_days}天的历史版本表")
             return table_names
@@ -447,7 +447,7 @@ class AnalyzeDBPartitionManager:
             ORDER BY tablename
         """
         try:
-            df = pd.read_sql_query(sql, engine, params={"pattern": f"{table_name}_%"})
+            df = pd.read_sql_query(text(sql), engine, params={"pattern": f"{table_name}_%"})
             partition_list = df['tablename'].tolist()
             logger.debug(f"找到表 {table_name} 的 {len(partition_list)} 个分区")
             return partition_list
@@ -481,6 +481,19 @@ class AnalyzeDBPartitionManager:
 
                     # 删除超过保留期的分区
                     if partition_date < cutoff_date:
+                        sql = f"DROP TABLE IF EXISTS {partition_name};"
+                        if AnalyzeDBPartitionManager._execute_ddl(
+                            sql,
+                            f"删除旧分区: {partition_name}",
+                            f"删除分区失败: {partition_name}"
+                        ):
+                            deleted_count += 1
+                            
+                elif len(date_str) == 12 and date_str.isdigit(): # (实时分区格式: table_name_YYYYMMDDHHmmSS)
+                    partition_date = datetime.strptime(date_str, '%Y%m%d%H%M')
+
+                    # 删除超过保留期的分区
+                    if partition_date.date() < cutoff_date:
                         sql = f"DROP TABLE IF EXISTS {partition_name};"
                         if AnalyzeDBPartitionManager._execute_ddl(
                             sql,

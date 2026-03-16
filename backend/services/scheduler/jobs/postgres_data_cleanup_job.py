@@ -8,7 +8,7 @@ PostgreSQL数据清理定时任务
 4. 孤立的快照记录 (对应PG表已不存在)
 """
 
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from models.db_base import get_db_session
 from models.fraudhunter.wide_table import FraudHunterWideTableVersion
@@ -39,6 +39,8 @@ async def postgres_data_cleanup_job():
         # 4. 清理孤立的快照记录
         await _cleanup_orphaned_snapshot_records()
 
+        await _ensure_realtime_partition()
+
         logger.info("PostgreSQL数据清理任务完成")
 
     except Exception as e:
@@ -51,10 +53,6 @@ async def _cleanup_realtime_transaction_partitions():
     清理策略：保留指定天数内的分区，删除过期分区
     """
     try:
-        if not settings.fraudhunter_realtime_data_enabled:
-            logger.debug("实时数据服务未启用，跳过清理实时交易表分区")
-            return
-
         transaction_table = 'realtime_oss_inct_new'
         retention_days = settings.fraudhunter_realtime_data_retention_days
 
@@ -80,11 +78,9 @@ async def _cleanup_realtime_wide_table_partitions():
     清理策略：保留指定天数内的分区，删除过期分区
     """
     try:
-        if not settings.fraudhunter_realtime_data_enabled:
-            logger.debug("实时数据服务未启用，跳过清理实时宽表分区")
-            return
-
         retention_days = settings.fraudhunter_realtime_data_retention_days
+
+        logger.info(f"开始清理实时宽表旧分区，保留天数={retention_days}")
 
         with get_db_session() as db:
             # 获取所有current版本的宽表
@@ -134,6 +130,8 @@ async def _cleanup_history_wide_table_versions():
     """
     try:
         history_retention_days = 30  # 历史版本保留30天
+
+        logger.info(f"开始清理离线宽表历史版本表，保留天数={history_retention_days}")
 
         with get_db_session() as db:
             # 查询所有history状态的版本
@@ -196,6 +194,8 @@ async def _cleanup_orphaned_snapshot_records():
     将对应PG表已不存在的快照记录状态标记为deleted
     """
     try:
+        logger.info(f"开始清理孤立的快照记录")
+
         marked_count = AnalyzeDBPartitionManager.cleanup_orphaned_snapshots()
 
         if marked_count > 0:
@@ -205,3 +205,18 @@ async def _cleanup_orphaned_snapshot_records():
 
     except Exception as e:
         logger.error(f"清理孤立快照记录失败: {e}", exc_info=True)
+
+
+async def _ensure_realtime_partition():
+    logger.info(f"开始新建实时流水表分区")
+
+    current_date = datetime.now()
+    next_date_1 = (datetime.now() + timedelta(days=1))
+    next_date_2 = (datetime.now() + timedelta(days=2))
+    next_date_3 = (datetime.now() + timedelta(days=3))
+    
+    # 确保当前日期和后续3天分区存在
+    AnalyzeDBPartitionManager.ensure_partition('realtime_oss_inct_new', current_date)
+    AnalyzeDBPartitionManager.ensure_partition('realtime_oss_inct_new', next_date_1)
+    AnalyzeDBPartitionManager.ensure_partition('realtime_oss_inct_new', next_date_2)
+    AnalyzeDBPartitionManager.ensure_partition('realtime_oss_inct_new', next_date_3)

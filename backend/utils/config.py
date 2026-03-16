@@ -235,6 +235,7 @@ class ConfigManager:
             glm_ocr_api_key: Optional[str] = os.getenv("GLM_OCR_API_KEY") or self._config_data.get('glm_ocr', {}).get('api_key', 'test-key')
             glm_ocr_base_url: Optional[str] = os.getenv("GLM_OCR_BASE_URL") or self._config_data.get('glm_ocr', {}).get('base_url', 'http://localhost:8000')
             glm_ocr_timeout: int = self._config_data.get('glm_ocr', {}).get('timeout', 120)
+            glm_ocr_images_path: Optional[str] = self._config_data.get('glm_ocr', {}).get('images_path', "/data/taosha/glm_ocr_images")
 
             # FraudHunter 实时数据配置
             fraudhunter_realtime_data_enabled: bool = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('enabled', False)
@@ -259,6 +260,7 @@ class ConfigManager:
             scheduler_fine_report_sync_interval: int = self._config_data.get('scheduler', {}).get('fine_report_sync_interval', 3600)
             scheduler_vector_training_interval: int = self._config_data.get('scheduler', {}).get('vector_training_interval', 1800)
             scheduler_postgres_data_cleanup_cron: str = self._config_data.get('scheduler', {}).get('postgres_data_cleanup_cron', '0 3 * * *')
+            scheduler_mysql_data_cleanup_cron: str = self._config_data.get('scheduler', {}).get('mysql_data_cleanup_cron', '0 3 * * *')
 
             class Config:
                 env_prefix = self._config_data.get('env_prefix', 'TAOSHA_')

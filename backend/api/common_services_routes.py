@@ -8,6 +8,7 @@ from middleware.auth_middleware import get_current_user
 from services.token_service import UserInfo
 from services.common_services.ocr_service import OCRService
 from utils.logger import logger
+from utils.config import settings
 from typing import Optional
 import os
 import tempfile
@@ -39,7 +40,7 @@ def _save_upload_file_tmp(upload_file: UploadFile) -> str:
     file_ext = Path(upload_file.filename or "").suffix.lower()
 
     # 创建临时文件
-    temp_dir = tempfile.gettempdir()
+    temp_dir = settings.glm_ocr_images_path
     temp_filename = f"{uuid.uuid4()}{file_ext}"
     temp_file_path = os.path.join(temp_dir, temp_filename)
 

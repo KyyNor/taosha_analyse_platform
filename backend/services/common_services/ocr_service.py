@@ -120,7 +120,7 @@ class OCRService:
                 ext = ".bin"  # 默认扩展名
 
             # 保存到临时文件
-            temp_dir = tempfile.gettempdir()
+            temp_dir = settings.glm_ocr_images_path
             temp_file_path = os.path.join(temp_dir, f"ocr_download_{os.urandom(8).hex()}{ext}")
 
             with open(temp_file_path, "wb") as f:
