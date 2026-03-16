@@ -80,7 +80,7 @@ class FragmentGenerationService:
             response = llm_client.client.invoke(prompt)
 
             # 解析响应
-            fragments_data = self._parse_llm_response(response)
+            fragments_data = self._parse_llm_response(response.content.strip())
 
             # 验证片段数量
             if len(fragments_data) != fragment_count:

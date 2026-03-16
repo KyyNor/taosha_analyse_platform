@@ -70,7 +70,7 @@ class TopicExtractionService:
             response = llm_client.client.invoke(prompt)
 
             # 解析响应
-            fragment_data = self._parse_extraction_response(response)
+            fragment_data = self._parse_extraction_response(response.content.strip())
 
             # 构建返回的片段数据（不保存到数据库）
             extracted_fragment = {

@@ -476,7 +476,7 @@ class SchemaLinkingService(LoggerMixin):
                     )
                 )
 
-            return response
+            return response.content.strip()
 
         except Exception as e:
             self.logger.error(f"LLM调用失败: {e}")
