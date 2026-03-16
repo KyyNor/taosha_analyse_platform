@@ -1,8 +1,10 @@
 export bak_path=taosha_analyse_platform_bak20251215v1
 mv ../$bak_path/.venv .
 mv ../$bak_path/backend/config/config.yaml backend/config/
+mv ../$bak_path/backend/jars/* backend/jars/
 mv ../$bak_path/frontend/node_modules frontend/
 mv ../$bak_path/frontend/.env frontend/
+
 
 
 # 启动后端
