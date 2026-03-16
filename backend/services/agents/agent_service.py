@@ -29,7 +29,9 @@ from services.agents.tools.comparison_tool import create_comparison
 from services.agents.tools.table_tool import create_table
 from services.agents.tools.sql_query_tool import execute_sql_query
 from services.agents.tools.table_info_tool import get_table_sample_data, get_table_statistics, get_column_statistics
-from services.agents.tools.qdrant_vector_store_tool import search_knowledge_base
+from services.agents.tools.schema_linking_tool import schema_linking_retrieve
+from services.agents.tools.knowledge_base_tool import knowledge_base_retrieve  # 新的知识库检索工具
+from services.agents.tools.qdrant_vector_store_tool import search_knowledge_base  # 已废弃
 from services.agents.tools.common_tools import add, subtract, divide, multiply
 from services.agents.json_encoder import to_serializable
 from utils.logger import logger
@@ -69,7 +71,9 @@ class AgentService:
                 # subtract,
                 # divide,
                 # multiply,
-                # search_knowledge_base,
+                # search_knowledge_base,      # 已废弃，拆分为两个专用工具
+                schema_linking_retrieve,      # 表结构检索工具（向量+LLM两阶段筛选）
+                knowledge_base_retrieve,      # 知识库检索工具（术语/关联/报表）
             ]
             _agent = create_agent(
                 model=self.llm_service.client,

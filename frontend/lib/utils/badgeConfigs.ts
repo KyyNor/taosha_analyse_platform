@@ -132,3 +132,24 @@ export const entityTypeBadgeConfig = {
   department: { variant: "default" as const, label: "部门" },
   role: { variant: "secondary" as const, label: "角色" }
 };
+
+// 知识库文档源类型标签配置
+export const documentSourceTypeBadgeConfig = {
+  file: { variant: "default" as const, label: "文件" },
+  text: { variant: "secondary" as const, label: "文本" },
+  sql: { variant: "outline" as const, label: "SQL" }
+};
+
+// 知识库文档处理状态标签配置
+export const documentProcessingStatusBadgeConfig = {
+  pending: { variant: "secondary" as const, label: "待处理" },
+  processed: { variant: "default" as const, label: "已处理" },
+  failed: { variant: "destructive" as const, label: "失败" }
+};
+
+// 知识片段生成方式标签配置
+export const fragmentGenerationMethodBadgeConfig = {
+  auto: { variant: "default" as const, label: "自动生成" },
+  user_extraction: { variant: "secondary" as const, label: "用户提取" },
+  manual: { variant: "outline" as const, label: "手动创建" }
+};

@@ -12,10 +12,12 @@ from sqlalchemy.orm import Session
 from services.vector_store.qdrant_vector_store import qdrant_vector_store
 from utils.logger import logger
 from repositories.training_repository import TrainingRecordRepository
-from repositories.metadata_repository import MetadataTableRepository, MetadataColumnRepository
+from repositories.metadata_repository import MetadataTableRepository, MetadataColumnRepository, KnowledgeFragmentRepository
 from repositories.glossary_repository import GlossaryTermRepository
 from repositories.relation_repository import RelationFieldConfigRepository
 from repositories.fine_report_repository import FineReportRepository
+from services.vector_store.field_value_sampler import FieldValueSampler
+from services.vector_store.schema_summary_service import SchemaSummaryService
 
 
 class VectorTrainingService:
@@ -39,6 +41,7 @@ class VectorTrainingService:
         self.glossary_repo = GlossaryTermRepository(db)
         self.relation_repo = RelationFieldConfigRepository(db)
         self.fine_report_repo = FineReportRepository(db)
+        self.fragment_repo = KnowledgeFragmentRepository(db)
 
         # 使用全局向量存储实例
         try:
@@ -47,6 +50,14 @@ class VectorTrainingService:
         except Exception as e:
             logger.error(f"向量存储初始化失败: {e}")
             raise
+
+        # 初始化Schema摘要服务（包含字段值采样功能）
+        try:
+            self.schema_summary_service = SchemaSummaryService(db)
+            logger.info("Schema摘要服务初始化成功")
+        except Exception as e:
+            logger.warning(f"Schema摘要服务初始化失败: {e}")
+            self.schema_summary_service = None
 
     def train_vector_database(self, session_name: str = "增量向量数据库训练") -> Dict[str, Any]:
         """增量训练向量数据库
@@ -97,6 +108,11 @@ class VectorTrainingService:
             trained_count += fine_report_result["trained"]
             failed_count += fine_report_result["failed"]
 
+            # 5. 训练知识片段资源
+            fragment_result = self._train_knowledge_fragment_resources(resources_to_train.get("knowledge_fragment", []))
+            trained_count += fragment_result["trained"]
+            failed_count += fragment_result["failed"]
+
             # 5. 清理无效资源的向量数据
             self._cleanup_orphaned_vectors()
 
@@ -132,7 +148,8 @@ class VectorTrainingService:
             "table": [],
             "glossary": [],
             "relation": [],
-            "fine_report": []
+            "fine_report": [],
+            "knowledge_fragment": []
         }
 
         try:
@@ -179,7 +196,18 @@ class VectorTrainingService:
                         "last_modified": report.updated_at
                     })
 
-            logger.info(f"发现需要训练的资源: 表({len(resources['table'])}), 术语({len(resources['glossary'])}), 关联({len(resources['relation'])}), FineReport({len(resources['fine_report'])})")
+            # 5. 检查知识片段资源
+            from models.metadata_models import MetadataKnowledgeFragment
+            fragments = self.fragment_repo.db.query(MetadataKnowledgeFragment).all()
+            for fragment in fragments:
+                if self.training_repo.needs_training("knowledge_fragment", fragment.id, fragment.updated_at):
+                    resources["knowledge_fragment"].append({
+                        "id": fragment.id,
+                        "name": fragment.title,
+                        "last_modified": fragment.updated_at
+                    })
+
+            logger.info(f"发现需要训练的资源: 表({len(resources['table'])}), 术语({len(resources['glossary'])}), 关联({len(resources['relation'])}), FineReport({len(resources['fine_report'])}), 知识片段({len(resources['knowledge_fragment'])})")
 
         except Exception as e:
             logger.error(f"获取需要训练的资源失败: {e}")
@@ -234,18 +262,21 @@ class VectorTrainingService:
                 # 删除旧的向量数据
                 self._delete_vector_by_resource("table", table_id)
 
-                # 生成新的文档
-                document, metadata = self._generate_table_document(table_id)
+                # 生成新的文档（可能包含多个chunks）
+                documents = self._generate_table_document(table_id)
 
-                if document:
+                if documents:
                     # 添加到向量数据库
-                    vector_ids = self.vector_store.add(documents=[document], metadatas=[metadata])
-                    vector_id = vector_ids[0] if vector_ids else ""
+                    vector_ids = []
+                    for document, metadata in documents:
+                        ids = self.vector_store.add(documents=[document], metadatas=[metadata])
+                        vector_ids.extend(ids)
 
-                    # 更新训练记录
-                    self.training_repo.update_training_time("table", table_id, vector_id)
+                    # 更新训练记录（使用第一个vector_id作为主ID）
+                    primary_vector_id = vector_ids[0] if vector_ids else ""
+                    self.training_repo.update_training_time("table", table_id, primary_vector_id)
                     trained += 1
-                    logger.debug(f"成功训练表: {table_name}")
+                    logger.debug(f"成功训练表: {table_name}，生成了 {len(documents)} 个chunks")
                 else:
                     self.training_repo.mark_as_failed("table", table_id)
                     failed += 1
@@ -413,27 +444,171 @@ class VectorTrainingService:
 
         return {"trained": trained, "failed": failed}
 
-    def _generate_table_document(self, table_id: int) -> Tuple[str, Dict]:
-        """生成表文档
+    def _train_knowledge_fragment_resources(self, fragments: List[Dict]) -> Dict[str, int]:
+        """训练知识片段资源
 
         Args:
-            table_id: 表ID
+            fragments: 需要训练的知识片段列表
+
+        Returns:
+            训练结果统计
+        """
+        trained = 0
+        failed = 0
+
+        for fragment_info in fragments:
+            try:
+                fragment_id = fragment_info["id"]
+                fragment_name = fragment_info["name"]
+
+                # 确保训练记录存在（新资源会创建记录）
+                self.training_repo.create_or_update_record("knowledge_fragment", fragment_id, fragment_info["last_modified"])
+
+                # 标记为正在训练
+                self.training_repo.mark_as_training("knowledge_fragment", fragment_id)
+
+                # 删除旧的向量数据
+                self._delete_vector_by_resource("knowledge_fragment", fragment_id)
+
+                # 生成新的文档
+                document, metadata = self._generate_knowledge_fragment_document(fragment_id)
+
+                if document:
+                    # 添加到向量数据库
+                    vector_ids = self.vector_store.add(documents=[document], metadatas=[metadata])
+                    vector_id = vector_ids[0] if vector_ids else ""
+
+                    # 更新训练记录
+                    self.training_repo.update_training_time("knowledge_fragment", fragment_id, vector_id)
+                    trained += 1
+                    logger.debug(f"成功训练知识片段: {fragment_name}")
+                else:
+                    self.training_repo.mark_as_failed("knowledge_fragment", fragment_id)
+                    failed += 1
+                    logger.warning(f"生成知识片段文档失败: {fragment_name}")
+
+            except Exception as e:
+                failed += 1
+                logger.error(f"训练知识片段资源失败: {e}")
+                if "fragment_id" in locals():
+                    self.training_repo.mark_as_failed("knowledge_fragment", fragment_id)
+
+        return {"trained": trained, "failed": failed}
+
+    def _generate_knowledge_fragment_document(self, fragment_id: int) -> Tuple[str, Dict]:
+        """生成知识片段文档
+
+        Args:
+            fragment_id: 片段ID
 
         Returns:
             (文档内容, 元数据)
         """
         try:
-            table = self.table_repo.get_by_id(table_id)
-            if not table:
+            from models.metadata_models import MetadataKnowledgeFragment
+
+            fragment = self.fragment_repo.db.query(MetadataKnowledgeFragment).filter(
+                MetadataKnowledgeFragment.id == fragment_id
+            ).first()
+
+            if not fragment:
                 return "", {}
 
-            columns = self.column_repo.get_by_table_id(table_id)
+            # 构建知识片段描述
+            doc_lines = []
 
-            # 只保留可用的字段（is_available == 0）
+            # 添加标题
+            doc_lines.append(f"知识片段: {fragment.title}")
+
+            # 添加摘要（如果有）
+            if fragment.summary:
+                doc_lines.append(f"摘要: {fragment.summary}")
+
+            # 添加内容
+            doc_lines.append(f"内容: {fragment.content}")
+
+            # 添加生成方式
+            if fragment.generation_method == "auto":
+                doc_lines.append("来源: AI自动生成")
+            elif fragment.generation_method == "user_extraction":
+                if fragment.extraction_theme:
+                    doc_lines.append(f"来源: 用户主题提取 ({fragment.extraction_theme})")
+                else:
+                    doc_lines.append("来源: 用户主题提取")
+            else:
+                doc_lines.append("来源: 用户手动创建")
+
+            # 合并所有行
+            document = "\n".join(doc_lines)
+
+            # 构建元数据
+            metadata = {
+                "resource_type": "knowledge_fragment",
+                "resource_id": str(fragment_id),
+                "title": fragment.title,
+                "generation_method": fragment.generation_method,
+                "document_id": str(fragment.document_id)
+            }
+
+            return document, metadata
+
+        except Exception as e:
+            logger.error(f"生成知识片段文档失败: {e}")
+            return "", {}
+
+    def _generate_table_document(self, table_id: int) -> List[Tuple[str, Dict]]:
+        """生成表文档（支持分块）
+
+        使用Schema摘要服务生成包含字段值样例、统计信息的丰富schema描述
+
+        Args:
+            table_id: 表ID
+
+        Returns:
+            [(文档内容, 元数据), ...] 列表
+        """
+        try:
+            # 使用Schema摘要服务生成文档
+            if self.schema_summary_service:
+                documents = self.schema_summary_service.generate_table_summary(
+                    table_id=table_id,
+                    include_field_samples=True,
+                    include_table_stats=True
+                )
+
+                if documents:
+                    return documents
+                else:
+                    logger.warning(f"Schema摘要服务生成文档失败 table_id={table_id}")
+                    return []
+
+            else:
+                # 降级：使用简单的表描述
+                logger.warning("Schema摘要服务不可用，使用简单的表描述")
+                return self._generate_simple_table_document(table_id)
+
+        except Exception as e:
+            logger.error(f"生成表文档失败 {table_id}: {e}")
+            return []
+
+    def _generate_simple_table_document(self, table_id: int) -> List[Tuple[str, Dict]]:
+        """生成简单的表文档（降级方案）
+
+        Args:
+            table_id: 表ID
+
+        Returns:
+            [(文档内容, 元数据), ...] 列表
+        """
+        try:
+            table = self.table_repo.get_by_id(table_id)
+            if not table:
+                return []
+
+            columns = self.column_repo.get_by_table_id(table_id)
             available_columns = [col for col in columns if col.is_available == 0]
 
-            # 构建表结构描述
-
+            # 构建基础表结构描述
             comment = ''
             if table.comment:
                 comment = f"表描述: {table.comment}"
@@ -443,15 +618,9 @@ class VectorTrainingService:
             for col in available_columns:
                 col_name = col.name
                 col_type = col.business_type or col.type
-                col_comment = col.comment
+                col_comment = col.comment or ""
 
-                relation_info = ''
-                if col.relation_config_id:
-                    relation = self.relation_repo.get_by_id(col.relation_config_id)
-                    relation_info = f'关联ID: {relation.relation_family}|{relation.relation_subfamily}'
-
-                col_line = f"  - {col_name} ({col_type}) 描述: {col_comment} {relation_info}"
-
+                col_line = f"  - {col_name} ({col_type}) 描述: {col_comment}"
                 doc_lines.append(col_line)
 
             document = "\n".join(doc_lines)
@@ -461,14 +630,17 @@ class VectorTrainingService:
                 "resource_type": "table",
                 "resource_id": table_id,
                 "table_name": table.name,
-                "column_count": len(available_columns)
+                "column_count": len(available_columns),
+                "has_field_samples": False,
+                "chunk_type": "simple",
+                "separated": 0
             }
 
-            return document, metadata
+            return [(document, metadata)]
 
         except Exception as e:
-            logger.error(f"生成表文档失败 {table_id}: {e}")
-            return "", {}
+            logger.error(f"生成简单表文档失败 {table_id}: {e}")
+            return []
 
     def _generate_glossary_document(self, glossary_id: int) -> Tuple[str, Dict]:
         """生成术语表文档

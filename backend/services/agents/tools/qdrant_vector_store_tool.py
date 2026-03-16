@@ -1,9 +1,13 @@
 """
 知识库检索工具
 基于 Qdrant 向量数据库的知识库检索功能
+
+⚠️ 此模块已废弃，请使用 schema_linking_tool.py 代替。
+新工具使用 SchemaLinkingService 提供更准确的表筛选能力。
 """
 
 import json
+import warnings
 from typing import Optional, List
 from langfuse import observe
 from utils.logger import logger
@@ -62,6 +66,9 @@ def search_knowledge_base(
     score_threshold: Optional[float] = None
 ) -> str:
     """
+    ⚠️ 此函数已废弃，请使用 schema_linking_retrieve 代替。
+    新工具使用 SchemaLinkingService 提供更准确的表筛选能力（两阶段检索 + 内置reranker）。
+
     在知识库中检索相关文档和知识，知识库中包括表结构、业务术语、关联关系等信息。
 
     Args:

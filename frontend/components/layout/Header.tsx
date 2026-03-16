@@ -66,6 +66,7 @@ const allNavItems: NavItem[] = [
       { type: 'link', href: "/metadata/tables", label: "数据表", requiredPath: "/metadata/tables" },
       { type: 'link', href: "/metadata/relations", label: "关系", requiredPath: "/metadata/relations" },
       { type: 'link', href: "/metadata/glossary", label: "术语表", requiredPath: "/metadata/glossary" },
+      { type: 'link', href: "/metadata/knowledge", label: "知识库", requiredPath: "/metadata/knowledge" },
       { type: 'link', href: "/metadata/prompt-templates", label: "提示模板", requiredPath: "/metadata/prompt-templates" },
       { type: 'link', href: "/metadata/fine-reports", label: "帆软报表", requiredPath: "/metadata/fine-reports" }
     ]
