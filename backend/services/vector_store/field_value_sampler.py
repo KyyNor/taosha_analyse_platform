@@ -66,6 +66,7 @@ class FieldValueSampler(LoggerMixin):
         table_name: str,
         column_name: str,
         column_type: str,
+        table_id: int,
         limit: int = 20,
         use_cache: bool = True
     ) -> Dict[str, Any]:
@@ -103,14 +104,14 @@ class FieldValueSampler(LoggerMixin):
         try:
             # 根据字段类型选择采样策略
             if self._is_numeric_type(column_type):
-                result = self._sample_numeric_field(table_name, column_name, limit)
+                result = self._sample_numeric_field(table_id, table_name, column_name, limit)
             elif self._is_date_type(column_type):
-                result = self._sample_date_field(table_name, column_name)
+                result = self._sample_date_field(table_id, table_name, column_name)
             elif self._is_string_type(column_type):
-                result = self._sample_string_field(table_name, column_name, limit)
+                result = self._sample_string_field(table_id, table_name, column_name, limit)
             else:
                 # 其他类型，尝试简单采样
-                result = self._sample_generic_field(table_name, column_name, limit)
+                result = self._sample_generic_field(table_id, table_name, column_name, limit)
 
             # 缓存结果
             if use_cache:
@@ -155,6 +156,7 @@ class FieldValueSampler(LoggerMixin):
                     table_name=table_name,
                     column_name=column_name,
                     column_type=column_type,
+                    table_id=table_id,
                     limit=limit
                 )
 
@@ -166,59 +168,58 @@ class FieldValueSampler(LoggerMixin):
             self.logger.error(f"采样表字段失败 table_id={table_id}: {e}")
             return {}
 
-    def _detect_date_partition_column(self, table_name: str) -> Optional[str]:
+    def _detect_date_partition_column(self, table_id: int) -> Optional[str]:
         """检测表的日期分区字段
 
         使用缓存避免重复查询元数据库
 
         Args:
-            table_name: 表名（可能包含数据库前缀，如database.table）
+            table_id: 表ID
 
         Returns:
             日期分区字段名，如果未找到则返回None
         """
         # 检查缓存
-        if table_name in self._date_partition_cache:
-            return self._date_partition_cache[table_name]
+        if table_id in self._date_partition_cache:
+            return self._date_partition_cache[table_id]
 
         try:
             from repositories.metadata_repository import MetadataTableRepository
             table_repo = MetadataTableRepository(self.db)
 
-            # 从表名中提取实际表名（可能包含数据库前缀，如database.table）
-            actual_table_name = table_name.split('.')[-1] if '.' in table_name else table_name
-
             # 根据表名获取表信息
-            table = table_repo.get_by_name(actual_table_name)
+            table = table_repo.get_by_id(table_id)
+            table_name = table.name
 
             if not table:
                 # 未找到表，缓存None
-                self._date_partition_cache[table_name] = None
+                self._date_partition_cache[table_id] = None
                 return None
 
             # 获取该表的所有字段
-            columns = self.column_repo.get_by_table_id(table.id)
+            columns = self.column_repo.get_by_table_id(table_id)
 
             # 查找可能的日期分区字段
             for col in columns:
                 if col.name.lower() in self.DATE_PARTITION_FIELDS:
-                    self.logger.debug(f"检测到日期分区字段: {col.name} (表: {table_name})")
+                    self.logger.info(f"检测到日期分区字段: {col.name} (表: {table_name})")
                     # 缓存结果
-                    self._date_partition_cache[table_name] = col.name
+                    self._date_partition_cache[table_id] = col.name
                     return col.name
 
             # 未找到日期分区字段，缓存None避免重复查询
-            self._date_partition_cache[table_name] = None
+            self._date_partition_cache[table_id] = None
             return None
 
         except Exception as e:
             self.logger.warning(f"检测日期分区字段失败 (表: {table_name}): {e}")
             # 出错时也缓存None，避免重复出错
-            self._date_partition_cache[table_name] = None
+            self._date_partition_cache[table_id] = None
             return None
 
     def _build_sample_query(
         self,
+        table_id: int,
         table_name: str,
         select_clause: str,
         where_clause: Optional[str] = None,
@@ -241,7 +242,7 @@ class FieldValueSampler(LoggerMixin):
             完整的SQL查询语句
         """
         # 检测日期分区字段
-        date_partition_col = self._detect_date_partition_column(table_name)
+        date_partition_col = self._detect_date_partition_column(table_id)
 
         # 构建WHERE子句
         conditions = []
@@ -283,6 +284,7 @@ class FieldValueSampler(LoggerMixin):
 
     def _sample_numeric_field(
         self,
+        table_id: int,
         table_name: str,
         column_name: str,
         limit: int

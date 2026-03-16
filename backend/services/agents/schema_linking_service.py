@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from utils.logger import LoggerMixin
 from utils.config import settings
+from services.llm_service.base_llm_service import BaseLLMService
 from models.prompt_templates import SchemaLinkingTemplates
 from repositories.metadata_repository import MetadataTableRepository
 
@@ -62,7 +63,7 @@ class SchemaLinkingService(LoggerMixin):
     MIN_SELECTED_TABLES = 1       # 最少选择表数量
     MAX_TOKENS = 2000             # LLM最大token数
 
-    def __init__(self, db: Session, llm_service=None):
+    def __init__(self, db: Session):
         """初始化Schema Linking服务
 
         Args:
@@ -77,7 +78,7 @@ class SchemaLinkingService(LoggerMixin):
         self._init_vector_store()
 
         # LLM服务（如果提供）
-        self.llm_service = llm_service
+        self.llm_service = BaseLLMService()
 
         # 缓存（避免重复筛选）
         self._cache: Dict[str, SchemaLinkingResult] = {}
@@ -457,8 +458,8 @@ class SchemaLinkingService(LoggerMixin):
                 raise ValueError("LLM服务未配置")
 
             # 假设LLM服务支持异步调用
-            if asyncio.iscoroutinefunction(self.llm_service.generate):
-                response = await self.llm_service.generate(
+            if asyncio.iscoroutinefunction(self.llm_service.client.ainvoke):
+                response = await self.llm_service.client.ainvoke(
                     prompt=prompt,
                     max_tokens=self.MAX_TOKENS,
                     temperature=0.1  # 低温度，更确定性的输出
@@ -468,7 +469,7 @@ class SchemaLinkingService(LoggerMixin):
                 loop = asyncio.get_event_loop()
                 response = await loop.run_in_executor(
                     None,
-                    lambda: self.llm_service.generate(
+                    lambda: self.llm_service.client.invoke(
                         prompt=prompt,
                         max_tokens=self.MAX_TOKENS,
                         temperature=0.1

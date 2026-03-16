@@ -77,7 +77,7 @@ class FragmentGenerationService:
 
             # 调用LLM
             logger.info(f"调用LLM生成片段，文档ID: {document_id}")
-            response = llm_client.generate(prompt)
+            response = llm_client.client.invoke(prompt)
 
             # 解析响应
             fragments_data = self._parse_llm_response(response)

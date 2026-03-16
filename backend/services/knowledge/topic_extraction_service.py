@@ -67,7 +67,7 @@ class TopicExtractionService:
 
             # 调用LLM
             logger.info(f"调用LLM提取主题，文档ID: {document_id}, 主题: {extraction_theme}")
-            response = llm_client.generate(prompt)
+            response = llm_client.client.invoke(prompt)
 
             # 解析响应
             fragment_data = self._parse_extraction_response(response)

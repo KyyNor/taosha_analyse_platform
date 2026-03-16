@@ -16,7 +16,6 @@ from repositories.metadata_repository import MetadataTableRepository, MetadataCo
 from repositories.glossary_repository import GlossaryTermRepository
 from repositories.relation_repository import RelationFieldConfigRepository
 from repositories.fine_report_repository import FineReportRepository
-from services.vector_store.field_value_sampler import FieldValueSampler
 from services.vector_store.schema_summary_service import SchemaSummaryService
 
 
