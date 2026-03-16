@@ -107,11 +107,21 @@ dmypy.json
 cython_debug/
 
 # Database files
-backend/database/*.duckdb.wal
+*.duckdb
+*.duckdb.wal
+backend/database/*.duckdb
 backend/database/*.sqlite3
 backend/database/*.sqlite3-journal
 backend/database/*.log
 backend/cache/*
+
+# JAR files (binary dependencies)
+*.jar
+backend/jars/
+
+# Backup directories
+*_bak/
+frontend_bak/
 
 backend/config/config.yaml
 
