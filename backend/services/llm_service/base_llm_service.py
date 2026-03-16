@@ -30,7 +30,7 @@ class BaseLLMService:
                 temperature=settings.openai_temperature,
                 model=settings.openai_model,
                 profile={
-                    "max_input_tokens": 90000
+                    "max_input_tokens": 180000
                 }
             )
             self.client = openai_client
@@ -38,3 +38,6 @@ class BaseLLMService:
             self.client = llm_client
         
         logger.info("LLM service 初始化完毕")
+
+
+get_llm_client

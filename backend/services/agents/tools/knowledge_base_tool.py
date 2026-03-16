@@ -9,20 +9,17 @@
 
 import json
 from typing import Optional, List
-from langchain.tools import tool, ToolRuntime
 from langfuse import observe
 
 from utils.logger import logger
 
 
-@tool
 @observe(name="knowledge_base_retrieve")
 def knowledge_base_retrieve(
     query: str,
     top_k: int = 5,
     resource_types: Optional[List[str]] = None,
     search_mode: str = "hybrid",
-    runtime: Optional[ToolRuntime] = None,
 ) -> str:
     """
     知识库检索
@@ -82,7 +79,6 @@ def knowledge_base_retrieve(
         # 使用关键词精确搜索
         knowledge_base_retrieve("DAU MAU", search_mode="fulltext_only")
     """
-    _ = runtime  # ToolRuntime 接口要求，当前未使用
     logger.info(f"知识库检索: {query[:50]}... (mode={search_mode}, top_k={top_k})")
 
     try:

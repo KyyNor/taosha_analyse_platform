@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from models.metadata_models import MetadataKnowledgeDocument
 from repositories.metadata_repository import KnowledgeDocumentRepository
 from models.prompt_templates import KnowledgeFragmentationTemplates
-from services.llm_service.llm_manager import get_llm_client
+from services.llm_service.base_llm_service import BaseLLMService
 from utils.logger import logger
 
 
@@ -56,7 +56,7 @@ class TopicExtractionService:
             logger.info(f"开始从文档 {document_id} 中提取主题: {extraction_theme}")
 
             # 获取LLM客户端
-            llm_client = get_llm_client()
+            llm_client = BaseLLMService()
 
             # 构建提示词
             prompt = KnowledgeFragmentationTemplates.TOPIC_EXTRACTION_TEMPLATE.format(

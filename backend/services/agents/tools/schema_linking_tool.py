@@ -10,7 +10,6 @@ Schema Linking 智能检索工具
 
 import json
 from typing import Optional
-from langchain.tools import tool, ToolRuntime
 from langfuse import observe
 
 from utils.logger import logger
@@ -19,14 +18,12 @@ from services.agents.schema_linking_service import SchemaLinkingService, SchemaL
 from services.agents.models.deep_agent_context import DataAnalysisContext
 
 
-@tool
 @observe(name="schema_linking_retrieve")
 def schema_linking_retrieve(
     question: str,
     candidate_top_k: int = 10,
     selected_top_k: int = 5,
     use_cache: bool = True,
-    runtime: Optional[ToolRuntime] = None,
 ) -> str:
     """
     Schema Linking 智能检索

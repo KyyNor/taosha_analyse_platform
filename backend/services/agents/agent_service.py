@@ -296,6 +296,8 @@ class AgentService:
                 logger.info(f"Agent后台任务完成, session_id: {session_id}")
 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             logger.error(f"Agent后台任务出错: {e}")
             await queue.put({
                 "event": "error",

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from models.metadata_models import MetadataKnowledgeDocument, MetadataKnowledgeFragment
 from repositories.metadata_repository import KnowledgeDocumentRepository, KnowledgeFragmentRepository
 from models.prompt_templates import KnowledgeFragmentationTemplates
-from services.llm_service.llm_manager import get_llm_client
+from services.llm_service.base_llm_service import BaseLLMService
 from utils.logger import logger
 
 
@@ -65,7 +65,7 @@ class FragmentGenerationService:
             logger.info(f"开始为文档 {document_id} 生成 {fragment_count} 个片段")
 
             # 获取LLM客户端
-            llm_client = get_llm_client()
+            llm_client = BaseLLMService()
 
             # 构建提示词
             content_type = "SQL脚本" if document.source_type == "sql" else "文本内容"

@@ -223,6 +223,7 @@ class FieldValueSampler(LoggerMixin):
         select_clause: str,
         where_clause: Optional[str] = None,
         order_by: Optional[str] = None,
+        group_by: Optional[str] = None,
         limit: int = 20
     ) -> str:
         """构建采样查询SQL
@@ -264,11 +265,16 @@ class FieldValueSampler(LoggerMixin):
         # 构建ORDER BY子句
         order_sql = f"ORDER BY {order_by}" if order_by else ""
 
+        group_by_sql = ""
+        if group_by:
+            group_by_sql = f"GROUP BY {group_by}"
+
         # 构建完整SQL
         query = f"""
             SELECT {select_clause}
             FROM {table_name}
             {where_sql}
+            {group_by_sql}
             {order_sql}
             LIMIT {limit}
         """
@@ -389,6 +395,7 @@ class FieldValueSampler(LoggerMixin):
                     select_clause=f"{column_name} as value, COUNT(*) as cnt",
                     where_clause=f"{column_name} IS NOT NULL",
                     order_by="cnt DESC",
+                    group_by=column_name,
                     limit=limit
                 )
 

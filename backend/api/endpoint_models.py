@@ -120,41 +120,6 @@ class FineReportUpdate(BaseModel):
 
 # ==================== 知识库相关数据模型 ====================
 
-class KnowledgeDocumentRequest(BaseModel):
-    """知识文档创建请求"""
-    title: str = Field(..., description="文档标题", min_length=1, max_length=255)
-    source_type: str = Field(..., description="源类型: file=文件, text=文本, sql=SQL文件")
-    source_path: Optional[str] = Field(None, description="文件路径（绝对路径）")
-    raw_content: Optional[str] = Field(None, description="原始内容（文本输入时使用）")
-
-
-class KnowledgeDocumentUpdate(BaseModel):
-    """知识文档更新请求"""
-    title: Optional[str] = Field(None, description="文档标题", min_length=1, max_length=255)
-    processing_status: Optional[str] = Field(None, description="处理状态: pending, processed, failed")
-
-
-class FragmentGenerationRequest(BaseModel):
-    """片段生成请求"""
-    document_id: int = Field(..., description="文档ID")
-    fragment_count: int = Field(5, description="生成的片段数量", ge=1, le=20)
-
-
-class TopicExtractionRequest(BaseModel):
-    """主题提取请求"""
-    extraction_theme: str = Field(..., description="提取主题", min_length=1, max_length=500)
-    extraction_prompt: str = Field(..., description="提取逻辑描述", min_length=1)
-
-
-class SaveFragmentsRequest(BaseModel):
-    """保存选中片段请求"""
-    fragments: List[FragmentData] = Field(
-        ...,
-        description="要保存的片段列表（包含完整数据）",
-        min_items=1,
-        max_items=30
-    )
-
 
 class FragmentUpdateRequest(BaseModel):
     """片段更新请求"""
@@ -204,5 +169,42 @@ class SaveFragmentsResponse(BaseModel):
     saved_count: int = Field(..., description="保存的片段数量")
     document_id: int = Field(..., description="文档ID")
 
+
+
+
+class KnowledgeDocumentRequest(BaseModel):
+    """知识文档创建请求"""
+    title: str = Field(..., description="文档标题", min_length=1, max_length=255)
+    source_type: str = Field(..., description="源类型: file=文件, text=文本, sql=SQL文件")
+    source_path: Optional[str] = Field(None, description="文件路径（绝对路径）")
+    raw_content: Optional[str] = Field(None, description="原始内容（文本输入时使用）")
+
+
+class KnowledgeDocumentUpdate(BaseModel):
+    """知识文档更新请求"""
+    title: Optional[str] = Field(None, description="文档标题", min_length=1, max_length=255)
+    processing_status: Optional[str] = Field(None, description="处理状态: pending, processed, failed")
+
+
+class FragmentGenerationRequest(BaseModel):
+    """片段生成请求"""
+    document_id: int = Field(..., description="文档ID")
+    fragment_count: int = Field(5, description="生成的片段数量", ge=1, le=20)
+
+
+class TopicExtractionRequest(BaseModel):
+    """主题提取请求"""
+    extraction_theme: str = Field(..., description="提取主题", min_length=1, max_length=500)
+    extraction_prompt: str = Field(..., description="提取逻辑描述", min_length=1)
+
+
+class SaveFragmentsRequest(BaseModel):
+    """保存选中片段请求"""
+    fragments: List[FragmentData] = Field(
+        ...,
+        description="要保存的片段列表（包含完整数据）",
+        min_items=1,
+        max_items=30
+    )
 
 
