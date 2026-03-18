@@ -166,7 +166,7 @@ class DolphinSchedulerService:
                 # 任务结束回调
                 task_callback = Shell(
                     name='task_finish_callback',
-                    command=f"""curl -X POST http://125.1.129.158:50020/api/taosha/v1/fraudhunter/wide-table/indicator-runs/callback -H 'Content-Type: application/json' -d '{{"indicator_task_id":{indicator_task.id},"indicator_version":{indicator_task.latest_version},"etl_date":"${{date}}"}}'""",
+                    command=f"""curl -X POST http://125.1.129.76:8080/taosha/api/taosha/v1/fraudhunter/wide-table/indicator-runs/callback -H 'Content-Type: application/json' -d '{{"indicator_task_id":{indicator_task.id},"indicator_version":{indicator_task.latest_version},"etl_date":"${{date}}"}}'""",
                     environment_name="bdspk",
                     fail_retry_times=settings.dolphinscheduler_task_sql_task_fail_retry_times,
                     fail_retry_interval=settings.dolphinscheduler_task_sql_task_fail_retry_interval,

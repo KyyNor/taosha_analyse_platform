@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "next dev -H 0.0.0.0 --port 50011",
+    "dev": "next dev -H 0.0.0.0 --port 50020",
     "build": "next build",
-    "start": "next start -H 0.0.0.0 --port 50011",
+    "start": "next start -H 0.0.0.0 --port 50020",
     "lint": "next lint",
     "build:charts": "node scripts/build-charts-bundle.mjs"
   },

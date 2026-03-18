@@ -196,7 +196,7 @@ class ConfigManager:
             dolphinscheduler_gateway_api_token: str = self._config_data.get('dolphinscheduler', {}).get('gateway', {}).get('api_token', 'default')
             dolphinscheduler_project_name: str = self._config_data.get('dolphinscheduler', {}).get('project_name', '淘沙分析平台')
             dolphinscheduler_project_code: str = self._config_data.get('dolphinscheduler', {}).get('project_code', '1')
-            dolphinscheduler_callback_url: str = self._config_data.get('dolphinscheduler', {}).get('callback_url', 'http://127.0.0.1:50020/api/taosha/v1/fraudhunter/wide-table/indicator-runs/callback')
+            dolphinscheduler_callback_url: str = self._config_data.get('dolphinscheduler', {}).get('callback_url', 'http://127.0.0.1:50011/api/taosha/v1/fraudhunter/wide-table/indicator-runs/callback')
             dolphinscheduler_workflow_default_timezone: str = self._config_data.get('dolphinscheduler', {}).get('workflow', {}).get('default_timezone', 'Asia/Shanghai')
             dolphinscheduler_workflow_timeout: int = self._config_data.get('dolphinscheduler', {}).get('workflow', {}).get('timeout', 60)
             dolphinscheduler_workflow_params: dict = self._config_data.get('dolphinscheduler', {}).get('workflow', {}).get('params', {})

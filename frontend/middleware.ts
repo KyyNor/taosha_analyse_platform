@@ -76,7 +76,7 @@ async function checkTokenAndPermission(token: string, pagePath: string): Promise
 }> {
   try {
     // 中间件运行在服务器端，直接调用后端API（不通过Next.js代理）
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:50020'
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:50011'
 
     // 1. 首先验证token并获取用户信息
     const userResponse = await fetch(`${backendUrl}/api/taosha/v1/login-records/current/info`, {
