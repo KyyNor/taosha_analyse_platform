@@ -194,3 +194,15 @@ async def sync_all_wide_tables_job():
     except Exception as e:
         logger.error(f"离线宽表同步调度异常: {e}", exc_info=True)
 
+
+
+
+def main():
+    import asyncio
+    from datetime import datetime
+    logger.info(f"[{datetime.now()}] 淘沙宽表同步任务开始")
+    asyncio.run(sync_all_wide_tables_job())
+    logger.info(f"[{datetime.now()}] 淘沙宽表同步任务结束")
+
+if __name__ == '__main__':
+    main()
