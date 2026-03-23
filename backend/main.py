@@ -85,7 +85,8 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
         # 定义默认任务组（二维数组）
         default_task_groups = [
             ['generate_realtime_wide_table_job'],                   # 组0：实时宽表生成
-            ['offline_wide_table_sync'],                            # 组1：离线宽表同步
+            # ['offline_wide_table_sync'],                            # 组1：离线宽表同步
+            [], #  离线宽表同步 改到ds执行
             ['fine_report_sync', 'metadata_sync'],                  # 组2：FineReport同步
             ['vector_training', 'postgres_data_cleanup', 'mysql_data_cleanup']            # 组3：向量训练 + 数据清理
         ]
@@ -102,8 +103,8 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
 
         # 定义所有可注册的任务
         jobs_to_register = [
-            ('offline_wide_table_sync', sync_all_wide_tables_job,
-             settings.scheduler_offline_wide_table_sync, '离线指标宽表同步', 'interval'),
+            # ('offline_wide_table_sync', sync_all_wide_tables_job,
+            #  settings.scheduler_offline_wide_table_sync, '离线指标宽表同步', 'interval'),
             ('generate_realtime_wide_table_job', generate_realtime_wide_table_job,
              settings.scheduler_model_runner_interval, '实时指标宽表生成', 'interval'),
             ('metadata_sync', metadata_sync_job,
