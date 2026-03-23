@@ -318,7 +318,7 @@ class ModelHitAlertManager:
         """
         # 查询当天是否已有管控记录
         from datetime import timedelta
-        date_range = [date - timedelta(days=i) for i in range(3)]  # 今天、昨天、前天
+        date_range = [date - timedelta(days=i) for i in range(1)]  # 今天 , 应要求改为只当天不重复预警，后续还是会预警
 
         existing_control = self.db.query(FraudHunterModelAlertControlRecord).filter(
             FraudHunterModelAlertControlRecord.account_id == account_id,
