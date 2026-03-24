@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from middleware.auth_middleware import get_current_user
 from services.token_service import UserInfo
+from datetime import datetime
 from services.common_services.ocr_service import OCRService
 from utils.logger import logger
 from utils.config import settings
@@ -75,6 +76,24 @@ async def ocr_recognize(
     mode: str = Form("text"),
     json_schema: Optional[str] = Form(None),
     current_user: UserInfo = Depends(get_current_user),
+):
+    ocr_open_recognize(
+        file=file,
+        file_url=file_url,
+        local_path=local_path,
+        mode=mode,
+        json_schema=json_schema,
+        current_user=current_user,
+    )
+
+@router.post("/ocr/open_recognize", summary="图片OCR识别")
+async def ocr_open_recognize(
+    file: Optional[UploadFile] = File(None),
+    file_url: Optional[str] = Form(None),
+    local_path: Optional[str] = Form(None),
+    mode: str = Form("text"),
+    json_schema: Optional[str] = Form(None),
+    current_user: UserInfo = UserInfo(user_id='openapi', user_name='openapi',branch_no='openapi',branch_name='openapi',role_id_list=[],access_time=datetime.now()),
 ):
     """
     图片OCR识别接口
