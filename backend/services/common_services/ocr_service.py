@@ -195,8 +195,9 @@ class OCRService:
                 raise FileNotFoundError(f"文件不存在: {actual_file_path}")
 
             # 构建请求参数
+            file_to_upload = open(actual_file_path, "rb")
+
             data = {
-                "file_path": actual_file_path,
                 "mode": mode
             }
 
@@ -209,6 +210,7 @@ class OCRService:
             response = requests.post(
                 f"{self.base_url}/api/v1/parse",
                 data=data,
+                files={"file": file_to_upload},
                 headers=self._get_headers(),
                 timeout=self.timeout
             )
@@ -232,6 +234,8 @@ class OCRService:
             # 清理临时文件
             if temp_file:
                 self._cleanup_temp_file(temp_file)
+            if 'file_to_upload' in locals():                                                                      
+                  file_to_upload.close()
 
     def parse_pdf(
         self,
@@ -279,9 +283,10 @@ class OCRService:
             if not os.path.exists(actual_file_path):
                 raise FileNotFoundError(f"文件不存在: {actual_file_path}")
 
+            file_to_upload = open(actual_file_path, "rb")
+
             # 构建请求参数
             data = {
-                "file_path": actual_file_path,
                 "mode": mode
             }
 
@@ -294,6 +299,7 @@ class OCRService:
             response = requests.post(
                 f"{self.base_url}/api/v1/parse_pdf",
                 data=data,
+                files={"file": file_to_upload},
                 headers=self._get_headers(),
                 timeout=self.timeout * 10  # PDF处理时间更长，增加超时时间
             )
@@ -317,6 +323,8 @@ class OCRService:
             # 清理临时文件
             if temp_file:
                 self._cleanup_temp_file(temp_file)
+            if 'file_to_upload' in locals():                                                                      
+                  file_to_upload.close()
 
     def health_check(self) -> bool:
         """
