@@ -250,7 +250,7 @@ class FieldValueSampler(LoggerMixin):
         # 添加日期分区条件
         if date_partition_col:
             # 获取最近的日期（假设最近7天有数据）
-            recent_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            recent_date = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
             conditions.append(f"{date_partition_col} = '{recent_date}'")
             self.logger.debug(f"添加日期分区条件: {date_partition_col} = '{recent_date}'")
 

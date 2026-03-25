@@ -83,3 +83,14 @@ async def vector_training_job():
 
     except Exception as e:
         logger.error(f"向量数据库训练调度异常: {e}", exc_info=True)
+
+
+def main():
+    import asyncio
+    from datetime import datetime
+    logger.info(f"[{datetime.now()}] 向量数据库训练任务开始")
+    asyncio.run(vector_training_job())
+    logger.info(f"[{datetime.now()}] 向量数据库训练任务结束")
+
+if __name__ == '__main__':
+    main()
