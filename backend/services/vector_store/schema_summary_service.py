@@ -283,7 +283,7 @@ class SchemaSummaryService(LoggerMixin):
         )
 
         for chunk_idx, field_chunk in enumerate(field_chunks):
-            field_lines = [f"【字段详细信息 Part {chunk_idx + 1}】"]
+            field_lines = [f"【字段详细信息(单日抽样) Part {chunk_idx + 1}】"]
 
             for col_info in field_chunk:
                 col = col_info['column']

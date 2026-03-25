@@ -9,6 +9,7 @@ Schema Linking智能筛选服务
 """
 
 import json
+import re
 import asyncio
 from typing import Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
@@ -302,12 +303,10 @@ class SchemaLinkingService(LoggerMixin):
 
         # 添加字段级信息
         if field_level_summaries:
-            parts.append("\n【字段详细信息】")
+            parts.append("\n【字段详细信息(单日抽样)】")
             for field_summary in field_level_summaries:
-                # 移除每个字段级chunk的标题，避免重复
-                clean_summary = field_summary.replace("【字段详细信息 Part 1】", "")
-                clean_summary = clean_summary.replace("【字段详细信息 Part 2】", "")
-                clean_summary = clean_summary.replace("【字段详细信息 Part 3】", "")
+                # 移除每个字段级chunk的标题，避免重复（支持任意Part编号）
+                clean_summary = re.sub(r"【字段详细信息\(单日抽样\) Part \d+】", "", field_summary)
                 parts.append(clean_summary)
 
         return "\n".join(parts)
