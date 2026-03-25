@@ -144,6 +144,8 @@ class FieldValueSampler(LoggerMixin):
             字段名到采样结果的映射
         """
         try:            
+            table_info_list = []
+            results = {}
             with get_db_session() as db:
                 column_repo = MetadataColumnRepository(db)
                 # 获取表的所有字段
@@ -152,22 +154,24 @@ class FieldValueSampler(LoggerMixin):
                 # 过滤可用的字段
                 available_columns = [col for col in columns if col.is_available == 0]
 
-                results = {}
                 for col in available_columns:
                     # 从表名中提取（可能包含数据库前缀）
                     table_name = col.table.name
                     column_name = col.name
                     column_type = col.type
 
-                    sample_result = self.sample_field_values(
-                        table_name=table_name,
-                        column_name=column_name,
-                        column_type=column_type,
-                        table_id=table_id,
-                        limit=limit
-                    )
+                    table_info_list.append((table_name, column_name, column_type))
 
-                    results[column_name] = sample_result
+            for (table_name, column_name, column_type) in table_info_list:
+                sample_result = self.sample_field_values(
+                    table_name=table_name,
+                    column_name=column_name,
+                    column_type=column_type,
+                    table_id=table_id,
+                    limit=limit
+                )
+
+                results[column_name] = sample_result
 
             return results
 

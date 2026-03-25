@@ -73,6 +73,7 @@ class SchemaSummaryService(LoggerMixin):
     ) -> List[Tuple[str, Dict]]:
         """实际的生成实现（在指定的 db session 中执行）"""
         try:
+            available_columns_num = 0
             with get_db_session() as db:
                 _table_repo = MetadataTableRepository(db)
                 _column_repo = MetadataColumnRepository(db)
@@ -80,7 +81,7 @@ class SchemaSummaryService(LoggerMixin):
                 table = _table_repo.get_by_id(table_id)
                 if not table:
                     self.logger.warning(f"表ID {table_id} 不存在")
-                    return "", {}
+                    return []
 
                 # 获取字段信息
                 columns = _column_repo.get_by_table_id(table_id)
@@ -90,7 +91,9 @@ class SchemaSummaryService(LoggerMixin):
 
                 if not available_columns:
                     self.logger.warning(f"表 {table_name} 没有可用字段")
-                    return "", {}
+                    return []
+                else:
+                    available_columns_num = len(available_columns)
 
             # 采样字段值
             field_samples = {}
@@ -101,7 +104,7 @@ class SchemaSummaryService(LoggerMixin):
                         table_id,
                         limit=10,
                     )
-                    self.logger.debug(
+                    self.logger.info(
                         f"成功采样表 {table_name} 的字段值，"
                         f"共 {len(field_samples)} 个字段"
                     )
@@ -109,7 +112,8 @@ class SchemaSummaryService(LoggerMixin):
                     self.logger.warning(f"字段值采样失败: {e}")
 
             # 判断是否为大表
-            is_large_table = len(available_columns) > self.LARGE_TABLE_COLUMN_THRESHOLD
+            is_large_table = available_columns_num > self.LARGE_TABLE_COLUMN_THRESHOLD
+            self.logger.info(f'表{table_name}是否为大表： {is_large_table}')
 
             # 生成摘要
             if is_large_table:
@@ -133,7 +137,7 @@ class SchemaSummaryService(LoggerMixin):
                     "resource_type": "table",
                     "resource_id": table_id,
                     "table_name": table_name,
-                    "column_count": len(available_columns),
+                    "column_count": available_columns_num,
                     "is_large_table": False,
                     "has_field_samples": len(field_samples) > 0,
                     "chunk_type": "single",
@@ -145,7 +149,9 @@ class SchemaSummaryService(LoggerMixin):
 
         except Exception as e:
             self.logger.error(f"生成表摘要失败 table_id={table_id}: {e}")
-            return "", {}
+            import traceback
+            traceback.print_exc()
+            return []
 
     def _generate_single_table_summary(
         self,
