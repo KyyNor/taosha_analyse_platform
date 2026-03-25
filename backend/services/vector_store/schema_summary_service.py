@@ -88,9 +88,11 @@ class SchemaSummaryService(LoggerMixin):
                 # 获取字段信息
                 columns = _column_repo.get_by_table_id(table_id)
                 available_columns = [col for col in columns if col.is_available == 0]
+                table_name = table.name
+                table_comment = table.comment
 
                 if not available_columns:
-                    self.logger.warning(f"表 {table.name} 没有可用字段")
+                    self.logger.warning(f"表 {table_name} 没有可用字段")
                     return "", {}
 
             # 采样字段值
@@ -103,7 +105,7 @@ class SchemaSummaryService(LoggerMixin):
                         limit=10,
                     )
                     self.logger.debug(
-                        f"成功采样表 {table.name} 的字段值，"
+                        f"成功采样表 {table_name} 的字段值，"
                         f"共 {len(field_samples)} 个字段"
                     )
                 except Exception as e:
@@ -124,7 +126,8 @@ class SchemaSummaryService(LoggerMixin):
             if is_large_table:
                 # 大表：生成多个chunks（表级 + 字段级）
                 chunks = self._generate_large_table_chunks(
-                    table,
+                    table_name,
+                    table_comment,
                     available_columns,
                     field_samples,
                     table_stats,
@@ -133,7 +136,8 @@ class SchemaSummaryService(LoggerMixin):
             else:
                 # 小表：生成单个chunk
                 summary_text = self._generate_single_table_summary(
-                    table,
+                    table_name,
+                    table_comment,
                     available_columns,
                     field_samples,
                     table_stats
@@ -141,7 +145,7 @@ class SchemaSummaryService(LoggerMixin):
                 metadata = {
                     "resource_type": "table",
                     "resource_id": table_id,
-                    "table_name": table.name,
+                    "table_name": table_name,
                     "column_count": len(available_columns),
                     "is_large_table": False,
                     "has_field_samples": len(field_samples) > 0,
@@ -159,7 +163,8 @@ class SchemaSummaryService(LoggerMixin):
 
     def _generate_single_table_summary(
         self,
-        table,
+        table_name,
+        table_comment,
         columns: List,
         field_samples: Dict[str, Dict],
         table_stats: Dict
@@ -178,10 +183,10 @@ class SchemaSummaryService(LoggerMixin):
         lines = []
 
         # 1. 表基本信息
-        lines.append(f"表名：{table.name}")
+        lines.append(f"表名：{table_name}")
 
-        if table.comment:
-            lines.append(f"表注释：{table.comment}")
+        if table_comment:
+            lines.append(f"表注释：{table_comment}")
 
         # 2. 表统计信息
         if table_stats:
@@ -211,7 +216,8 @@ class SchemaSummaryService(LoggerMixin):
 
     def _generate_large_table_chunks(
         self,
-        table,
+        table_name,
+        table_comment,
         columns: List,
         field_samples: Dict[str, Dict],
         table_stats: Dict,
@@ -238,10 +244,10 @@ class SchemaSummaryService(LoggerMixin):
         # ===== Chunk 0: 表级信息 =====
         table_lines = []
         table_lines.append("【表级信息】")
-        table_lines.append(f"表名：{table.name}")
+        table_lines.append(f"表名：{table_name}")
 
-        if table.comment:
-            table_lines.append(f"表注释：{table.comment}")
+        if table_comment:
+            table_lines.append(f"表注释：{table_comment}")
 
         # 表统计信息
         if table_stats:
@@ -280,7 +286,7 @@ class SchemaSummaryService(LoggerMixin):
         table_metadata = {
             "resource_type": "table",
             "resource_id": table_id,
-            "table_name": table.name,
+            "table_name": table_name,
             "column_count": len(columns),
             "is_large_table": True,
             "has_field_samples": len(field_samples) > 0,
@@ -321,7 +327,7 @@ class SchemaSummaryService(LoggerMixin):
             field_metadata = {
                 "resource_type": "table",
                 "resource_id": table_id,
-                "table_name": table.name,
+                "table_name": table_name,
                 "column_count": len(columns),
                 "is_large_table": True,
                 "has_field_samples": len(field_samples) > 0,
