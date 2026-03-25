@@ -47,7 +47,6 @@ class SchemaSummaryService(LoggerMixin):
         self,
         table_id: int,
         include_field_samples: bool = True,
-        include_table_stats: bool = True
     ) -> List[Tuple[str, Dict]]:
         """生成表的Schema摘要（支持分块）
 
@@ -59,20 +58,18 @@ class SchemaSummaryService(LoggerMixin):
         Args:
             table_id: 表ID
             include_field_samples: 是否包含字段值样例
-            include_table_stats: 是否包含表统计信息
 
         Returns:
             [(摘要文本, 元数据字典), ...] 列表
         """
         return self._generate_impl(
-            table_id, include_field_samples, include_table_stats
+            table_id, include_field_samples
         )
 
     def _generate_impl(
         self,
         table_id: int,
         include_field_samples: bool,
-        include_table_stats: bool
     ) -> List[Tuple[str, Dict]]:
         """实际的生成实现（在指定的 db session 中执行）"""
         try:
@@ -111,14 +108,6 @@ class SchemaSummaryService(LoggerMixin):
                 except Exception as e:
                     self.logger.warning(f"字段值采样失败: {e}")
 
-            # 获取表统计信息
-            table_stats = {}
-            if include_table_stats:
-                try:
-                    table_stats = self._get_table_statistics(table, available_columns)
-                except Exception as e:
-                    self.logger.warning(f"获取表统计信息失败: {e}")
-
             # 判断是否为大表
             is_large_table = len(available_columns) > self.LARGE_TABLE_COLUMN_THRESHOLD
 
@@ -130,7 +119,6 @@ class SchemaSummaryService(LoggerMixin):
                     table_comment,
                     available_columns,
                     field_samples,
-                    table_stats,
                     table_id
                 )
             else:
@@ -140,7 +128,6 @@ class SchemaSummaryService(LoggerMixin):
                     table_comment,
                     available_columns,
                     field_samples,
-                    table_stats
                 )
                 metadata = {
                     "resource_type": "table",
@@ -149,7 +136,6 @@ class SchemaSummaryService(LoggerMixin):
                     "column_count": len(available_columns),
                     "is_large_table": False,
                     "has_field_samples": len(field_samples) > 0,
-                    "has_table_stats": len(table_stats) > 0,
                     "chunk_type": "single",
                     "separated": 0
                 }
@@ -167,7 +153,6 @@ class SchemaSummaryService(LoggerMixin):
         table_comment,
         columns: List,
         field_samples: Dict[str, Dict],
-        table_stats: Dict
     ) -> str:
         """生成单摘要格式（适用于字段较少的表）
 
@@ -175,7 +160,6 @@ class SchemaSummaryService(LoggerMixin):
             table: 表对象
             columns: 字段列表
             field_samples: 字段值采样结果
-            table_stats: 表统计信息
 
         Returns:
             摘要文本
@@ -187,14 +171,6 @@ class SchemaSummaryService(LoggerMixin):
 
         if table_comment:
             lines.append(f"表注释：{table_comment}")
-
-        # 2. 表统计信息
-        if table_stats:
-            lines.append("\n表统计：")
-            if table_stats.get("row_count"):
-                lines.append(f"- 总行数：{table_stats['row_count']}")
-            if table_stats.get("etl_date_range"):
-                lines.append(f"- ETL_DATE范围：{table_stats['etl_date_range']}")
 
         # 3. 字段详细信息
         lines.append("\n字段列表：")
@@ -220,7 +196,6 @@ class SchemaSummaryService(LoggerMixin):
         table_comment,
         columns: List,
         field_samples: Dict[str, Dict],
-        table_stats: Dict,
         table_id: int
     ) -> List[Tuple[str, Dict]]:
         """生成分离摘要格式（适用于字段较多的表）
@@ -231,7 +206,6 @@ class SchemaSummaryService(LoggerMixin):
             table: 表对象
             columns: 字段列表
             field_samples: 字段值采样结果
-            table_stats: 表统计信息
             table_id: 表ID
 
         Returns:
@@ -248,14 +222,6 @@ class SchemaSummaryService(LoggerMixin):
 
         if table_comment:
             table_lines.append(f"表注释：{table_comment}")
-
-        # 表统计信息
-        if table_stats:
-            table_lines.append("\n表统计：")
-            if table_stats.get("row_count"):
-                table_lines.append(f"- 总行数：{table_stats['row_count']}")
-            if table_stats.get("etl_date_range"):
-                table_lines.append(f"- ETL_DATE范围：{table_stats['etl_date_range']}")
 
         # 字段概览
         table_lines.append(f"\n字段概览：共 {len(columns)} 个字段")
@@ -290,7 +256,6 @@ class SchemaSummaryService(LoggerMixin):
             "column_count": len(columns),
             "is_large_table": True,
             "has_field_samples": len(field_samples) > 0,
-            "has_table_stats": len(table_stats) > 0,
             "chunk_type": "table_level",
             "separated": 1,  # 标记为分块
             "part": "table"
@@ -403,7 +368,7 @@ class SchemaSummaryService(LoggerMixin):
 
     def _get_table_statistics(
         self,
-        table,
+        table_name: str,
         columns: List
     ) -> Dict[str, Optional[str]]:
         """获取表统计信息
@@ -423,11 +388,11 @@ class SchemaSummaryService(LoggerMixin):
             None
         )
 
-        if etl_date_col and self._field_sampler:
+        if etl_date_col:
             try:
                 # 采样etl_date字段的值范围
                 sample_result = self._field_sampler.sample_field_values(
-                    table_name=table.name,
+                    table_name=table_name,
                     column_name=etl_date_col.name,
                     column_type=etl_date_col.type,
                     limit=1

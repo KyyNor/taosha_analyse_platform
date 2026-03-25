@@ -474,7 +474,6 @@ class VectorTrainingService:
                 documents = schema_service.generate_table_summary(
                     table_id=table_id,
                     include_field_samples=True,
-                    include_table_stats=True
                 )
 
                 if documents:
