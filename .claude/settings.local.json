@@ -79,7 +79,8 @@
       "Bash(npx tsc:*)",
       "WebSearch",
       "Bash(pip:*)",
-      "Bash(copy config.yaml.example config.yaml)"
+      "Bash(copy config.yaml.example config.yaml)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": [],

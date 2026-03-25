@@ -101,7 +101,6 @@ class SchemaSummaryService(LoggerMixin):
                     field_samples = field_sampler.sample_table_fields(
                         table_id,
                         limit=10,
-                        available_columns=available_columns
                     )
                     self.logger.debug(
                         f"成功采样表 {table.name} 的字段值，"

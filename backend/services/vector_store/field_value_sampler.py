@@ -182,17 +182,10 @@ class FieldValueSampler(LoggerMixin):
 
         Args:
             table_id: 表ID
-            db: 数据库会话（由调用方管理生命周期）
 
         Returns:
             日期分区字段名，如果未找到则返回None
         """
-        # 使用传入的 db 或者自身的 db
-        effective_db = db if db else self.db
-
-        if not effective_db:
-            return None
-
         # 检查缓存
         if table_id in self._date_partition_cache:
             return self._date_partition_cache[table_id]

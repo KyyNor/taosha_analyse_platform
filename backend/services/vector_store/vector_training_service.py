@@ -189,7 +189,7 @@ class VectorTrainingService:
                 tables = table_repo.get_all()
                 for table in tables:
                     # 获取表的最后修改时间（包含字段）
-                    last_modified = self._get_table_last_modified_time(table.id, column_repo)
+                    last_modified = self._get_table_last_modified_time(table.id, table_repo, column_repo)
 
                     if training_repo.needs_training("table", table.id, last_modified):
                         resources["table"].append({
@@ -250,7 +250,7 @@ class VectorTrainingService:
         return resources
     
 
-    def _get_table_last_modified_time(self, table_id: int, column_repo: MetadataColumnRepository) -> datetime:
+    def _get_table_last_modified_time(self, table_id: int, table_repo: MetadataTableRepository, column_repo: MetadataColumnRepository) -> datetime:
         """获取表的最后修改时间（包含字段）- 使用传入的column_repo
 
         Args:
@@ -262,17 +262,14 @@ class VectorTrainingService:
         """
         try:
             # 使用传入的 column_repo，table 需要单独获取
-            from models.db_base import get_db_session
-            with get_db_session() as db:
-                temp_repo = MetadataTableRepository(db)
-                table = temp_repo.get_by_id(table_id)
-                columns = column_repo.get_by_table_id(table_id)
+            table = table_repo.get_by_id(table_id)
+            columns = column_repo.get_by_table_id(table_id)
 
-                # 取表和所有字段的最新修改时间
-                all_times = [table.updated_at] if table else []
-                all_times.extend([col.updated_at for col in columns])
+            # 取表和所有字段的最新修改时间
+            all_times = [table.updated_at] if table else []
+            all_times.extend([col.updated_at for col in columns])
 
-                return max(all_times) if all_times else datetime.now()
+            return max(all_times) if all_times else datetime.now()
 
         except Exception as e:
             logger.error(f"获取表 {table_id} 的最后修改时间失败: {e}")

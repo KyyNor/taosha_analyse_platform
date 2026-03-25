@@ -254,7 +254,7 @@ class TrainingRecordRepository(BaseRepository):
             record = self.get_by_resource(resource_type, resource_id)
             if not record:
                 return True  # 新资源需要训练
-            return record.last_trained_at < last_modified_time
+            return record.last_modified_at < last_modified_time
         except Exception as e:
             logger.error(f"判断资源是否需要训练失败 {resource_type}:{resource_id}: {e}")
             return True  # 出错时默认需要训练
