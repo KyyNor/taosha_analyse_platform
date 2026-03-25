@@ -17,33 +17,35 @@ def _train_vector_database() -> Dict:
     """
     执行向量数据库训练（同步函数，在线程池中执行）
 
+    连接管理：不再在最外层获取连接，而是由 VectorTrainingService 内部自行管理
+    每种资源类型使用独立的数据库连接，连接在使用完后立即释放，避免超时问题。
+
     Returns:
         训练结果字典
     """
-    from models.db_base import get_db_session
     from services.vector_store.vector_training_service import VectorTrainingService
 
     try:
-        with get_db_session() as db:
-            training_service = VectorTrainingService(db)
-            result = training_service.train_vector_database("定时任务的向量数据库训练")
+        # 不再在这里获取 db 连接，由 service 内部自行管理
+        training_service = VectorTrainingService()
+        result = training_service.train_vector_database("定时任务的向量数据库训练")
 
-            if result["success"]:
-                trained_count = result.get("trained_count", 0)
-                training_time = result.get("training_time", 0)
+        if result["success"]:
+            trained_count = result.get("trained_count", 0)
+            training_time = result.get("training_time", 0)
 
-                if trained_count > 0:
-                    logger.info(
-                        f"向量数据库训练完成: "
-                        f"训练了{trained_count}个资源, "
-                        f"耗时{training_time:.2f}秒"
-                    )
-                else:
-                    logger.debug("向量数据库训练完成: 没有需要训练的资源")
+            if trained_count > 0:
+                logger.info(
+                    f"向量数据库训练完成: "
+                    f"训练了{trained_count}个资源, "
+                    f"耗时{training_time:.2f}秒"
+                )
             else:
-                logger.error(f"向量数据库训练失败: {result.get('error', 'Unknown error')}")
+                logger.debug("向量数据库训练完成: 没有需要训练的资源")
+        else:
+            logger.error(f"向量数据库训练失败: {result.get('error', 'Unknown error')}")
 
-            return result
+        return result
 
     except Exception as e:
         logger.error(f"向量数据库训练异常: {e}", exc_info=True)

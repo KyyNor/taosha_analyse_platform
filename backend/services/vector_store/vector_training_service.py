@@ -9,6 +9,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from models.db_base import get_db_session
 from services.vector_store.qdrant_vector_store import qdrant_vector_store
 from utils.logger import logger
 from repositories.training_repository import TrainingRecordRepository
@@ -23,24 +24,30 @@ class VectorTrainingService:
     """向量数据库训练服务 - 增量训练版本
 
     实现基于修改时间的增量训练，只训练有变化的资源
+
+    连接管理特点：
+    - 不在初始化时持有数据库连接
+    - 每种资源类型使用独立的数据库连接
+    - 文档生成阶段使用独立的短生命周期连接
+    - 连接在使用完后立即释放，避免超时问题
     """
 
-    def __init__(self, db: Session):
-        """初始化向量训练服务
+    def __init__(self):
+        """初始化向量训练服务（不再接收 db 参数）
 
-        Args:
-            db: 数据库会话
+        连接将由各方法内部自行管理。
         """
-        self.db = db
+        # 不再持有 db session
+        self.db = None
 
-        # 初始化Repository
-        self.training_repo = TrainingRecordRepository(db)
-        self.table_repo = MetadataTableRepository(db)
-        self.column_repo = MetadataColumnRepository(db)
-        self.glossary_repo = GlossaryTermRepository(db)
-        self.relation_repo = RelationFieldConfigRepository(db)
-        self.fine_report_repo = FineReportRepository(db)
-        self.fragment_repo = KnowledgeFragmentRepository(db)
+        # 不再在初始化时创建 Repository，在具体使用时创建
+        self._training_repo = None
+        self._table_repo = None
+        self._column_repo = None
+        self._glossary_repo = None
+        self._relation_repo = None
+        self._fine_report_repo = None
+        self._fragment_repo = None
 
         # 使用全局向量存储实例
         try:
@@ -50,13 +57,6 @@ class VectorTrainingService:
             logger.error(f"向量存储初始化失败: {e}")
             raise
 
-        # 初始化Schema摘要服务（包含字段值采样功能）
-        try:
-            self.schema_summary_service = SchemaSummaryService(db)
-            logger.info("Schema摘要服务初始化成功")
-        except Exception as e:
-            logger.warning(f"Schema摘要服务初始化失败: {e}")
-            self.schema_summary_service = None
 
     def train_vector_database(self, session_name: str = "增量向量数据库训练") -> Dict[str, Any]:
         """增量训练向量数据库
@@ -161,6 +161,8 @@ class VectorTrainingService:
     def _get_resources_needing_training(self) -> Dict[str, List[Dict]]:
         """获取需要训练的资源列表
 
+        注意：此方法在内部获取独立的数据库连接，使用完毕后立即释放。
+
         Returns:
             按资源类型分组的需要训练的资源列表
         """
@@ -173,85 +175,105 @@ class VectorTrainingService:
         }
 
         try:
-            # 1. 检查表资源
-            tables = self.table_repo.get_all()
-            for table in tables:
-                # 获取表的最后修改时间（包含字段）
-                last_modified = self._get_table_last_modified_time(table.id)
+            # 在独立的 with 块中获取连接，执行所有数据库操作
+            with get_db_session() as db:
+                # 创建所需的 Repository
+                table_repo = MetadataTableRepository(db)
+                column_repo = MetadataColumnRepository(db)
+                glossary_repo = GlossaryTermRepository(db)
+                relation_repo = RelationFieldConfigRepository(db)
+                fine_report_repo = FineReportRepository(db)
+                training_repo = TrainingRecordRepository(db)
 
-                if self.training_repo.needs_training("table", table.id, last_modified):
-                    resources["table"].append({
-                        "id": table.id,
-                        "name": table.name,
-                        "last_modified": last_modified
-                    })
+                # 1. 检查表资源
+                tables = table_repo.get_all()
+                for table in tables:
+                    # 获取表的最后修改时间（包含字段）
+                    last_modified = self._get_table_last_modified_time(table.id, column_repo)
 
-            # 2. 检查术语表资源（只检查非基础术语）
-            glossaries = self.glossary_repo.get_non_basic_terms()  # 改为只获取非基础术语
-            for glossary in glossaries:
-                if self.training_repo.needs_training("glossary", glossary.id, glossary.updated_at):
-                    resources["glossary"].append({
-                        "id": glossary.id,
-                        "name": glossary.name,
-                        "last_modified": glossary.updated_at
-                    })
+                    if training_repo.needs_training("table", table.id, last_modified):
+                        resources["table"].append({
+                            "id": table.id,
+                            "name": table.name,
+                            "last_modified": last_modified
+                        })
 
-            # 3. 检查关联配置资源
-            relations = self.relation_repo.get_all()
-            for relation in relations:
-                if self.training_repo.needs_training("relation", relation.id, relation.updated_at):
-                    resources["relation"].append({
-                        "id": relation.id,
-                        "name": f"{relation.relation_family}:{relation.relation_subfamily}",
-                        "last_modified": relation.updated_at
-                    })
+                # 2. 检查术语表资源（只检查非基础术语）
+                glossaries = glossary_repo.get_non_basic_terms()
+                for glossary in glossaries:
+                    if training_repo.needs_training("glossary", glossary.id, glossary.updated_at):
+                        resources["glossary"].append({
+                            "id": glossary.id,
+                            "name": glossary.name,
+                            "last_modified": glossary.updated_at
+                        })
 
-            # 4. 检查FineReport报表资源
-            fine_reports = self.fine_report_repo.get_all()
-            for report in fine_reports:
-                if self.training_repo.needs_training("fine_report", report.id, report.updated_at):
-                    resources["fine_report"].append({
-                        "id": report.id,
-                        "name": report.report_name,
-                        "last_modified": report.updated_at
-                    })
+                # 3. 检查关联配置资源
+                relations = relation_repo.get_all()
+                for relation in relations:
+                    if training_repo.needs_training("relation", relation.id, relation.updated_at):
+                        resources["relation"].append({
+                            "id": relation.id,
+                            "name": f"{relation.relation_family}:{relation.relation_subfamily}",
+                            "last_modified": relation.updated_at
+                        })
 
-            # 5. 检查知识片段资源
-            from models.metadata_models import MetadataKnowledgeFragment
-            fragments = self.fragment_repo.db.query(MetadataKnowledgeFragment).all()
-            for fragment in fragments:
-                if self.training_repo.needs_training("knowledge_fragment", fragment.id, fragment.updated_at):
-                    resources["knowledge_fragment"].append({
-                        "id": fragment.id,
-                        "name": fragment.title,
-                        "last_modified": fragment.updated_at
-                    })
+                # 4. 检查FineReport报表资源
+                fine_reports = fine_report_repo.get_all()
+                for report in fine_reports:
+                    if training_repo.needs_training("fine_report", report.id, report.updated_at):
+                        resources["fine_report"].append({
+                            "id": report.id,
+                            "name": report.report_name,
+                            "last_modified": report.updated_at
+                        })
 
-            logger.info(f"发现需要训练的资源: 表({len(resources['table'])}), 术语({len(resources['glossary'])}), 关联({len(resources['relation'])}), FineReport({len(resources['fine_report'])}), 知识片段({len(resources['knowledge_fragment'])})")
+                # 5. 检查知识片段资源
+                from models.metadata_models import MetadataKnowledgeFragment
+                # 需要一个新的 session 来查询
+                with get_db_session() as fragment_db:
+                    fragment_repo = KnowledgeFragmentRepository(fragment_db)
+                    fragments = fragment_db.query(MetadataKnowledgeFragment).all()
+                    for fragment in fragments:
+                        if training_repo.needs_training("knowledge_fragment", fragment.id, fragment.updated_at):
+                            resources["knowledge_fragment"].append({
+                                "id": fragment.id,
+                                "name": fragment.title,
+                                "last_modified": fragment.updated_at
+                            })
+
+                logger.info(f"发现需要训练的资源: 表({len(resources['table'])}), 术语({len(resources['glossary'])}), 关联({len(resources['relation'])}), FineReport({len(resources['fine_report'])}), 知识片段({len(resources['knowledge_fragment'])})")
 
         except Exception as e:
             logger.error(f"获取需要训练的资源失败: {e}")
 
         return resources
+    
 
-    def _get_table_last_modified_time(self, table_id: int) -> datetime:
-        """获取表的最后修改时间（包含字段）
+    def _get_table_last_modified_time(self, table_id: int, column_repo: MetadataColumnRepository) -> datetime:
+        """获取表的最后修改时间（包含字段）- 使用传入的column_repo
 
         Args:
             table_id: 表ID
+            column_repo: 列仓储实例（必须由调用方传入）
 
         Returns:
             最后修改时间
         """
         try:
-            table = self.table_repo.get_by_id(table_id)
-            columns = self.column_repo.get_by_table_id(table_id)
+            # 使用传入的 column_repo，table 需要单独获取
+            from models.db_base import get_db_session
+            with get_db_session() as db:
+                temp_repo = MetadataTableRepository(db)
+                table = temp_repo.get_by_id(table_id)
+                columns = column_repo.get_by_table_id(table_id)
 
-            # 取表和所有字段的最新修改时间
-            all_times = [table.updated_at] if table else []
-            all_times.extend([col.updated_at for col in columns])
+                # 取表和所有字段的最新修改时间
+                all_times = [table.updated_at] if table else []
+                all_times.extend([col.updated_at for col in columns])
 
-            return max(all_times) if all_times else datetime.now()
+                return max(all_times) if all_times else datetime.now()
+
         except Exception as e:
             logger.error(f"获取表 {table_id} 的最后修改时间失败: {e}")
             return datetime.now()
@@ -263,7 +285,12 @@ class VectorTrainingService:
         doc_generator,
         supports_multiple_docs: bool = False
     ) -> Dict[str, int]:
-        """通用批量训练方法
+        """通用批量训练方法（三阶段连接管理）
+
+        三阶段模式：
+        1. 阶段1：获取连接 -> 执行前置数据库操作 -> 释放连接
+        2. 阶段2：耗时文档生成（内部自行管理连接）
+        3. 阶段3：获取连接 -> 执行后置操作 -> 释放连接
 
         Args:
             resources: 需要训练的资源列表
@@ -284,51 +311,68 @@ class VectorTrainingService:
             resource_name = resource_info.get("name")
 
             try:
-                # 确保训练记录存在（新资源会创建记录）
-                self.training_repo.create_or_update_record(
-                    resource_type, resource_id, resource_info["last_modified"]
-                )
+                # ========== 阶段1: 前置数据库操作 ==========
+                # 在独立连接中执行：创建/更新训练记录、标记训练中、删除旧向量
+                with get_db_session() as db:
+                    training_repo = TrainingRecordRepository(db)
+                    training_repo.create_or_update_record(
+                        resource_type, resource_id, resource_info["last_modified"]
+                    )
+                    training_repo.mark_as_training(resource_type, resource_id)
 
-                # 标记为正在训练
-                self.training_repo.mark_as_training(resource_type, resource_id)
+                    # 获取旧记录的 vector_id 用于删除
+                    record = training_repo.get_by_resource(resource_type, resource_id)
+                    old_vector_id = record.vector_id if record and record.vector_id else None
 
-                # 删除旧的向量数据
-                self._delete_vector_by_resource(resource_type, resource_id)
+                    # 删除旧的向量数据
+                    if old_vector_id:
+                        try:
+                            self.vector_store.delete(ids=[old_vector_id])
+                            logger.debug(f"删除了旧向量: {resource_type}:{resource_id}")
+                        except Exception as del_err:
+                            logger.warning(f"删除旧向量失败: {del_err}")
 
-                # 生成文档
+                # ========== 阶段2: 耗时文档生成 ==========
+                # 这是最耗时的操作，它内部会自己管理数据库连接
+                # 此阶段不持有 MySQL 连接，因此不会导致连接超时
                 documents = doc_generator(resource_id)
 
-                if not documents:
-                    self.training_repo.mark_as_failed(resource_type, resource_id)
-                    failed += 1
-                    logger.warning(f"生成文档失败: {resource_name}")
-                    continue
+                # ========== 阶段3: 后置数据库操作 ==========
+                # 获取新的连接，执行：添加到向量数据库、更新训练完成状态
+                with get_db_session() as db:
+                    if not documents:
+                        training_repo = TrainingRecordRepository(db)
+                        training_repo.mark_as_failed(resource_type, resource_id)
+                        failed += 1
+                        logger.warning(f"生成文档失败: {resource_name}")
+                        continue
 
-                # 添加到向量数据库
-                vector_ids = []
+                    training_repo = TrainingRecordRepository(db)
 
-                if supports_multiple_docs:
-                    # 多文档模式（表资源）：documents 是 List[Tuple[str, Dict]]
-                    for doc_tuple in documents:
-                        doc_text, doc_meta = doc_tuple
-                        if doc_text:
-                            ids = self.vector_store.add(
-                                documents=[doc_text], metadatas=[doc_meta]
-                            )
-                            vector_ids.extend(ids)
-                else:
-                    # 单文档模式：documents 可能是 (str, Dict) 或 空字符串
-                    if isinstance(documents, tuple):
-                        doc_text, metadata = documents
-                        if doc_text:
-                            ids = self.vector_store.add(
-                                documents=[doc_text], metadatas=[metadata]
-                            )
-                            vector_ids.extend(ids)
+                    # 添加到向量数据库（Qdrant 操作，不需要 db session）
+                    vector_ids = []
+                    if supports_multiple_docs:
+                        # 多文档模式（表资源）
+                        for doc_tuple in documents:
+                            doc_text, doc_meta = doc_tuple
+                            if doc_text:
+                                ids = self.vector_store.add(
+                                    documents=[doc_text], metadatas=[doc_meta]
+                                )
+                                vector_ids.extend(ids)
+                    else:
+                        # 单文档模式
+                        if isinstance(documents, tuple):
+                            doc_text, metadata = documents
+                            if doc_text:
+                                ids = self.vector_store.add(
+                                    documents=[doc_text], metadatas=[metadata]
+                                )
+                                vector_ids.extend(ids)
 
-                # 更新训练记录（使用第一个vector_id作为主ID）
-                primary_vector_id = vector_ids[0] if vector_ids else ""
-                self.training_repo.update_training_time(resource_type, resource_id, primary_vector_id)
+                    # 更新训练记录（使用第一个 vector_id 作为主 ID）
+                    primary_vector_id = vector_ids[0] if vector_ids else ""
+                    training_repo.update_training_time(resource_type, resource_id, primary_vector_id)
 
                 trained += 1
                 logger.debug(f"成功训练 {resource_type}: {resource_name}，生成了 {len(vector_ids)} 个chunks")
@@ -337,12 +381,19 @@ class VectorTrainingService:
                 failed += 1
                 logger.error(f"训练 {resource_type} 资源失败: {e}")
                 if resource_id:
-                    self.training_repo.mark_as_failed(resource_type, resource_id)
+                    try:
+                        with get_db_session() as db:
+                            training_repo = TrainingRecordRepository(db)
+                            training_repo.mark_as_failed(resource_type, resource_id)
+                    except Exception as update_err:
+                        logger.error(f"更新失败状态出错: {update_err}")
 
         return {"trained": trained, "failed": failed}
 
     def _generate_knowledge_fragment_document(self, fragment_id: int) -> Tuple[str, Dict]:
         """生成知识片段文档
+
+        注意：此方法内部获取独立的数据库连接，使用完毕后释放。
 
         Args:
             fragment_id: 片段ID
@@ -353,9 +404,10 @@ class VectorTrainingService:
         try:
             from models.metadata_models import MetadataKnowledgeFragment
 
-            fragment = self.fragment_repo.db.query(MetadataKnowledgeFragment).filter(
-                MetadataKnowledgeFragment.id == fragment_id
-            ).first()
+            with get_db_session() as db:
+                fragment = db.query(MetadataKnowledgeFragment).filter(
+                    MetadataKnowledgeFragment.id == fragment_id
+                ).first()
 
             if not fragment:
                 return "", {}
@@ -407,6 +459,8 @@ class VectorTrainingService:
 
         使用Schema摘要服务生成包含字段值样例、统计信息的丰富schema描述
 
+        注意：此方法内部会获取独立的数据库连接，生成完毕后将连接归还。
+
         Args:
             table_id: 表ID
 
@@ -414,9 +468,13 @@ class VectorTrainingService:
             [(文档内容, 元数据), ...] 列表
         """
         try:
-            # 使用Schema摘要服务生成文档
-            if self.schema_summary_service:
-                documents = self.schema_summary_service.generate_table_summary(
+            # 延迟获取或创建 schema_summary_service
+            schema_service = SchemaSummaryService()
+
+            if schema_service:
+                # SchemaSummaryService.generate_table_summary 在没有传入 db 时
+                # 会在内部自行获取连接，使用完后释放
+                documents = schema_service.generate_table_summary(
                     table_id=table_id,
                     include_field_samples=True,
                     include_table_stats=True
@@ -429,7 +487,7 @@ class VectorTrainingService:
                     return []
 
             else:
-                # 降级：使用简单的表描述
+                # 降级：使用简单的表描述（也需要内部获取连接）
                 logger.warning("Schema摘要服务不可用，使用简单的表描述")
                 return self._generate_simple_table_document(table_id)
 
@@ -440,6 +498,8 @@ class VectorTrainingService:
     def _generate_simple_table_document(self, table_id: int) -> List[Tuple[str, Dict]]:
         """生成简单的表文档（降级方案）
 
+        注意：此方法内部获取独立的数据库连接，使用完毕后释放。
+
         Args:
             table_id: 表ID
 
@@ -447,14 +507,18 @@ class VectorTrainingService:
             [(文档内容, 元数据), ...] 列表
         """
         try:
-            table = self.table_repo.get_by_id(table_id)
-            if not table:
-                return []
+            with get_db_session() as db:
+                table_repo = MetadataTableRepository(db)
+                column_repo = MetadataColumnRepository(db)
 
-            columns = self.column_repo.get_by_table_id(table_id)
-            available_columns = [col for col in columns if col.is_available == 0]
+                table = table_repo.get_by_id(table_id)
+                if not table:
+                    return []
 
-            # 构建基础表结构描述
+                columns = column_repo.get_by_table_id(table_id)
+                available_columns = [col for col in columns if col.is_available == 0]
+
+            # 构建基础表结构描述（在 with 块之外进行，不依赖 db session）
             comment = ''
             if table.comment:
                 comment = f"表描述: {table.comment}"
@@ -491,6 +555,8 @@ class VectorTrainingService:
     def _generate_glossary_document(self, glossary_id: int) -> Tuple[str, Dict]:
         """生成术语表文档
 
+        注意：此方法内部获取独立的数据库连接，使用完毕后释放。
+
         Args:
             glossary_id: 术语ID
 
@@ -498,7 +564,10 @@ class VectorTrainingService:
             (文档内容, 元数据)
         """
         try:
-            glossary = self.glossary_repo.get_by_id(glossary_id)
+            with get_db_session() as db:
+                glossary_repo = GlossaryTermRepository(db)
+                glossary = glossary_repo.get_by_id(glossary_id)
+
             if not glossary:
                 return "", {}
 
@@ -541,6 +610,8 @@ class VectorTrainingService:
     def _generate_relation_document(self, relation_id: int) -> Tuple[str, Dict]:
         """生成关联配置文档
 
+        注意：此方法内部获取独立的数据库连接，使用完毕后释放。
+
         Args:
             relation_id: 关联ID
 
@@ -548,7 +619,10 @@ class VectorTrainingService:
             (文档内容, 元数据)
         """
         try:
-            relation = self.relation_repo.get_by_id(relation_id)
+            with get_db_session() as db:
+                relation_repo = RelationFieldConfigRepository(db)
+                relation = relation_repo.get_by_id(relation_id)
+
             if not relation:
                 return "", {}
 
@@ -577,6 +651,8 @@ class VectorTrainingService:
     def _generate_fine_report_document(self, report_id: int) -> Tuple[str, Dict]:
         """生成FineReport报表文档
 
+        注意：此方法内部获取独立的数据库连接，使用完毕后释放。
+
         Args:
             report_id: 报表ID
 
@@ -584,7 +660,10 @@ class VectorTrainingService:
             (文档内容, 元数据)
         """
         try:
-            report = self.fine_report_repo.get_by_id(report_id)
+            with get_db_session() as db:
+                fine_report_repo = FineReportRepository(db)
+                report = fine_report_repo.get_by_id(report_id)
+
             if not report:
                 return "", {}
 
@@ -635,47 +714,32 @@ class VectorTrainingService:
             logger.error(f"生成报表文档失败 {report_id}: {e}")
             return "", {}
 
-    def _delete_vector_by_resource(self, resource_type: str, resource_id: int):
-        """删除指定资源的向量数据
+    def _cleanup_orphaned_vectors(self):
+        """清理无效资源的向量数据
 
-        Args:
-            resource_type: 资源类型
-            resource_id: 资源ID
+        注意：此方法在内部获取独立的数据库连接，使用完毕后释放。
         """
         try:
-            # 根据元数据删除向量数据
-            # 这里需要根据向量存储的实现来删除特定资源的数据
-            # 如果向量存储支持按元数据删除，可以这样实现：
-            # self.vector_store.delete(where={"resource_type": resource_type, "resource_id": resource_id})
+            with get_db_session() as db:
+                table_repo = MetadataTableRepository(db)
+                glossary_repo = GlossaryTermRepository(db)
+                relation_repo = RelationFieldConfigRepository(db)
+                fine_report_repo = FineReportRepository(db)
 
-            # 临时方案：获取训练记录中的vector_id，然后删除
-            record = self.training_repo.get_by_resource(resource_type, resource_id)
-            if record and record.vector_id:
-                try:
-                    self.vector_store.delete(ids=[record.vector_id])
-                    logger.debug(f"删除向量数据: {resource_type}:{resource_id}")
-                except Exception as e:
-                    logger.warning(f"删除向量数据失败: {e}")
+                # 获取当前有效的资源ID列表
+                valid_resources = {
+                    "table": [t.id for t in table_repo.get_all()],
+                    "glossary": [g.id for g in glossary_repo.get_all()],
+                    "relation": [r.id for r in relation_repo.get_all()],
+                    "fine_report": [r.id for r in fine_report_repo.get_all()]
+                }
 
-        except Exception as e:
-            logger.error(f"删除向量数据失败 {resource_type}:{resource_id}: {e}")
+                # 清理无效的训练记录
+                training_repo = TrainingRecordRepository(db)
+                deleted_count = training_repo.cleanup_orphaned_records(valid_resources)
 
-    def _cleanup_orphaned_vectors(self):
-        """清理无效资源的向量数据"""
-        try:
-            # 获取当前有效的资源ID列表
-            valid_resources = {
-                "table": [t.id for t in self.table_repo.get_all()],
-                "glossary": [g.id for g in self.glossary_repo.get_all()],
-                "relation": [r.id for r in self.relation_repo.get_all()],
-                "fine_report": [r.id for r in self.fine_report_repo.get_all()]
-            }
-
-            # 清理无效的训练记录
-            deleted_count = self.training_repo.cleanup_orphaned_records(valid_resources)
-
-            if deleted_count > 0:
-                logger.info(f"清理了 {deleted_count} 条无效的训练记录")
+                if deleted_count > 0:
+                    logger.info(f"清理了 {deleted_count} 条无效的训练记录")
 
         except Exception as e:
             logger.error(f"清理无效向量数据失败: {e}")

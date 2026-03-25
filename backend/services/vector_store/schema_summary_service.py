@@ -7,6 +7,7 @@ Schema摘要生成服务
 
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
+from models.db_base import get_db_session
 from sqlalchemy.orm import Session
 
 from utils.logger import LoggerMixin
@@ -37,24 +38,10 @@ class SchemaSummaryService(LoggerMixin):
     FIELD_CHUNK_SIZE = 20  # 每个字段chunk包含的字段数量
     MAX_CHARS_PER_CHUNK = 1000  # 每个chunk的最大字符数（参考DB-GPT的512，适当放大）
 
-    def __init__(self, db: Session):
+    def __init__(self):
         """初始化Schema摘要服务
-
-        Args:
-            db: 数据库会话
         """
-        self.db = db
-        self.table_repo = MetadataTableRepository(db)
-        self.column_repo = MetadataColumnRepository(db)
-        self.relation_repo = RelationFieldConfigRepository(db)
-
-        # 初始化字段值采样器
-        try:
-            self.field_sampler = FieldValueSampler(db)
-            self.logger.info("字段值采样器初始化成功")
-        except Exception as e:
-            self.logger.warning(f"字段值采样器初始化失败: {e}")
-            self.field_sampler = None
+        pass
 
     def generate_table_summary(
         self,
@@ -67,6 +54,8 @@ class SchemaSummaryService(LoggerMixin):
         对于小表：返回单个chunk
         对于大表：返回多个chunks（1个表级 + N个字段级）
 
+        注意：如果没有传入 db，此方法会在内部自行获取连接。
+
         Args:
             table_id: 表ID
             include_field_samples: 是否包含字段值样例
@@ -75,28 +64,44 @@ class SchemaSummaryService(LoggerMixin):
         Returns:
             [(摘要文本, 元数据字典), ...] 列表
         """
+        return self._generate_impl(
+            table_id, include_field_samples, include_table_stats
+        )
+
+    def _generate_impl(
+        self,
+        table_id: int,
+        include_field_samples: bool,
+        include_table_stats: bool
+    ) -> List[Tuple[str, Dict]]:
+        """实际的生成实现（在指定的 db session 中执行）"""
         try:
-            # 获取表信息
-            table = self.table_repo.get_by_id(table_id)
-            if not table:
-                self.logger.warning(f"表ID {table_id} 不存在")
-                return "", {}
+            with get_db_session() as db:
+                _table_repo = MetadataTableRepository(db)
+                _column_repo = MetadataColumnRepository(db)
+                # 获取表信息
+                table = _table_repo.get_by_id(table_id)
+                if not table:
+                    self.logger.warning(f"表ID {table_id} 不存在")
+                    return "", {}
 
-            # 获取字段信息
-            columns = self.column_repo.get_by_table_id(table_id)
-            available_columns = [col for col in columns if col.is_available == 0]
+                # 获取字段信息
+                columns = _column_repo.get_by_table_id(table_id)
+                available_columns = [col for col in columns if col.is_available == 0]
 
-            if not available_columns:
-                self.logger.warning(f"表 {table.name} 没有可用字段")
-                return "", {}
+                if not available_columns:
+                    self.logger.warning(f"表 {table.name} 没有可用字段")
+                    return "", {}
 
             # 采样字段值
             field_samples = {}
-            if include_field_samples and self.field_sampler:
+            if include_field_samples:
                 try:
-                    field_samples = self.field_sampler.sample_table_fields(
+                    field_sampler = FieldValueSampler()
+                    field_samples = field_sampler.sample_table_fields(
                         table_id,
-                        limit=10
+                        limit=10,
+                        available_columns=available_columns
                     )
                     self.logger.debug(
                         f"成功采样表 {table.name} 的字段值，"
@@ -198,10 +203,10 @@ class SchemaSummaryService(LoggerMixin):
             lines.append(col_summary)
 
         # 4. 业务关系（如果有）
-        relations = self._get_table_relations(columns)
-        if relations:
-            lines.append("\n业务关系：")
-            lines.extend(relations)
+        # relations = self._get_table_relations(columns)
+        # if relations:
+        #     lines.append("\n业务关系：")
+        #     lines.extend(relations)
 
         return "\n".join(lines)
 
@@ -357,7 +362,7 @@ class SchemaSummaryService(LoggerMixin):
 
         # 关联信息
         if col.relation_config_id:
-            relation = self.relation_repo.get_by_id(col.relation_config_id)
+            relation = self._relation_repo.get_by_id(col.relation_config_id)
             if relation:
                 lines.append(f"   关联：{relation.relation_family}|{relation.relation_subfamily}")
 
@@ -413,10 +418,10 @@ class SchemaSummaryService(LoggerMixin):
             None
         )
 
-        if etl_date_col and self.field_sampler:
+        if etl_date_col and self._field_sampler:
             try:
                 # 采样etl_date字段的值范围
-                sample_result = self.field_sampler.sample_field_values(
+                sample_result = self._field_sampler.sample_field_values(
                     table_name=table.name,
                     column_name=etl_date_col.name,
                     column_type=etl_date_col.type,
@@ -554,25 +559,25 @@ class SchemaSummaryService(LoggerMixin):
 
         return key_columns
 
-    def _get_table_relations(self, columns: List) -> List[str]:
-        """获取表的业务关系
+    # def _get_table_relations(self, columns: List) -> List[str]:
+    #     """获取表的业务关系
 
-        Args:
-            columns: 字段列表
+    #     Args:
+    #         columns: 字段列表
 
-        Returns:
-            业务关系描述列表
-        """
-        relations = []
+    #     Returns:
+    #         业务关系描述列表
+    #     """
+    #     relations = []
 
-        for col in columns:
-            if col.relation_config_id:
-                relation = self.relation_repo.get_by_id(col.relation_config_id)
-                if relation:
-                    rel_desc = (
-                        f"- {col.name} 关联到 "
-                        f"{relation.relation_family}|{relation.relation_subfamily}"
-                    )
-                    relations.append(rel_desc)
+    #     for col in columns:
+    #         if col.relation_config_id:
+    #             relation = self._relation_repo.get_by_id(col.relation_config_id)
+    #             if relation:
+    #                 rel_desc = (
+    #                     f"- {col.name} 关联到 "
+    #                     f"{relation.relation_family}|{relation.relation_subfamily}"
+    #                 )
+    #                 relations.append(rel_desc)
 
-        return relations
+    #     return relations

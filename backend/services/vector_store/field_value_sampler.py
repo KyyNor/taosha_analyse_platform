@@ -8,11 +8,13 @@
 import json
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
+from models.db_base import get_db_session
+from models.metadata_models import MetadataColumn
 from sqlalchemy.orm import Session
 
 from utils.logger import LoggerMixin
 from utils.config import settings
-from repositories.metadata_repository import MetadataColumnRepository
+from repositories.metadata_repository import MetadataColumnRepository, MetadataTableRepository
 from services.query_engine.base import QueryEngineFactory
 
 
@@ -26,6 +28,9 @@ class FieldValueSampler(LoggerMixin):
     - 日期型：采样范围
 
     重要：对于Hadoop大数据表，自动检测并添加日期分区条件（etl_date或cdate）
+
+    连接管理：如果不传入 db，则在需要时内部自行获取连接，
+    使用完后立即释放，避免长时间持有连接导致超时。
     """
 
     # 常见的日期分区字段名
@@ -36,15 +41,9 @@ class FieldValueSampler(LoggerMixin):
     STRING_TYPES = ['varchar', 'char', 'text', 'string']
     DATE_TYPES = ['date', 'datetime', 'timestamp', 'time']
 
-    def __init__(self, db: Session):
+    def __init__(self):
         """初始化字段值采样服务
-
-        Args:
-            db: 数据库会话
         """
-        self.db = db
-        self.column_repo = MetadataColumnRepository(db)
-
         # 初始化查询引擎（用于采样查询）
         try:
             self.query_engine = QueryEngineFactory.create_service(
@@ -128,8 +127,14 @@ class FieldValueSampler(LoggerMixin):
                 "error": str(e)
             }
 
-    def sample_table_fields(self, table_id: int, limit: int = 20) -> Dict[str, Dict]:
+    def sample_table_fields(
+        self,
+        table_id: int,
+        limit: int = 20,
+    ) -> Dict[str, Dict]:
         """采样表的所有字段
+
+        注意：此方法需要调用方在 with get_db_session() 块内调用，或传入 db 参数。
 
         Args:
             table_id: 表ID
@@ -138,29 +143,31 @@ class FieldValueSampler(LoggerMixin):
         Returns:
             字段名到采样结果的映射
         """
-        try:
-            # 获取表的所有字段
-            columns = self.column_repo.get_by_table_id(table_id)
+        try:            
+            with get_db_session() as db:
+                column_repo = MetadataColumnRepository(db)
+                # 获取表的所有字段
+                columns = column_repo.get_by_table_id(table_id)
 
-            # 过滤可用的字段
-            available_columns = [col for col in columns if col.is_available == 0]
+                # 过滤可用的字段
+                available_columns = [col for col in columns if col.is_available == 0]
 
-            results = {}
-            for col in available_columns:
-                # 从表名中提取（可能包含数据库前缀）
-                table_name = col.table.name
-                column_name = col.name
-                column_type = col.type
+                results = {}
+                for col in available_columns:
+                    # 从表名中提取（可能包含数据库前缀）
+                    table_name = col.table.name
+                    column_name = col.name
+                    column_type = col.type
 
-                sample_result = self.sample_field_values(
-                    table_name=table_name,
-                    column_name=column_name,
-                    column_type=column_type,
-                    table_id=table_id,
-                    limit=limit
-                )
+                    sample_result = self.sample_field_values(
+                        table_name=table_name,
+                        column_name=column_name,
+                        column_type=column_type,
+                        table_id=table_id,
+                        limit=limit
+                    )
 
-                results[column_name] = sample_result
+                    results[column_name] = sample_result
 
             return results
 
@@ -175,41 +182,51 @@ class FieldValueSampler(LoggerMixin):
 
         Args:
             table_id: 表ID
+            db: 数据库会话（由调用方管理生命周期）
 
         Returns:
             日期分区字段名，如果未找到则返回None
         """
+        # 使用传入的 db 或者自身的 db
+        effective_db = db if db else self.db
+
+        if not effective_db:
+            return None
+
         # 检查缓存
         if table_id in self._date_partition_cache:
             return self._date_partition_cache[table_id]
 
         try:
-            from repositories.metadata_repository import MetadataTableRepository
-            table_repo = MetadataTableRepository(self.db)
+            with get_db_session() as db:
+                table_repo = MetadataTableRepository(db)
+                column_repo = MetadataColumnRepository(db)
+                # 根据表名获取表信息
+                table = table_repo.get_by_id(table_id)
+                if not table:
+                    table_name = "unknown"
+                else:
+                    table_name = table.name
 
-            # 根据表名获取表信息
-            table = table_repo.get_by_id(table_id)
-            table_name = table.name
+                if not table:
+                    # 未找到表，缓存None
+                    self._date_partition_cache[table_id] = None
+                    return None
 
-            if not table:
-                # 未找到表，缓存None
+                # 获取该表的所有字段
+                columns = column_repo.get_by_table_id(table_id)
+
+                # 查找可能的日期分区字段
+                for col in columns:
+                    if col.name.lower() in self.DATE_PARTITION_FIELDS:
+                        self.logger.info(f"检测到日期分区字段: {col.name} (表: {table_name})")
+                        # 缓存结果
+                        self._date_partition_cache[table_id] = col.name
+                        return col.name
+
+                # 未找到日期分区字段，缓存None避免重复查询
                 self._date_partition_cache[table_id] = None
                 return None
-
-            # 获取该表的所有字段
-            columns = self.column_repo.get_by_table_id(table_id)
-
-            # 查找可能的日期分区字段
-            for col in columns:
-                if col.name.lower() in self.DATE_PARTITION_FIELDS:
-                    self.logger.info(f"检测到日期分区字段: {col.name} (表: {table_name})")
-                    # 缓存结果
-                    self._date_partition_cache[table_id] = col.name
-                    return col.name
-
-            # 未找到日期分区字段，缓存None避免重复查询
-            self._date_partition_cache[table_id] = None
-            return None
 
         except Exception as e:
             self.logger.warning(f"检测日期分区字段失败 (表: {table_name}): {e}")
