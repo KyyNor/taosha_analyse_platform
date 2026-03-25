@@ -304,6 +304,7 @@ class FieldValueSampler(LoggerMixin):
         try:
             # 查询统计信息
             stats_query = self._build_sample_query(
+                table_id=table_id,
                 table_name=table_name,
                 select_clause=f"MIN({column_name}) as min_val, MAX({column_name}) as max_val, AVG({column_name}) as avg_val, COUNT(DISTINCT {column_name}) as distinct_count",
                 limit=1
@@ -323,6 +324,7 @@ class FieldValueSampler(LoggerMixin):
 
             # 查询随机样例
             sample_query = self._build_sample_query(
+                table_id=table_id,
                 table_name=table_name,
                 select_clause=column_name,
                 order_by=f"RAND()",
@@ -355,6 +357,7 @@ class FieldValueSampler(LoggerMixin):
 
     def _sample_string_field(
         self,
+        table_id: int,
         table_name: str,
         column_name: str,
         limit: int
@@ -374,6 +377,7 @@ class FieldValueSampler(LoggerMixin):
         try:
             # 查询去重值数量
             count_query = self._build_sample_query(
+                table_id=table_id,
                 table_name=table_name,
                 select_clause=f"COUNT(DISTINCT {column_name}) as distinct_count",
                 limit=1
@@ -385,14 +389,16 @@ class FieldValueSampler(LoggerMixin):
             # 如果去重值较少（< 100），查询所有去重值
             if distinct_count and distinct_count < 100:
                 values_query = self._build_sample_query(
+                    table_id=table_id,
                     table_name=table_name,
                     select_clause=f"DISTINCT {column_name} as value",
-                    order_by=column_name,
+                    order_by='value',
                     limit=limit
                 )
             else:
                 # 否则查询频次最高的值
                 values_query = self._build_sample_query(
+                    table_id=table_id,
                     table_name=table_name,
                     select_clause=f"{column_name} as value, COUNT(*) as cnt",
                     where_clause=f"{column_name} IS NOT NULL",
@@ -423,6 +429,7 @@ class FieldValueSampler(LoggerMixin):
 
     def _sample_date_field(
         self,
+        table_id: int,
         table_name: str,
         column_name: str
     ) -> Dict[str, Any]:
@@ -440,6 +447,7 @@ class FieldValueSampler(LoggerMixin):
         try:
             # 查询日期范围
             range_query = self._build_sample_query(
+                table_id=table_id,
                 table_name=table_name,
                 select_clause=f"MIN({column_name}) as min_date, MAX({column_name}) as max_date, COUNT(DISTINCT {column_name}) as distinct_count",
                 limit=1
@@ -462,6 +470,7 @@ class FieldValueSampler(LoggerMixin):
 
             # 查询几个样例日期
             sample_query = self._build_sample_query(
+                table_id=table_id,
                 table_name=table_name,
                 select_clause=column_name,
                 where_clause=f"{column_name} IS NOT NULL",
@@ -494,6 +503,7 @@ class FieldValueSampler(LoggerMixin):
 
     def _sample_generic_field(
         self,
+        table_id: int,
         table_name: str,
         column_name: str,
         limit: int
@@ -510,6 +520,7 @@ class FieldValueSampler(LoggerMixin):
         """
         try:
             query = self._build_sample_query(
+                table_id=table_id,
                 table_name=table_name,
                 select_clause=column_name,
                 where_clause=f"{column_name} IS NOT NULL",
