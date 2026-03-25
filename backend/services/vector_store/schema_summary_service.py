@@ -83,11 +83,30 @@ class SchemaSummaryService(LoggerMixin):
                     self.logger.warning(f"表ID {table_id} 不存在")
                     return []
 
-                # 获取字段信息
+                # 获取字段信息，转换为本地对象避免 session 关闭后无法访问
+                from dataclasses import dataclass
+
+                @dataclass
+                class ColumnInfo:
+                    name: str
+                    type: str
+                    business_type: str
+                    comment: str
+                    relation_config_id: int = None
+
                 columns = _column_repo.get_by_table_id(table_id)
-                available_columns = [col for col in columns if col.is_available == 0]
+                available_columns = [
+                    ColumnInfo(
+                        name=col.name,
+                        type=col.type,
+                        business_type=col.business_type or '',
+                        comment=col.comment or '',
+                        relation_config_id=col.relation_config_id,
+                    )
+                    for col in columns if col.is_available == 0
+                ]
                 table_name = table.name
-                table_comment = table.comment
+                table_comment = table.comment or ''
 
                 if not available_columns:
                     self.logger.warning(f"表 {table_name} 没有可用字段")
@@ -237,20 +256,6 @@ class SchemaSummaryService(LoggerMixin):
         table_lines.append("字段类型分布：")
         for col_type, count in sorted(type_stats.items()):
             table_lines.append(f"  - {col_type}: {count} 个")
-
-        # 关键字段（有值样例且基数较低的字段）
-        key_columns = self._identify_key_columns(columns, field_samples)
-        if key_columns:
-            table_lines.append("\n关键字段（重要业务字段）：")
-            for col_name in key_columns[:5]:  # 最多显示5个
-                col = next(c for c in columns if c.name == col_name)
-                table_lines.append(f"  - {col.name} ({col.business_type or col.type}): {col.comment}")
-
-        # 业务关系（如果有）
-        relations = self._get_table_relations(columns)
-        if relations:
-            table_lines.append("\n业务关系：")
-            table_lines.extend(relations)
 
         table_summary = "\n".join(table_lines)
 
@@ -446,39 +451,6 @@ class SchemaSummaryService(LoggerMixin):
             type_stats[col_type] = type_stats.get(col_type, 0) + 1
 
         return type_stats
-
-    def _identify_key_columns(
-        self,
-        columns: List,
-        field_samples: Dict[str, Dict]
-    ) -> List[str]:
-        """识别关键字段（有值样例且基数较低的字段）
-
-        这些字段通常是重要的业务字段（如状态、类型等）
-
-        Args:
-            columns: 字段列表
-            field_samples: 字段值采样结果
-
-        Returns:
-            关键字段名列表
-        """
-        key_columns = []
-
-        for col in columns:
-            sample_data = field_samples.get(col.name)
-            if not sample_data:
-                continue
-
-            # 判断是否为关键字段：
-            # 1. 有值样例
-            # 2. 基数较小（去重值数量 <= 100）
-            # 3. 有注释
-            count = sample_data.get('count', 0)
-            if count > 0 and count <= 100 and col.comment:
-                key_columns.append(col.name)
-
-        return key_columns
 
     def _split_columns_into_chunks(
         self,
