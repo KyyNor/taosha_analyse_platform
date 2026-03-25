@@ -4,7 +4,7 @@
 
 import json
 import time
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Callable
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -87,28 +87,49 @@ class VectorTrainingService:
             trained_count = 0
             failed_count = 0
 
-            # 1. 训练表资源（包含字段）
-            table_result = self._train_table_resources(resources_to_train.get("table", []))
+            # 1. 训练表资源（包含字段，多文档模式）
+            table_result = self._batch_train(
+                resources_to_train.get("table", []),
+                "table",
+                self._generate_table_document,
+                supports_multiple_docs=True
+            )
             trained_count += table_result["trained"]
             failed_count += table_result["failed"]
 
             # 2. 训练术语表资源
-            glossary_result = self._train_glossary_resources(resources_to_train.get("glossary", []))
+            glossary_result = self._batch_train(
+                resources_to_train.get("glossary", []),
+                "glossary",
+                self._generate_glossary_document
+            )
             trained_count += glossary_result["trained"]
             failed_count += glossary_result["failed"]
 
             # 3. 训练关联配置资源
-            relation_result = self._train_relation_resources(resources_to_train.get("relation", []))
+            relation_result = self._batch_train(
+                resources_to_train.get("relation", []),
+                "relation",
+                self._generate_relation_document
+            )
             trained_count += relation_result["trained"]
             failed_count += relation_result["failed"]
 
             # 4. 训练FineReport报表资源
-            fine_report_result = self._train_fine_report_resources(resources_to_train.get("fine_report", []))
+            fine_report_result = self._batch_train(
+                resources_to_train.get("fine_report", []),
+                "fine_report",
+                self._generate_fine_report_document
+            )
             trained_count += fine_report_result["trained"]
             failed_count += fine_report_result["failed"]
 
             # 5. 训练知识片段资源
-            fragment_result = self._train_knowledge_fragment_resources(resources_to_train.get("knowledge_fragment", []))
+            fragment_result = self._batch_train(
+                resources_to_train.get("knowledge_fragment", []),
+                "knowledge_fragment",
+                self._generate_knowledge_fragment_document
+            )
             trained_count += fragment_result["trained"]
             failed_count += fragment_result["failed"]
 
@@ -235,262 +256,88 @@ class VectorTrainingService:
             logger.error(f"获取表 {table_id} 的最后修改时间失败: {e}")
             return datetime.now()
 
-    def _train_table_resources(self, tables: List[Dict]) -> Dict[str, int]:
-        """训练表资源
+    def _batch_train(
+        self,
+        resources: List[Dict],
+        resource_type: str,
+        doc_generator,
+        supports_multiple_docs: bool = False
+    ) -> Dict[str, int]:
+        """通用批量训练方法
 
         Args:
-            tables: 需要训练的表列表
+            resources: 需要训练的资源列表
+            resource_type: 资源类型 (table/glossary/relation/fine_report/knowledge_fragment)
+            doc_generator: 文档生成函数，接受resource_id，返回:
+                - 单文档模式: (str, Dict) 或 ""
+                - 多文档模式(supports_multiple_docs=True): List[Tuple[str, Dict]]
+            supports_multiple_docs: 是否支持多文档(chunks)，表资源需要设为True
 
         Returns:
-            训练结果统计
+            训练结果统计 {"trained": int, "failed": int}
         """
         trained = 0
         failed = 0
 
-        for table_info in tables:
-            try:
-                table_id = table_info["id"]
-                table_name = table_info["name"]
+        for resource_info in resources:
+            resource_id = resource_info.get("id")
+            resource_name = resource_info.get("name")
 
+            try:
                 # 确保训练记录存在（新资源会创建记录）
-                self.training_repo.create_or_update_record("table", table_id, table_info["last_modified"])
+                self.training_repo.create_or_update_record(
+                    resource_type, resource_id, resource_info["last_modified"]
+                )
 
                 # 标记为正在训练
-                self.training_repo.mark_as_training("table", table_id)
+                self.training_repo.mark_as_training(resource_type, resource_id)
 
                 # 删除旧的向量数据
-                self._delete_vector_by_resource("table", table_id)
+                self._delete_vector_by_resource(resource_type, resource_id)
 
-                # 生成新的文档（可能包含多个chunks）
-                documents = self._generate_table_document(table_id)
+                # 生成文档
+                documents = doc_generator(resource_id)
 
-                if documents:
-                    # 添加到向量数据库
-                    vector_ids = []
-                    for document, metadata in documents:
-                        ids = self.vector_store.add(documents=[document], metadatas=[metadata])
-                        vector_ids.extend(ids)
-
-                    # 更新训练记录（使用第一个vector_id作为主ID）
-                    primary_vector_id = vector_ids[0] if vector_ids else ""
-                    self.training_repo.update_training_time("table", table_id, primary_vector_id)
-                    trained += 1
-                    logger.debug(f"成功训练表: {table_name}，生成了 {len(documents)} 个chunks")
-                else:
-                    self.training_repo.mark_as_failed("table", table_id)
+                if not documents:
+                    self.training_repo.mark_as_failed(resource_type, resource_id)
                     failed += 1
-                    logger.warning(f"生成表文档失败: {table_name}")
+                    logger.warning(f"生成文档失败: {resource_name}")
+                    continue
+
+                # 添加到向量数据库
+                vector_ids = []
+
+                if supports_multiple_docs:
+                    # 多文档模式（表资源）：documents 是 List[Tuple[str, Dict]]
+                    for doc_tuple in documents:
+                        doc_text, doc_meta = doc_tuple
+                        if doc_text:
+                            ids = self.vector_store.add(
+                                documents=[doc_text], metadatas=[doc_meta]
+                            )
+                            vector_ids.extend(ids)
+                else:
+                    # 单文档模式：documents 可能是 (str, Dict) 或 空字符串
+                    if isinstance(documents, tuple):
+                        doc_text, metadata = documents
+                        if doc_text:
+                            ids = self.vector_store.add(
+                                documents=[doc_text], metadatas=[metadata]
+                            )
+                            vector_ids.extend(ids)
+
+                # 更新训练记录（使用第一个vector_id作为主ID）
+                primary_vector_id = vector_ids[0] if vector_ids else ""
+                self.training_repo.update_training_time(resource_type, resource_id, primary_vector_id)
+
+                trained += 1
+                logger.debug(f"成功训练 {resource_type}: {resource_name}，生成了 {len(vector_ids)} 个chunks")
 
             except Exception as e:
                 failed += 1
-                logger.error(f"训练表资源失败: {e}")
-                if "table_id" in locals():
-                    self.training_repo.mark_as_failed("table", table_id)
-
-        return {"trained": trained, "failed": failed}
-
-    def _train_glossary_resources(self, glossaries: List[Dict]) -> Dict[str, int]:
-        """训练术语表资源
-
-        Args:
-            glossaries: 需要训练的术语表列表
-
-        Returns:
-            训练结果统计
-        """
-        trained = 0
-        failed = 0
-
-        for glossary_info in glossaries:
-            try:
-                glossary_id = glossary_info["id"]
-                glossary_name = glossary_info["name"]
-
-                # 确保训练记录存在（新资源会创建记录）
-                self.training_repo.create_or_update_record("glossary", glossary_id, glossary_info["last_modified"])
-
-                # 标记为正在训练
-                self.training_repo.mark_as_training("glossary", glossary_id)
-
-                # 删除旧的向量数据
-                self._delete_vector_by_resource("glossary", glossary_id)
-
-                # 生成新的文档
-                document, metadata = self._generate_glossary_document(glossary_id)
-
-                if document:
-                    # 添加到向量数据库
-                    vector_ids = self.vector_store.add(documents=[document], metadatas=[metadata])
-                    vector_id = vector_ids[0] if vector_ids else ""
-
-                    # 更新训练记录
-                    self.training_repo.update_training_time("glossary", glossary_id, vector_id)
-                    trained += 1
-                    logger.debug(f"成功训练术语: {glossary_name}")
-                else:
-                    self.training_repo.mark_as_failed("glossary", glossary_id)
-                    failed += 1
-                    logger.warning(f"生成术语文档失败: {glossary_name}")
-
-            except Exception as e:
-                failed += 1
-                logger.error(f"训练术语资源失败: {e}")
-                if "glossary_id" in locals():
-                    self.training_repo.mark_as_failed("glossary", glossary_id)
-
-        return {"trained": trained, "failed": failed}
-
-    
-    def _train_relation_resources(self, relations: List[Dict]) -> Dict[str, int]:
-        """训练关联配置资源
-
-        Args:
-            relations: 需要训练的关联配置列表
-
-        Returns:
-            训练结果统计
-        """
-        trained = 0
-        failed = 0
-
-        for relation_info in relations:
-            try:
-                relation_id = relation_info["id"]
-                relation_name = relation_info["name"]
-
-                # 确保训练记录存在（新资源会创建记录）
-                self.training_repo.create_or_update_record("relation", relation_id, relation_info["last_modified"])
-
-                # 标记为正在训练
-                self.training_repo.mark_as_training("relation", relation_id)
-
-                # 删除旧的向量数据
-                self._delete_vector_by_resource("relation", relation_id)
-
-                # 生成新的文档
-                document, metadata = self._generate_relation_document(relation_id)
-
-                if document:
-                    # 添加到向量数据库
-                    vector_ids = self.vector_store.add(documents=[document], metadatas=[metadata])
-                    vector_id = vector_ids[0] if vector_ids else ""
-
-                    # 更新训练记录
-                    self.training_repo.update_training_time("relation", relation_id, vector_id)
-                    trained += 1
-                    logger.debug(f"成功训练关联: {relation_name}")
-                else:
-                    self.training_repo.mark_as_failed("relation", relation_id)
-                    failed += 1
-                    logger.warning(f"生成关联文档失败: {relation_name}")
-
-            except Exception as e:
-                failed += 1
-                logger.error(f"训练关联资源失败: {e}")
-                if "relation_id" in locals():
-                    self.training_repo.mark_as_failed("relation", relation_id)
-
-        return {"trained": trained, "failed": failed}
-
-    def _train_fine_report_resources(self, fine_reports: List[Dict]) -> Dict[str, int]:
-        """训练FineReport报表资源
-
-        Args:
-            fine_reports: 需要训练的报表列表
-
-        Returns:
-            训练结果统计
-        """
-        trained = 0
-        failed = 0
-
-        for report_info in fine_reports:
-            try:
-                report_id = report_info["id"]
-                report_name = report_info["name"]
-
-                # 确保训练记录存在（新资源会创建记录）
-                self.training_repo.create_or_update_record("fine_report", report_id, report_info["last_modified"])
-
-                # 标记为正在训练
-                self.training_repo.mark_as_training("fine_report", report_id)
-
-                # 删除旧的向量数据
-                self._delete_vector_by_resource("fine_report", report_id)
-
-                # 生成新的文档
-                document, metadata = self._generate_fine_report_document(report_id)
-
-                if document:
-                    # 添加到向量数据库
-                    vector_ids = self.vector_store.add(documents=[document], metadatas=[metadata])
-                    vector_id = vector_ids[0] if vector_ids else ""
-
-                    # 更新训练记录
-                    self.training_repo.update_training_time("fine_report", report_id, vector_id)
-                    trained += 1
-                    logger.debug(f"成功训练报表: {report_name}")
-                else:
-                    self.training_repo.mark_as_failed("fine_report", report_id)
-                    failed += 1
-                    logger.warning(f"生成报表文档失败: {report_name}")
-
-            except Exception as e:
-                failed += 1
-                logger.error(f"训练报表资源失败: {e}")
-                if "report_id" in locals():
-                    self.training_repo.mark_as_failed("fine_report", report_id)
-
-        return {"trained": trained, "failed": failed}
-
-    def _train_knowledge_fragment_resources(self, fragments: List[Dict]) -> Dict[str, int]:
-        """训练知识片段资源
-
-        Args:
-            fragments: 需要训练的知识片段列表
-
-        Returns:
-            训练结果统计
-        """
-        trained = 0
-        failed = 0
-
-        for fragment_info in fragments:
-            try:
-                fragment_id = fragment_info["id"]
-                fragment_name = fragment_info["name"]
-
-                # 确保训练记录存在（新资源会创建记录）
-                self.training_repo.create_or_update_record("knowledge_fragment", fragment_id, fragment_info["last_modified"])
-
-                # 标记为正在训练
-                self.training_repo.mark_as_training("knowledge_fragment", fragment_id)
-
-                # 删除旧的向量数据
-                self._delete_vector_by_resource("knowledge_fragment", fragment_id)
-
-                # 生成新的文档
-                document, metadata = self._generate_knowledge_fragment_document(fragment_id)
-
-                if document:
-                    # 添加到向量数据库
-                    vector_ids = self.vector_store.add(documents=[document], metadatas=[metadata])
-                    vector_id = vector_ids[0] if vector_ids else ""
-
-                    # 更新训练记录
-                    self.training_repo.update_training_time("knowledge_fragment", fragment_id, vector_id)
-                    trained += 1
-                    logger.debug(f"成功训练知识片段: {fragment_name}")
-                else:
-                    self.training_repo.mark_as_failed("knowledge_fragment", fragment_id)
-                    failed += 1
-                    logger.warning(f"生成知识片段文档失败: {fragment_name}")
-
-            except Exception as e:
-                failed += 1
-                logger.error(f"训练知识片段资源失败: {e}")
-                if "fragment_id" in locals():
-                    self.training_repo.mark_as_failed("knowledge_fragment", fragment_id)
+                logger.error(f"训练 {resource_type} 资源失败: {e}")
+                if resource_id:
+                    self.training_repo.mark_as_failed(resource_type, resource_id)
 
         return {"trained": trained, "failed": failed}
 
