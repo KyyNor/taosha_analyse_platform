@@ -258,7 +258,7 @@ class MetadataSyncService:
             table = self.table_repo.create(
                 name=table_name,
                 comment=table_comment,
-                is_available=0  # 设置为可用
+                is_available=1  # 设置为不可用
             )
             
             self.stats["tables_added"] += 1
@@ -281,7 +281,7 @@ class MetadataSyncService:
                 name=source_col['column_name'],
                 type=source_col['column_type'],
                 comment=source_col.get('column_comment', ''),
-                is_available=0,  # 设置为可用
+                is_available=1,  # 设置为不可用
                 business_type=source_col['column_type']  # 业务类型等于字段类型
             )
             

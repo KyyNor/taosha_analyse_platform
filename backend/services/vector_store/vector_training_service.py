@@ -45,7 +45,6 @@ class VectorTrainingService:
         self._table_repo = None
         self._column_repo = None
         self._glossary_repo = None
-        self._relation_repo = None
         self._fine_report_repo = None
         self._fragment_repo = None
 

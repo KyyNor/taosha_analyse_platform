@@ -342,10 +342,10 @@ class SchemaSummaryService(LoggerMixin):
         lines = [f"{index}. {col_name} {col_type} - {col_comment}"]
 
         # 关联信息
-        if col.relation_config_id:
-            relation = self._relation_repo.get_by_id(col.relation_config_id)
-            if relation:
-                lines.append(f"   关联：{relation.relation_family}|{relation.relation_subfamily}")
+        # if col.relation_config_id:
+        #     relation = self._relation_repo.get_by_id(col.relation_config_id)
+        #     if relation:
+        #         lines.append(f"   关联：{relation.relation_family}|{relation.relation_subfamily}")
 
         # 字段值样例
         if sample_data and sample_data.get('values'):
