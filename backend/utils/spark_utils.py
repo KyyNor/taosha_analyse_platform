@@ -8,6 +8,7 @@ PySpark模式：直接提交Spark任务执行查询并输出文件
 import os
 import os.path
 import pathlib
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Union, Literal, Tuple
 
@@ -19,10 +20,11 @@ from utils.config import settings
 
 class SparkUtils:
     """Spark工具类 - 支持JDBC查询"""
-    
+
     _instance = None
     conn = None
     cur = None
+    _conn_time: Optional[datetime] = None  # 连接获取时间
 
     def __new__(cls):
         if cls._instance is None:
@@ -53,7 +55,8 @@ class SparkUtils:
         )
 
         self.cur = self.conn.cursor()
-        logger.info(f"{_jdbc_driver_class} 数据连接已获取")
+        self._conn_time = datetime.now()
+        logger.info(f"{_jdbc_driver_class} 数据连接已获取，记录连接时间: {self._conn_time}")
         
     def convert_java_types(self, result):
         """将 Java 类型转换为 Python 类型"""
@@ -92,10 +95,20 @@ class SparkUtils:
             查询结果列表
         """
 
+        # 检查连接是否存在以及是否超过60分钟
+        reconnect = False
         if self.conn is None:
+            reconnect = True
+        elif self._conn_time is not None:
+            elapsed = datetime.now() - self._conn_time
+            if elapsed > timedelta(minutes=60):
+                logger.info(f"数据连接已使用 {elapsed.total_seconds()/60:.1f} 分钟，超过60分钟，重新建立连接")
+                reconnect = True
+
+        if reconnect:
             self._get_spark_connect()
         else:
-            logger.info(f"复用已有数据连接")
+            logger.info(f"复用已有数据连接，已使用 {((datetime.now() - self._conn_time).total_seconds()/60):.1f} 分钟")
 
         if not self.conn:
             return []
@@ -131,6 +144,7 @@ class SparkUtils:
         if self.conn:
             self.conn.close()
             self.conn = None
+        self._conn_time = None
 
 
 class PySparkService:
