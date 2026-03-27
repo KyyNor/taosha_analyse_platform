@@ -2,7 +2,9 @@
 训练记录相关的SQLAlchemy模型 - 简化的增量训练记录系统
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Index
+import json as json_lib
+
+from sqlalchemy import Column, Integer, String, Text, DateTime, Index
 from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
 from .db_base import Base
@@ -27,7 +29,7 @@ class TrainingRecord(Base):
 
     # 状态信息
     training_status: Mapped[str] = mapped_column(String(20), default="pending", index=True)  # pending, training, completed, failed
-    vector_id: Mapped[str] = mapped_column(String(255), default="", index=True)  # 向量数据库中的ID（用于删除操作）
+    vector_ids: Mapped[str] = mapped_column(Text, default="[]", index=False)  # 向量数据库中的ID列表（JSON数组格式，用于删除操作）
 
     # 管理信息
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
@@ -54,13 +56,34 @@ class TrainingRecord(Base):
         self.training_status = "training"
         self.updated_at = datetime.now()
 
-    def update_training_time(self, vector_id: str = None) -> None:
-        """更新训练完成时间"""
+    def update_training_time(self, vector_ids: list = None) -> None:
+        """更新训练完成时间
+
+        Args:
+            vector_ids: 向量ID列表，如果是None则保留原值
+        """
         self.training_status = "completed"
         self.last_trained_at = datetime.now()
         self.updated_at = datetime.now()
-        if vector_id:
-            self.vector_id = vector_id
+        if vector_ids is not None:
+            self.vector_ids = json_lib.dumps(vector_ids)
+
+    def get_vector_ids(self) -> list:
+        """获取向量ID列表
+
+        Returns:
+            list: 向量ID列表
+        """
+        if not self.vector_ids:
+            return []
+
+        try:
+            parsed = json_lib.loads(self.vector_ids)
+            if isinstance(parsed, list):
+                return parsed
+            return []
+        except (json_lib.JSONDecodeError, TypeError):
+            return []
 
     def mark_as_failed(self) -> None:
         """标记为训练失败"""

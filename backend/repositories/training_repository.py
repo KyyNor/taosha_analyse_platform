@@ -259,30 +259,76 @@ class TrainingRecordRepository(BaseRepository):
             logger.error(f"判断资源是否需要训练失败 {resource_type}:{resource_id}: {e}")
             return True  # 出错时默认需要训练
 
-    def update_training_time(self, resource_type: str, resource_id: int, vector_id: str = None) -> bool:
+    def update_training_time(self, resource_type: str, resource_id: int, vector_ids: list = None) -> bool:
         """更新训练时间和状态
 
         Args:
             resource_type: 资源类型
             resource_id: 资源ID
-            vector_id: 向量数据库中的ID
+            vector_ids: 向量数据库中的ID列表
 
         Returns:
             bool: 是否更新成功
         """
+        import json as json_mod
         try:
             record = self.get_by_resource(resource_type, resource_id)
             if record:
                 record.last_trained_at = datetime.now()
                 record.training_status = "completed"
-                if vector_id:
-                    record.vector_id = vector_id
+                if vector_ids is not None:
+                    record.vector_ids = json_mod.dumps(vector_ids)
                 record.updated_at = datetime.now()
                 self.db.commit()
                 return True
             return False
         except Exception as e:
             logger.error(f"更新训练时间失败 {resource_type}:{resource_id}: {e}")
+            self.db.rollback()
+            return False
+
+    def get_vector_ids(self, resource_type: str, resource_id: int) -> List[str]:
+        """获取资源的向量ID列表
+
+        Args:
+            resource_type: 资源类型
+            resource_id: 资源ID
+
+        Returns:
+            List[str]: 向量ID列表
+        """
+        try:
+            record = self.get_by_resource(resource_type, resource_id)
+            if not record:
+                return []
+
+            return record.get_vector_ids()
+        except Exception as e:
+            logger.error(f"获取向量IDs失败 {resource_type}:{resource_id}: {e}")
+            return []
+
+    def set_vector_ids(self, resource_type: str, resource_id: int, vector_ids: List[str]) -> bool:
+        """设置资源的向量ID列表
+
+        Args:
+            resource_type: 资源类型
+            resource_id: 资源ID
+            vector_ids: 向量ID列表
+
+        Returns:
+            bool: 是否设置成功
+        """
+        import json as json_mod
+        try:
+            record = self.get_by_resource(resource_type, resource_id)
+            if record:
+                record.vector_ids = json_mod.dumps(vector_ids)
+                record.updated_at = datetime.now()
+                self.db.commit()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"设置向量IDs失败 {resource_type}:{resource_id}: {e}")
             self.db.rollback()
             return False
 

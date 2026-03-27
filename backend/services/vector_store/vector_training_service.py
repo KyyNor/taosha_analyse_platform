@@ -316,15 +316,14 @@ class VectorTrainingService:
                     )
                     training_repo.mark_as_training(resource_type, resource_id)
 
-                    # 获取旧记录的 vector_id 用于删除
-                    record = training_repo.get_by_resource(resource_type, resource_id)
-                    old_vector_id = record.vector_id if record and record.vector_id else None
+                    # 获取旧记录的所有 vector_ids 用于删除
+                    old_vector_ids = training_repo.get_vector_ids(resource_type, resource_id)
 
-                    # 删除旧的向量数据
-                    if old_vector_id:
+                    # 删除旧的向量数据（如果存在）
+                    if old_vector_ids:
                         try:
-                            self.vector_store.delete(ids=[old_vector_id])
-                            logger.debug(f"删除了旧向量: {resource_type}:{resource_id}")
+                            self.vector_store.delete(ids=old_vector_ids)
+                            logger.debug(f"删除了旧向量: {resource_type}:{resource_id}, 共 {len(old_vector_ids)} 个")
                         except Exception as del_err:
                             logger.warning(f"删除旧向量失败: {del_err}")
 
@@ -366,9 +365,8 @@ class VectorTrainingService:
                                 )
                                 vector_ids.extend(ids)
 
-                    # 更新训练记录（使用第一个 vector_id 作为主 ID）
-                    primary_vector_id = vector_ids[0] if vector_ids else ""
-                    training_repo.update_training_time(resource_type, resource_id, primary_vector_id)
+                    # 更新训练记录（保存所有 vector_ids）
+                    training_repo.update_training_time(resource_type, resource_id, vector_ids)
 
                 trained += 1
                 logger.debug(f"成功训练 {resource_type}: {resource_name}，生成了 {len(vector_ids)} 个chunks")
