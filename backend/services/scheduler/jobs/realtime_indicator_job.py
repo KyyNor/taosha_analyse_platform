@@ -357,7 +357,7 @@ def step2_online_model_executor(db, offline_tables, generated_realtime_tables):
 
 
 @timing_it
-def step3_hit_record(db, today, matched_df, execution_record):
+def step3_hit_record(db, today, matched_df, execution_record, hit_time):
     logger.debug("=" * 60)
     logger.debug("步骤3: 记录模型运行结果")
     logger.debug("=" * 60)
@@ -365,7 +365,7 @@ def step3_hit_record(db, today, matched_df, execution_record):
     execution_id = execution_record.id
 
     manager = ModelHitAlertManager(db)
-    hit_time = datetime.now()
+    
     whitelist_acct = SystemConfigManager(db).get_config_value('whitelist_acct', default=[])
     whitelist_set = set(whitelist_acct) if whitelist_acct else set()
     if whitelist_set:
@@ -482,13 +482,15 @@ def step3_hit_record(db, today, matched_df, execution_record):
     db.commit()
 
 async def generate_realtime_wide_table_job():
-    logger.debug("开始生成实时指标宽表并执行模型匹配")
     today = date.today()
     today_str = today.strftime('%Y-%m-%d')
     now_str = datetime.now().strftime('%Y%m%d%H%M')
 
     
     try:
+        hit_time = datetime.now()
+        logger.debug(f"开始生成实时指标宽表并执行模型匹配 hit_time: {hit_time}")
+
         with get_db_session() as db:
             offline_tables, generated_realtime_tables = step1_generate_realtime_indicators(db, today, today_str, now_str)
             if offline_tables is None:
@@ -500,7 +502,7 @@ async def generate_realtime_wide_table_job():
             if matched_df is None:
                 return
 
-            step3_hit_record(db, today, matched_df, execution_record)
+            step3_hit_record(db, today, matched_df, execution_record, hit_time)
 
             logger.debug("实时指标宽表生成及模型匹配完成")
 
