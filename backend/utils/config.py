@@ -259,6 +259,7 @@ class ConfigManager:
             scheduler_metadata_sync_interval: int = self._config_data.get('scheduler', {}).get('metadata_sync_interval', 3600)
             scheduler_fine_report_sync_interval: int = self._config_data.get('scheduler', {}).get('fine_report_sync_interval', 3600)
             scheduler_vector_training_interval: int = self._config_data.get('scheduler', {}).get('vector_training_interval', 1800)
+            scheduler_vector_training_max_docs_per_type: int = self._config_data.get('scheduler', {}).get('vector_training_max_docs_per_type', 5)
             scheduler_postgres_data_cleanup_cron: str = self._config_data.get('scheduler', {}).get('postgres_data_cleanup_cron', '0 3 * * *')
             scheduler_mysql_data_cleanup_cron: str = self._config_data.get('scheduler', {}).get('mysql_data_cleanup_cron', '0 3 * * *')
 

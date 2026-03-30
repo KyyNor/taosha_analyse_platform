@@ -167,7 +167,7 @@ class VectorTrainingService:
             按资源类型分组的需要训练的资源列表，每种资源类型受配置文件控制最大数量
         """
         # 从配置获取每种资源类型的最大训练数量，默认5个
-        max_docs_per_type = getattr(settings, 'vector_training_max_docs_per_type', 5) or 5
+        max_docs_per_type = settings.scheduler_vector_training_max_docs_per_type
 
         resources = {
             "table": [],
