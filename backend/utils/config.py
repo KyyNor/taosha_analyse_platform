@@ -351,31 +351,12 @@ class ConfigManager:
 
 
 # 全局配置管理器实例
-_config_manager = None
+_config_manager_instance = ConfigManager()
+settings = _config_manager_instance.get_settings()
 
 
-def get_config() -> ConfigManager:
-    """获取全局配置管理器实例"""
-    global _config_manager
-    if _config_manager is None:
-        _config_manager = ConfigManager()
-    return _config_manager
-
-
-def get_settings() -> BaseSettings:
-    """获取全局设置实例"""
-    return get_config().get_settings()
-
-
-# 向后兼容的全局settings变量
-settings = get_settings()
-
-# 向后兼容的函数
-def reload_config():
-    """重新加载配置（向后兼容）"""
-    get_config().reload()
-
-
-def get_config_value(key: str, default: Any = None) -> Any:
-    """获取配置值（向后兼容）"""
-    return get_config().get(key, default)
+def reload_settings():
+    """重新加载配置"""
+    global settings
+    _config_manager_instance.reload()
+    settings = _config_manager_instance.get_settings()
