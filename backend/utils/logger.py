@@ -15,7 +15,6 @@ class LoggerManager:
     """日志管理器"""
 
     def __init__(self):
-        self.config = settings
         self._initialized = False
         self._setup_logger()
 
@@ -28,10 +27,10 @@ class LoggerManager:
         logger.remove()
 
         # 获取日志配置
-        log_level = self.config.get('logging.level', 'INFO')
-        log_rotation = self.config.get('logging.rotation', '10 MB')
-        log_retention = self.config.get('logging.retention', '7 days')
-        log_compression = self.config.get('logging.compression', 'gz')
+        log_level = settings.log_level
+        log_rotation = settings.log_rotation
+        log_retention = settings.log_retention
+        log_compression = settings.log_compression
 
         # 控制台输出
         logger.add(
