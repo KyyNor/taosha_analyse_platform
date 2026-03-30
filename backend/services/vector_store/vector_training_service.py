@@ -13,11 +13,12 @@ from models.db_base import get_db_session
 from services.vector_store.qdrant_vector_store import qdrant_vector_store
 from utils.logger import logger
 from repositories.training_repository import TrainingRecordRepository
-from repositories.metadata_repository import MetadataTableRepository, MetadataColumnRepository, KnowledgeFragmentRepository
+from repositories.metadata_repository import MetadataTableRepository, MetadataColumnRepository
 from repositories.glossary_repository import GlossaryTermRepository
 from repositories.relation_repository import RelationFieldConfigRepository
 from repositories.fine_report_repository import FineReportRepository
 from services.vector_store.schema_summary_service import SchemaSummaryService
+from utils.config import settings
 
 
 class VectorTrainingService:
@@ -163,8 +164,11 @@ class VectorTrainingService:
         注意：此方法在内部获取独立的数据库连接，使用完毕后立即释放。
 
         Returns:
-            按资源类型分组的需要训练的资源列表
+            按资源类型分组的需要训练的资源列表，每种资源类型受配置文件控制最大数量
         """
+        # 从配置获取每种资源类型的最大训练数量，默认5个
+        max_docs_per_type = getattr(settings, 'vector_training_max_docs_per_type', 5) or 5
+
         resources = {
             "table": [],
             "glossary": [],
@@ -231,7 +235,6 @@ class VectorTrainingService:
                 from models.metadata_models import MetadataKnowledgeFragment
                 # 需要一个新的 session 来查询
                 with get_db_session() as fragment_db:
-                    fragment_repo = KnowledgeFragmentRepository(fragment_db)
                     fragments = fragment_db.query(MetadataKnowledgeFragment).all()
                     for fragment in fragments:
                         if training_repo.needs_training("knowledge_fragment", fragment.id, fragment.updated_at):
@@ -241,7 +244,20 @@ class VectorTrainingService:
                                 "last_modified": fragment.updated_at
                             })
 
-                logger.info(f"发现需要训练的资源: 表({len(resources['table'])}), 术语({len(resources['glossary'])}), 关联({len(resources['relation'])}), FineReport({len(resources['fine_report'])}), 知识片段({len(resources['knowledge_fragment'])})")
+                # 对每种资源类型应用最大数量限制
+                total_found = {
+                    "table": len(resources["table"]),
+                    "glossary": len(resources["glossary"]),
+                    "relation": len(resources["relation"]),
+                    "fine_report": len(resources["fine_report"]),
+                    "knowledge_fragment": len(resources["knowledge_fragment"])
+                }
+
+                for resource_type in resources:
+                    if len(resources[resource_type]) > max_docs_per_type:
+                        resources[resource_type] = resources[resource_type][:max_docs_per_type]
+
+                logger.info(f"发现需要训练的资源: 表({total_found['table']}), 术语({total_found['glossary']}), 关联({total_found['relation']}), FineReport({total_found['fine_report']}), 知识片段({total_found['knowledge_fragment']})，本次将训练: 表({len(resources['table'])}), 术语({len(resources['glossary'])}), 关联({len(resources['relation'])}), FineReport({len(resources['fine_report'])}), 知识片段({len(resources['knowledge_fragment'])})，超过上限({max_docs_per_type})的将在下次训练")
 
         except Exception as e:
             logger.error(f"获取需要训练的资源失败: {e}")

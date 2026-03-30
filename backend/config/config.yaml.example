@@ -330,5 +330,6 @@ scheduler:
   model_runner_interval: 60  # 秒，实时指标生成间隔（5分钟）
   metadata_sync_interval: 28800  # 秒，元数据同步间隔（8小时）
   fine_report_sync_interval: 28800  # 秒，FineReport报表同步间隔（8小时）
-  vector_training_interval: 28800  # 秒，向量数据库训练间隔（30分钟）
+  vector_training_interval: 28800  # 秒，向量数据库训练间隔（8小时）
+  vector_training_max_docs_per_type: 5  # 每种资源类型每次训练的最大文档数（超出的将在下次训练）
   postgres_data_cleanup_cron: "0 3 * * *"   # cron表达式，Pg文件清理（每日凌晨3点）
