@@ -19,24 +19,22 @@ from browser_use.browser.session import BrowserSession
 from browser_use.llm.openai.chat import ChatOpenAI
 
 from utils.logger import logger
-from utils.config import get_config
+from utils.config import settings
 
 
 # ==================== 配置 ====================
 
-config = get_config()
-
 # 截图目录
-SCREENSHOT_DIR = Path(config.get("browserless.screenshot.save_path", "./screenshots"))
+SCREENSHOT_DIR = Path(settings.browserless_screenshot_save_path)
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Browserless 配置（支持本地 Docker 或远程服务）
-BROWSERLESS_URL = config.get("browserless.url", "ws://localhost:3001")
-BROWSERLESS_TOKEN = config.get("browserless.token", None)
+BROWSERLESS_URL = settings.browserless_url
+BROWSERLESS_TOKEN = settings.browserless_token
 
 # 浏览器配置
-VIEWPORT_WIDTH = config.get("browserless.browser.viewport.width", 1920)
-VIEWPORT_HEIGHT = config.get("browserless.browser.viewport.height", 1080)
+VIEWPORT_WIDTH = settings.browserless_viewport_width
+VIEWPORT_HEIGHT = settings.browserless_viewport_height
 
 
 # ==================== 数据模型 ====================
@@ -58,7 +56,6 @@ def get_llm():
 
     # 获取配置
     llm_service = BaseLLMService()
-    llm_config = config.get("llm", {})
 
     # 获取 API 配置
     api_key = llm_service.api_key
@@ -70,7 +67,7 @@ def get_llm():
         model=model,
         base_url=base_url,
         api_key=api_key,
-        temperature=llm_config.get("temperature", 0.7),
+        temperature=settings.llm_temperature,
 
         # Moonshot/非标准 OpenAI API 兼容性配置
         dont_force_structured_output=True,  # 禁用 response_format，避免 API 400 错误

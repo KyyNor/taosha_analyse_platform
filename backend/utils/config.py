@@ -112,6 +112,16 @@ class ConfigManager:
             embedding_dimensions: int = self._config_data.get('embedding', {}).get('dimensions', 1024)
             embedding_reranker_model: str = self._config_data.get('embedding', {}).get('reranker_model', 'bge-reranker-v2-m3')
 
+            # Browserless配置
+            browserless_url: str = self._config_data.get('browserless', {}).get('url', 'ws://localhost:3001')
+            browserless_token: Optional[str] = self._config_data.get('browserless', {}).get('token')
+            browserless_viewport_width: int = self._config_data.get('browserless', {}).get('browser', {}).get('viewport', {}).get('width', 1920)
+            browserless_viewport_height: int = self._config_data.get('browserless', {}).get('browser', {}).get('viewport', {}).get('height', 1080)
+            browserless_screenshot_save_path: str = self._config_data.get('browserless', {}).get('screenshot', {}).get('save_path', './screenshots')
+
+            # LLM配置
+            llm_temperature: float = self._config_data.get('llm', {}).get('temperature', 0.7)
+
             # 向量存储配置
             vector_store_collection_name: str = self._config_data.get('vector_store', {}).get('collection_name', 'taosha_knowledge')
 

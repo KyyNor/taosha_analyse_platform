@@ -8,14 +8,14 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from loguru import logger
 
-from utils.config import get_config
+from utils.config import settings
 
 
 class LoggerManager:
     """日志管理器"""
 
     def __init__(self):
-        self.config = get_config()
+        self.config = settings
         self._initialized = False
         self._setup_logger()
 
