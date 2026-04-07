@@ -429,6 +429,46 @@ class AnalyzeDBPartitionManager:
             return []
 
     @staticmethod
+    def list_realtime_tables() -> List[str]:
+        """列出所有实时宽表（主表，不含分区）
+
+        通过比对主表与分区的命名规律，过滤出实时宽表的主表（非分区）。
+
+        Returns:
+            实时宽表名列表
+        """
+        engine = AnalyzeDBConnector.get_engine()
+        # 初步查询所有包含 _realtime_ 的表
+        sql = """
+            SELECT tablename
+            FROM pg_tables
+            WHERE schemaname = 'public'
+              AND tablename LIKE '%_realtime_%'
+            ORDER BY tablename
+        """
+        try:
+            df = pd.read_sql_query(text(sql), engine)
+            all_tables = df['tablename'].tolist()
+
+            # 过滤掉分区表（分区名末尾带有日期格式：YYYYMMDD 或 YYYYMMDDHHMM）
+            realtime_tables = []
+            for tbl in all_tables:
+                # 尝试提取最后一个下划线后的部分
+                parts = tbl.rsplit('_', 1)
+                if len(parts) >= 2:
+                    suffix = parts[-1]
+                    # 如果最后部分是8位或12位数字，说明是分区，跳过
+                    if (suffix.isdigit() and len(suffix) in (8, 12)):
+                        continue
+                realtime_tables.append(tbl)
+
+            logger.debug(f"找到 {len(realtime_tables)} 个实时宽表主表")
+            return realtime_tables
+        except Exception as e:
+            logger.error(f"列出实时宽表失败: {e}", exc_info=True)
+            return []
+
+    @staticmethod
     def list_partitions(table_name: str) -> List[str]:
         """列出表的所有分区
 

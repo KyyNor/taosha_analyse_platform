@@ -76,6 +76,7 @@ async def _cleanup_realtime_wide_table_partitions():
     """清理实时宽表旧分区
 
     清理策略：保留指定天数内的分区，删除过期分区
+    同时清理非当前版本的实时宽表（先删分区，再删表）
     """
     try:
         retention_days = settings.fraudhunter_realtime_data_retention_days
@@ -92,16 +93,11 @@ async def _cleanup_realtime_wide_table_partitions():
                 logger.debug("没有找到current版本的宽表，跳过清理实时宽表分区")
                 return
 
-            total_deleted = 0
-
+            # 收集当前有效的实时宽表名
+            current_realtime_tables = set()
             for version in current_versions:
-                # 构建实时宽表表名: dep_acct_wide_table_realtime_{version_hash[:8]}
                 realtime_table_name = f"{version.wide_table_name}_realtime_{version.version_hash[:8]}"
-
-                logger.info(
-                    f"处理实时宽表: {realtime_table_name}, "
-                    f"保留天数={retention_days}"
-                )
+                current_realtime_tables.add(realtime_table_name)
 
                 # 清理该实时宽表的旧分区
                 deleted_count = AnalyzeDBPartitionManager.cleanup_old_partitions(
@@ -109,15 +105,78 @@ async def _cleanup_realtime_wide_table_partitions():
                     retention_days
                 )
 
-                total_deleted += deleted_count
+                logger.debug(f"当前实时宽表 {realtime_table_name}: 删除 {deleted_count} 个过期分区")
 
-            if total_deleted > 0:
-                logger.info(f"实时宽表分区清理完成: 删除 {total_deleted} 个分区")
-            else:
-                logger.debug("没有需要清理的实时宽表分区")
+            logger.info(f"实时宽表分区清理完成，共 {len(current_realtime_tables)} 个当前版本表")
+
+            # 清理非当前版本的实时宽表
+            await _cleanup_non_current_realtime_tables(current_realtime_tables)
 
     except Exception as e:
         logger.error(f"清理实时宽表分区失败: {e}", exc_info=True)
+
+
+async def _cleanup_non_current_realtime_tables(current_realtime_tables: set):
+    """清理非当前版本的实时宽表
+
+    策略：
+    1. 查询所有包含 _realtime_ 的表
+    2. 排除当前版本使用的实时宽表
+    3. 对剩余的表：先清理所有分区，分区清零后删除整张表
+    """
+    try:
+        logger.info("开始清理非当前版本的实时宽表...")
+
+        # 获取当前数据库中所有以 _realtime_ 开头的表
+        all_realtime_tables = AnalyzeDBPartitionManager.list_realtime_tables()
+
+        # 过滤出非当前版本的表
+        non_current_tables = [
+            tbl for tbl in all_realtime_tables
+            if tbl not in current_realtime_tables
+        ]
+
+        if not non_current_tables:
+            logger.debug("没有发现非当前版本的实时宽表")
+            return
+
+        logger.info(f"发现 {len(non_current_tables)} 个非当前版本的实时宽表: {non_current_tables}")
+
+        dropped_tables = 0
+        failed_tables = []
+
+        for table_name in non_current_tables:
+            # 第一步：清理该表的所有分区
+            deleted_count = AnalyzeDBPartitionManager.cleanup_old_partitions(
+                table_name,
+                retention_days=0  # 0表示删除所有分区
+            )
+
+            # 第二步：检查是否还有分区残留
+            remaining_partitions = AnalyzeDBPartitionManager.list_partitions(table_name)
+
+            if not remaining_partitions:
+                # 分区已全部清理，可以删除主表
+                if AnalyzeDBPartitionManager.drop_table(table_name):
+                    dropped_tables += 1
+                    logger.info(f"已删除非当前版本实时宽表: {table_name}")
+                else:
+                    failed_tables.append(table_name)
+                    logger.warning(f"删除非当前版本实时宽表失败: {table_name}")
+            else:
+                # 还有分区残留，记录并跳过
+                logger.warning(
+                    f"非当前版本表 {table_name} 仍有 {len(remaining_partitions)} 个分区残留，暂不删除"
+                )
+                failed_tables.append(table_name)
+
+        if dropped_tables > 0:
+            logger.info(f"非当前版本实时宽表清理完成: 删除 {dropped_tables} 张表")
+        if failed_tables:
+            logger.warning(f"未能完全清理的非当前版本表: {failed_tables}")
+
+    except Exception as e:
+        logger.error(f"清理非当前版本实时宽表失败: {e}", exc_info=True)
 
 
 async def _cleanup_history_wide_table_versions():
@@ -220,3 +279,14 @@ async def _ensure_realtime_partition():
     AnalyzeDBPartitionManager.ensure_partition('realtime_oss_inct_new', next_date_1)
     AnalyzeDBPartitionManager.ensure_partition('realtime_oss_inct_new', next_date_2)
     AnalyzeDBPartitionManager.ensure_partition('realtime_oss_inct_new', next_date_3)
+
+
+def main():
+    import asyncio
+    from datetime import datetime
+    logger.info(f"[{datetime.now()}] PostgreSQL数据清理任务开始")
+    asyncio.run(postgres_data_cleanup_job())
+    logger.info(f"[{datetime.now()}] PostgreSQL数据清理任务结束")
+
+if __name__ == '__main__':
+    main()
