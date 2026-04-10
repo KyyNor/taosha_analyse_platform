@@ -313,7 +313,7 @@ class IndicatorQueryService:
     def _get_cast_expression(field: str, data_type: str) -> str:
         """根据数据类型获取CAST表达式"""
         if data_type == 'numeric':
-            return f"{field}::DOUBLE PRECISION"
+            return f"COALESCE({field}::DOUBLE PRECISION, 0)"
         elif data_type == 'date':
             return f"CAST({field} AS DATE)"
         else:
@@ -396,7 +396,7 @@ LIMIT {page_size} OFFSET {offset}'''
         elif operator == "=":
             if data_type == 'numeric':
                 try:
-                    return f"{field}::DOUBLE PRECISION = {float(value)}"
+                    return f"COALESCE({field}::DOUBLE PRECISION, 0) = {float(value)}"
                 except (ValueError, TypeError):
                     return f"CAST({field} AS VARCHAR) = '{value}'"
             else:
@@ -404,7 +404,7 @@ LIMIT {page_size} OFFSET {offset}'''
         elif operator in [">", "<", ">=", "<="]:
             if data_type == 'numeric':
                 try:
-                    return f"{field}::DOUBLE PRECISION {operator} {float(value)}"
+                    return f"COALESCE({field}::DOUBLE PRECISION, 0) {operator} {float(value)}"
                 except (ValueError, TypeError):
                     return f"CAST({field} AS VARCHAR) {operator} '{value}'"
             elif data_type == 'date':

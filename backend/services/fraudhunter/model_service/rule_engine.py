@@ -823,8 +823,9 @@ class RuleEngine:
         # 获取指标数据类型
         indicator = self._get_indicator_cached(indicator_code)
         if indicator and indicator.data_type == 'numeric':
-            return f"{base_sql}::DOUBLE PRECISION"
-        
+            # 数值类型增加 COALESCE 默认值 0，避免 NULL 比较问题
+            return f"COALESCE({base_sql}::DOUBLE PRECISION, 0)"
+
         if indicator and indicator.data_type == 'date':
             return f"CAST({base_sql} AS DATE)"
 
