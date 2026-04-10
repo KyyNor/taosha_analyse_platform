@@ -429,6 +429,10 @@ LIMIT 10000
                         is_global_whitelist = account_id in whitelist_set
                         record['是否白名单'] = is_global_whitelist
 
+                        # 添加模型ID和模型名称字段
+                        record['模型编码'] = model.model_code
+                        record['模型名称'] = model.model_name
+
                         # 检查模型白名单（如果账号在模型白名单中，则跳过该记录）
                         model_whitelist = model_whitelist_acct.get(model.model_code, [])
                         if model_whitelist and account_id in model_whitelist:
