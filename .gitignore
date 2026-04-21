@@ -180,4 +180,4 @@ embeddings_model/*
 .startup_lock
 
 # Worker registry (runtime generated)
-backend/.worker_registry/
+backend/.worker_registry/.worktrees/
