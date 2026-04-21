@@ -1,7 +1,19 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronsUpDown } from "lucide-react";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +35,8 @@ export default function NewIndicatorPage() {
   const router = useRouter();
   const { confirm, DialogComponent } = useConfirmDialog();
   const [saving, setSaving] = useState(false);
+  const [taskDropdownOpen, setTaskDropdownOpen] = useState(false);
+  const [taskSearchValue, setTaskSearchValue] = useState("");
   const [IndicatorTasks, setIndicatorTasks] = useState<IndicatorTask[]>([]);
   const [formData, setFormData] = useState<IndicatorCreate>({
     indicator_code: "",
@@ -211,21 +225,80 @@ export default function NewIndicatorPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="indicator-task">关联指标任务 *</Label>
-              <Select
-                value={String(formData.indicator_task_id)}
-                onValueChange={(value) => updateField("indicator_task_id", Number(value))}
-              >
-                <SelectTrigger id="indicator-task">
-                  <SelectValue placeholder="选择指标任务" />
-                </SelectTrigger>
-                <SelectContent>
-                  {IndicatorTasks.map((task) => (
-                    <SelectItem key={task.id} value={String(task.id)}>
-                      {task.task_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={taskDropdownOpen} onOpenChange={setTaskDropdownOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="indicator-task"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={taskDropdownOpen}
+                    className="w-full justify-between"
+                  >
+                    {formData.indicator_task_id
+                      ? IndicatorTasks.find((t) => t.id === formData.indicator_task_id)
+                          ? `[${IndicatorTasks.find((t) => t.id === formData.indicator_task_id)!.id}] ${
+                              IndicatorTasks.find((t) => t.id === formData.indicator_task_id
+                            )!.task_name}`
+                          : `指标任务 ${formData.indicator_task_id}`
+                      : "选择指标任务"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput
+                      placeholder="搜索指标任务名称..."
+                      value={taskSearchValue}
+                      onValueChange={setTaskSearchValue}
+                    />
+                    {IndicatorTasks.length === 0 ? (
+                      <CommandEmpty>
+                        <div className="py-6 text-center text-sm text-muted-foreground">
+                          暂无可用指标任务
+                        </div>
+                      </CommandEmpty>
+                    ) : (
+                      (() => {
+                        const filtered = IndicatorTasks.filter((t) =>
+                          taskSearchValue === "" ||
+                          `[${t.id}] ${t.task_name}`.toLowerCase().includes(taskSearchValue.toLowerCase())
+                        );
+                        if (filtered.length === 0) {
+                          return (
+                            <CommandEmpty>
+                              <div className="py-6 text-center text-sm text-muted-foreground">
+                                未找到匹配的任务
+                              </div>
+                            </CommandEmpty>
+                          );
+                        }
+                        return (
+                          <CommandGroup className="max-h-64 overflow-y-auto">
+                            {taskSearchValue && (
+                              <div className="px-2 py-1 text-xs text-muted-foreground border-b">
+                                找到 {filtered.length} 个匹配项（共 {IndicatorTasks.length} 项）
+                              </div>
+                            )}
+                            {filtered.map((task) => (
+                              <CommandItem
+                                key={task.id}
+                                value={String(task.id)}
+                                onSelect={() => {
+                                  updateField("indicator_task_id", task.id);
+                                  setTaskDropdownOpen(false);
+                                  setTaskSearchValue("");
+                                }}
+                              >
+                                [{task.id}] {task.task_name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        );
+                      })()
+                    )}
+                  </Command>
+                </PopoverContent>
+              </Popover>
               <p className="text-sm text-muted-foreground mt-1">
                 指标所属的指标任务
               </p>

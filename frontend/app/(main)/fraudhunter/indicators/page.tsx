@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from 'sonner';
 import { MetadataTable } from "@/components/ui/MetadataTable";
 import { Button } from "@/components/ui/button";
@@ -114,7 +115,19 @@ export default function IndicatorsPage() {
       type: "badge" as const,
       badgeConfig: dataTypeBadgeConfig
     },
-    { key: "indicator_task_id", label: "指标任务ID", type: "number" as const },
+    {
+      key: "indicator_task_id",
+      label: "指标任务ID",
+      type: "custom" as const,
+      render: (_value, row) => (
+        <Link
+          href={`/fraudhunter/indicator-tasks/${row.indicator_task_id}`}
+          className="text-blue-600 underline hover:text-blue-800"
+        >
+          {row.indicator_task_id}
+        </Link>
+      )
+    },
     {
       key: "status",
       label: "状态",
