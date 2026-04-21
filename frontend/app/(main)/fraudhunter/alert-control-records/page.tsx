@@ -143,9 +143,19 @@ export default function AlertControlRecordsPage() {
       label: "模型",
       type: "custom" as const,
       render: (value: string[]) => {
-        if (!value || value.length === 0) return '-';
-        const displayText = value.join(', ');
-        return displayText.length > 30 ? displayText.slice(0, 30) + '...' : displayText;
+        if (!value || value.length === 0) return <span className="text-muted-foreground">-</span>;
+        return (
+          <div className="flex flex-wrap gap-1">
+            {value.map((name, idx) => (
+              <span
+                key={idx}
+                className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700"
+              >
+                {name}
+              </span>
+            ))}
+          </div>
+        );
       }
     },
     {
@@ -160,6 +170,7 @@ export default function AlertControlRecordsPage() {
       type: "badge" as const,
       badgeConfig: controlStatusBadgeConfig
     },
+    { key: "control_serial_number", label: "管控流水号", type: "text" as const },
     { key: "created_at", label: "创建时间", type: "datetime" as const }
   ];
 
