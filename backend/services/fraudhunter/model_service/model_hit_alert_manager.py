@@ -277,7 +277,7 @@ class ModelHitAlertManager:
                 ]
 
                 if fin_mngr_models:
-                    customer_no = indicator_data.get('i_dep_acct_no_offline_00001')
+                    customer_no = hit_record.indicator_data.get('i_dep_acct_no_offline_00001')
                     if customer_no and str(customer_no).strip():
                         fin_targets = self._lookup_cust_owner_notice_nos(str(customer_no))
                         for fin_target in fin_targets:

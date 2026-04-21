@@ -179,7 +179,8 @@ export default function RiskControlModelDetailPage() {
         rule_config: data.rule_config,
         is_send_alert_message: data.is_send_alert_message,
         alert_message_target: data.alert_message_target,
-        is_acct_control: data.is_acct_control
+        is_acct_control: data.is_acct_control,
+        is_send_financial_manager_alert: data.is_send_financial_manager_alert
       };
 
       await riskControlModelService.update(modelId, updateData);

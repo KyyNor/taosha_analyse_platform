@@ -34,7 +34,8 @@ export default function NewRiskControlModelPage() {
     },
     is_send_alert_message: true,
     alert_message_target: "",
-    is_acct_control: true
+    is_acct_control: true,
+    is_send_financial_manager_alert: false
   });
 
   // 加载所有上线的指标（不按object_type筛选）
