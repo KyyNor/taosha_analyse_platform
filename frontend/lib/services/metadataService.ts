@@ -202,3 +202,40 @@ export async function getDesignerUrls(): Promise<{ success: boolean; data: Desig
   const res = await api.get("/metadata/fine-reports/designer-urls");
   return res.data;
 }
+
+// -------------------------------------------------------------------------
+// 省市卡BIN维表
+// -------------------------------------------------------------------------
+
+export interface ProvinceCardBinRecord {
+  card_bin?: string;
+  bank_name?: string;
+  province?: string;
+  city?: string;
+}
+
+export async function getProvinceCardBins(params?: {
+  page?: number;
+  page_size?: number;
+  search?: string;
+}) {
+  const res = await api.get("/metadata/province-card-bins", { params });
+  return res.data; // { items[], total, page, page_size }
+}
+
+export async function updateProvinceCardBin(
+  data: ProvinceCardBinRecord,
+  method: "POST" | "PUT" | "DELETE",
+  cardBin?: string, // 用于 PUT/DELETE 的路径参数
+) {
+  const encoded = cardBin ? encodeURIComponent(cardBin) : "";
+  if (method === "DELETE") {
+    const res = await api.delete(`/metadata/province-card-bins/${encoded}`);
+    return res.data;
+  }
+  const res =
+    method === "POST"
+      ? await api.post("/metadata/province-card-bins", data)
+      : await api.put(`/metadata/province-card-bins/${encoded}`, data);
+  return res.data;
+}

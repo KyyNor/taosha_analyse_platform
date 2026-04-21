@@ -208,3 +208,12 @@ class SaveFragmentsRequest(BaseModel):
     )
 
 
+# 省市卡BIN维表
+class ProvinceCardBinRequest(BaseModel):
+    """省市卡BIN新增/更新请求（字段均可选，传啥更新啥）"""
+    card_bin: Optional[str] = None
+    bank_name: Optional[str] = None
+    province: Optional[str] = None
+    city: Optional[str] = None
+
+
