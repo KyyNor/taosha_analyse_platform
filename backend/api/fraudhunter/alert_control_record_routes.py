@@ -141,10 +141,7 @@ async def list_alert_control_records(
         
         # 查询记录
         manager = ModelHitAlertManager(db)
-        result = manager.get_alert_control_records(
-            filters, pagination,
-            current_user_branch_no=current_user.branch_no
-        )
+        result = manager.get_alert_control_records(filters, pagination)
         
         logger.info(
             f"查询告警管控记录: user={current_user.user_id}, branch_no={current_user.branch_no}, "
@@ -300,10 +297,7 @@ async def export_alert_control_records(
 
         # 导出数据
         manager = ModelHitAlertManager(db)
-        file_content = manager.export_alert_control_records(
-            filters,
-            current_user_branch_no=current_user.branch_no
-        )
+        file_content = manager.export_alert_control_records(filters)
 
         # 设置文件名和响应头
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -473,10 +467,7 @@ async def get_model_history_trend(
 
     try:
         manager = ModelHitAlertManager(db)
-        result = manager.get_history_trend(
-            req,
-            current_user_branch_no=current_user.branch_no,
-        )
+        result = manager.get_history_trend(req)
 
         logger.info(
             f"[get_model_history_trend] user={current_user.user_id}, "

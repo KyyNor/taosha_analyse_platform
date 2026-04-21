@@ -704,14 +704,6 @@ class ModelHitAlertManager:
         # 构建基础查询
         query = self.db.query(FraudHunterModelAlertControlRecord)
 
-        # 应用权限过滤
-        if current_user_branch_no and len(current_user_branch_no) == 4 and current_user_branch_no.isdigit():
-            # 普通部门用户：可以查看本部门及其下级部门的记录
-            related_branch_nos = self._get_related_branch_nos(current_user_branch_no)
-            query = query.filter(FraudHunterModelAlertControlRecord.branch_no.in_(related_branch_nos))
-            logger.debug(f"应用部门权限过滤: user_branch_no={current_user_branch_no}, related_branch_nos={related_branch_nos}")
-        # 否则（管理员或其他长度）：可以查看所有记录
-        
         # 应用筛选条件
         query = self._apply_filters(query, filters)
         
@@ -788,13 +780,6 @@ class ModelHitAlertManager:
         """
         # 查询所有符合条件的记录
         query = self.db.query(FraudHunterModelAlertControlRecord)
-
-        # 应用权限过滤
-        if current_user_branch_no and len(current_user_branch_no) == 4 and current_user_branch_no.isdigit():
-            # 普通部门用户：可以查看本部门及其下级部门的记录
-            related_branch_nos = self._get_related_branch_nos(current_user_branch_no)
-            query = query.filter(FraudHunterModelAlertControlRecord.branch_no.in_(related_branch_nos))
-            logger.debug(f"导出应用部门权限过滤: user_branch_no={current_user_branch_no}, related_branch_nos={related_branch_nos}")
 
         query = self._apply_filters(query, filters)
         records = query.order_by(FraudHunterModelAlertControlRecord.created_at.desc()).limit(5000).all()
@@ -985,11 +970,6 @@ class ModelHitAlertManager:
             .filter(tbl.record_date.between(req_start, req_end))
             .filter(combined_predicate)
         )
-
-        # 权限过滤（同列表接口逻辑）
-        if current_user_branch_no and len(current_user_branch_no) == 4 and current_user_branch_no.isdigit():
-            related_branch_nos = self._get_related_branch_nos(current_user_branch_no)
-            query = query.filter(tbl.branch_no.in_(related_branch_nos))
 
         query = (
             query

@@ -24,9 +24,18 @@ import type {
 } from "@/lib/services/fraudhunter/alertControlRecordService";
 import { alertStatusBadgeConfig, controlStatusBadgeConfig } from "@/lib/utils/badgeConfigs";
 import { downloadFromResponse, generateTimestampedFilename } from "@/lib/utils/downloadUtils";
+import { useAuth } from "@/hooks/useAuth";
+
+// 允许查看详情的部门编号
+const DETAIL_VIEW_DEPARTMENTS = ["110026", "110004"];
 
 export default function AlertControlRecordsPage() {
   const router = useRouter();
+  const { user } = useAuth();
+
+  // 判断当前用户是否可以查看详情按钮
+  const canViewDetail =
+    !!user && DETAIL_VIEW_DEPARTMENTS.includes(user.branch_no);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<AlertControlRecord[]>([]);
   const [exporting, setExporting] = useState(false);
@@ -334,7 +343,7 @@ export default function AlertControlRecordsPage() {
         columns={columns}
         loading={loading}
         onRefresh={loadRecords}
-        onView={handleView}
+        onView={canViewDetail ? handleView : undefined}
         searchPlaceholder="搜索账号、模型等..."
         emptyText="暂无告警管控记录"
         searchQuery={searchQuery}
