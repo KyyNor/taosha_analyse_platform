@@ -20,7 +20,9 @@ from schemas.fraudhunter.alert_control_record import (
     PaginationParams,
     AlertControlRecordResponse,
     AlertControlListResponse,
-    AlertControlRecordDetailResponse
+    AlertControlRecordDetailResponse,
+    TrendRequest,
+    TrendResponse,
 )
 from services.fraudhunter.model_service.model_hit_alert_manager import ModelHitAlertManager
 from utils.logger import logger
@@ -420,3 +422,73 @@ async def get_alert_control_statistics(
             status_code=500,
             detail=f"获取告警管控统计失败: {str(e)}"
         )
+
+
+@router.get(
+    "/history/trend",
+    response_model=TrendResponse,
+    summary="获取模型命中账户数历史趋势"
+)
+async def get_model_history_trend(
+    start_date: str = Query(..., description="开始日期 (YYYY-MM-DD)，必填"),
+    end_date: str = Query(..., description="结束日期 (YYYY-MM-DD)，必填"),
+    granularity: str = Query("day", description="粒度：day / week / month，默认 day"),
+    model_ids: Optional[List[int]] = Query(None, description="模型ID列表（多选，不传则查全部在线模型）"),
+
+    current_user: UserInfo = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    获取模型命中账户数的历史趋势（面积折线图数据源）。
+
+    **去重口径**：`COUNT(DISTINCT account_id)` — 同一个账户同一天命中同一模型计一次，
+    不同模型互不受影响。
+
+    **支持的粒度**：
+    - `day`：按自然日分组，横轴标签形如 "2024-01-15"
+    - `week`：按 ISO 所在周分组，横轴标签形如 "2024-W03"
+    - `month`：按自然月分组，横轴标签形如 "2024-01"
+
+    **约束**：时间跨度不允许超过 180 天。
+
+    返回的 series 每一项代表"某模型在某一时间刻度上命中的独立账户数"。
+    前端可据此绘制多条折线，面积图。
+    """
+    valid_granularities = {"day", "week", "month"}
+    if granularity not in valid_granularities:
+        raise HTTPException(
+            status_code=400,
+            detail=f"无效的粒度: {granularity}，支持的粒度: {', '.join(valid_granularities)}"
+        )
+
+    try:
+        req = TrendRequest(
+            start_date=start_date,
+            end_date=end_date,
+            granularity=granularity,
+            model_ids=model_ids,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        manager = ModelHitAlertManager(db)
+        result = manager.get_history_trend(
+            req,
+            current_user_branch_no=current_user.branch_no,
+        )
+
+        logger.info(
+            f"[get_model_history_trend] user={current_user.user_id}, "
+            f"start={start_date}, end={end_date}, granularity={granularity}, "
+            f"model_count={len(model_ids) if model_ids else 'all_online'}, "
+            f"total_points={result.total_points}, series_len={len(result.series)}"
+        )
+
+        return result
+
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"获取模型历史趋势失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取模型历史趋势失败: {str(e)}")

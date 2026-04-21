@@ -50,6 +50,7 @@ const allNavItems: NavItem[] = [
       { type: 'group', label: "模型管理" },
       { type: 'link', href: "/fraudhunter/risk-control-models", label: "预警管控模型定义", requiredPath: "/fraudhunter/risk-control-models" },
       { type: 'link', href: "/fraudhunter/alert-control-records", label: "模型预警记录", requiredPath: "/fraudhunter/alert-control-records" },
+      { type: 'link', href: "/fraudhunter/historical-model-analysis", label: "历史模型分析", requiredPath: "/fraudhunter/historical-model-analysis" },
       { type: 'separator' },
       { type: 'group', label: "试运行" },
       { type: 'link', href: "/fraudhunter/dry-run", label: "试运行详情", requiredPath: "/fraudhunter/dry-run" },

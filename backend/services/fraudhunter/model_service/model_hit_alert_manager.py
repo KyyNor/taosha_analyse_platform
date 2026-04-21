@@ -2,13 +2,14 @@
 模型命中与告警管理器
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 from datetime import datetime, date
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func, String
+from sqlalchemy import or_, func, String, Integer, text
 from dataclasses import dataclass
 import pandas as pd
 import requests
+import json
 
 from models.fraudhunter.model_execution_tracking import (
     FraudHunterModelHitRecord,
@@ -25,7 +26,10 @@ from schemas.fraudhunter.alert_control_record import (
     AlertControlRecordResponse,
     AlertControlListResponse,
     HitRecordResponse,
-    AlertControlRecordDetailResponse
+    AlertControlRecordDetailResponse,
+    TrendRequest,
+    TrendPoint,
+    TrendResponse,
 )
 from services.fraudhunter.system_config_service import SystemConfigManager
 from utils.logger import logger
@@ -909,6 +913,127 @@ class ModelHitAlertManager:
             )
 
         return query
+
+    def get_history_trend(
+        self,
+        req: TrendRequest,
+        current_user_branch_no: Optional[str] = None,
+    ) -> TrendResponse:
+        """获取模型命中账户数的日/周/月历史趋势
+
+        Args:
+            req: 趋势请求参数（起止日期、粒度、模型ID列表）
+            current_user_branch_no: 当前用户机构号（用于权限过滤）
+
+        Returns:
+            TrendResponse，含 series（时间刻度 × 模型 的去重账户数列表）
+        """
+        try:
+            req_start = datetime.strptime(req.start_date, "%Y-%m-%d").date()
+            req_end = datetime.strptime(req.end_date, "%Y-%m-%d").date()
+        except ValueError as e:
+            raise ValueError(f"日期格式无效，应为 YYYY-MM-DD，当前值不合法: {e}")
+
+        span_days = (req_end - req_start).days
+        if span_days < 0:
+            raise ValueError("开始日期不能晚于结束日期")
+        if span_days > 180:
+            raise ValueError("时间跨度不能超过180天")
+
+        # ---- 确定待查询的模型列表 ----------------------------------------
+        model_query = self.db.query(
+            FraudHunterModelDefinition.id,
+            FraudHunterModelDefinition.name
+        ).filter(FraudHunterModelDefinition.status == "online")
+
+        if req.model_ids:
+            model_query = model_query.filter(FraudHunterModelDefinition.id.in_(req.model_ids))
+
+        models = {mid: mname for mid, mname in model_query.all()}
+        if not models:
+            return TrendResponse(series=[], total_points=0, meta={"msg": "无可用模型"})
+
+        # ---- 日期表达式（根据粒度）---------------------------------------
+        tbl = FraudHunterModelAlertControlRecord
+        if req.granularity == "week":
+            date_expr = func.date_format(tbl.record_date, "%Y-W%v")
+        elif req.granularity == "month":
+            date_expr = func.date_format(tbl.record_date, "%Y-%m")
+        else:  # day
+            date_expr = func.date_format(tbl.record_date, "%Y-%m-%d")
+
+        # ---- 逐模型构造 WHERE 条件，拼成 OR ------------------------------
+        model_predicates = []
+        for mid in models.keys():
+            cond = func.json_contains(
+                tbl.hit_model_ids,
+                func.cast(text(str(mid)), Integer)
+            )
+            model_predicates.append(cond)
+
+        if not model_predicates:
+            return TrendResponse(series=[], total_points=0, meta={"msg": "无有效模型条件"})
+        combined_predicate = or_(*model_predicates)
+
+        # ---- 构建基查询 -------------------------------------------------
+        query = (
+            self.db.query(
+                date_expr.label("date_point"),
+                func.max(func.cast(tbl.hit_model_ids, String)).label("_model_ids"),
+                func.count(func.distinct(tbl.account_id)).label("distinct_account_count"),
+            )
+            .filter(tbl.record_date.between(req_start, req_end))
+            .filter(combined_predicate)
+        )
+
+        # 权限过滤（同列表接口逻辑）
+        if current_user_branch_no and len(current_user_branch_no) == 4 and current_user_branch_no.isdigit():
+            related_branch_nos = self._get_related_branch_nos(current_user_branch_no)
+            query = query.filter(tbl.branch_no.in_(related_branch_nos))
+
+        query = (
+            query
+            .group_by(date_expr)
+            .order_by(date_expr)
+        )
+
+        raw_rows = query.all()
+
+        # ---- 解析结果，按 date_point × model_id 展开 --------------------
+        series: List[TrendPoint] = []
+        for row in raw_rows:
+            dp = row.date_point
+            ids_str = row._model_ids
+            if not ids_str:
+                continue
+            hit_model_ids_on_day: List[int] = []
+            try:
+                hit_model_ids_on_day = json.loads(ids_str) if isinstance(ids_str, str) else (ids_str or [])
+            except (json.JSONDecodeError, TypeError, ValueError):
+                continue
+
+            for mid in hit_model_ids_on_day:
+                if mid in models and dp:
+                    series.append(
+                        TrendPoint(
+                            date_point=str(dp),
+                            model_id=mid,
+                            model_name=models[mid],
+                            distinct_account_count=row.distinct_account_count or 0,
+                        )
+                    )
+
+        logger.info(
+            f"[get_history_trend] granularity={req.granularity}, "
+            f"models={list(models.keys())}, points={len(raw_rows)}, "
+            f"expanded_series={len(series)}"
+        )
+
+        return TrendResponse(
+            series=series,
+            total_points=len(raw_rows),
+            meta={"span_days": span_days, "model_count": len(models)},
+        )
 
     def _get_status_display(self, status: str) -> str:
         """获取状态的显示文本

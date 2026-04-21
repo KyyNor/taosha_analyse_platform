@@ -3,7 +3,7 @@
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime, date
 
 
@@ -98,9 +98,38 @@ class HitRecordResponse(BaseModel):
 
 class AlertControlRecordDetailResponse(BaseModel):
     """告警管控记录详情响应"""
-    
+
     # 基本信息
     record: AlertControlRecordResponse
-    
+
     # 关联的命中记录
     hit_record: HitRecordResponse
+
+
+class TrendRequest(BaseModel):
+    """历史趋势请求参数"""
+
+    start_date: str = Field(..., description="开始日期 (YYYY-MM-DD)")
+    end_date: str = Field(..., description="结束日期 (YYYY-MM-DD)")
+    granularity: Literal["day", "week", "month"] = "day"
+    model_ids: Optional[List[int]] = Field(None, description="模型ID列表（多选）")
+
+
+class TrendPoint(BaseModel):
+    """历史趋势数据点"""
+
+    date_point: str = Field(..., description="时间刻度（格式取决于粒度：YYYY-MM-DD / YYYY-Wxx / YYYY-MM）")
+    model_id: int
+    model_name: str
+    distinct_account_count: int
+
+    class Config:
+        from_attributes = True
+
+
+class TrendResponse(BaseModel):
+    """历史趋势响应"""
+
+    series: List[TrendPoint] = Field(default_factory=list)
+    total_points: int = 0
+    meta: dict = Field(default_factory=dict)
