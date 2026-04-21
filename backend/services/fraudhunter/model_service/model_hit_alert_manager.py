@@ -391,9 +391,8 @@ class ModelHitAlertManager:
             t.strip() for t in str(record.notice_no).split(',')
             if t.strip()
         ]
-        unique_targets = list(dict.fromkeys(targets))  # 保持顺序的去重
-        logger.debug(f"找到客户经理通知目标: acct_no={acct_no}, targets={unique_targets}")
-        return unique_targets
+        logger.debug(f"找到客户经理通知目标: acct_no={acct_no}, targets={targets}")
+        return targets
 
     def _lookup_cust_owner_notice_nos(self, cust_no: str) -> List[str]:
         """查询客户号对应的理财经理通知号列表
@@ -418,9 +417,8 @@ class ModelHitAlertManager:
             t.strip() for t in str(record.notice_no).split(',')
             if t.strip()
         ]
-        unique_targets = list(dict.fromkeys(targets))
-        logger.debug(f"找到理财经理通知目标: cust_no={cust_no}, targets={unique_targets}")
-        return unique_targets
+        logger.debug(f"找到理财经理通知目标: cust_no={cust_no}, targets={targets}")
+        return targets
 
     def _call_control_api(self, account_id: str, account_type: str = "01") -> Optional[Dict[str, Any]]:
         """调用管控接口
