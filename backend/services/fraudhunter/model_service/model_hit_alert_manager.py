@@ -237,63 +237,60 @@ class ModelHitAlertManager:
                     branch_no=hit_record.branch_no
                 )
 
-                # 调用消息提醒接口
-                send_success = self.send_alert_message(
-                    notice_no=alert_notice_no,
-                    notice=alert_message
-                )
-
-                if send_success:
-                    alert_control_record.alert_status = 'sent'
-                    alert_control_record.alert_message = alert_message
-                    alert_control_record.alert_person = 'system'
-                    alert_control_record.alert_time = datetime.now()
-                else:
-                    # 消息发送失败，但仍记录消息内容
-                    alert_control_record.alert_status = 'sent'
-                    alert_control_record.alert_message = alert_message
-                    alert_control_record.alert_person = 'system'
-                    alert_control_record.alert_time = datetime.now()
-                    logger.warning(f"消息发送失败，但已记录告警信息: account_id={hit_record.account_id}")
-
-                # ========== 【新增】客户经理告警（跟随 is_send_alert_message，无额外开关）==========
+                # ========== 【合并】收集所有通知人，去重，一次发送 ==========
+                # 1. 客户经理通知号（跟随 is_send_alert_message，无额外开关）
                 cm_targets = self._lookup_acct_assign_notice_nos(hit_record.account_id)
-                for cm_target in cm_targets:
-                    cm_send_ok = self.send_alert_message(
-                        notice_no=cm_target,
-                        notice=alert_message
-                    )
-                    logger.info(
-                        f"客户经理告警{'成功' if cm_send_ok else '失败'}: "
-                        f"account_id={hit_record.account_id}, target={cm_target}"
-                    )
 
-                # ========== 【新增】理财经理告警（需 is_send_alert_message=True AND is_send_financial_manager_alert=True）==========
+                # 2. 理财经理通知号（需 is_send_alert_message=True AND is_send_financial_manager_alert=True）
+                fin_targets: List[str] = []
                 fin_mngr_models = [
                     mid for mid in hit_record.hit_model_ids
                     if model_configs.get(mid)
                     and model_configs[mid].is_send_alert_message
                     and getattr(model_configs[mid], 'is_send_financial_manager_alert', False)
                 ]
-
                 if fin_mngr_models:
                     customer_no = hit_record.indicator_data.get('i_dep_acct_no_offline_00001')
                     if customer_no and str(customer_no).strip():
                         fin_targets = self._lookup_cust_owner_notice_nos(str(customer_no))
-                        for fin_target in fin_targets:
-                            fin_send_ok = self.send_alert_message(
-                                notice_no=fin_target,
-                                notice=alert_message
-                            )
-                            logger.info(
-                                f"理财经理告警{'成功' if fin_send_ok else '失败'}: "
-                                f"customer_no={customer_no}, target={fin_target}"
-                            )
-                    else:
-                        logger.debug(
-                            f"跳过理财经理告警（无 customer_no）: account_id={hit_record.account_id}"
-                        )
-                # ==============================================================================
+
+                # 3. 合并去重：alert_notice_no 支持逗号分隔，cm_targets / fin_targets 同上
+                all_sources = (
+                    ([alert_notice_no] if alert_notice_no else [])   # 分支行可能返回空字串
+                    + cm_targets
+                    + fin_targets
+                )
+                # 展平逗号拼接，去除空白，再去重保序
+                flat = [t.strip() for s in all_sources for t in str(s).split(',') if t.strip()]
+                unique_targets = list(dict.fromkeys(t for t in flat if t))
+                combined_notice_no = ','.join(unique_targets)
+
+                # 4. 单次发送，无人或为空字串则跳过
+                send_success = False
+                if combined_notice_no:
+                    send_success = self.send_alert_message(
+                        notice_no=combined_notice_no,
+                        notice=alert_message
+                    )
+                    logger.info(
+                        f"{'成功' if send_success else '失败'}（合并发送，共{len(unique_targets)}人）: "
+                        f"targets={unique_targets}"
+                    )
+
+                # 5. 记录结果，兼容原有状态字段
+                if send_success:
+                    alert_control_record.alert_status = 'sent'
+                    alert_control_record.alert_message = alert_message
+                    alert_control_record.alert_person = 'system'
+                    alert_control_record.alert_time = datetime.now()
+                else:
+                    # 消息发送失败（非 00000 响应码），但仍记录消息内容
+                    alert_control_record.alert_status = 'sent'
+                    alert_control_record.alert_message = alert_message
+                    alert_control_record.alert_person = 'system'
+                    alert_control_record.alert_time = datetime.now()
+                    logger.warning(f"消息发送失败（合并发送，共{len(unique_targets)}人）: account_id={hit_record.account_id}")
+                # ===========================================================================
             else:
                 # 所有需要告警的模型都已发送过
                 alert_control_record.alert_status = 'duplicate'
