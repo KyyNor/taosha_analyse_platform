@@ -15,6 +15,10 @@ from models.fraudhunter.model_execution_tracking import (
     FraudHunterModelAlertControlRecord
 )
 from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
+from models.fraudhunter.alert_notify_targets import (
+    FraudHunterAlertAcctAssign,
+    FraudHunterAlertCustOwner,
+)
 from schemas.fraudhunter.alert_control_record import (
     AlertControlFilters,
     PaginationParams,
@@ -251,6 +255,45 @@ class ModelHitAlertManager:
                     alert_control_record.alert_person = 'system'
                     alert_control_record.alert_time = datetime.now()
                     logger.warning(f"消息发送失败，但已记录告警信息: account_id={hit_record.account_id}")
+
+                # ========== 【新增】客户经理告警（跟随 is_send_alert_message，无额外开关）==========
+                cm_targets = self._lookup_acct_assign_notice_nos(hit_record.account_id)
+                for cm_target in cm_targets:
+                    cm_send_ok = self.send_alert_message(
+                        notice_no=cm_target,
+                        notice=alert_message
+                    )
+                    logger.info(
+                        f"客户经理告警{'成功' if cm_send_ok else '失败'}: "
+                        f"account_id={hit_record.account_id}, target={cm_target}"
+                    )
+
+                # ========== 【新增】理财经理告警（需 is_send_alert_message=True AND is_send_financial_manager_alert=True）==========
+                fin_mngr_models = [
+                    mid for mid in hit_record.hit_model_ids
+                    if model_configs.get(mid)
+                    and model_configs[mid].is_send_alert_message
+                    and getattr(model_configs[mid], 'is_send_financial_manager_alert', False)
+                ]
+
+                if fin_mngr_models:
+                    customer_no = indicator_data.get('i_dep_acct_no_offline_00001')
+                    if customer_no and str(customer_no).strip():
+                        fin_targets = self._lookup_cust_owner_notice_nos(str(customer_no))
+                        for fin_target in fin_targets:
+                            fin_send_ok = self.send_alert_message(
+                                notice_no=fin_target,
+                                notice=alert_message
+                            )
+                            logger.info(
+                                f"理财经理告警{'成功' if fin_send_ok else '失败'}: "
+                                f"customer_no={customer_no}, target={fin_target}"
+                            )
+                    else:
+                        logger.debug(
+                            f"跳过理财经理告警（无 customer_no）: account_id={hit_record.account_id}"
+                        )
+                # ==============================================================================
             else:
                 # 所有需要告警的模型都已发送过
                 alert_control_record.alert_status = 'duplicate'
@@ -327,6 +370,60 @@ class ModelHitAlertManager:
         ).first()
         
         return existing_control is not None
+
+    def _lookup_acct_assign_notice_nos(self, acct_no: str) -> List[str]:
+        """查询账号对应的客户经理通知号列表
+
+        支持 notice_no 逗号拼接，返回去重后的列表。
+
+        Args:
+            acct_no: 账号
+
+        Returns:
+            去重后的通知号列表（不含空值），无结果时返回空列表
+        """
+        record = self.db.query(FraudHunterAlertAcctAssign).filter(
+            FraudHunterAlertAcctAssign.acct_no == acct_no
+        ).first()
+
+        if not record or not record.notice_no:
+            logger.debug(f"未找到客户经理通知目标: acct_no={acct_no}")
+            return []
+
+        targets = [
+            t.strip() for t in str(record.notice_no).split(',')
+            if t.strip()
+        ]
+        unique_targets = list(dict.fromkeys(targets))  # 保持顺序的去重
+        logger.debug(f"找到客户经理通知目标: acct_no={acct_no}, targets={unique_targets}")
+        return unique_targets
+
+    def _lookup_cust_owner_notice_nos(self, cust_no: str) -> List[str]:
+        """查询客户号对应的理财经理通知号列表
+
+        支持 notice_no 逗号拼接，返回去重后的列表。
+
+        Args:
+            cust_no: 客户号
+
+        Returns:
+            去重后的通知号列表（不含空值），无结果时返回空列表
+        """
+        record = self.db.query(FraudHunterAlertCustOwner).filter(
+            FraudHunterAlertCustOwner.cust_no == cust_no
+        ).first()
+
+        if not record or not record.notice_no:
+            logger.debug(f"未找到理财经理通知目标: cust_no={cust_no}")
+            return []
+
+        targets = [
+            t.strip() for t in str(record.notice_no).split(',')
+            if t.strip()
+        ]
+        unique_targets = list(dict.fromkeys(targets))
+        logger.debug(f"找到理财经理通知目标: cust_no={cust_no}, targets={unique_targets}")
+        return unique_targets
 
     def _call_control_api(self, account_id: str, account_type: str = "01") -> Optional[Dict[str, Any]]:
         """调用管控接口

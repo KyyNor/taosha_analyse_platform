@@ -27,6 +27,10 @@ from .model_execution_tracking import (
     FraudHunterModelAlertControlRecord,
     FraudHunterSystemConfig,
 )
+from .alert_notify_targets import (
+    FraudHunterAlertAcctAssign,
+    FraudHunterAlertCustOwner,
+)
 
 __all__ = [
     'FraudHunterIndicatorTask',
@@ -44,4 +48,6 @@ __all__ = [
     'FraudHunterModelHitRecord',
     'FraudHunterModelAlertControlRecord',
     'FraudHunterSystemConfig',
+    'FraudHunterAlertAcctAssign',
+    'FraudHunterAlertCustOwner',
 ]

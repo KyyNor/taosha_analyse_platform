@@ -26,6 +26,7 @@ class FraudHunterModelDefinition(Base):
     is_send_alert_message = Column(Boolean, default=False, comment='是否发送告警消息')
     alert_message_target = Column(String(256), comment='告警消息目标')
     is_acct_control = Column(Boolean, default=False, comment='是否账户控制')
+    is_send_financial_manager_alert = Column(Boolean, default=False, comment='是否同时发送理财经理告警通知（前置于 is_send_alert_message）')
 
     # 模型规则（JSON格式存储可视化定义）
     rule_config = Column(JSON, nullable=False, comment='规则配置JSON')

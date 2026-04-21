@@ -592,6 +592,8 @@ def _build_model_matching_sql(
         f"COALESCE(dep_acct_realtime_indicator.target_id, dep_acct_offline_indicator.target_id) AS \"目标ID\"",
         "dep_acct_offline_indicator.i_dep_acct_no_offline_00007 AS \"客户类型\"",
         "COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_offline_00002, dep_acct_offline_indicator.i_dep_acct_no_offline_00002) AS branch_no",
+        # 【新增】理财经理通知需要的客户号
+        "COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_offline_00001, dep_acct_offline_indicator.i_dep_acct_no_offline_00001) AS \"i_dep_acct_no_offline_00001\"",
         "dep_acct_realtime_indicator.etl_date AS \"[实时]ETL日期\"",
     ]
 

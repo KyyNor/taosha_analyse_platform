@@ -23,6 +23,7 @@ class RiskControlModelBase(BaseModel):
     is_send_alert_message: bool = Field(False, description="是否发送告警消息")
     alert_message_target: Optional[str] = Field(None, max_length=256, description="告警消息目标")
     is_acct_control: bool = Field(False, description="是否账户控制")
+    is_send_financial_manager_alert: bool = Field(False, description="是否同时发送理财经理告警通知（前置：is_send_alert_message=True）")
 
 
 class RiskControlModelCreate(RiskControlModelBase):
@@ -38,6 +39,7 @@ class RiskControlModelUpdate(BaseModel):
     is_send_alert_message: Optional[bool] = Field(None, description="是否发送告警消息")
     alert_message_target: Optional[str] = Field(None, max_length=256, description="告警消息目标")
     is_acct_control: Optional[bool] = Field(None, description="是否账户控制")
+    is_send_financial_manager_alert: Optional[bool] = Field(None, description="是否同时发送理财经理告警通知（前置：is_send_alert_message=True）")
 
 
 class RiskControlModelResponse(RiskControlModelBase):

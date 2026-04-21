@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -471,6 +472,33 @@ export default function RiskControlModelDetailPage() {
                 账户控制
               </Label>
             </div>
+
+            {/* ======= 【新增】理财经理告警选项 ======= */}
+            {data.is_send_alert_message && (
+              <>
+                <Separator className="my-2" />
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="send-financial-manager"
+                    checked={data.is_send_financial_manager_alert ?? false}
+                    onCheckedChange={(checked) =>
+                      updateField("is_send_financial_manager_alert", checked as boolean)
+                    }
+                    disabled={!isEditMode}
+                  />
+                  <Label
+                    htmlFor="send-financial-manager"
+                    className={isEditMode ? "cursor-pointer" : ""}
+                    title="需同步开启「发送告警消息」方可生效"
+                  >
+                    同时发送给理财经理
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-7">
+                  通过客户号查表发送给对应的理财经理
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 

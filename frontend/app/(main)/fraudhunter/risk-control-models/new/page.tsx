@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { riskControlModelService } from "@/lib/services/fraudhunterService";
 import { indicatorService } from "@/lib/services/fraudhunterService";
@@ -254,6 +255,32 @@ export default function NewRiskControlModelPage() {
                 账户控制
               </Label>
             </div>
+
+            {/* ======= 【新增】理财经理告警选项 ======= */}
+            {formData.is_send_alert_message && (
+              <>
+                <Separator className="my-2" />
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="send-financial-manager"
+                    checked={formData.is_send_financial_manager_alert ?? false}
+                    onCheckedChange={(checked) =>
+                      updateField("is_send_financial_manager_alert", checked as boolean)
+                    }
+                  />
+                  <Label
+                    htmlFor="send-financial-manager"
+                    className="cursor-pointer"
+                    title="需同步开启「发送告警消息」方可生效"
+                  >
+                    同时发送给理财经理
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-7">
+                  通过客户号查表发送给对应的理财经理
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

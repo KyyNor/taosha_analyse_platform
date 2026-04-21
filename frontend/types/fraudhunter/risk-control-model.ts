@@ -29,6 +29,7 @@ export interface RiskControlModel {
   is_send_alert_message: boolean
   alert_message_target?: string
   is_acct_control: boolean
+  is_send_financial_manager_alert?: boolean
 
   // 关联指标
   indicator_codes?: string
@@ -58,6 +59,7 @@ export interface RiskControlModelCreate {
   is_send_alert_message?: boolean
   alert_message_target?: string
   is_acct_control?: boolean
+  is_send_financial_manager_alert?: boolean
 }
 
 /**
@@ -70,6 +72,7 @@ export interface RiskControlModelUpdate {
   is_send_alert_message?: boolean
   alert_message_target?: string
   is_acct_control?: boolean
+  is_send_financial_manager_alert?: boolean
 }
 
 /**
