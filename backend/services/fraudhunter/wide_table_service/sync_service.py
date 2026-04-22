@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from datetime import date, datetime, timedelta
 
+from sqlalchemy import text
+
 import pandas as pd
 
 from models.fraudhunter.wide_table import (
@@ -107,19 +109,29 @@ class WideTableSyncService:
             pg_table_name = f"{wide_table_name}_{version_hash[:8]}"
 
             # 尝试寻找可 COPY 的旧版本表
-            old_pg_table, old_md = self._find_copy_source(
+            old_pg_table, _ = self._find_copy_source(
                 wide_table_name, etl_date, effective_candidates
             )
 
             if old_pg_table and inc_codes:
-                # 增量路径（骨架阶段，目前降级为全量，待提交2连通完整实现）
-                logger.info(
-                    f"[骨架] 增量路径命中，暂降级为全量同步: "
-                    f"旧表={old_pg_table}, changed={len(changed)}, new={len(new_cols)}, "
-                    f"static={len(static_cols)}"
+                # ===== 增量同步路径（真实实现）=====
+                # ① 建主表（含全量列）和分区（表名恒新，不需要 DROP）
+                AnalyzeDBPartitionManager.create_wide_table(pg_table_name, indicator_metadata)
+                AnalyzeDBPartitionManager.ensure_partition(pg_table_name, etl_date)
+
+                row_count, column_count = self._copy_static_and_merge_incr(
+                    wide_table_name=wide_table_name,
+                    target_metadata=indicator_metadata,
+                    etl_date=etl_date,
+                    pg_table_name=pg_table_name,
+                    static_cols=static_cols,
+                    inc_cols=inc_codes,
+                    old_pg_table=old_pg_table,
                 )
-                row_count, column_count = self._execute_data_sync(
-                    wide_table_name, indicator_metadata, etl_date, pg_table_name
+                logger.info(
+                    f"[增量] 同步完成（真实路径）: {pg_table_name}, "
+                    f"PIVOT列数={len(inc_codes)}, static列数={len(static_cols)}, "
+                    f"总行数约={row_count}"
                 )
             else:
                 # 全量路径（与改造前完全一致）
@@ -248,27 +260,155 @@ class WideTableSyncService:
         wide_table_name: str,
         indicator_metadata: dict,
         etl_date: date,
-        pg_table_name: str
+        pg_table_name: str,
+        create_table: bool = True,
     ) -> Tuple[int, int]:
         """执行数据同步
 
+        Args:
+            create_table: 是否在此方法内部创建 PG 表和分区。
+                          增量路径将此置为 False（表已由调用方创建）。
         Returns:
             (row_count, column_count)
         """
-        # 1. 构建Spark SQL PIVOT查询
+        # 1. 保证 PG 表和分区存在
+        if create_table:
+            AnalyzeDBPartitionManager.create_wide_table(pg_table_name, indicator_metadata)
+            AnalyzeDBPartitionManager.ensure_partition(pg_table_name, etl_date)
+
+        # 2. 构建 Spark SQL PIVOT 查询（全量）
         sql = self._build_pivot_sql(wide_table_name, indicator_metadata, etl_date)
 
-        # 2. 确保PG表和分区存在
-        AnalyzeDBPartitionManager.create_wide_table(
-            pg_table_name, indicator_metadata
-        )
-        AnalyzeDBPartitionManager.ensure_partition(pg_table_name, etl_date)
-
-        # 3. 执行Spark查询并写入PG
+        # 3. 执行 Spark 查询并写入 PG
         refresh_sql = f"refresh table {self.source_table}"
         return self._execute_spark_query_and_write_pg(
             sql, pg_table_name, etl_date, refresh_sql=refresh_sql
         )
+
+    def _copy_static_and_merge_incr(
+        self,
+        wide_table_name: str,
+        target_metadata: dict,
+        etl_date: date,
+        pg_table_name: str,
+        static_cols: list,
+        inc_cols: list,
+        old_pg_table: str,
+    ) -> Tuple[int, int]:
+        """COPY static 列 + 通过辅助表合并增量 PIVOT 数据
+
+        五步：
+          A. 创建主表（含全量列，此处在调用方已创建）
+          B. 从 old_pg_table COPY static 列
+          C. 创建辅助表（仅 inc_cols + target_id + etl_date）
+          D. Spark PIVOT inc_cols → JDBC append 入辅助表
+          E. PG 侧 UPDATE ... FROM 合并到主表
+          F. 删除辅助表
+        """
+        etl_date_str = etl_date.strftime('%Y-%m-%d')
+        aux_table = f"_incr_{pg_table_name}_{etl_date_str.replace('-', '')}"
+        column_count = len(list(target_metadata.keys())) + 2  # +2 = target_id + etl_date
+
+        # === 步骤 B：COPY static 列 ===
+        copied = 0
+        if static_cols and AnalyzeDBPartitionManager.table_exists(old_pg_table):
+            copied = AnalyzeDBPartitionManager.copy_static_columns(
+                dest_table=pg_table_name,
+                src_table=old_pg_table,
+                static_cols=static_cols,
+                etl_date=etl_date_str,
+            )
+            logger.info(
+                f"[增量] COPY static列完成: {pg_table_name}, "
+                f"来源={old_pg_table}, 复制{copied}行"
+            )
+        else:
+            logger.info(f"[增量] 无static列可COPY或旧表不存在，跳过 (static={bool(static_cols)})")
+
+        # === 步骤 C：创建辅助表（仅 inc_cols + target_id + etl_date，无分区，轻量）===
+        aux_specs = [("target_id", "varchar(100)"), ("etl_date", "varchar(30)")]
+        for code in inc_cols:
+            # 默认 float 类型，覆盖时请使用 target_metadata 中记录的 data_type
+            dt = target_metadata.get(code, {}).get('data_type', 'float')
+            pg_t = AnalyzeDBPartitionManager._map_pg_type(dt)
+            aux_specs.append((code, pg_t))
+
+        AnalyzeDBPartitionManager.create_heap_table(aux_table, aux_specs)
+        logger.debug(f"[增量] 辅助表已创建: {aux_table}，含 {len(aux_specs)-2} 个指标列")
+
+        try:
+            # === 步骤 D：Spark PIVOT inc_cols → JDBC append 到辅助表 ===
+            pivot_sql = self._build_pivot_sql_inc(
+                wide_table_name, target_metadata, etl_date, inc_cols
+            )
+            if self._use_pyspark:
+                self._write_spark_to_pg(pivot_sql, aux_table)
+            else:
+                # JDBC 模式：fetch 后批量写入辅助表
+                self._write_results_to_pg(pivot_sql, aux_table, etl_date)
+
+            # === 步骤 E：PG 侧合并（最核心的一条 UPDATE） ===
+            if inc_cols:
+                merged = AnalyzeDBPartitionManager.merge_aux_into_main(
+                    main_table=pg_table_name,
+                    aux_table=aux_table,
+                    inc_cols=inc_cols,
+                )
+                logger.info(f"[增量] 合并完成: {merged} 行受影响 (含INSERT和UPDATE)")
+
+            # === 步骤 F：删除辅助表 ===
+            AnalyzeDBPartitionManager.drop_table(aux_table)
+
+            row_count = copied  # static 行数为基准，完整统计以查询为主表 COUNT 为准
+            try:
+                with AnalyzeDBConnector.get_engine().connect() as conn:
+                    cnt = conn.execute(
+                        text(f'SELECT COUNT(*) FROM {pg_table_name}')
+                    ).scalar()
+                    row_count = cnt or 0
+            except Exception:
+                pass  # 查询失败不影响返回，使用 COPIED 作为近似值
+            return (row_count, column_count)
+
+        except Exception:
+            # 辅助表清理（尽力而为，失败不向上冒泡）
+            AnalyzeDBPartitionManager.drop_table(aux_table)
+            raise
+
+    def _write_spark_to_pg(self, sql: str, pg_table: str) -> None:
+        """Spark SQL 执行结果直接 JDBC 写入 PG 目标表（内部方法）"""
+        from utils.spark_utils import PySparkService
+        svc = PySparkService()
+        try:
+            if not svc.is_initialized():
+                svc.initialize()
+            df = svc.spark.sql(sql)
+            cfg = settings.fraudhunter_analyze_db['postgresql']
+            jdbc_url = (
+                f"jdbc:postgresql://{cfg['host']}:"
+                f"{cfg['port']}/{cfg['database']}"
+            )
+            logger.info(f"[增量] Spark写入辅助表: {pg_table}")
+            df.write.mode("append").option("driver", "org.postgresql.Driver").jdbc(
+                url=jdbc_url,
+                table=pg_table,
+                properties={"user": cfg['user'], "password": cfg['password']}
+            )
+        finally:
+            svc.shutdown()
+
+    def _write_results_to_pg(self, sql: str, pg_table: str, etl_date: date) -> None:
+        """JDBC 模式：将 Spark 查询结果批量写入目标表（内部方法）"""
+        from utils.spark_utils import spark_utils
+        results = spark_utils.query_sql(sql, return_type='dict')
+        if not results:
+            logger.warning(f"[增量] PIVOT查询返回空结果: {pg_table}")
+            return
+        df = pd.DataFrame(results)
+        if 'etl_date' not in df.columns:
+            df['etl_date'] = etl_date
+        AnalyzeDBConnector.batch_insert(pg_table, df, chunksize=self._batch_size, if_exists='append')
+        logger.info(f"[增量] JDBC写入辅助表: {pg_table}, {len(results)}行")
 
     def _update_snapshot_ready(
         self,

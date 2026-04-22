@@ -680,6 +680,55 @@ class AnalyzeDBPartitionManager:
             logger.warning(f"检查表存在性失败: {table_name}, 错误={e}")
             return False
 
+    @staticmethod
+    def create_heap_table(table_name: str, column_specs: list) -> bool:
+        """创建一个不分区的简易表（仅用于辅助表，创建和删除都快）"""
+        cols_def = ", ".join(f'"{col}" {dtype}' for col, dtype in column_specs)
+        sql = f'CREATE TABLE IF NOT EXISTS {table_name} ({cols_def})'
+        return AnalyzeDBPartitionManager._execute_ddl(sql, f"创建辅助表: {table_name}", "创建辅助表失败")
+
+    @staticmethod
+    def copy_static_columns(
+        dest_table: str,
+        src_table: str,
+        static_cols: list,
+        etl_date: str,
+    ) -> int:
+        """将旧表的 static 列复制到新表（PG 内部 INSERT...SELECT，流式极快）"""
+        if not static_cols:
+            return 0
+        col_list = ", ".join(static_cols)
+        sql = text(f"""
+            INSERT INTO {dest_table} (target_id, {col_list}, etl_date)
+            SELECT target_id, {col_list}, :etl_date
+              FROM {src_table}
+             WHERE etl_date = :etl_date
+        """)
+        engine = AnalyzeDBConnector.get_engine()
+        with engine.connect() as conn:
+            result = conn.execute(sql, {"etl_date": etl_date})
+            conn.commit()
+            return result.rowcount
+
+    @staticmethod
+    def merge_aux_into_main(main_table: str, aux_table: str, inc_cols: list) -> int:
+        """将辅助表中变动指标列合并回主表（一条 UPDATE ... FROM，不走 Spark）"""
+        if not inc_cols:
+            return 0
+        set_clause = ", ".join([f"{c}=s.{c}" for c in inc_cols])
+        sql = text(f"""
+            UPDATE {main_table} t
+            SET    {set_clause}
+            FROM   {aux_table} s
+            WHERE  t.target_id = s.target_id
+              AND  t.etl_date  = s.etl_date
+        """)
+        engine = AnalyzeDBConnector.get_engine()
+        with engine.connect() as conn:
+            result = conn.execute(sql)
+            conn.commit()
+            return result.rowcount
+
 
 def get_analyze_db_session() -> Session:
     return AnalyzeDBConnector.get_session()
