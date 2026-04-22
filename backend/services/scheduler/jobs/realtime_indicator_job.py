@@ -52,6 +52,25 @@ def _get_latest_offline_table_name(
     return latest_table_name
 
 
+def _compute_half_hour_slot(full_ts: str) -> str:
+    """将精确到分钟的时间戳归整到上一个半小时间隔。
+
+    例如: "202604220944" -> "202604220930"
+          "202604220955" -> "202604220930"
+          "202604220015" -> "202604220000"（跨小时进位）
+
+    Args:
+        full_ts: 格式为 YYYYMMDDHHMM 的时间戳字符串
+
+    Returns:
+        半小时间隔的字符串，格式同样为 YYYYMMDDHHMM
+    """
+    base_dt = datetime.strptime(full_ts[:8] + full_ts[8:12], '%Y%m%d%H%M')
+    floored_minute = (base_dt.minute // 30) * 30
+    floored = base_dt.replace(minute=floored_minute, second=0, microsecond=0)
+    return floored.strftime('%Y%m%d%H%M')
+
+
 def _update_realtime_snapshot(
     db: Session,
     wide_table_name: str,
@@ -96,6 +115,10 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
     logger.debug("=" * 60)
     logger.debug("步骤1: 实时指标加工")
     logger.debug("=" * 60)
+
+    # 计算半小时间隔的分区字符串，所有该时段内的任务执行共用同一张表
+    half_hour_slot = _compute_half_hour_slot(now_str)
+    logger.debug(f"本次执行归整到半小时间隔: {now_str} -> {half_hour_slot}")
 
     # 查询所有在线的实时指标任务
     realtime_tasks = db.query(FraudHunterIndicatorTask).join(
@@ -196,8 +219,8 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
             )
             logger.info(f"创建实时宽表: {realtime_table_name}")
 
-        # 确保分区存在
-        AnalyzeDBPartitionManager.ensure_partition(realtime_table_name, today, partition_str=now_str)
+        # 确保分区存在（使用半小时间隔作为分区标识）
+        AnalyzeDBPartitionManager.ensure_partition(realtime_table_name, today, partition_str=half_hour_slot)
 
         # 执行该 object_type 的所有实时指标任务
         all_indicator_results = []
@@ -253,7 +276,7 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
 
         # 写入实时表（使用 COPY 命令优化性能）
         rows_inserted = AnalyzeDBConnector.batch_insert_copy(
-            realtime_table_name, final_result, if_exists='append'
+            realtime_table_name, final_result, if_exists='truncate'
         )
         logger.debug(f"COPY批量插入完成: {rows_inserted} 行")
 
@@ -261,7 +284,7 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
         column_count = len(final_result.columns)
         logger.info(f"[{object_type}] 写入实时指标宽表完成: {realtime_table_name}, 行数: {row_count}, 列数: {column_count}")
 
-        realtime_table_name_with_partition = f'{realtime_table_name}_{now_str}'
+        realtime_table_name_with_partition = f'{realtime_table_name}_{half_hour_slot}'
         generated_realtime_tables[object_type] = realtime_table_name_with_partition
 
         # 更新快照

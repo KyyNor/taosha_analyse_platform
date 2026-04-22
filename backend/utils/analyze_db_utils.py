@@ -132,7 +132,7 @@ class AnalyzeDBConnector:
         Args:
             table_name: 目标表名
             df: 要插入的 DataFrame
-            if_exists: 如果表存在时的处理方式 (仅支持 'append')
+            if_exists: 如果表存在时的处理方式 ('append' 追加 / 'truncate' 先清空)
 
         Returns:
             插入的行数
@@ -181,6 +181,13 @@ class AnalyzeDBConnector:
 
             # 将 DataFrame 转换为 CSV 格式的内存缓冲区
             buffer = io.StringIO()
+
+            if if_exists == 'truncate':
+                # 先清空表再插入（保留表结构，重置自增序列）
+                with engine.connect() as conn:
+                    conn.execute(text(f"TRUNCATE TABLE {table_name} CONTINUE IDENTITY RESTART IDENTITY"))
+                    conn.commit()
+                    logger.info(f"数据已清空: {table_name}")
             df_for_copy.to_csv(buffer, index=False, header=False, na_rep='\\N', date_format='%Y-%m-%d %H:%M:%S', sep=',')
             buffer.seek(0)
 
