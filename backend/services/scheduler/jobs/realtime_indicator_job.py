@@ -395,13 +395,13 @@ def step3_hit_record(db, today, matched_df, execution_record, hit_time):
         logger.debug(f"加载白名单账户 {len(whitelist_set)} 个")
 
     # 获取模型级别的白名单账户列表
-    # 配置格式: [{'模型编号':'55', '白名单账号':'124124'}, {'模型编号':'32', '白名单账号':'22323'}]
+    # 配置格式: [{'模型ID':'55', '白名单账号':'124124'}, {'模型ID':'32', '白名单账号':'22323'}]
     # 转换为: {"model_code_1": ["acct1", "acct2"], "model_code_2": ["acct3"]}
     model_whitelist_acct_raw = SystemConfigManager(db).get_config_value('model_whitelist_acct', default=[])
     model_whitelist_acct = {}
     if model_whitelist_acct_raw:
         for item in model_whitelist_acct_raw:
-            model_code = item.get('模型编号', '')
+            model_code = item.get('模型ID', '')
             account_id = item.get('白名单账号', '')
             if model_code and account_id:
                 if model_code not in model_whitelist_acct:
