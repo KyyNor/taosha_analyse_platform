@@ -54,7 +54,9 @@ class WideTableSyncService:
         wide_table_name: str,
         version_hash: str,
         indicator_metadata: dict,
-        etl_date: date
+        etl_date: date,
+        current_indicator_metadata: Optional[dict] = None,
+        copy_candidates: Optional[list] = None,
     ) -> Optional[Dict]:
         """同步单个版本的单个日期宽表
 
@@ -89,16 +91,42 @@ class WideTableSyncService:
             if existing_result:
                 return existing_result
 
-            # 3. 创建或更新Snapshot记录为generating状态
+            # 3. 创建或更新Snapshot记录为generating状态（必须在同步开始前记录状态）
             snapshot_id = self._create_generating_snapshot(
                 wide_table_name, etl_date, version_hash
             )
 
-            # 4. 执行数据同步
-            pg_table_name = f"{wide_table_name}_{version_hash[:8]}"
-            row_count, column_count = self._execute_data_sync(
-                wide_table_name, indicator_metadata, etl_date, pg_table_name
+            # 4. 计算指标差异，确定同步路径
+            # 未传入时默认空，退化为全量同步路径
+            effective_curr_md = current_indicator_metadata or {}
+            effective_candidates = copy_candidates or []
+            changed, new_cols, static_cols = self._diff_indicators(
+                effective_curr_md, indicator_metadata
             )
+            inc_codes = changed + new_cols
+            pg_table_name = f"{wide_table_name}_{version_hash[:8]}"
+
+            # 尝试寻找可 COPY 的旧版本表
+            old_pg_table, old_md = self._find_copy_source(
+                wide_table_name, etl_date, effective_candidates
+            )
+
+            if old_pg_table and inc_codes:
+                # 增量路径（骨架阶段，目前降级为全量，待提交2连通完整实现）
+                logger.info(
+                    f"[骨架] 增量路径命中，暂降级为全量同步: "
+                    f"旧表={old_pg_table}, changed={len(changed)}, new={len(new_cols)}, "
+                    f"static={len(static_cols)}"
+                )
+                row_count, column_count = self._execute_data_sync(
+                    wide_table_name, indicator_metadata, etl_date, pg_table_name
+                )
+            else:
+                # 全量路径（与改造前完全一致）
+                logger.info("[骨架] 走全量同步路径（全量/无可用旧表/零变动）")
+                row_count, column_count = self._execute_data_sync(
+                    wide_table_name, indicator_metadata, etl_date, pg_table_name
+                )
 
             # 5. 更新Snapshot为ready状态
             self._update_snapshot_ready(
@@ -337,9 +365,112 @@ class WideTableSyncService:
 
         return result
 
+    def _diff_indicators(
+        self,
+        current_metadata: dict,
+        target_metadata: dict
+    ) -> Tuple[list, list, list]:
+        """将指标按版本变化情况分为三类
+
+        Returns:
+            (changed, new, static) — 各自都是 indicator_code 列表
+              changed: 两版 version 号不同的指标 → 走 PIVOT + UPDATE
+              new:     target 有但 current 无（新增指标）→ 同上
+              static:  两版 version 号一致的指标   → COPY 复用
+        """
+        changed = []
+        new = []
+        static = []
+
+        all_keys = set(current_metadata.keys()) | set(target_metadata.keys())
+        for k in all_keys:
+            cur_meta = current_metadata.get(k, {})
+            tgt_meta = target_metadata.get(k, {})
+            cur_ver = cur_meta.get('version')
+            tgt_ver = tgt_meta.get('version')
+            code = (tgt_meta or cur_meta).get('indicator_code')
+
+            if k not in current_metadata:
+                new.append(code)
+            elif cur_ver == tgt_ver:
+                static.append(code)
+            else:
+                changed.append(code)
+
+        logger.debug(
+            f"指标差异分析: changed={len(changed)}, new={len(new)}, static={len(static)}"
+        )
+        return changed, new, static
+
+    def _find_copy_source(
+        self,
+        wide_table_name: str,
+        etl_date: date,
+        copy_candidates: list,
+    ) -> Tuple[Optional[str], Optional[dict]]:
+        """从历史版本中找到第一个物理表存在的旧表用于 COPY
+
+        按 copy_candidates 顺序（current → newer history → 更老的 history），
+        依次推算表名并用 table_exists() 确认，命中即返回。
+
+        Returns:
+            (old_pg_table_name, old_indicator_metadata) 或 (None, None)
+        """
+        for cand in copy_candidates:
+            pg_table = f"{wide_table_name}_{cand['version_hash'][:8]}"
+            if AnalyzeDBPartitionManager.table_exists(pg_table):
+                logger.info(f"找到可复用旧表: {pg_table}（来源版本状态={cand['status']}）")
+                return pg_table, cand['indicator_metadata']
+
+        logger.debug(f"未找到任何可用的旧表，copy_candidates共{len(copy_candidates)}个")
+        return None, None
+
+    def _build_pivot_sql_inc(
+        self,
+        wide_table_name: str,
+        indicator_metadata: dict,
+        etl_date: date,
+        inc_codes: list
+    ) -> str:
+        """构建仅针对变动指标的 Spark SQL PIVOT 查询
+
+        与 _build_pivot_sql 逻辑完全一致，唯独 PIVOT IN 子句只用 inc_codes。
+        """
+        if not inc_codes:
+            raise ValueError("变动指标编码列表为空，不需要构建增量 PIVOT SQL")
+
+        object_type = WIDE_TABLE_TO_OBJECT_TYPE.get(wide_table_name, '')
+        in_clause = ", ".join([f"'{code}' AS {code}" for code in inc_codes])
+        select_columns = ", ".join(inc_codes)
+        etl_date_str = etl_date.strftime('%Y-%m-%d')
+
+        sql = f"""
+SELECT
+    target_id,
+    {select_columns},
+    '{etl_date_str}' as etl_date
+FROM (
+    SELECT
+        target_id,
+        indicator_id,
+        indicator_value
+    FROM {self.source_table}
+    WHERE etl_date = '{etl_date_str}'
+      AND object_type = '{object_type}'
+      AND indicator_id IN ({', '.join(repr(c) for c in inc_codes)})
+      AND target_id IS NOT NULL
+) AS source_data
+PIVOT (
+    MAX(indicator_value)
+    FOR indicator_id IN ({in_clause})
+)
+""".strip()
+        logger.debug(f"生成增量PIVOT SQL ({len(inc_codes)}个指标):\n{sql}")
+        return sql
+
     def _get_sync_version_info(self, wide_table_name: str) -> Optional[Dict]:
         """获取用于同步的版本信息"""
-        from sqlalchemy import and_
+        from sqlalchemy import and_, or_
 
         with get_db_session() as db:
             target_version = db.query(FraudHunterWideTableVersion).filter(
@@ -349,23 +480,54 @@ class WideTableSyncService:
                 )
             ).first()
 
-            current_version = db.query(FraudHunterWideTableVersion).filter(
-                and_(
-                    FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-                    FraudHunterWideTableVersion.status == 'current'
-                )
-            ).first()
+            # 收集可用于 COPY 的历史版本（current + 最多 9 个 history，按时间倒序）
+            copy_candidates = []
+            for status in ('current', 'history'):
+                versions = db.query(FraudHunterWideTableVersion).filter(
+                    and_(
+                        FraudHunterWideTableVersion.wide_table_name == wide_table_name,
+                        FraudHunterWideTableVersion.status == status,
+                        # history 版本只取还未被清理的（PG 表还在的交给 table_exists 去筛，这里先不管）
+                    )
+                ).order_by(
+                    # current 优先，history 按 history_at 倒序取最新的
+                    FraudHunterWideTableVersion.current_at.desc()
+                    if status == 'current'
+                    else FraudHunterWideTableVersion.history_at.desc()
+                ).limit(
+                    1 if status == 'current' else 9
+                ).all()
+                for v in versions:
+                    copy_candidates.append({
+                        'version_hash': v.version_hash,
+                        'indicator_metadata': v.indicator_metadata,
+                        'status': status,
+                    })
 
-            if not target_version and not current_version:
-                logger.warning(f"{wide_table_name} 没有target和current版本，跳过同步")
+            if not target_version and not copy_candidates:
+                logger.warning(f"{wide_table_name} 没有target和可用的历史版本，跳过同步")
                 return None
 
-            # 优先使用target版本，否则使用current版本
-            version = target_version or current_version
+            # 优先使用 target 版本（正在发布的新版本），否则降级用 current
+            version = target_version
+            if not version and copy_candidates:
+                version_ref = db.query(FraudHunterWideTableVersion).filter(
+                    FraudHunterWideTableVersion.version_hash == copy_candidates[0]['version_hash']
+                ).first()
+                version = version_ref
+
+            current_md = (
+                copy_candidates[0]['indicator_metadata']
+                if copy_candidates and copy_candidates[0]['status'] == 'current'
+                else {}
+            )
+
             return {
-                'target_version_id': version.id,
-                'version_hash': version.version_hash,
-                'indicator_metadata': version.indicator_metadata
+                'target_version_id': version.id if version else None,
+                'version_hash': version.version_hash if version else None,
+                'indicator_metadata': version.indicator_metadata if version else {},
+                'current_indicator_metadata': current_md,
+                'copy_candidates': copy_candidates,
             }
 
     def _empty_sync_result(self, wide_table_name: str, lookback_days: int) -> Dict:
@@ -461,7 +623,9 @@ class WideTableSyncService:
                 wide_table_name=wide_table_name,
                 version_hash=version_info['version_hash'],
                 indicator_metadata=version_info['indicator_metadata'],
-                etl_date=etl_date
+                etl_date=etl_date,
+                current_indicator_metadata=version_info.get('current_indicator_metadata'),
+                copy_candidates=version_info.get('copy_candidates'),
             )
         except Exception as e:
             logger.error(f"同步日期 {etl_date} 失败: {e}", exc_info=True)

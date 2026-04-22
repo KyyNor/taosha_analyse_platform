@@ -663,6 +663,23 @@ class AnalyzeDBPartitionManager:
             logger.error(f"清理孤立快照失败: {e}", exc_info=True)
             return 0
 
+    @staticmethod
+    def table_exists(table_name: str) -> bool:
+        """检查PG物理表是否存在"""
+        check_sql = text(
+            "SELECT EXISTS ("
+            "  SELECT 1 FROM pg_tables "
+            "  WHERE schemaname = 'public' AND tablename = :table_name"
+            ")"
+        )
+        engine = AnalyzeDBConnector.get_engine()
+        try:
+            with engine.connect() as conn:
+                return bool(conn.execute(check_sql, {"table_name": table_name}).scalar())
+        except SQLAlchemyError as e:
+            logger.warning(f"检查表存在性失败: {table_name}, 错误={e}")
+            return False
+
 
 def get_analyze_db_session() -> Session:
     return AnalyzeDBConnector.get_session()
