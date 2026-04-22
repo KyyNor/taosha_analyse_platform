@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from datetime import date, datetime, timedelta
 
+from sqlalchemy import text
+
 import pandas as pd
 
 from models.fraudhunter.wide_table import (
@@ -54,7 +56,9 @@ class WideTableSyncService:
         wide_table_name: str,
         version_hash: str,
         indicator_metadata: dict,
-        etl_date: date
+        etl_date: date,
+        current_indicator_metadata: Optional[dict] = None,
+        copy_candidates: Optional[list] = None,
     ) -> Optional[Dict]:
         """同步单个版本的单个日期宽表
 
@@ -89,16 +93,61 @@ class WideTableSyncService:
             if existing_result:
                 return existing_result
 
-            # 3. 创建或更新Snapshot记录为generating状态
+            # 3. 创建或更新Snapshot记录为generating状态（必须在同步开始前记录状态）
             snapshot_id = self._create_generating_snapshot(
                 wide_table_name, etl_date, version_hash
             )
 
-            # 4. 执行数据同步
-            pg_table_name = f"{wide_table_name}_{version_hash[:8]}"
-            row_count, column_count = self._execute_data_sync(
-                wide_table_name, indicator_metadata, etl_date, pg_table_name
+            # 4. 计算指标差异，确定同步路径
+            # 未传入时默认空，退化为全量同步路径
+            if not version_hash:
+                # 此分支为防御性守卫；正常调用链中 version_hash 不应为 None
+                return {
+                    "status": "skipped",
+                    "skip_reason": "version_hash_missing",
+                    "wide_table_name": wide_table_name,
+                    "etl_date": str(etl_date)
+                }
+
+            effective_curr_md = current_indicator_metadata or {}
+            effective_candidates = copy_candidates or []
+            changed, new_cols, static_cols = self._diff_indicators(
+                effective_curr_md, indicator_metadata
             )
+            inc_codes = changed + new_cols
+            pg_table_name = f"{wide_table_name}_{version_hash[:8]}"
+
+            # 尝试寻找可 COPY 的旧版本表
+            old_pg_table, _ = self._find_copy_source(
+                wide_table_name, etl_date, effective_candidates
+            )
+
+            if old_pg_table and inc_codes:
+                # ===== 增量同步路径（真实实现）=====
+                # ① 建主表（含全量列）和分区（表名恒新，不需要 DROP）
+                AnalyzeDBPartitionManager.create_wide_table(pg_table_name, indicator_metadata)
+                AnalyzeDBPartitionManager.ensure_partition(pg_table_name, etl_date)
+
+                row_count, column_count = self._copy_static_and_merge_incr(
+                    wide_table_name=wide_table_name,
+                    target_metadata=indicator_metadata,
+                    etl_date=etl_date,
+                    pg_table_name=pg_table_name,
+                    static_cols=static_cols,
+                    inc_cols=inc_codes,
+                    old_pg_table=old_pg_table,
+                )
+                logger.info(
+                    f"[增量] 同步完成（真实路径）: {pg_table_name}, "
+                    f"PIVOT列数={len(inc_codes)}, static列数={len(static_cols)}, "
+                    f"总行数约={row_count}"
+                )
+            else:
+                # 全量路径（与改造前完全一致）
+                logger.info("[骨架] 走全量同步路径（全量/无可用旧表/零变动）")
+                row_count, column_count = self._execute_data_sync(
+                    wide_table_name, indicator_metadata, etl_date, pg_table_name
+                )
 
             # 5. 更新Snapshot为ready状态
             self._update_snapshot_ready(
@@ -220,28 +269,118 @@ class WideTableSyncService:
         wide_table_name: str,
         indicator_metadata: dict,
         etl_date: date,
-        pg_table_name: str
+        pg_table_name: str,
+        create_table: bool = True,
     ) -> Tuple[int, int]:
         """执行数据同步
 
+        Args:
+            create_table: 是否在此方法内部创建 PG 表和分区。
+                          增量路径将此置为 False（表已由调用方创建）。
         Returns:
             (row_count, column_count)
         """
-        # 1. 构建Spark SQL PIVOT查询
+        # 1. 保证 PG 表和分区存在
+        if create_table:
+            AnalyzeDBPartitionManager.create_wide_table(pg_table_name, indicator_metadata)
+            AnalyzeDBPartitionManager.ensure_partition(pg_table_name, etl_date)
+
+        # 2. 构建 Spark SQL PIVOT 查询（全量）
         sql = self._build_pivot_sql(wide_table_name, indicator_metadata, etl_date)
 
-        # 2. 确保PG表和分区存在
-        AnalyzeDBPartitionManager.create_wide_table(
-            pg_table_name, indicator_metadata
-        )
-        AnalyzeDBPartitionManager.ensure_partition(pg_table_name, etl_date)
-
-        # 3. 执行Spark查询并写入PG
+        # 3. 执行 Spark 查询并写入 PG
         refresh_sql = f"refresh table {self.source_table}"
         return self._execute_spark_query_and_write_pg(
             sql, pg_table_name, etl_date, refresh_sql=refresh_sql
         )
 
+    def _copy_static_and_merge_incr(
+        self,
+        wide_table_name: str,
+        target_metadata: dict,
+        etl_date: date,
+        pg_table_name: str,
+        static_cols: list,
+        inc_cols: list,
+        old_pg_table: str,
+    ) -> Tuple[int, int]:
+        """COPY static 列 + 通过辅助表合并增量 PIVOT 数据
+
+        五步：
+          A. 创建主表（含全量列，此处在调用方已创建）
+          B. 从 old_pg_table COPY static 列
+          C. 创建辅助表（仅 inc_cols + target_id + etl_date）
+          D. Spark PIVOT inc_cols → JDBC append 入辅助表
+          E. PG 侧 UPDATE ... FROM 合并到主表
+          F. 删除辅助表
+        """
+        etl_date_str = etl_date.strftime('%Y-%m-%d')
+        aux_table = f"_incr_{pg_table_name}_{etl_date_str.replace('-', '')}"
+        column_count = len(list(target_metadata.keys())) + 2  # +2 = target_id + etl_date
+
+        # === 步骤 B：COPY static 列 ===
+        copied = 0
+        if static_cols and AnalyzeDBPartitionManager.table_exists(old_pg_table):
+            copied = AnalyzeDBPartitionManager.copy_static_columns(
+                dest_table=pg_table_name,
+                src_table=old_pg_table,
+                static_cols=static_cols,
+                etl_date=etl_date_str,
+            )
+            logger.info(
+                f"[增量] COPY static列完成: {pg_table_name}, "
+                f"来源={old_pg_table}, 复制{copied}行"
+            )
+        else:
+            logger.info(f"[增量] 无static列可COPY或旧表不存在，跳过 (static={bool(static_cols)})")
+
+        # === 步骤 C：创建辅助表（仅 inc_cols + target_id + etl_date，无分区，轻量）===
+        aux_specs = [("target_id", "varchar(100)"), ("etl_date", "varchar(30)")]
+        for code in inc_cols:
+            # 默认 float 类型，覆盖时请使用 target_metadata 中记录的 data_type
+            dt = target_metadata.get(code, {}).get('data_type', 'float')
+            pg_t = AnalyzeDBPartitionManager._map_pg_type(dt)
+            aux_specs.append((code, pg_t))
+
+        AnalyzeDBPartitionManager.create_heap_table(aux_table, aux_specs)
+        logger.debug(f"[增量] 辅助表已创建: {aux_table}，含 {len(aux_specs)-2} 个指标列")
+
+        try:
+            # === 步骤 D：Spark PIVOT inc_cols → JDBC append 到辅助表 ===
+            pivot_sql = self._build_pivot_sql_inc(
+                wide_table_name, target_metadata, etl_date, inc_cols
+            )
+            refresh_sql = f"refresh table {self.source_table}"
+            if self._use_pyspark:
+                # 返回值 (cnt, _) 丢弃，目标表行数由 static 列行数（copied）代表
+                self._execute_with_pyspark_to_pg(pivot_sql, aux_table, refresh_sql)
+            else:
+                self._execute_with_jdbc_to_pg(pivot_sql, aux_table, etl_date, refresh_sql)
+
+            # === 步骤 E：PG 侧合并（最核心的一条 UPDATE） ===
+            if inc_cols:
+                merged = AnalyzeDBPartitionManager.merge_aux_into_main(
+                    main_table=pg_table_name,
+                    aux_table=aux_table,
+                    inc_cols=inc_cols,
+                )
+                if merged == 0:
+                    logger.warning(f"[增量] 合并影响0行，请检查辅助表 {aux_table} 与主表是否有匹配的 target_id")
+                else:
+                    logger.info(f"[增量] 合并完成: {merged} 行受影响")
+
+            # === 步骤 F：删除辅助表 ===
+            AnalyzeDBPartitionManager.drop_table(aux_table)
+
+            # row_count 以 static 列复制量为下限，不必事后 COUNT(*)（大表上昂贵）
+            return (copied, column_count)
+
+        except Exception:
+            # 辅助表清理（尽力而为，失败不向上冒泡）
+            AnalyzeDBPartitionManager.drop_table(aux_table)
+            raise
+
+    
     def _update_snapshot_ready(
         self,
         snapshot_id: int,
@@ -337,9 +476,112 @@ class WideTableSyncService:
 
         return result
 
+    def _diff_indicators(
+        self,
+        current_metadata: dict,
+        target_metadata: dict
+    ) -> Tuple[list, list, list]:
+        """将指标按版本变化情况分为三类
+
+        Returns:
+            (changed, new, static) — 各自都是 indicator_code 列表
+              changed: 两版 version 号不同的指标 → 走 PIVOT + UPDATE
+              new:     target 有但 current 无（新增指标）→ 同上
+              static:  两版 version 号一致的指标   → COPY 复用
+        """
+        changed = []
+        new = []
+        static = []
+
+        all_keys = set(current_metadata.keys()) | set(target_metadata.keys())
+        for k in all_keys:
+            cur_meta = current_metadata.get(k, {})
+            tgt_meta = target_metadata.get(k, {})
+            cur_ver = cur_meta.get('version')
+            tgt_ver = tgt_meta.get('version')
+            code = (tgt_meta or cur_meta).get('indicator_code')
+
+            if k not in current_metadata:
+                new.append(code)
+            elif cur_ver == tgt_ver:
+                static.append(code)
+            else:
+                changed.append(code)
+
+        logger.debug(
+            f"指标差异分析: changed={len(changed)}, new={len(new)}, static={len(static)}"
+        )
+        return changed, new, static
+
+    def _find_copy_source(
+        self,
+        wide_table_name: str,
+        etl_date: date,
+        copy_candidates: list,
+    ) -> Tuple[Optional[str], Optional[dict]]:
+        """从历史版本中找到第一个物理表存在的旧表用于 COPY
+
+        按 copy_candidates 顺序（current → newer history → 更老的 history），
+        依次推算表名并用 table_exists() 确认，命中即返回。
+
+        Returns:
+            (old_pg_table_name, old_indicator_metadata) 或 (None, None)
+        """
+        for cand in copy_candidates:
+            pg_table = f"{wide_table_name}_{cand['version_hash'][:8]}"
+            if AnalyzeDBPartitionManager.table_exists(pg_table):
+                logger.info(f"找到可复用旧表: {pg_table}（来源版本状态={cand['status']}）")
+                return pg_table, cand['indicator_metadata']
+
+        logger.debug(f"未找到任何可用的旧表，copy_candidates共{len(copy_candidates)}个")
+        return None, None
+
+    def _build_pivot_sql_inc(
+        self,
+        wide_table_name: str,
+        indicator_metadata: dict,
+        etl_date: date,
+        inc_codes: list
+    ) -> str:
+        """构建仅针对变动指标的 Spark SQL PIVOT 查询
+
+        与 _build_pivot_sql 逻辑完全一致，唯独 PIVOT IN 子句只用 inc_codes。
+        """
+        if not inc_codes:
+            raise ValueError("变动指标编码列表为空，不需要构建增量 PIVOT SQL")
+
+        object_type = WIDE_TABLE_TO_OBJECT_TYPE.get(wide_table_name, '')
+        in_clause = ", ".join([f"'{code}' AS {code}" for code in inc_codes])
+        select_columns = ", ".join(inc_codes)
+        etl_date_str = etl_date.strftime('%Y-%m-%d')
+
+        sql = f"""
+SELECT
+    target_id,
+    {select_columns},
+    '{etl_date_str}' as etl_date
+FROM (
+    SELECT
+        target_id,
+        indicator_id,
+        indicator_value
+    FROM {self.source_table}
+    WHERE etl_date = '{etl_date_str}'
+      AND object_type = '{object_type}'
+      AND indicator_id IN ({', '.join(repr(c) for c in inc_codes)})
+      AND target_id IS NOT NULL
+) AS source_data
+PIVOT (
+    MAX(indicator_value)
+    FOR indicator_id IN ({in_clause})
+)
+""".strip()
+        logger.debug(f"生成增量PIVOT SQL ({len(inc_codes)}个指标):\n{sql}")
+        return sql
+
     def _get_sync_version_info(self, wide_table_name: str) -> Optional[Dict]:
         """获取用于同步的版本信息"""
-        from sqlalchemy import and_
+        from sqlalchemy import and_, or_
 
         with get_db_session() as db:
             target_version = db.query(FraudHunterWideTableVersion).filter(
@@ -349,23 +591,54 @@ class WideTableSyncService:
                 )
             ).first()
 
-            current_version = db.query(FraudHunterWideTableVersion).filter(
-                and_(
-                    FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-                    FraudHunterWideTableVersion.status == 'current'
-                )
-            ).first()
+            # 收集可用于 COPY 的历史版本（current + 最多 9 个 history，按时间倒序）
+            copy_candidates = []
+            for status in ('current', 'history'):
+                versions = db.query(FraudHunterWideTableVersion).filter(
+                    and_(
+                        FraudHunterWideTableVersion.wide_table_name == wide_table_name,
+                        FraudHunterWideTableVersion.status == status,
+                        # history 版本只取还未被清理的（PG 表还在的交给 table_exists 去筛，这里先不管）
+                    )
+                ).order_by(
+                    # current 优先，history 按 history_at 倒序取最新的
+                    FraudHunterWideTableVersion.current_at.desc()
+                    if status == 'current'
+                    else FraudHunterWideTableVersion.history_at.desc()
+                ).limit(
+                    1 if status == 'current' else 9
+                ).all()
+                for v in versions:
+                    copy_candidates.append({
+                        'version_hash': v.version_hash,
+                        'indicator_metadata': v.indicator_metadata,
+                        'status': status,
+                    })
 
-            if not target_version and not current_version:
-                logger.warning(f"{wide_table_name} 没有target和current版本，跳过同步")
+            if not target_version and not copy_candidates:
+                logger.warning(f"{wide_table_name} 没有target和可用的历史版本，跳过同步")
                 return None
 
-            # 优先使用target版本，否则使用current版本
-            version = target_version or current_version
+            # 优先使用 target 版本（正在发布的新版本），否则降级用 current
+            version = target_version
+            if not version and copy_candidates:
+                version_ref = db.query(FraudHunterWideTableVersion).filter(
+                    FraudHunterWideTableVersion.version_hash == copy_candidates[0]['version_hash']
+                ).first()
+                version = version_ref
+
+            current_md = (
+                copy_candidates[0]['indicator_metadata']
+                if copy_candidates and copy_candidates[0]['status'] == 'current'
+                else {}
+            )
+
             return {
-                'target_version_id': version.id,
-                'version_hash': version.version_hash,
-                'indicator_metadata': version.indicator_metadata
+                'target_version_id': version.id if version else None,
+                'version_hash': version.version_hash if version else None,
+                'indicator_metadata': version.indicator_metadata if version else {},
+                'current_indicator_metadata': current_md,
+                'copy_candidates': copy_candidates,
             }
 
     def _empty_sync_result(self, wide_table_name: str, lookback_days: int) -> Dict:
@@ -461,7 +734,9 @@ class WideTableSyncService:
                 wide_table_name=wide_table_name,
                 version_hash=version_info['version_hash'],
                 indicator_metadata=version_info['indicator_metadata'],
-                etl_date=etl_date
+                etl_date=etl_date,
+                current_indicator_metadata=version_info.get('current_indicator_metadata'),
+                copy_candidates=version_info.get('copy_candidates'),
             )
         except Exception as e:
             logger.error(f"同步日期 {etl_date} 失败: {e}", exc_info=True)
@@ -581,18 +856,20 @@ PIVOT (
             (row_count, column_count)
         """
         if self._use_pyspark:
-            return self._execute_with_pyspark_to_pg(sql, pg_table_name)
+            return self._execute_with_pyspark_to_pg(sql, pg_table_name, refresh_sql)
         else:
-            from utils.spark_utils import spark_utils
-            spark_utils.query_sql(refresh_sql, return_type='dict')
-            return self._execute_with_jdbc_to_pg(sql, pg_table_name, etl_date)
+            return self._execute_with_jdbc_to_pg(sql, pg_table_name, etl_date, refresh_sql)
 
     def _execute_with_pyspark_to_pg(
         self,
         sql: str,
-        pg_table_name: str
+        pg_table_name: str,
+        refresh_sql: str | None = None,
     ) -> Tuple[int, int]:
         """使用PySpark执行查询并写入PG
+
+        通用写入方法，同时服务于全量路径和增量路径（写辅助表），
+        由调用方通过 pg_table_name 区分写入目标。
 
         Returns:
             (row_count, column_count)
@@ -605,6 +882,10 @@ PIVOT (
         try:
             if not pyspark_service.is_initialized():
                 pyspark_service.initialize()
+
+            # refresh_sql 使源分区为最新内容（全量和增量路径均需要）
+            if refresh_sql:
+                pyspark_service.spark.sql(refresh_sql)
 
             df = pyspark_service.spark.sql(sql)
             column_count = len(df.columns)
@@ -634,9 +915,13 @@ PIVOT (
         self,
         sql: str,
         pg_table_name: str,
-        etl_date: date
+        etl_date: date,
+        refresh_sql: str | None = None,
     ) -> Tuple[int, int]:
         """使用JDBC执行查询并批量写入PG
+
+        通用写入方法，同时服务于全量路径和增量路径（写辅助表），
+        由调用方通过 pg_table_name 区分写入目标。
 
         Returns:
             (row_count, column_count)
@@ -645,10 +930,14 @@ PIVOT (
 
         logger.info(f"使用JDBC执行Spark查询并写入PG表: {pg_table_name}")
 
+        # refresh_sql 使源分区为最新内容（全量和增量路径均需要）
+        if refresh_sql:
+            spark_utils.query_sql(refresh_sql, return_type=None)
+
         results = spark_utils.query_sql(sql, return_type='dict')
 
         if not results:
-            logger.warning("Spark查询返回空结果")
+            logger.warning(f"Spark查询返回空结果: {pg_table_name}")
             return (0, 0)
 
         df = pd.DataFrame(results)
