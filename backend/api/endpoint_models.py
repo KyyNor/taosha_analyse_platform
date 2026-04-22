@@ -210,7 +210,16 @@ class SaveFragmentsRequest(BaseModel):
 
 # 省市卡BIN维表
 class ProvinceCardBinRequest(BaseModel):
-    """省市卡BIN新增/更新请求（字段均可选，传啥更新啥）"""
+    """
+    省市卡BIN新增/更新请求。
+
+    所有字段均为 Optional，全量更新时传齐，部分更新时只传欲变更的字段；
+    未传的字段将以空字符串（空串，非 NULL）写入 MySQL，最终同步至 PG。
+
+    【空值语义约定】
+    此表中空值用空字符串（''）表示，与 MySQL NULL 不等价。
+    不得以"留空表示未知"的思路传给 NULL，后续服务层会统一规范。
+    """
     card_bin: Optional[str] = None
     bank_name: Optional[str] = None
     province: Optional[str] = None

@@ -15,6 +15,7 @@ from api.endpoint_models import TableMetadataRequest, TableMetadataUpdate, Colum
 from models.db_base import get_db
 from services import get_metadata_service, get_glossary_service, get_relation_field_config_service, \
     get_prompt_template_service, get_province_card_bin_service
+from services.metadata_service.province_card_bin_service import ProvinceCardBinExistsError
 from services.metadata_service.fine_report_service import get_fine_report_service
 from services.token_service import UserInfo
 from middleware.auth_middleware import get_current_user
@@ -730,6 +731,8 @@ async def create_province_card_bin(req: ProvinceCardBinRequest, db: Session = De
             city=req.city or "",
         )
         return {"success": True, "message": "新增成功", "data": row}
+    except ProvinceCardBinExistsError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -742,7 +745,6 @@ async def update_province_card_bin(card_bin: str, req: ProvinceCardBinRequest, d
     """更新卡BIN记录，同时同步至 PostgreSQL"""
     try:
         svc = get_province_card_bin_service(db)
-        # 如果请求中有新 card_bin 且不同于路由参数，用请求中的值
         new_card_bin = req.card_bin if req.card_bin is not None else card_bin
         ok = svc.update(
             old_card_bin=card_bin,
@@ -755,6 +757,8 @@ async def update_province_card_bin(card_bin: str, req: ProvinceCardBinRequest, d
             updated = svc.get_by_card_bin(new_card_bin)
             return {"success": True, "message": "更新成功", "data": updated}
         raise HTTPException(status_code=404, detail=f"未找到 card_bin: {card_bin}")
+    except ProvinceCardBinExistsError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:

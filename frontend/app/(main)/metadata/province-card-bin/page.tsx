@@ -15,6 +15,9 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
+const CARD_BIN_MIN_LEN = 4;
+const CARD_BIN_MAX_LEN = 20;
+
 export default function Page() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
@@ -59,9 +62,15 @@ export default function Page() {
     load();
   }, [currentPage, searchQuery]);
 
-  const handlePageChange = (page: number) => setCurrentPage(page);
+  const handlePageChange = (page: number) => {
+    // 删除末页最后一条后自动回到上一页，防止白屏
+    if (data.length === 1 && page < currentPage) {
+      setCurrentPage(Math.max(1, page));
+    } else {
+      setCurrentPage(page);
+    }
+  };
 
-  // 打开发起编辑（existing row）
   const handleEdit = (item: any) => {
     setRecordToEdit(item.card_bin);
     setForm({
@@ -73,7 +82,6 @@ export default function Page() {
     setEditDialogOpen(true);
   };
 
-  // 点击新增按钮
   const handleAdd = () => {
     setRecordToEdit(null);
     setForm({ card_bin: "", bank_name: "", province: "", city: "" });
@@ -81,26 +89,44 @@ export default function Page() {
   };
 
   const handleSave = async () => {
-    if (!form.card_bin?.trim()) {
-      toast.warning("卡BIN不能为空");
+    const trimmed = form.card_bin?.trim() ?? "";
+
+    // ── 前端校验：卡BIN非空、纯数字、长度限制 ──────────────────────────
+    if (!trimmed) {
+      toast.warn("卡BIN不能为空");
       return;
     }
+    if (!/^\d+$/.test(trimmed)) {
+      toast.warn("卡BIN必须是纯数字，不能包含字母或符号");
+      return;
+    }
+    if (trimmed.length < CARD_BIN_MIN_LEN || trimmed.length > CARD_BIN_MAX_LEN) {
+      toast.warn(`卡BIN长度必须在 ${CARD_BIN_MIN_LEN}-${CARD_BIN_MAX_LEN} 位之间`);
+      return;
+    }
+
     setSaving(true);
     try {
       if (recordToEdit === null) {
-        // 新增
-        await updateProvinceCardBin(form, "POST");
+        await updateProvinceCardBin({ ...form, card_bin: trimmed }, "POST");
         toast.success("新增成功");
       } else {
-        // 编辑：如果 card_bin 未变，URL 路径参数可省略
-        const keyChanged = form.card_bin !== recordToEdit;
-        await updateProvinceCardBin(form, "PUT", keyChanged ? recordToEdit : undefined);
+        const keyChanged = trimmed !== recordToEdit;
+        await updateProvinceCardBin(
+          { ...form, card_bin: trimmed },
+          "PUT",
+          keyChanged ? recordToEdit : undefined,
+        );
         toast.success("更新成功");
       }
       setEditDialogOpen(false);
       load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail ?? "保存失败");
+      const msg =
+        e?.response?.data?.detail ??
+        e?.message ??
+        "保存失败，请重试";
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -112,7 +138,11 @@ export default function Page() {
       toast.success("删除成功");
       load();
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail ?? "删除失败");
+      const msg =
+        e?.response?.data?.detail ??
+        e?.message ??
+        "删除失败，请重试";
+      toast.error(msg);
     }
   };
 
@@ -161,21 +191,25 @@ export default function Page() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{recordToEdit === null ? "新增卡BIN" : "编辑卡BIN"}</DialogTitle>
+            <DialogTitle>
+              {recordToEdit === null ? "新增卡BIN" : "编辑卡BIN"}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-4 items-center gap-3">
-              <Label className="text-right">卡BIN&nbsp;*</Label>
+              <Label className="text-right">
+                卡BIN&nbsp;<span className="text-destructive">*</span>
+              </Label>
               <Input
                 className="col-span-3"
                 value={form.card_bin ?? ""}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, card_bin: e.target.value }))
                 }
-                placeholder="如 621098"
+                placeholder={`${CARD_BIN_MIN_LEN}-${CARD_BIN_MAX_LEN}位数字，如 621098`}
                 disabled={recordToEdit !== null}
-                maxLength={20}
+                maxLength={CARD_BIN_MAX_LEN + 1}
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-3">
@@ -217,7 +251,9 @@ export default function Page() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>取消</Button>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              取消
+            </Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving ? "保存中..." : "保存"}
             </Button>
