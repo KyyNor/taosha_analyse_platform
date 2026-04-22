@@ -105,7 +105,7 @@ class VersionDelta:
         return bool(self.changed_cols or self.new_cols)
 
     @property
-    def all_deferred_cols(self) -> List[str]:
+    def deferred_cols(self) -> List[str]:
         """static 列可以直接 COPY，其余列都需要 PIVOT 重建（changed + new）。"""
         return self.changed_cols + self.new_cols
 
