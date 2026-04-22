@@ -181,3 +181,6 @@ embeddings_model/*
 
 # Worker registry (runtime generated)
 backend/.worker_registry/.worktrees/
+
+# Git worktrees
+.worktrees/
