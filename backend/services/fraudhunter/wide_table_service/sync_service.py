@@ -25,6 +25,7 @@ from .version_manager import WideTableVersionManager
 from utils.logger import logger
 from utils.config import settings
 from utils.analyze_db_utils import AnalyzeDBConnector, AnalyzeDBPartitionManager
+from domain.wide_table.version_delta import WideTableComparator
 
 # 宽表名称到对象类型的反向映射
 WIDE_TABLE_TO_OBJECT_TYPE = {
@@ -481,7 +482,11 @@ class WideTableSyncService:
         current_metadata: dict,
         target_metadata: dict
     ) -> Tuple[list, list, list]:
-        """将指标按版本变化情况分为三类
+        """
+        将指标按版本变化情况分为三类。
+
+        实现已迁移至 WideTableComparator.diff()，本方法是适配层，
+        供存量调用方（20+ 处引用）无感过渡，保持签名和返回值完全不变。
 
         Returns:
             (changed, new, static) — 各自都是 indicator_code 列表
@@ -489,29 +494,11 @@ class WideTableSyncService:
               new:     target 有但 current 无（新增指标）→ 同上
               static:  两版 version 号一致的指标   → COPY 复用
         """
-        changed = []
-        new = []
-        static = []
-
-        all_keys = set(current_metadata.keys()) | set(target_metadata.keys())
-        for k in all_keys:
-            cur_meta = current_metadata.get(k, {})
-            tgt_meta = target_metadata.get(k, {})
-            cur_ver = cur_meta.get('version')
-            tgt_ver = tgt_meta.get('version')
-            code = (tgt_meta or cur_meta).get('indicator_code')
-
-            if k not in current_metadata:
-                new.append(code)
-            elif cur_ver == tgt_ver:
-                static.append(code)
-            else:
-                changed.append(code)
-
+        delta = WideTableComparator.diff(current_metadata, target_metadata)
         logger.debug(
-            f"指标差异分析: changed={len(changed)}, new={len(new)}, static={len(static)}"
+            f"指标差异分析: changed={len(delta.changed_cols)}, new={len(delta.new_cols)}, static={len(delta.static_cols)}"
         )
-        return changed, new, static
+        return delta.changed_cols, delta.new_cols, delta.static_cols
 
     def _find_copy_source(
         self,

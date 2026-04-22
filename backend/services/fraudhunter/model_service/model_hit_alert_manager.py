@@ -258,16 +258,12 @@ class ModelHitAlertManager:
                     if customer_no and str(customer_no).strip():
                         fin_targets = self._lookup_cust_owner_notice_nos(str(customer_no))
 
-                # 3. 合并去重：alert_notice_no 支持逗号分隔，cm_targets / fin_targets 同上
-                all_sources = (
-                    ([alert_notice_no] if alert_notice_no else [])   # 分支行可能返回空字串
-                    + cm_targets
-                    + fin_targets
+                # 3. 合并去重：调用领域层的纯合路去重函数
+                combined_notice_no = self.merge_notification_targets(
+                    branch_notice_no=alert_notice_no,
+                    cm_targets=cm_targets,
+                    fin_targets=fin_targets,
                 )
-                # 展平逗号拼接，去除空白，再去重保序
-                flat = [t.strip() for s in all_sources for t in str(s).split(',') if t.strip()]
-                unique_targets = list(dict.fromkeys(t for t in flat if t))
-                combined_notice_no = ','.join(unique_targets)
 
                 # 4. 单次发送，无人或为空字串则跳过
                 send_success = False
@@ -276,9 +272,10 @@ class ModelHitAlertManager:
                         notice_no=combined_notice_no,
                         notice=alert_message
                     )
+                    final_targets_list = combined_notice_no.split(",") if combined_notice_no else []
                     logger.info(
-                        f"{'成功' if send_success else '失败'}（合并发送，共{len(unique_targets)}人）: "
-                        f"targets={unique_targets}"
+                        f"{'成功' if send_success else '失败'}（合并发送，共{len(final_targets_list)}人）: "
+                        f"targets={final_targets_list}"
                     )
 
                 # 5. 记录结果，兼容原有状态字段
@@ -371,6 +368,62 @@ class ModelHitAlertManager:
         ).first()
         
         return existing_control is not None
+
+    @staticmethod
+    def merge_notification_targets(
+        branch_notice_no: Optional[str],
+        cm_targets: List[str],
+        fin_targets: List[str],
+    ) -> str:
+        """
+        将三种来源的通知号合并，去重后返回逗号分隔字符串。
+
+        适用场景
+        --------
+        命中告警时，向分支行通知号（系统配置）、客户经理通知号（AcctAssign表）、
+        理财经理通知号（CustOwner表）三类目标合并后，一次调用 send_alert_message()。
+        本方法保证：
+        1. 空字符串（branch_notice_no=""）和 None 不产生多余逗号
+        2. 三路中出现的重复手机号/人名只出现一次
+        3. 保持第一次出现的相对顺序（insertion-order deduplication）
+
+        参数
+        ----
+        branch_notice_no : 分支行通知号，可能是逗号拼接字符串、全局配置值、空字符串、None
+        cm_targets       : 客户经理通知号列表，元素可以是逗号拼接字符串
+        fin_targets      : 理财经理通知号列表，元素可以是逗号拼接字符串
+
+        返回值
+        -------
+        逗号分隔的去重字符串，形如 "张三,李四,王五" 或空字符串 ""
+
+        示例
+        -----
+        >>> merge_notification_targets('admin,A', ['B','A'], ['C','B'])
+        'admin,A,B,C'
+
+        >>> merge_notification_targets('', ['A'], [])
+        'A'
+
+        >>> merge_notification_targets(None, [], [])
+        ''
+
+        本方法为纯函数，无 IO，请勿在其中引入 DB/Settings/全局变量等隐式依赖。
+        """
+        all_sources = (
+            ([branch_notice_no] if branch_notice_no else [])
+            + list(cm_targets)
+            + list(fin_targets)
+        )
+        flat = [
+            item.strip()
+            for source in all_sources
+            for item in str(source).split(",")
+            if item.strip()
+        ]
+        # Python 3.7+: dict 保证 insertion-order，正是"去重保序"的语义需求
+        unique_ordered = list(dict.fromkeys(flat))
+        return ",".join(unique_ordered)
 
     def _lookup_acct_assign_notice_nos(self, acct_no: str) -> List[str]:
         """查询账号对应的客户经理通知号列表
