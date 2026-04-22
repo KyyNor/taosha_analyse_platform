@@ -34,7 +34,6 @@ sys.path.insert(0, str(_backend_root))
 from schemas.fraudhunter.alert_control_record import (
     AlertControlRecordResponse,
     AlertControlRecordDetailResponse,
-    AlertControlRecordListResponse,
 )
 
 

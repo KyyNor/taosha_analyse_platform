@@ -38,7 +38,6 @@ from schemas.fraudhunter.alert_control_record import (
     TrendRequest,
     TrendResponse,
     TrendPoint,
-    GranularityEnum,
 )
 
 

@@ -10,7 +10,7 @@ tests/backend/conftest.py
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
@@ -66,7 +66,7 @@ def mock_requests_post():
     Mock requests.post，注入到 ModelHitAlertManager.send_alert_message()。
     默认返回成功响应 {"respCode": "00000"}。
     """
-    import requests
+    import requests  # noqa: F401 — 透传 requests 模块，供 patch.object 使用
 
     with patch.object(requests, "post") as mock_post:
         mock_response = MagicMock()
@@ -139,17 +139,6 @@ def sample_risk_control_model_create_factory():
         )
 
     return make
-
-
-# =============================================================================
-# 5. 辅助工具
-# =============================================================================
-
-def patch.object(*args, **kwargs):
-    """from unittest.mock import patch（避免文件顶部重复导入）"""
-    from unittest.mock import patch as _patch
-
-    return _patch.object(*args, **kwargs)
 
 
 # =============================================================================
