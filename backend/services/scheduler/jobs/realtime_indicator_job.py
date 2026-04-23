@@ -1,6 +1,7 @@
 """实时指标宽表定时生成任务"""
 
 from datetime import date, datetime
+import time
 from typing import List, Dict, Any, Optional
 
 import pandas as pd
@@ -225,9 +226,10 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
 
         # 执行该 object_type 的所有实时指标任务
         all_indicator_results = []
-        
+
         logger.info(f"[{object_type}] 实时指标任务开始...")
-        
+        t_loop = time.perf_counter()
+
         for task in tasks:
             sql = task.realtime_logic_content
             for k, v in user_variable_config.items():
@@ -255,13 +257,15 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
                 logger.error(f"执行指标任务 {task.task_code} 失败: {e}")
                 continue
 
-        logger.info(f"[{object_type}] 实时指标任务完成...")
+        t_loop_elapsed = time.perf_counter() - t_loop
+        logger.info(f"[{object_type}] 所有SQL执行完成，共 {len(tasks)} 个任务，耗时: {t_loop_elapsed:.2f}s")
 
         if not all_indicator_results:
             logger.warning(f"object_type '{object_type}' 没有成功执行的实时指标任务")
             continue
 
         # 合并所有指标结果
+        t_merge = time.perf_counter()
         logger.info(f"[{object_type}] 合并所有指标结果开始...")
         final_result = all_indicator_results[0]
         for i in range(1, len(all_indicator_results)):
@@ -270,24 +274,23 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
             )
         final_result['etl_date'] = today
         final_result['run_time'] = half_hour_slot
-
-        logger.info(f"[{object_type}] 合并所有指标结果完成...")
-
-        logger.info(f"[{object_type}] 写入实时指标宽表开始...")
-
-        # 按分区粒度清空，避免对母表加锁
-        partition_table_name = f"{realtime_table_name}_{half_hour_slot}"
-        AnalyzeDBConnector.truncate_table(partition_table_name)
+        merge_sec = time.perf_counter() - t_merge
+        logger.info(f"[{object_type}] 合并完成: {merge_sec:.2f}s")
 
         # 写入实时表（使用 COPY 命令优化性能）
+        t_copy = time.perf_counter()
+        partition_table_name = f"{realtime_table_name}_{half_hour_slot}"
+        AnalyzeDBConnector.truncate_table(partition_table_name)
         rows_inserted = AnalyzeDBConnector.batch_insert_copy(
             realtime_table_name, final_result
         )
-        logger.debug(f"COPY批量插入完成: {rows_inserted} 行")
+        copy_sec = time.perf_counter() - t_copy
+        logger.info(f"[{object_type}] COPY完成: {copy_sec:.2f}s")
 
         row_count = len(final_result)
         column_count = len(final_result.columns)
         logger.info(f"[{object_type}] 写入实时指标宽表完成: {realtime_table_name}, 行数: {row_count}, 列数: {column_count}")
+        logger.info(f"=== {object_type} 三阶段汇总 => SQL:{t_loop_elapsed:.2f}s + 合并:{merge_sec:.2f}s + COPY:{copy_sec:.2f}s ===")
 
         realtime_table_name_with_partition = f'{realtime_table_name}_{half_hour_slot}'
         generated_realtime_tables[object_type] = realtime_table_name_with_partition
