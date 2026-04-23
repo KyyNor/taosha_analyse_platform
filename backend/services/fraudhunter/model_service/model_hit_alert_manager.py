@@ -981,7 +981,7 @@ class ModelHitAlertManager:
         # ---- 确定待查询的模型列表 ----------------------------------------
         model_query = self.db.query(
             FraudHunterModelDefinition.id,
-            FraudHunterModelDefinition.name
+            FraudHunterModelDefinition.model_name
         ).filter(FraudHunterModelDefinition.status == "online")
 
         if req.model_ids:

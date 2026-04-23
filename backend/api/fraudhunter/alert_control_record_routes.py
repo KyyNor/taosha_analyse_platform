@@ -481,5 +481,5 @@ async def get_model_history_trend(
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        logger.error(f"获取模型历史趋势失败: {e}", exc_info=True)
+        logger.error(str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取模型历史趋势失败: {str(e)}")
