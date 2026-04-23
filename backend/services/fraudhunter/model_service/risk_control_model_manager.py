@@ -190,6 +190,10 @@ class RiskControlModelManager:
         if not db_model:
             raise ValueError(f"预警管控模型不存在: {model_id}")
 
+        # 「发送告警消息」关闭时，一并强制关闭其前置依赖项「同时发理财经理」
+        if model_data.is_send_alert_message is False:
+            model_data.is_send_financial_manager_alert = False
+
         # 准备更新数据
         update_data = model_data.model_dump(exclude_unset=True, exclude={'rule_config'})
 

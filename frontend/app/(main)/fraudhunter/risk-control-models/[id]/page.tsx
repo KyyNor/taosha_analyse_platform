@@ -137,6 +137,11 @@ export default function RiskControlModelDetailPage() {
     value: RiskControlModel[K]
   ) => {
     if (!data) return;
+    // 「发送告警消息」关闭时，一并强制关闭其前置依赖项「同时发给理财经理」
+    if (field === "is_send_alert_message" && !value) {
+      setData({ ...data, [field]: value, is_send_financial_manager_alert: false });
+      return;
+    }
     setData({ ...data, [field]: value });
   };
 
