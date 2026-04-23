@@ -103,7 +103,7 @@ class PermissionService:
 
         # 管理员有所有存在页面的访问权限
         if self.is_admin_user(branch_no, role_id_list):
-            logger.info(f"页面访问检查: 页面={page_path}, 管理员用户，允许访问")
+            logger.debug(f"页面访问检查: 页面={page_path}, 管理员用户，允许访问")
             return True
 
         # 普通用户检查具体权限（支持动态路由匹配）
@@ -113,10 +113,10 @@ class PermissionService:
         # 遍历所有权限路径，使用模式匹配
         for permitted_path in user_permissions:
             if self._match_page_permission(permitted_path, page_path):
-                logger.info(f"页面访问检查: 页面={page_path}, 匹配到权限模板 {permitted_path}")
+                logger.debug(f"页面访问检查: 页面={page_path}, 匹配到权限模板 {permitted_path}")
                 return True
 
-        logger.info(f"页面访问检查: 页面={page_path}, 无权限")
+        logger.warning(f"页面访问检查: 页面={page_path}, 无权限")
         return False
     
     def is_admin_user(self, branch_no: str, role_id_list: List[str]) -> bool:
