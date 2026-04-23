@@ -119,7 +119,7 @@ export default function IndicatorsPage() {
       key: "indicator_task_id",
       label: "指标任务ID",
       type: "custom" as const,
-      render: (_value, row) => (
+      render: (_value: unknown, row: { indicator_task_id: number }) => (
         <Link
           href={`/fraudhunter/indicator-tasks/${row.indicator_task_id}`}
           className="text-blue-600 underline hover:text-blue-800"

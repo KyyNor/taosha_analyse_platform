@@ -173,8 +173,8 @@ export default function HistoricalModelAnalysisPage() {
     ...new Set(filteredSeries.map((p) => p.date_point)),
   ].sort();
 
-  const chartData = xLabels.map((dp) => {
-    const rec: Record<string, string | number> = { name: dp };
+  const chartData: { name: string; [key: string]: string | number }[] = xLabels.map((dp) => {
+    const rec: { name: string; [key: string]: string | number } = { name: dp };
     seriesByModel.forEach((sg) => {
       const pt = sg.points.find((p) => p.date_point === dp);
       rec[sg.model_name] = pt?.distinct_account_count ?? 0;

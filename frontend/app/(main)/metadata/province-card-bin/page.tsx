@@ -93,15 +93,15 @@ export default function Page() {
 
     // ── 前端校验：卡BIN非空、纯数字、长度限制 ──────────────────────────
     if (!trimmed) {
-      toast.warn("卡BIN不能为空");
+      toast.error("卡BIN不能为空");
       return;
     }
     if (!/^\d+$/.test(trimmed)) {
-      toast.warn("卡BIN必须是纯数字，不能包含字母或符号");
+      toast.error("卡BIN必须是纯数字，不能包含字母或符号");
       return;
     }
     if (trimmed.length < CARD_BIN_MIN_LEN || trimmed.length > CARD_BIN_MAX_LEN) {
-      toast.warn(`卡BIN长度必须在 ${CARD_BIN_MIN_LEN}-${CARD_BIN_MAX_LEN} 位之间`);
+      toast.error(`卡BIN长度必须在 ${CARD_BIN_MIN_LEN}-${CARD_BIN_MAX_LEN} 位之间`);
       return;
     }
 

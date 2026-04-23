@@ -38,6 +38,3 @@ class BaseLLMService:
             self.client = llm_client
         
         logger.info("LLM service 初始化完毕")
-
-
-get_llm_client
