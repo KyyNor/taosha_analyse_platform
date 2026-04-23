@@ -636,7 +636,6 @@ PIVOT (
                 'target_version_id': version.id,
                 'version_hash': version.version_hash,
                 'indicator_metadata': version.indicator_metadata,
-                'target_indicator_metadata': target_version.indicator_metadata if target_version else {},
                 'copy_candidates': copy_candidates,
             }
 
