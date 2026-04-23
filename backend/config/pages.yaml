@@ -145,11 +145,17 @@ pages:
             level: 2
             sort_order: 1
 
+      - path: "/fraudhunter/historical-model-analysis"
+        name: "历史模型分析"
+        description: "FraudHunter历史模型分析与回测统计"
+        level: 1
+        sort_order: 5
+
       - path: "/fraudhunter/wide-table-versions"
         name: "宽表版本管理"
         description: "宽表版本管理页面"
         level: 1
-        sort_order: 5
+        sort_order: 6
         children:
           - path: "/fraudhunter/wide-table-versions/[versionHash]"
             name: "宽表版本详情"
@@ -161,7 +167,7 @@ pages:
         name: "告警管控记录"
         description: "告警管控记录查看页面"
         level: 1
-        sort_order: 6
+        sort_order: 7
         children:
           - path: "/fraudhunter/alert-control-records/[id]"
             name: "告警记录详情"
