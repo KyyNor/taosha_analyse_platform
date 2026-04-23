@@ -290,7 +290,7 @@ class ModelHitAlertManager:
                     alert_control_record.alert_message = alert_message
                     alert_control_record.alert_person = 'system'
                     alert_control_record.alert_time = datetime.now()
-                    logger.warning(f"消息发送失败（合并发送，共{len(unique_targets)}人）: account_id={hit_record.account_id}")
+                    logger.warning(f"消息发送失败（合并发送，共{len(final_targets_list)}人）: account_id={hit_record.account_id}")
                 # ===========================================================================
             else:
                 # 所有需要告警的模型都已发送过

@@ -28,6 +28,39 @@ from models.fraudhunter.dry_run_task import FraudHunterDryRunExecution
 from schemas.fraudhunter.rule import RuleConfig
 from services.fraudhunter.model_service.rule_engine import RuleEngine
 from services.fraudhunter.system_config_service import SystemConfigManager
+
+
+# =============================================================================
+# 公共工具：构建模型白名单字典（key = model.id 整数）
+# config 格式: [{'模型ID': <int/str>, '白名单账号': '<str>'}, ...]
+# 返回    : {model_id(int): [account_id(str), ...]}
+# =============================================================================
+
+def build_model_whitelist_dict(
+    config_list: list,
+) -> dict[int, list[str]]:
+    """
+    将系统配置中的模型白名单列表，转换为以 model.id（整数）为 key 的字典。
+
+    示例
+    -----
+    >>> raw = [{'模型ID': 55, '白名单账号': 'acc1'}, {'模型ID': 32, '白名单账号': 'acc2'}]
+    >>> build_model_whitelist_dict(raw)  # → {55: ['acc1'], 32: ['acc2']}
+
+    配置值可为整数（直接使用）或字符串（如从 YAML 反序列化后的 '55'），本方法统一做 int 转换，
+    与 FraudHunterModelDefinition.id 的 Integer 类型对齐，保证字典查询不走空。
+    """
+    result: dict[int, list[str]] = {}
+    for item in config_list:
+        model_id_str = item.get('模型ID', '')
+        account_id = item.get('白名单账号', '')
+        try:
+            model_id: int = int(model_id_str)
+        except (TypeError, ValueError):
+            continue  # 配置项格式错误（如空字典 / 非数字值），静默跳过
+        if model_id and account_id:
+            result.setdefault(model_id, []).append(account_id)
+    return result
 from utils.logger import logger
 from utils.analyze_db_utils import AnalyzeDBConnector
 
@@ -312,18 +345,9 @@ LIMIT 10000
             logger.info(f"加载白名单账户 {len(whitelist_set)} 个")
 
         # 获取模型级别的白名单账户列表
-        # 配置格式: [{'模型ID':'55', '白名单账号':'124124'}, {'模型ID':'32', '白名单账号':'22323'}]
-        # 转换为: {"model_code_1": ["acct1", "acct2"], "model_code_2": ["acct3"]}
         model_whitelist_acct_raw = SystemConfigManager(db).get_config_value('model_whitelist_acct', default=[])
-        model_whitelist_acct = {}
-        if model_whitelist_acct_raw:
-            for item in model_whitelist_acct_raw:
-                model_code = item.get('模型ID', '')
-                account_id = item.get('白名单账号', '')
-                if model_code and account_id:
-                    if model_code not in model_whitelist_acct:
-                        model_whitelist_acct[model_code] = []
-                    model_whitelist_acct[model_code].append(account_id)
+        model_whitelist_acct = build_model_whitelist_dict(model_whitelist_acct_raw)
+        if model_whitelist_acct:
             logger.info(f"加载模型白名单配置，模型数={len(model_whitelist_acct)}")
 
         # 按日执行

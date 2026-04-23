@@ -78,6 +78,16 @@ class WideTableSyncService:
         snapshot_id = None
 
         try:
+            # 0. 防御性守卫：version_hash 为 None 时直接跳过（避免后续三处 slice/write 先行炸掉）
+            if not version_hash:
+                logger.debug(f"[guard] sync_wide_table 跳过，原因：version_hash 为空")
+                return {
+                    "status": "skipped",
+                    "skip_reason": "version_hash_missing",
+                    "wide_table_name": wide_table_name,
+                    "etl_date": str(etl_date)
+                }
+
             # 1. 检查版本是否就绪
             if not self._check_version_ready(target_version_id, etl_date, version_hash):
                 return {
@@ -100,16 +110,6 @@ class WideTableSyncService:
             )
 
             # 4. 计算指标差异，确定同步路径
-            # 未传入时默认空，退化为全量同步路径
-            if not version_hash:
-                # 此分支为防御性守卫；正常调用链中 version_hash 不应为 None
-                return {
-                    "status": "skipped",
-                    "skip_reason": "version_hash_missing",
-                    "wide_table_name": wide_table_name,
-                    "etl_date": str(etl_date)
-                }
-
             effective_curr_md = current_indicator_metadata or {}
             effective_candidates = copy_candidates or []
             changed, new_cols, static_cols = self._diff_indicators(
