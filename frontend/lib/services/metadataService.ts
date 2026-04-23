@@ -219,7 +219,7 @@ export async function getProvinceCardBins(params?: {
   page_size?: number;
   search?: string;
 }) {
-  const res = await api.get("/metadata/province-card-bins", { params });
+  const res = await api.get("/fraudhunter/system-config/province-card-bins", { params });
   return res.data; // { items[], total, page, page_size }
 }
 
@@ -230,12 +230,12 @@ export async function updateProvinceCardBin(
 ) {
   const encoded = cardBin ? encodeURIComponent(cardBin) : "";
   if (method === "DELETE") {
-    const res = await api.delete(`/metadata/province-card-bins/${encoded}`);
+    const res = await api.delete(`/fraudhunter/system-config/province-card-bins/${encoded}`);
     return res.data;
   }
   const res =
     method === "POST"
-      ? await api.post("/metadata/province-card-bins", data)
-      : await api.put(`/metadata/province-card-bins/${encoded}`, data);
+      ? await api.post("/fraudhunter/system-config/province-card-bins", data)
+      : await api.put(`/fraudhunter/system-config/province-card-bins/${encoded}`, data);
   return res.data;
 }

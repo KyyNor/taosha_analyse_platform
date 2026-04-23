@@ -57,6 +57,7 @@ const allNavItems: NavItem[] = [
       { type: 'separator' },
       { type: 'group', label: "系统管理" },
       { type: 'link', href: "/fraudhunter/system-config", label: "系统配置", requiredPath: "/fraudhunter/system-config" },
+      { type: 'link', href: "/fraudhunter/system-config/province-card-bin", label: "省市卡BIN", requiredPath: "/fraudhunter/system-config/province-card-bin" },
       { type: 'link', href: "/fraudhunter/wide-table-versions", label: "指标宽表版本", requiredPath: "/fraudhunter/wide-table-versions" },
     ]
   },
@@ -69,9 +70,7 @@ const allNavItems: NavItem[] = [
       { type: 'link', href: "/metadata/glossary", label: "术语表", requiredPath: "/metadata/glossary" },
       { type: 'link', href: "/metadata/knowledge", label: "知识库", requiredPath: "/metadata/knowledge" },
       { type: 'link', href: "/metadata/prompt-templates", label: "提示模板", requiredPath: "/metadata/prompt-templates" },
-      { type: 'link', href: "/metadata/fine-reports", label: "帆软报表", requiredPath: "/metadata/fine-reports" },
-      { type: 'separator' },
-      { type: 'link', href: "/metadata/province-card-bin", label: "省市卡BIN", requiredPath: "/metadata/province-card-bin" }
+      { type: 'link', href: "/metadata/fine-reports", label: "帆软报表", requiredPath: "/metadata/fine-reports" }
     ]
   },
   {

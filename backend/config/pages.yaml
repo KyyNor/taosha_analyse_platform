@@ -181,6 +181,12 @@ pages:
         level: 1
         sort_order: 8
 
+      - path: "/fraudhunter/system-config/province-card-bin"
+        name: "省市卡BIN"
+        description: "省市卡BIN维表管理页面"
+        level: 1
+        sort_order: 9
+
   # ===== 元数据管理模块 =====
   - path: "/metadata"
     name: "元数据管理"

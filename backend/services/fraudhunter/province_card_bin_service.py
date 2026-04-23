@@ -54,7 +54,7 @@ class ProvinceCardBinService:
             SELECT card_bin, bank_name, province, city, updated_at
             FROM {self.TABLE}
             {where_clause}
-            ORDER BY updated_at DESC NULLS LAST
+            ORDER BY IF(ISNULL(updated_at), 1, 0), updated_at DESC
             LIMIT :limit OFFSET :offset
         """)
 

@@ -10,12 +10,10 @@ from sqlalchemy.orm import Session
 from api.endpoint_models import TableMetadataRequest, TableMetadataUpdate, ColumnMetadataRequest, ColumnMetadataUpdate, \
     GlossaryTermRequest, GlossaryTermUpdate, RelationFieldConfigRequest, RelationFieldConfigUpdate, \
     PromptTemplateRequest, PromptTemplateUpdate, \
-    BatchUpdateRequest, BatchUpdateResult, FineReportRequest, FineReportUpdate, \
-    ProvinceCardBinRequest
+    BatchUpdateRequest, BatchUpdateResult, FineReportRequest, FineReportUpdate
 from models.db_base import get_db
 from services import get_metadata_service, get_glossary_service, get_relation_field_config_service, \
-    get_prompt_template_service, get_province_card_bin_service
-from services.metadata_service.province_card_bin_service import ProvinceCardBinExistsError
+    get_prompt_template_service
 from services.metadata_service.fine_report_service import get_fine_report_service
 from services.token_service import UserInfo
 from middleware.auth_middleware import get_current_user
@@ -679,104 +677,3 @@ async def delete_fine_report(report_id: int, db: Session = Depends(get_db)):
         logger.error(f"删除FineReport报表失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# -------------------------------------------------------------------------
-# 省市卡BIN维表管理
-# -------------------------------------------------------------------------
-
-@router.get("/province-card-bins")
-async def list_province_card_bins(
-    page: int = 1,
-    page_size: int = 20,
-    search: Optional[str] = None,
-    db: Session = Depends(get_db),
-):
-    """分页查询省市卡BIN（支持模糊搜索）"""
-    try:
-        svc = get_province_card_bin_service(db)
-        result = svc.list_paginated(page=page, page_size=page_size, search=search)
-        return {"success": True, **result}
-    except Exception as e:
-        logger.error(f"查询省市卡BIN列表失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/province-card-bins/{card_bin}")
-async def get_province_card_bin(card_bin: str, db: Session = Depends(get_db)):
-    """根据 card_bin 精确查询一条"""
-    try:
-        svc = get_province_card_bin_service(db)
-        row = svc.get_by_card_bin(card_bin)
-        if row:
-            return {"success": True, "data": row}
-        raise HTTPException(status_code=404, detail=f"未找到 card_bin: {card_bin}")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"查询省市卡BIN失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/province-card-bins")
-async def create_province_card_bin(req: ProvinceCardBinRequest, db: Session = Depends(get_db)):
-    """新增一条卡BIN记录，同时同步至 PostgreSQL"""
-    try:
-        if not req.card_bin:
-            raise HTTPException(status_code=400, detail="card_bin 不能为空")
-        svc = get_province_card_bin_service(db)
-        row = svc.create(
-            card_bin=req.card_bin,
-            bank_name=req.bank_name or "",
-            province=req.province or "",
-            city=req.city or "",
-        )
-        return {"success": True, "message": "新增成功", "data": row}
-    except ProvinceCardBinExistsError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"新增省市卡BIN失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.put("/province-card-bins/{card_bin}")
-async def update_province_card_bin(card_bin: str, req: ProvinceCardBinRequest, db: Session = Depends(get_db)):
-    """更新卡BIN记录，同时同步至 PostgreSQL"""
-    try:
-        svc = get_province_card_bin_service(db)
-        new_card_bin = req.card_bin if req.card_bin is not None else card_bin
-        ok = svc.update(
-            old_card_bin=card_bin,
-            card_bin=new_card_bin,
-            bank_name=req.bank_name or "",
-            province=req.province or "",
-            city=req.city or "",
-        )
-        if ok:
-            updated = svc.get_by_card_bin(new_card_bin)
-            return {"success": True, "message": "更新成功", "data": updated}
-        raise HTTPException(status_code=404, detail=f"未找到 card_bin: {card_bin}")
-    except ProvinceCardBinExistsError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"更新省市卡BIN失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/province-card-bins/{card_bin}")
-async def delete_province_card_bin(card_bin: str, db: Session = Depends(get_db)):
-    """删除卡BIN记录，连带删除 PG 中的同一笔"""
-    try:
-        svc = get_province_card_bin_service(db)
-        ok = svc.delete(card_bin)
-        if ok:
-            return {"success": True, "message": f"已删除: {card_bin}"}
-        raise HTTPException(status_code=404, detail=f"未找到 card_bin: {card_bin}")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"删除省市卡BIN失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
