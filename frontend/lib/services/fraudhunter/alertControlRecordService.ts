@@ -126,13 +126,11 @@ export const alertControlRecordService = {
 
   // 获取模型命中账户数历史趋势
   async getModelHistoryTrend(params: TrendRequest): Promise<TrendResponse> {
-    const response = await api.get(`${BASE_PATH}/alert-control-records/history/trend`, {
-      params: {
-        start_date: params.start_date,
-        end_date: params.end_date,
-        granularity: params.granularity ?? "day",
-        model_ids: params.model_ids?.length ? params.model_ids : undefined,
-      },
+    const response = await api.post(`${BASE_PATH}/alert-control-records/history/trend`, {
+      start_date: params.start_date,
+      end_date: params.end_date,
+      granularity: params.granularity ?? "day",
+      model_ids: params.model_ids?.length ? params.model_ids : undefined,
     });
     return response.data;
   },

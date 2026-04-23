@@ -418,16 +418,13 @@ async def get_alert_control_statistics(
         )
 
 
-@router.get(
+@router.post(
     "/history/trend",
     response_model=TrendResponse,
     summary="获取模型命中账户数历史趋势"
 )
 async def get_model_history_trend(
-    start_date: str = Query(..., description="开始日期 (YYYY-MM-DD)，必填"),
-    end_date: str = Query(..., description="结束日期 (YYYY-MM-DD)，必填"),
-    granularity: str = Query("day", description="粒度：day / week / month，默认 day"),
-    model_ids: Optional[List[int]] = Query(None, description="模型ID列表（多选，不传则查全部在线模型）"),
+    body: TrendRequest,
 
     current_user: UserInfo = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -448,6 +445,11 @@ async def get_model_history_trend(
     返回的 series 每一项代表"某模型在某一时间刻度上命中的独立账户数"。
     前端可据此绘制多条折线，面积图。
     """
+    start_date = body.start_date
+    end_date = body.end_date
+    granularity = body.granularity
+    model_ids = body.model_ids
+
     valid_granularities = {"day", "week", "month"}
     if granularity not in valid_granularities:
         raise HTTPException(
@@ -456,18 +458,8 @@ async def get_model_history_trend(
         )
 
     try:
-        req = TrendRequest(
-            start_date=start_date,
-            end_date=end_date,
-            granularity=granularity,
-            model_ids=model_ids,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    try:
         manager = ModelHitAlertManager(db)
-        result = manager.get_history_trend(req)
+        result = manager.get_history_trend(body)
 
         logger.info(
             f"[get_model_history_trend] user={current_user.user_id}, "
