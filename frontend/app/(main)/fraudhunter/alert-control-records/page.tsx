@@ -144,9 +144,8 @@ export default function AlertControlRecordsPage() {
 
   // 表格列配置
   const columns = [
-    { key: "id", label: "ID", type: "number" as const },
-    { key: "account_id", label: "账号", type: "text" as const },
-    { key: "record_date", label: "日期", type: "text" as const },
+    { key: "account_id", label: "账号", type: "text" as const, width: "160px" },
+    { key: "record_date", label: "日期", type: "text" as const, width: "115px" },
     {
       key: "hit_model_names",
       label: "模型",
@@ -171,13 +170,15 @@ export default function AlertControlRecordsPage() {
       key: "alert_status",
       label: "告警状态",
       type: "badge" as const,
-      badgeConfig: alertStatusBadgeConfig
+      badgeConfig: alertStatusBadgeConfig,
+      width: "100px"
     },
     {
       key: "control_status",
       label: "管控状态",
       type: "badge" as const,
-      badgeConfig: controlStatusBadgeConfig
+      badgeConfig: controlStatusBadgeConfig,
+      width: "100px"
     },
     { key: "control_serial_number", label: "管控流水号", type: "text" as const },
     { key: "created_at", label: "创建时间", type: "datetime" as const }
