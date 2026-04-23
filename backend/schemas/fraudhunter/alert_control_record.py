@@ -133,3 +133,37 @@ class TrendResponse(BaseModel):
     series: List[TrendPoint] = Field(default_factory=list)
     total_points: int = 0
     meta: dict = Field(default_factory=dict)
+
+
+class AlertControlListRequest(BaseModel):
+    """告警管控记录列表请求（POST）"""
+
+    # 分页
+    page: int = Field(1, ge=1, description="页码，从1开始")
+    page_size: int = Field(20, ge=1, le=1000, description="每页大小，最大1000")
+
+    # 筛选
+    start_date: Optional[str] = Field(None, description="开始日期 (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="结束日期 (YYYY-MM-DD)")
+    account_id: Optional[str] = Field(None, description="账号ID")
+    model_ids: Optional[List[int]] = Field(None, description="模型ID列表（多选）")
+    model_name: Optional[str] = Field(None, description="模型名称（模糊匹配）")
+    alert_status: Optional[str] = Field(None, description="告警状态：not_configured/sent/duplicate")
+    control_status: Optional[str] = Field(None, description="管控状态：not_configured/executed/duplicate")
+    search: Optional[str] = Field(None, description="搜索关键词")
+    hide_inactive: Optional[bool] = Field(None, description="隐藏无效记录")
+
+
+class AlertControlExportRequest(BaseModel):
+    """告警管控记录导出请求（POST）"""
+
+    start_date: Optional[str] = Field(None, description="开始日期 (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="结束日期 (YYYY-MM-DD)")
+    account_id: Optional[str] = Field(None, description="账号ID")
+    model_ids: Optional[List[int]] = Field(None, description="模型ID列表（多选）")
+    model_name: Optional[str] = Field(None, description="模型名称（模糊匹配）")
+    alert_status: Optional[str] = Field(None, description="告警状态：not_configured/sent/duplicate")
+    control_status: Optional[str] = Field(None, description="管控状态：not_configured/executed/duplicate")
+    search: Optional[str] = Field(None, description="搜索关键词")
+    hide_inactive: Optional[bool] = Field(None, description="隐藏无效记录")
+    format: Literal["csv", "excel"] = Field("excel", description="导出格式")

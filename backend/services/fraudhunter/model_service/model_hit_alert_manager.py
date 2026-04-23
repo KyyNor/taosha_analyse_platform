@@ -957,7 +957,14 @@ class ModelHitAlertManager:
         req: TrendRequest,
         current_user_branch_no: Optional[str] = None,
     ) -> TrendResponse:
-        """获取模型命中账户数的日/周/月历史趋势
+        """获取模型命中账户数的日/周/月历史趋势（纯 Python 展开聚合）
+
+        实现思路：
+        1. 按 (record_date, account_id) 分组，取该账户当天所有命中模型列表（不去重，因为各模型口径不同）；
+        2. 在 Python 中遍历展开，并对不在 req.model_ids 范围的模型跳过；
+        3. 最后统计每个 (date_point, model_id) 的去重账户数。
+
+        这样避免了 MySQL 层面复杂的 JSON + 字符串拼接匹配。
 
         Args:
             req: 趋势请求参数（起止日期、粒度、模型ID列表）
@@ -967,7 +974,7 @@ class ModelHitAlertManager:
             TrendResponse，含 series（时间刻度 × 模型 的去重账户数列表）
         """
         try:
-            req_start = datetime.strptime(req.start_date, "%Y-%m-%d").date()
+            req_start = datetime.strptime(req.start_date, "%Y-%m-dd").date()
             req_end = datetime.strptime(req.end_date, "%Y-%m-%d").date()
         except ValueError as e:
             raise ValueError(f"日期格式无效，应为 YYYY-MM-DD，当前值不合法: {e}")
@@ -978,7 +985,7 @@ class ModelHitAlertManager:
         if span_days > 180:
             raise ValueError("时间跨度不能超过180天")
 
-        # ---- 确定待查询的模型列表 ----------------------------------------
+        # ---- 加载在线模型映射 --------------------------------------------
         model_query = self.db.query(
             FraudHunterModelDefinition.id,
             FraudHunterModelDefinition.model_name
@@ -991,78 +998,68 @@ class ModelHitAlertManager:
         if not models:
             return TrendResponse(series=[], total_points=0, meta={"msg": "无可用模型"})
 
-        # ---- 日期表达式（根据粒度）---------------------------------------
+        # ---- 第①步：从 DB 拉原始分组数据 ------------------------------------
+        # 按 (record_date, account_id) 聚拢，该账户当天可能命中多个模型
         tbl = FraudHunterModelAlertControlRecord
         if req.granularity == "week":
-            date_expr = func.date_format(tbl.record_date, "%Y-W%v")
+            date_label = func.date_format(tbl.record_date, "%Y-W%v")
         elif req.granularity == "month":
-            date_expr = func.date_format(tbl.record_date, "%Y-%m")
-        else:  # day
-            date_expr = func.date_format(tbl.record_date, "%Y-%m-%d")
+            date_label = func.date_format(tbl.record_date, "%Y-%m")
+        else:
+            date_label = func.date_format(tbl.record_date, "%Y-%m-%d")
 
-        # ---- 逐模型构造 WHERE 条件，拼成 OR ------------------------------
-        # 说明：由于 hit_model_ids 为 JSON 类型且实际存储格式不一致，
-        # 使用 JSON_CONTAINS + CAST(SIGNED INTEGER) 在某些 MySQL 版本下报错：
-        # "Invalid data type for JSON data in argument 2 to function json_contains"
-        # 因此改用字符串包含匹配：[,{id},] 防止误匹（如匹配 2 时不应命中 12）
-        model_predicates = []
-        hit_ids_col_cast = func.concat(",", func.cast(tbl.hit_model_ids, String), ",")
-        for mid in models.keys():
-            # [1,7] -> 转字符串为 ,[1,7], ，查找 ,{id}, 子串
-            cond = hit_ids_col_cast.like(f"%,{mid},%")
-            model_predicates.append(cond)
-
-        if not model_predicates:
-            return TrendResponse(series=[], total_points=0, meta={"msg": "无有效模型条件"})
-        combined_predicate = or_(*model_predicates)
-
-        # ---- 构建基查询 -------------------------------------------------
-        query = (
+        raw_rows = (
             self.db.query(
-                date_expr.label("date_point"),
-                func.max(func.cast(tbl.hit_model_ids, String)).label("_model_ids"),
-                func.count(func.distinct(tbl.account_id)).label("distinct_account_count"),
+                date_label.label("dp"),
+                tbl.account_id,
+                func.max(func.cast(tbl.hit_model_ids, String)).label("_ids"),
             )
             .filter(tbl.record_date.between(req_start, req_end))
-            .filter(combined_predicate)
+            .group_by(date_label, tbl.account_id)
+            .order_by(date_label)
+            .all()
         )
 
-        query = (
-            query
-            .group_by(date_expr)
-            .order_by(date_expr)
-        )
+        # ---- 第②步：Python 展开，去重，过滤模型 ---------------------------
+        # dp_model_accounts[(dp, mid)]  = 集合，用于最终计数
+        dp_model_accounts: Dict[tuple, set] = {}
 
-        raw_rows = query.all()
-
-        # ---- 解析结果，按 date_point × model_id 展开 --------------------
-        series: List[TrendPoint] = []
         for row in raw_rows:
-            dp = row.date_point
-            ids_str = row._model_ids
-            if not ids_str:
+            dp = str(row.dp)
+            ids_raw = row._ids
+            if not ids_raw:
                 continue
-            hit_model_ids_on_day: List[int] = []
+
+            parsed: List[int] = []
             try:
-                hit_model_ids_on_day = json.loads(ids_str) if isinstance(ids_str, str) else (ids_str or [])
+                val = json.loads(ids_raw) if isinstance(ids_raw, str) else ids_raw
+                parsed = val if isinstance(val, list) else []
             except (json.JSONDecodeError, TypeError, ValueError):
                 continue
 
-            for mid in hit_model_ids_on_day:
-                if mid in models and dp:
-                    series.append(
-                        TrendPoint(
-                            date_point=str(dp),
-                            model_id=mid,
-                            model_name=models[mid],
-                            distinct_account_count=row.distinct_account_count or 0,
-                        )
-                    )
+            for mid in parsed:
+                if mid not in models:
+                    continue                          # 非目标模型，跳过
+                key = (dp, mid)
+                if key not in dp_model_accounts:
+                    dp_model_accounts[key] = set()
+                dp_model_accounts[key].add(row.account_id)
+
+        # ---- 第③步：构建 series -------------------------------------------
+        series = [
+            TrendPoint(
+                date_point=dp,
+                model_id=mid,
+                model_name=models[mid],
+                distinct_account_count=len(accounts),
+            )
+            for (dp, mid), accounts in sorted(dp_model_accounts.items())
+        ]
 
         logger.info(
             f"[get_history_trend] granularity={req.granularity}, "
-            f"models={list(models.keys())}, points={len(raw_rows)}, "
-            f"expanded_series={len(series)}"
+            f"raw_groups={len(raw_rows)}, model_count={len(models)}, "
+            f"final_series={len(series)}"
         )
 
         return TrendResponse(

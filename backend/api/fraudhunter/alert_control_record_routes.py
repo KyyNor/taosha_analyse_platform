@@ -23,6 +23,8 @@ from schemas.fraudhunter.alert_control_record import (
     AlertControlRecordDetailResponse,
     TrendRequest,
     TrendResponse,
+    AlertControlListRequest,
+    AlertControlExportRequest,
 )
 from services.fraudhunter.model_service.model_hit_alert_manager import ModelHitAlertManager
 from utils.logger import logger
@@ -31,28 +33,14 @@ from utils.logger import logger
 router = APIRouter(prefix="/alert-control-records", tags=["告警管控记录"])
 
 
-@router.get(
+@router.post(
     "",
     response_model=AlertControlListResponse,
     summary="获取告警管控记录列表"
 )
 async def list_alert_control_records(
-    # 分页参数
-    page: int = Query(1, ge=1, description="页码，从1开始"),
-    page_size: int = Query(20, ge=1, le=1000, description="每页大小，最大1000"),
+    body: AlertControlListRequest,
 
-    # 筛选参数
-    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
-    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
-    account_id: Optional[str] = Query(None, description="账号ID"),
-    model_ids: Optional[List[int]] = Query(None, description="模型ID列表（多选）"),
-    model_name: Optional[str] = Query(None, description="模型名称（模糊匹配）"),
-    alert_status: Optional[str] = Query(None, description="告警状态：not_configured/sent/duplicate"),
-    control_status: Optional[str] = Query(None, description="管控状态：not_configured/executed/duplicate"),
-    search: Optional[str] = Query(None, description="搜索关键词（账号、模型名称、告警消息）"),
-    hide_inactive:Optional[bool] = Query(None, description="隐藏无效记录"),
-
-    # 认证
     current_user: UserInfo = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -88,64 +76,64 @@ async def list_alert_control_records(
         # 验证状态参数
         valid_alert_statuses = ["not_configured", "sent", "duplicate"]
         valid_control_statuses = ["not_configured", "executed", "duplicate"]
-        
-        if alert_status and alert_status not in valid_alert_statuses:
+
+        if body.alert_status and body.alert_status not in valid_alert_statuses:
             raise HTTPException(
                 status_code=400,
-                detail=f"无效的告警状态: {alert_status}，支持的状态: {', '.join(valid_alert_statuses)}"
+                detail=f"无效的告警状态: {body.alert_status}，支持的状态: {', '.join(valid_alert_statuses)}"
             )
-        
-        if control_status and control_status not in valid_control_statuses:
+
+        if body.control_status and body.control_status not in valid_control_statuses:
             raise HTTPException(
                 status_code=400,
-                detail=f"无效的管控状态: {control_status}，支持的状态: {', '.join(valid_control_statuses)}"
+                detail=f"无效的管控状态: {body.control_status}，支持的状态: {', '.join(valid_control_statuses)}"
             )
-        
+
         # 验证日期格式
-        if start_date:
+        if body.start_date:
             try:
-                datetime.strptime(start_date, "%Y-%m-%d")
+                datetime.strptime(body.start_date, "%Y-%m-%d")
             except ValueError:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"无效的开始日期格式: {start_date}，请使用 YYYY-MM-DD 格式"
+                    detail=f"无效的开始日期格式: {body.start_date}，请使用 YYYY-MM-DD 格式"
                 )
-        
-        if end_date:
+
+        if body.end_date:
             try:
-                datetime.strptime(end_date, "%Y-%m-%d")
+                datetime.strptime(body.end_date, "%Y-%m-%d")
             except ValueError:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"无效的结束日期格式: {end_date}，请使用 YYYY-MM-DD 格式"
+                    detail=f"无效的结束日期格式: {body.end_date}，请使用 YYYY-MM-DD 格式"
                 )
-        
+
         # 构建筛选条件
         filters = AlertControlFilters(
-            start_date=start_date,
-            end_date=end_date,
-            account_id=account_id,
-            model_ids=model_ids,
-            model_name=model_name,
-            alert_status=alert_status,
-            control_status=control_status,
-            search=search,
-            hide_inactive=hide_inactive
+            start_date=body.start_date,
+            end_date=body.end_date,
+            account_id=body.account_id,
+            model_ids=body.model_ids,
+            model_name=body.model_name,
+            alert_status=body.alert_status,
+            control_status=body.control_status,
+            search=body.search,
+            hide_inactive=body.hide_inactive
         )
-        
+
         # 构建分页参数
         pagination = PaginationParams(
-            page=page,
-            page_size=page_size
+            page=body.page,
+            page_size=body.page_size
         )
-        
+
         # 查询记录
         manager = ModelHitAlertManager(db)
         result = manager.get_alert_control_records(filters, pagination)
-        
+
         logger.info(
             f"查询告警管控记录: user={current_user.user_id}, branch_no={current_user.branch_no}, "
-            f"page={page}, page_size={page_size}, "
+            f"page={body.page}, page_size={body.page_size}, "
             f"total={result.total}, filters={filters.model_dump(exclude_none=True)}"
         )
         
@@ -213,18 +201,8 @@ async def get_alert_control_record_detail(
     summary="导出告警管控记录为Excel"
 )
 async def export_alert_control_records(
-    # 筛选参数（与列表查询相同）
-    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
-    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
-    account_id: Optional[str] = Query(None, description="账号ID"),
-    model_ids: Optional[List[int]] = Query(None, description="模型ID列表（多选）"),
-    model_name: Optional[str] = Query(None, description="模型名称（模糊匹配）"),
-    alert_status: Optional[str] = Query(None, description="告警状态：not_configured/sent/duplicate"),
-    control_status: Optional[str] = Query(None, description="管控状态：not_configured/executed/duplicate"),
-    search: Optional[str] = Query(None, description="搜索关键词"),
-    hide_inactive:Optional[bool] = Query(None, description="隐藏无效记录"),
+    body: AlertControlExportRequest,
 
-    # 认证
     current_user: UserInfo = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -251,48 +229,48 @@ async def export_alert_control_records(
         valid_alert_statuses = ["not_configured", "sent", "duplicate"]
         valid_control_statuses = ["not_configured", "executed", "duplicate"]
 
-        if alert_status and alert_status not in valid_alert_statuses:
+        if body.alert_status and body.alert_status not in valid_alert_statuses:
             raise HTTPException(
                 status_code=400,
-                detail=f"无效的告警状态: {alert_status}，支持的状态: {', '.join(valid_alert_statuses)}"
+                detail=f"无效的告警状态: {body.alert_status}，支持的状态: {', '.join(valid_alert_statuses)}"
             )
 
-        if control_status and control_status not in valid_control_statuses:
+        if body.control_status and body.control_status not in valid_control_statuses:
             raise HTTPException(
                 status_code=400,
-                detail=f"无效的管控状态: {control_status}，支持的状态: {', '.join(valid_control_statuses)}"
+                detail=f"无效的管控状态: {body.control_status}，支持的状态: {', '.join(valid_control_statuses)}"
             )
 
         # 验证日期格式
-        if start_date:
+        if body.start_date:
             try:
-                datetime.strptime(start_date, "%Y-%m-%d")
+                datetime.strptime(body.start_date, "%Y-%m-%d")
             except ValueError:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"无效的开始日期格式: {start_date}，请使用 YYYY-MM-DD 格式"
+                    detail=f"无效的开始日期格式: {body.start_date}，请使用 YYYY-MM-DD 格式"
                 )
 
-        if end_date:
+        if body.end_date:
             try:
-                datetime.strptime(end_date, "%Y-%m-%d")
+                datetime.strptime(body.end_date, "%Y-%m-%d")
             except ValueError:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"无效的结束日期格式: {end_date}，请使用 YYYY-MM-DD 格式"
+                    detail=f"无效的结束日期格式: {body.end_date}，请使用 YYYY-MM-DD 格式"
                 )
 
         # 构建筛选条件
         filters = AlertControlFilters(
-            start_date=start_date,
-            end_date=end_date,
-            account_id=account_id,
-            model_ids=model_ids,
-            model_name=model_name,
-            alert_status=alert_status,
-            control_status=control_status,
-            search=search,
-            hide_inactive=hide_inactive
+            start_date=body.start_date,
+            end_date=body.end_date,
+            account_id=body.account_id,
+            model_ids=body.model_ids,
+            model_name=body.model_name,
+            alert_status=body.alert_status,
+            control_status=body.control_status,
+            search=body.search,
+            hide_inactive=body.hide_inactive
         )
 
         # 导出数据

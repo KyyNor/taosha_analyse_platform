@@ -77,7 +77,7 @@ export const alertControlRecordService = {
     page?: number;
     page_size?: number;
   } & AlertControlFilters): Promise<AlertControlListResponse> {
-    const response = await api.get(`${BASE_PATH}/alert-control-records`, { params });
+    const response = await api.post(`${BASE_PATH}/alert-control-records`, params);
     return response.data;
   },
 
@@ -89,22 +89,10 @@ export const alertControlRecordService = {
 
   // 导出告警管控记录
   async export(data: ExportRequest): Promise<AxiosResponse> {
-    const params = new URLSearchParams();
-    params.append('format', data.format);
-
-    // 添加筛选参数
-    Object.entries(data.filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        // 处理数组参数（如 model_ids）
-        if (Array.isArray(value)) {
-          value.forEach(v => params.append(key, String(v)));
-        } else {
-          params.append(key, String(value));
-        }
-      }
-    });
-
-    const response = await api.post(`${BASE_PATH}/alert-control-records/export?${params.toString()}`, {}, {
+    const response = await api.post(`${BASE_PATH}/alert-control-records/export`, {
+      ...data.filters,
+      format: data.format,
+    }, {
       responseType: 'blob'
     });
     return response;
