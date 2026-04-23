@@ -51,10 +51,10 @@ class ProvinceCardBinService:
 
         count_sql = text(f"SELECT COUNT(*) AS total FROM {self.TABLE}{where_clause}")
         rows_sql = text(f"""
-            SELECT card_bin, bank_name, province, city, updated_at
+            SELECT card_bin, bank_name, province, city
             FROM {self.TABLE}
             {where_clause}
-            ORDER BY IF(ISNULL(updated_at), 1, 0), updated_at DESC
+            ORDER BY card_bin ASC
             LIMIT :limit OFFSET :offset
         """)
 
@@ -72,7 +72,7 @@ class ProvinceCardBinService:
     def get_by_card_bin(self, card_bin: str) -> Optional[Dict[str, Any]]:
         """根据 card_bin 精确查单条"""
         sql = text(
-            f"SELECT card_bin, bank_name, province, city, updated_at "
+            f"SELECT card_bin, bank_name, province, city "
             f"FROM {self.TABLE} WHERE card_bin = :card_bin"
         )
         with self.db.connection() as conn:
@@ -138,7 +138,7 @@ class ProvinceCardBinService:
         if old_card_bin == card_bin:
             upd_sql = text(f"""
                 UPDATE {self.TABLE}
-                SET bank_name=:bank_name, province=:province, city=:city, updated_at=NOW()
+                SET bank_name=:bank_name, province=:province, city=:city
                 WHERE card_bin=:card_bin
             """)
             with self.db.connection() as conn:
@@ -260,7 +260,6 @@ class ProvinceCardBinService:
             "bank_name": row[1],
             "province": row[2],
             "city": row[3],
-            "updated_at": row[4].isoformat() if row[4] else None,
         }
 
 

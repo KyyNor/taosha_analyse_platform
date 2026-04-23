@@ -46,7 +46,7 @@ async def list_province_card_bins(
         result = svc.list_paginated(page=page, page_size=page_size, search=search)
         return result
     except Exception as e:
-        logger.error(f"查询省市卡BIN列表失败: {e}", exc_info=True)
+        logger.error(str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
