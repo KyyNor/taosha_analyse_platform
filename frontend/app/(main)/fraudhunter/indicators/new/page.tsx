@@ -282,7 +282,7 @@ export default function NewIndicatorPage() {
                             {filtered.map((task) => (
                               <CommandItem
                                 key={task.id}
-                                value={String(task.id)}
+                                value={`[${task.id}] ${task.task_name}`}
                                 onSelect={() => {
                                   updateField("indicator_task_id", task.id);
                                   setTaskDropdownOpen(false);

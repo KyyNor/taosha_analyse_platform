@@ -185,7 +185,7 @@ class AnalyzeDBConnector:
             if if_exists == 'truncate':
                 # 先清空表再插入（保留表结构，重置自增序列）
                 with engine.connect() as conn:
-                    conn.execute(text(f"TRUNCATE TABLE {table_name} CONTINUE IDENTITY RESTART IDENTITY"))
+                    conn.execute(text(f"TRUNCATE TABLE {table_name} "))
                     conn.commit()
                     logger.info(f"数据已清空: {table_name}")
             df_for_copy.to_csv(buffer, index=False, header=False, na_rep='\\N', date_format='%Y-%m-%d %H:%M:%S', sep=',')
