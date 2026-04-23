@@ -1001,12 +1001,15 @@ class ModelHitAlertManager:
             date_expr = func.date_format(tbl.record_date, "%Y-%m-%d")
 
         # ---- 逐模型构造 WHERE 条件，拼成 OR ------------------------------
+        # 说明：由于 hit_model_ids 为 JSON 类型且实际存储格式不一致，
+        # 使用 JSON_CONTAINS + CAST(SIGNED INTEGER) 在某些 MySQL 版本下报错：
+        # "Invalid data type for JSON data in argument 2 to function json_contains"
+        # 因此改用字符串包含匹配：[,{id},] 防止误匹（如匹配 2 时不应命中 12）
         model_predicates = []
+        hit_ids_col_cast = func.concat(",", func.cast(tbl.hit_model_ids, String), ",")
         for mid in models.keys():
-            cond = func.json_contains(
-                tbl.hit_model_ids,
-                func.cast(text(str(mid)), Integer)
-            )
+            # [1,7] -> 转字符串为 ,[1,7], ，查找 ,{id}, 子串
+            cond = hit_ids_col_cast.like(f"%,{mid},%")
             model_predicates.append(cond)
 
         if not model_predicates:
