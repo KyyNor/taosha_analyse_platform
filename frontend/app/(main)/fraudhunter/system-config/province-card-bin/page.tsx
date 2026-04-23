@@ -155,10 +155,7 @@ export default function Page() {
 
   return (
     <div className="container mx-auto py-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">省市卡BIN维护</h1>
-        <Button onClick={handleAdd}>+ 新增</Button>
-      </div>
+      <h1 className="text-2xl font-bold">省市卡BIN维护</h1>
 
       <Card className="p-4">
         <MetadataTable
@@ -169,13 +166,7 @@ export default function Page() {
           onAdd={handleAdd}
           onEdit={handleEdit}
           onDelete={handleDelete}
-          customActions={(item) => (
-            <Button variant="ghost" size="sm" onClick={() => handleEdit(item)}>
-              编辑
-            </Button>
-          )}
           searchPlaceholder="搜索卡BIN、银行、省份、城市..."
-          showActions={false}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           pagination={{
