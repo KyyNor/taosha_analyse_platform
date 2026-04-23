@@ -76,6 +76,9 @@ class AnalyzeDBConnector:
         params: Optional[Dict[str, Any]] = None,
         fetch_df: bool = False
     ) -> Optional[pd.DataFrame]:
+        # 兼容已用 text() 构建的 TextClause，避免重复包装崩掉
+        if hasattr(sql, "text"):
+            sql = sql.text
         engine = cls.get_engine()
         try:
             if fetch_df:
