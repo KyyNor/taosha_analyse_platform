@@ -6,6 +6,7 @@ import time
 from typing import List, Dict, Any, Optional, Tuple
 
 import pandas as pd
+import polars as pl
 from sqlalchemy import and_, desc
 from sqlalchemy.orm import Session
 
@@ -138,10 +139,10 @@ def _execute_single_task(
         sql = sql.replace('offline_loan_acct_no_table', offline_table)
 
     try:
-        result_df = AnalyzeDBConnector.execute_sql(sql, fetch_df=True)
-        if result_df is not None and not result_df.empty:
-            result_df = result_df.drop(columns=['etl_date'], errors='ignore')
-            return (task, result_df)
+        result_df_pd = AnalyzeDBConnector.execute_sql(sql, fetch_df=True)
+        if result_df_pd is not None and not result_df_pd.empty:
+            result_df_pl = pl.from_pandas(result_df_pd.drop(columns=['etl_date'], errors='ignore'))
+            return (task, result_df_pl)
     except Exception as e:
         logger.error(f"执行指标任务 {task.task_code} 失败: {e}")
     return (task, None)
@@ -288,31 +289,33 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
             logger.warning(f"object_type '{object_type}' 没有成功执行的实时指标任务")
             continue
 
-        # 合并所有指标结果
+        # 合并所有指标结果（Polars diagonal_relaxed 横向拼接，外层去重，速度远快于 Pandas outer merge）
         t_merge = time.perf_counter()
         logger.info(f"[{object_type}] 合并所有指标结果开始...")
-        final_result = all_indicator_results[0]
+        final_result_pl = all_indicator_results[0]
         for i in range(1, len(all_indicator_results)):
-            final_result = final_result.merge(
-                all_indicator_results[i], on='target_id', how='outer', suffixes=('', f'_dup_{i}')
+            final_result_pl = final_result_pl.join(
+                all_indicator_results[i], on='target_id', how='outer', coalesce=True
             )
-        final_result['etl_date'] = today
-        final_result['run_time'] = half_hour_slot
+        final_result_pd = final_result_pl.with_columns([
+            pl.lit(str(today)).alias('etl_date'),
+            pl.lit(half_hour_slot).alias('run_time'),
+        ]).to_pandas()
         merge_sec = time.perf_counter() - t_merge
-        logger.info(f"[{object_type}] 合并完成: {merge_sec:.2f}s")
+        logger.info(f"[{object_type}] Polars合并完成: {merge_sec:.2f}s")
 
         # 写入实时表（使用 COPY 命令优化性能）
         t_copy = time.perf_counter()
         partition_table_name = f"{realtime_table_name}_{half_hour_slot}"
         AnalyzeDBConnector.truncate_table(partition_table_name)
         rows_inserted = AnalyzeDBConnector.batch_insert_copy(
-            realtime_table_name, final_result
+            realtime_table_name, final_result_pd
         )
         copy_sec = time.perf_counter() - t_copy
         logger.info(f"[{object_type}] COPY完成: {copy_sec:.2f}s")
 
-        row_count = len(final_result)
-        column_count = len(final_result.columns)
+        row_count = final_result_pl.height
+        column_count = final_result_pl.width
         logger.info(f"[{object_type}] 写入实时指标宽表完成: {realtime_table_name}, 行数: {row_count}, 列数: {column_count}")
         logger.info(f"=== {object_type} 三阶段汇总 => SQL:{t_loop_elapsed:.2f}s + 合并:{merge_sec:.2f}s + COPY:{copy_sec:.2f}s ===")
 
@@ -673,23 +676,37 @@ def _build_model_matching_sql(
     select_fields.append(f"{array_expr} AS model_hit_array")
 
     # 构建JOIN子句（从离线账户表出发）
+    # ★ 预过滤优化：为每个 JOIN 表套一层子查询，仅保留实时表中出现的 target_id；
+    #   这样即使各表行数差异悬殊（比如离线表上百万行），JOIN 时参与的中间结果也被压缩
+    #   到实时表的规模，从根本上杜绝中间结果爆炸
     join_clauses = [
         f"FROM {dep_acct_realtime_table} AS dep_acct_realtime_indicator",
-        f"LEFT JOIN {dep_acct_offline_table} AS dep_acct_offline_indicator",
+        f"LEFT JOIN ("
+        f"    SELECT * FROM {dep_acct_offline_table} "
+        f"    WHERE target_id IN (SELECT target_id FROM {dep_acct_realtime_table})"
+        f") AS dep_acct_offline_indicator"
         f"  ON dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id"
     ]
 
-    # 如果有实时客户表，添加关联
+    # 如果有实时客户表，添加关联（以离线表的客户号为基准，同样预过滤）
     if cust_realtime_table:
         join_clauses.append(
-            f"LEFT JOIN {cust_realtime_table} AS cust_realtime_indicator"
+            f"LEFT JOIN ("
+            f"    SELECT * FROM {cust_realtime_table} "
+            f"    WHERE target_id IN (SELECT i_dep_acct_no_offline_00001 FROM {dep_acct_offline_table} "
+            f"                           WHERE i_dep_acct_no_offline_00001 IS NOT NULL)"
+            f") AS cust_realtime_indicator"
             f"  ON cust_realtime_indicator.target_id = dep_acct_offline_indicator.i_dep_acct_no_offline_00001"
         )
 
-    # 如果有离线客户表，添加关联
+    # 如果有离线客户表，添加关联（同理预过滤）
     if cust_offline_table:
         join_clauses.append(
-            f"LEFT JOIN {cust_offline_table} AS cust_offline_indicator"
+            f"LEFT JOIN ("
+            f"    SELECT * FROM {cust_offline_table} "
+            f"    WHERE target_id IN (SELECT i_dep_acct_no_offline_00001 FROM {dep_acct_offline_table} "
+            f"                           WHERE i_dep_acct_no_offline_00001 IS NOT NULL)"
+            f") AS cust_offline_indicator"
             f"  ON cust_offline_indicator.target_id = dep_acct_offline_indicator.i_dep_acct_no_offline_00001"
         )
 

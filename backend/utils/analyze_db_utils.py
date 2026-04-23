@@ -410,6 +410,20 @@ class AnalyzeDBPartitionManager:
             with engine.connect() as conn:
                 conn.execute(text(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_target_id ON {table_name} (target_id);"))
                 conn.execute(text(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_etl_date ON {table_name} (etl_date);"))
+                # 通用外键列索引：i_dep_acct_no_offline_00001 → 存客户号，用于 cust_no JOIN
+                # 仅在 dep_acct_wide_table 类表（有 customer_no 类指标的表）中创建
+                for meta in indicator_metadata.values():
+                    indicator_code = meta.get('indicator_code', '')
+                    if indicator_code and (
+                        'customer_no' in indicator_code.lower()
+                        or 'cust_no' in indicator_code.lower()
+                        or 'i_dep_acct_no_offline_00001' == indicator_code
+                    ):
+                        conn.execute(text(
+                            f"CREATE INDEX IF NOT EXISTS idx_{table_name}_{indicator_code} "
+                            f"ON {table_name} ({indicator_code});"
+                        ))
+                        logger.debug(f"为宽表 {table_name} 创建外键索引: {indicator_code}")
                 conn.commit()
             logger.info(f"宽表版本表创建成功: {table_name}, 指标数={len(indicator_metadata)}")
         return success
