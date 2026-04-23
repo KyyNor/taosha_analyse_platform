@@ -5,8 +5,12 @@
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional
+import io
+from urllib.parse import quote
+from datetime import datetime
 
 from models.db_base import get_db
 from schemas.fraudhunter.system_config import (
@@ -240,6 +244,43 @@ async def get_system_config(
         raise
     except Exception as e:
         logger.error(f"获取系统配置详情失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/{config_id}/export-json-list",
+    summary="导出配置(JSON列表)为Excel"
+)
+async def export_json_list_as_excel(
+    config_id: int,
+    db: Session = Depends(get_db)
+):
+    """导出 json_list 类型配置的值为 Excel，直接输出 json_list.value。"""
+    try:
+        manager = SystemConfigManager(db)
+        file_content = manager.export_json_list_as_excel(config_id)
+
+        cfg = manager.get_config(config_id)
+        config_key = cfg.config_key if cfg else str(config_id)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{config_key}_{ts}.xlsx"
+        encoded = quote(filename)
+
+        logger.info(f"导出配置JSON列表: config_id={config_id}, size={len(file_content)} bytes")
+
+        return StreamingResponse(
+            io.BytesIO(file_content),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}; filename*=UTF-8''{encoded}"
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"导出配置JSON列表失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

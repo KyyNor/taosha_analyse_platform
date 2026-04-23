@@ -261,3 +261,32 @@ class SystemConfigManager:
         if not config:
             return default
         return config.config_value.get('value', default)
+
+    def export_json_list_as_excel(self, config_id: int) -> bytes:
+        """导出配置（必须是 json_list 类型）为 Excel，直接输出 json_list.value
+
+        Args:
+            config_id: 配置ID
+
+        Returns:
+            Excel 文件字节内容
+
+        Raises:
+            ValueError: 配置不存在或非 json_list 类型
+        """
+        cfg = self.get_config(config_id)
+        if not cfg:
+            raise ValueError(f"配置不存在: {config_id}")
+        raw = cfg.config_value.get("value") if isinstance(cfg.config_value, dict) else None
+        if not isinstance(raw, list):
+            raise ValueError("该配置不是 JSON列表 类型，无法导出")
+
+        if not raw:
+            df = pd.DataFrame()
+        else:
+            df = pd.DataFrame(raw)
+
+        from utils.excel_exporter import create_excel_exporter
+        exporter = create_excel_exporter()
+        output = exporter.export_single_sheet(df, sheet_name=cfg.config_key[:31])
+        return output.getvalue()

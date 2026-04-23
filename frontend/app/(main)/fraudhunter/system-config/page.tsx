@@ -30,13 +30,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Upload, Trash2 } from "lucide-react";
+import { Plus, Upload, Trash2, Download } from "lucide-react";
 import {
   systemConfigService,
   type SystemConfig,
   type SystemConfigCreate,
   type ExcelParseResponse
 } from "@/lib/services/fraudhunter/systemConfigService";
+import { downloadFromResponse, generateTimestampedFilename } from "@/lib/utils/downloadUtils";
 
 // Badge配置
 const categoryBadgeConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -551,6 +552,23 @@ export default function SystemConfigPage() {
                       onChange={handleExcelUpload}
                       className="hidden"
                     />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!editingConfig || jsonListData.length === 0}
+                      onClick={async () => {
+                        try {
+                          const resp = await systemConfigService.exportJsonList(editingConfig!.id);
+                          downloadFromResponse(resp, generateTimestampedFilename(formData.config_key, 'xlsx'));
+                          toast.success("导出成功");
+                        } catch (err: any) {
+                          toast.error(err?.response?.data?.detail || "导出失败");
+                        }
+                      }}>
+                      <Download className="h-4 w-4 mr-1" />
+                      导出Excel
+                    </Button>
                     <Button
                       type="button"
                       variant="outline"

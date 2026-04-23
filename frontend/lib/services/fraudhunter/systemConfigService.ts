@@ -101,6 +101,17 @@ export const systemConfigService = {
       }
     });
     return response.data;
+  },
+
+  /**
+   * 导出配置（JSON列表数据）
+   * @param configId 配置ID
+   */
+  async exportJsonList(configId: number): Promise<any> {
+    const response = await api.get(`${BASE_PATH}/${configId}/export-json-list`, {
+      responseType: 'blob'
+    });
+    return response;
   }
 };
 
