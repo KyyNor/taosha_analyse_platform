@@ -1,8 +1,9 @@
 """实时指标宽表定时生成任务"""
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime
 import time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 import pandas as pd
 from sqlalchemy import and_, desc
@@ -111,6 +112,40 @@ def _update_realtime_snapshot(
 
     db.flush()
     logger.debug(f"更新实时宽表快照: {wide_table_name}, etl_date={etl_date}, rows={row_count}")
+
+
+def _execute_single_task(
+    task: "FraudHunterIndicatorTask",
+    user_variable_config: dict,
+    today_str: str,
+    offline_table: str,
+    cust_offline_table: Optional[str],
+    object_type: str,
+) -> Tuple["FraudHunterIndicatorTask", Optional[pd.DataFrame]]:
+    """执行单个实时指标任务（供线程池调用）"""
+    sql = task.realtime_logic_content
+    for k, v in user_variable_config.items():
+        sql = sql.replace("${" + k + "}", v)
+    sql = sql.replace("${date}", today_str)
+
+    if object_type == 'dep_acct_no':
+        sql = sql.replace('offline_dep_acct_no_table', offline_table)
+        if cust_offline_table:
+            sql = sql.replace('offline_cust_no_table', cust_offline_table)
+    elif object_type == 'cust_no':
+        sql = sql.replace('offline_cust_no_table', offline_table)
+    elif object_type == 'loan_acct_no':
+        sql = sql.replace('offline_loan_acct_no_table', offline_table)
+
+    try:
+        result_df = AnalyzeDBConnector.execute_sql(sql, fetch_df=True)
+        if result_df is not None and not result_df.empty:
+            result_df = result_df.drop(columns=['etl_date'], errors='ignore')
+            return (task, result_df)
+    except Exception as e:
+        logger.error(f"执行指标任务 {task.task_code} 失败: {e}")
+    return (task, None)
+
 
 @timing_it
 def step1_generate_realtime_indicators(db, today, today_str, now_str):
@@ -227,35 +262,24 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
         # 执行该 object_type 的所有实时指标任务
         all_indicator_results = []
 
-        logger.info(f"[{object_type}] 实时指标任务开始...")
+        logger.info(f"[{object_type}] 实时指标任务开始（并发）...")
         t_loop = time.perf_counter()
 
-        for task in tasks:
-            sql = task.realtime_logic_content
-            for k, v in user_variable_config.items():
-                sql = sql.replace("${" + k + "}", v)
-            sql = sql.replace("${date}", today_str)
-
-            # 替换离线表变量（根据 object_type 替换对应的离线表）
-            if object_type == 'dep_acct_no':
-                sql = sql.replace('offline_dep_acct_no_table', offline_table)
-                if offline_tables.get('cust_no'):
-                    sql = sql.replace('offline_cust_no_table', offline_tables['cust_no'])
-            elif object_type == 'cust_no':
-                sql = sql.replace('offline_cust_no_table', offline_table)
-            elif object_type == 'loan_acct_no':
-                sql = sql.replace('offline_loan_acct_no_table', offline_table)
-
-            logger.debug(f"执行指标任务 {task.task_code} 的实时SQL")
-            try:
-                result_df = AnalyzeDBConnector.execute_sql(sql, fetch_df=True)
-                if result_df is not None and not result_df.empty:
-                    result_df = result_df.drop(columns=['etl_date'], errors='ignore')
+        # 并发执行所有任务，按完成顺序收集结果
+        cust_offline_table = offline_tables.get('cust_no')
+        with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
+            futures = {
+                pool.submit(
+                    _execute_single_task, task, user_variable_config,
+                    today_str, offline_table, cust_offline_table, object_type
+                ): task
+                for task in tasks
+            }
+            for future in as_completed(futures):
+                task, result_df = future.result()
+                if result_df is not None:
                     all_indicator_results.append(result_df)
                     logger.info(f" {task.task_name} -> 返回 {len(result_df)} 行，{len(result_df.columns)} 列")
-            except Exception as e:
-                logger.error(f"执行指标任务 {task.task_code} 失败: {e}")
-                continue
 
         t_loop_elapsed = time.perf_counter() - t_loop
         logger.info(f"[{object_type}] 所有SQL执行完成，共 {len(tasks)} 个任务，耗时: {t_loop_elapsed:.2f}s")
