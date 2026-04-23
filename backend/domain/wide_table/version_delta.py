@@ -115,6 +115,10 @@ class WideTableComparator:
             if k not in current_metadata:
                 # target 有但 current 无 → 新增指标
                 new.append(code)
+            elif cur_ver is None or tgt_ver is None:
+                # 任一方 version 字段缺失，说明 metadata 不完整；
+                # 宁可直接重建（慢）也不能把旧值 COPY 进去导致静默腐化
+                changed.append(code)
             elif cur_ver == tgt_ver:
                 # 两版 version 相等 → 静态度，可 COPY
                 static.append(code)

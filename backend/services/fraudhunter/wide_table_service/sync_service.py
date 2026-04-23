@@ -80,7 +80,10 @@ class WideTableSyncService:
         try:
             # 0. 防御性守卫：version_hash 为 None 时直接跳过（避免后续三处 slice/write 先行炸掉）
             if not version_hash:
-                logger.debug(f"[guard] sync_wide_table 跳过，原因：version_hash 为空")
+                logger.warning(
+                    f"sync_wide_table 跳过（version_hash 为空，请排查 _get_sync_version_info "
+                    f"是否成功获取了有效版本） wide_table={wide_table_name}"
+                )
                 return {
                     "status": "skipped",
                     "skip_reason": "version_hash_missing",
@@ -606,13 +609,25 @@ PIVOT (
                 logger.warning(f"{wide_table_name} 没有target和可用的历史版本，跳过同步")
                 return None
 
-            # 优先使用 target 版本（正在发布的新版本），否则降级用 current
+            # 优先使用 target 版本（正在发布的新版本），否则降级用 history
             version = target_version
             if not version and copy_candidates:
+                candidate_hash = copy_candidates[0]['version_hash']
                 version_ref = db.query(FraudHunterWideTableVersion).filter(
-                    FraudHunterWideTableVersion.version_hash == copy_candidates[0]['version_hash']
+                    FraudHunterWideTableVersion.version_hash == candidate_hash
                 ).first()
+                if not version_ref:
+                    logger.warning(
+                        f"[Bug-B3] {wide_table_name} 指定降级版本 hash={candidate_hash}，"
+                        f"在 DB 中查询无果（可能已被清理），此次同步将被跳过。请检查版本生命周期。"
+                    )
                 version = version_ref
+
+            if not version:
+                logger.warning(
+                    f"[Bug-B3] {wide_table_name} 未能获得有效版本（target={'有' if target_version else '无'}, "
+                    f"history候选={len(copy_candidates)}），同步将被跳过。"
+                )
 
             current_md = (
                 copy_candidates[0]['indicator_metadata']
