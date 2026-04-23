@@ -117,12 +117,27 @@ class AnalyzeDBConnector:
             logger.error(f"数据库连接测试失败: {e}", exc_info=True)
             return False
 
+    @staticmethod
+    def truncate_table(table_name: str) -> None:
+        """清空指定的表（或分区），保留表结构。
+
+        推荐用法：传入完整的分区表名（如 realtime_xxx_92879646_202604231105），
+        避免对分区母表执行 TRUNCATE 导致所有历史分区同时加锁。
+
+        Args:
+            table_name: 目标表/分区全名（含分区后缀）
+        """
+        engine = AnalyzeDBConnector.get_engine()
+        with engine.connect() as conn:
+            conn.execute(text(f"TRUNCATE TABLE {table_name}"))
+            conn.commit()
+        logger.info(f"数据已清空: {table_name}")
+
     @classmethod
     def batch_insert_copy(
         cls,
         table_name: str,
         df: pd.DataFrame,
-        if_exists: str = 'append'
     ) -> int:
         """使用 PostgreSQL COPY 命令快速批量插入数据
 
@@ -130,9 +145,8 @@ class AnalyzeDBConnector:
         适用：大数据量批量导入场景
 
         Args:
-            table_name: 目标表名
+            table_name: 目标表/分区全名（含分区后缀）
             df: 要插入的 DataFrame
-            if_exists: 如果表存在时的处理方式 ('append' 追加 / 'truncate' 先清空)
 
         Returns:
             插入的行数
@@ -182,12 +196,6 @@ class AnalyzeDBConnector:
             # 将 DataFrame 转换为 CSV 格式的内存缓冲区
             buffer = io.StringIO()
 
-            if if_exists == 'truncate':
-                # 先清空表再插入（保留表结构，重置自增序列）
-                with engine.connect() as conn:
-                    conn.execute(text(f"TRUNCATE TABLE {table_name} "))
-                    conn.commit()
-                    logger.info(f"数据已清空: {table_name}")
             df_for_copy.to_csv(buffer, index=False, header=False, na_rep='\\N', date_format='%Y-%m-%d %H:%M:%S', sep=',')
             buffer.seek(0)
 

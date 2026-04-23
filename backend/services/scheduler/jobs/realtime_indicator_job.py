@@ -269,15 +269,19 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
                 all_indicator_results[i], on='target_id', how='outer', suffixes=('', f'_dup_{i}')
             )
         final_result['etl_date'] = today
-        final_result['run_time'] = now_str
+        final_result['run_time'] = half_hour_slot
 
         logger.info(f"[{object_type}] 合并所有指标结果完成...")
 
         logger.info(f"[{object_type}] 写入实时指标宽表开始...")
 
+        # 按分区粒度清空，避免对母表加锁
+        partition_table_name = f"{realtime_table_name}_{half_hour_slot}"
+        AnalyzeDBConnector.truncate_table(partition_table_name)
+
         # 写入实时表（使用 COPY 命令优化性能）
         rows_inserted = AnalyzeDBConnector.batch_insert_copy(
-            realtime_table_name, final_result, if_exists='truncate'
+            realtime_table_name, final_result
         )
         logger.debug(f"COPY批量插入完成: {rows_inserted} 行")
 
