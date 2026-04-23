@@ -671,6 +671,27 @@ class AnalyzeDBPartitionManager:
             return 0
 
     @staticmethod
+    def count_partition_rows(table_name: str) -> int:
+        """查询指定分区（或主表）的行数
+
+        Args:
+            table_name: 完整物理表名（含分区后缀，如 dep_acct_wide_table_92879646_20251228）
+
+        Returns:
+            行数，失败时返回 -1（表示不可用）
+        """
+        # 表名为内部构造（version_hash[:8] + 日期），可信任，直接插值
+        sql = text(f"SELECT COUNT(*) FROM {table_name}")
+        engine = AnalyzeDBConnector.get_engine()
+        try:
+            with engine.connect() as conn:
+                row = conn.execute(sql).scalar()
+                return int(row) if row is not None else 0
+        except SQLAlchemyError as e:
+            logger.warning(f"查询分区行数失败: {table_name}, 错误={e}")
+            return -1
+
+    @staticmethod
     def table_exists(table_name: str) -> bool:
         """检查PG物理表是否存在"""
         check_sql = text(

@@ -58,7 +58,6 @@ class WideTableSyncService:
         version_hash: str,
         indicator_metadata: dict,
         etl_date: date,
-        current_indicator_metadata: Optional[dict] = None,
         copy_candidates: Optional[list] = None,
     ) -> Optional[Dict]:
         """同步单个版本的单个日期宽表
@@ -113,18 +112,21 @@ class WideTableSyncService:
             )
 
             # 4. 计算指标差异，确定同步路径
-            effective_curr_md = current_indicator_metadata or {}
+            # 先尝试寻找可复用的旧版本表（有该表的候选人，其 metadata 才是可比的前任版本）
+            effective_curr_md: dict = {}
             effective_candidates = copy_candidates or []
+
+            old_pg_table, old_meta = self._find_copy_source(
+                wide_table_name, etl_date, effective_candidates
+            )
+            if old_meta:
+                effective_curr_md = old_meta
+
             changed, new_cols, static_cols = self._diff_indicators(
                 effective_curr_md, indicator_metadata
             )
             inc_codes = changed + new_cols
             pg_table_name = f"{wide_table_name}_{version_hash[:8]}"
-
-            # 尝试寻找可 COPY 的旧版本表
-            old_pg_table, _ = self._find_copy_source(
-                wide_table_name, etl_date, effective_candidates
-            )
 
             if old_pg_table and inc_codes:
                 # ===== 增量同步路径（真实实现）=====
@@ -509,21 +511,33 @@ class WideTableSyncService:
         etl_date: date,
         copy_candidates: list,
     ) -> Tuple[Optional[str], Optional[dict]]:
-        """从历史版本中找到第一个物理表存在的旧表用于 COPY
+        """从历史版本中找到第一个有数据的旧表用于 COPY
 
-        按 copy_candidates 顺序（current → newer history → 更老的 history），
-        依次推算表名并用 table_exists() 确认，命中即返回。
+        按 copy_candidates 顺序
+        拼接带分区的表名（如 dep_acct_wide_table_92879646_20251228），
+        并验证该分区不仅存在而且行数 > 0 才返回。
 
         Returns:
-            (old_pg_table_name, old_indicator_metadata) 或 (None, None)
+            (old_pg_partitioned_table_name, old_indicator_metadata) 或 (None, None)
         """
-        for cand in copy_candidates:
-            pg_table = f"{wide_table_name}_{cand['version_hash'][:8]}"
-            if AnalyzeDBPartitionManager.table_exists(pg_table):
-                logger.info(f"找到可复用旧表: {pg_table}（来源版本状态={cand['status']}）")
-                return pg_table, cand['indicator_metadata']
+        etl_date_str = etl_date.strftime('%Y%m%d')
 
-        logger.debug(f"未找到任何可用的旧表，copy_candidates共{len(copy_candidates)}个")
+        for cand in copy_candidates:
+            pg_partition = f"{wide_table_name}_{cand['version_hash'][:8]}_{etl_date_str}"
+            if not AnalyzeDBPartitionManager.table_exists(pg_partition):
+                continue
+            row_count = AnalyzeDBPartitionManager.count_partition_rows(pg_partition)
+            if row_count <= 0:
+                logger.debug(
+                    f"旧表 {pg_partition} 存在但无数据（row_count={row_count}），跳过"
+                )
+                continue
+            logger.info(
+                f"找到可复用旧表: {pg_partition}（行数={row_count}，来源版本状态={cand['status']}）"
+            )
+            return pg_partition, cand['indicator_metadata']
+
+        logger.debug(f"未找到任何可用的旧表（行数>0），copy_candidates共{len(copy_candidates)}个")
         return None, None
 
     def _build_pivot_sql_inc(
@@ -570,8 +584,13 @@ PIVOT (
         return sql
 
     def _get_sync_version_info(self, wide_table_name: str) -> Optional[Dict]:
-        """获取用于同步的版本信息"""
-        from sqlalchemy import and_, or_
+        """获取用于同步的版本信息
+
+        target 版本为主（正在发布的新版本），若不存在则降级用 current 版本。
+        copy_candidates 同时收集 current 和 history 版本，用于 _find_copy_source 查找
+        可复用的历史分区来 COPY static 列。
+        """
+        from sqlalchemy import and_
 
         with get_db_session() as db:
             target_version = db.query(FraudHunterWideTableVersion).filter(
@@ -581,65 +600,43 @@ PIVOT (
                 )
             ).first()
 
-            # 收集可用于 COPY 的历史版本（current + 最多 9 个 history，按时间倒序）
-            copy_candidates = []
-            for status in ('current', 'history'):
-                versions = db.query(FraudHunterWideTableVersion).filter(
-                    and_(
-                        FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-                        FraudHunterWideTableVersion.status == status,
-                        # history 版本只取还未被清理的（PG 表还在的交给 table_exists 去筛，这里先不管）
-                    )
-                ).order_by(
-                    # current 优先，history 按 history_at 倒序取最新的
-                    FraudHunterWideTableVersion.current_at.desc()
-                    if status == 'current'
-                    else FraudHunterWideTableVersion.history_at.desc()
-                ).limit(
-                    1 if status == 'current' else 9
-                ).all()
-                for v in versions:
-                    copy_candidates.append({
-                        'version_hash': v.version_hash,
-                        'indicator_metadata': v.indicator_metadata,
-                        'status': status,
-                    })
+            current_version = db.query(FraudHunterWideTableVersion).filter(
+                and_(
+                    FraudHunterWideTableVersion.wide_table_name == wide_table_name,
+                    FraudHunterWideTableVersion.status == 'current'
+                )
+            ).first()
 
-            if not target_version and not copy_candidates:
-                logger.warning(f"{wide_table_name} 没有target和可用的历史版本，跳过同步")
+            # 收集可用于 COPY 的历史版本（current + history，均需要 version_hash）
+            copy_candidates = []
+            copy_vers = db.query(FraudHunterWideTableVersion).filter(
+                           and_(
+                               FraudHunterWideTableVersion.wide_table_name == wide_table_name,
+                               FraudHunterWideTableVersion.status.in_('history', 'current'),
+                           )
+                       ).order_by(
+                           FraudHunterWideTableVersion.created_at.desc()
+                       ).limit(10).all()
+
+            for ver in copy_vers:
+                copy_candidates.append({
+                    'version_hash': ver.version_hash,
+                    'indicator_metadata': ver.indicator_metadata,
+                    'status': ver.status,
+                })
+
+            if not target_version and not current_version:
+                logger.warning(f"{wide_table_name} 没有target和current版本，跳过同步")
                 return None
 
-            # 优先使用 target 版本（正在发布的新版本），否则降级用 history
-            version = target_version
-            if not version and copy_candidates:
-                candidate_hash = copy_candidates[0]['version_hash']
-                version_ref = db.query(FraudHunterWideTableVersion).filter(
-                    FraudHunterWideTableVersion.version_hash == candidate_hash
-                ).first()
-                if not version_ref:
-                    logger.warning(
-                        f"[Bug-B3] {wide_table_name} 指定降级版本 hash={candidate_hash}，"
-                        f"在 DB 中查询无果（可能已被清理），此次同步将被跳过。请检查版本生命周期。"
-                    )
-                version = version_ref
-
-            if not version:
-                logger.warning(
-                    f"[Bug-B3] {wide_table_name} 未能获得有效版本（target={'有' if target_version else '无'}, "
-                    f"history候选={len(copy_candidates)}），同步将被跳过。"
-                )
-
-            current_md = (
-                copy_candidates[0]['indicator_metadata']
-                if copy_candidates and copy_candidates[0]['status'] == 'current'
-                else {}
-            )
+            # 优先使用 target 版本，否则降级用 current 版本
+            version = target_version or current_version
 
             return {
-                'target_version_id': version.id if version else None,
-                'version_hash': version.version_hash if version else None,
-                'indicator_metadata': version.indicator_metadata if version else {},
-                'current_indicator_metadata': current_md,
+                'target_version_id': version.id,
+                'version_hash': version.version_hash,
+                'indicator_metadata': version.indicator_metadata,
+                'target_indicator_metadata': target_version.indicator_metadata if target_version else {},
                 'copy_candidates': copy_candidates,
             }
 
@@ -737,7 +734,6 @@ PIVOT (
                 version_hash=version_info['version_hash'],
                 indicator_metadata=version_info['indicator_metadata'],
                 etl_date=etl_date,
-                current_indicator_metadata=version_info.get('current_indicator_metadata'),
                 copy_candidates=version_info.get('copy_candidates'),
             )
         except Exception as e:
