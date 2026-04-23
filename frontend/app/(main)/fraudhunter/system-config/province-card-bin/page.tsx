@@ -111,11 +111,11 @@ export default function Page() {
         await updateProvinceCardBin({ ...form, card_bin: trimmed }, "POST");
         toast.success("新增成功");
       } else {
-        const keyChanged = trimmed !== recordToEdit;
+        // card_bin 一律以 recordToEdit 为准（旧值用于锁定记录，trimmed 只参与 body 内容）
         await updateProvinceCardBin(
           { ...form, card_bin: trimmed },
           "PUT",
-          keyChanged ? recordToEdit : undefined,
+          recordToEdit,
         );
         toast.success("更新成功");
       }

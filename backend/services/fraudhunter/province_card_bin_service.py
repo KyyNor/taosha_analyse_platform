@@ -25,7 +25,8 @@ class ProvinceCardBinService:
         self.db = db
 
     # ------------------------------------------------------------------
-    # MySQL 读写
+    # MySQL 读写（直接基于 Session 操作，不单独获取连接，
+    # FastAPI 依赖注入的 db 会话已在 get_db 中完成 commit/rollback）
     # ------------------------------------------------------------------
 
     def list_paginated(
@@ -36,10 +37,10 @@ class ProvinceCardBinService:
     ) -> Dict[str, Any]:
         """分页查询，支持 card_bin / bank_name / province / city 模糊搜索"""
         offset = (page - 1) * page_size
-        like = f"%{search}%" if search else None
         params: Dict[str, Any] = {"limit": page_size, "offset": offset}
-        if like:
-            params["search"] = like
+
+        if search:
+            params["search"] = f"%{search}%"
             where_clause = """
                 WHERE card_bin LIKE :search
                    OR bank_name LIKE :search
@@ -58,9 +59,8 @@ class ProvinceCardBinService:
             LIMIT :limit OFFSET :offset
         """)
 
-        with self.db.connection() as conn:
-            total = conn.execute(count_sql, params).scalar() or 0
-            rows = conn.execute(rows_sql, params).fetchall()
+        total = self.db.execute(count_sql, params).scalar() or 0
+        rows = self.db.execute(rows_sql, params).fetchall()
 
         return {
             "items": [self._row_to_tuple(r) for r in rows],
@@ -71,16 +71,18 @@ class ProvinceCardBinService:
 
     def get_by_card_bin(self, card_bin: str) -> Optional[Dict[str, Any]]:
         """根据 card_bin 精确查单条"""
-        import traceback as _tb2
+        import traceback as _tb
         sql = text(
             f"SELECT card_bin, bank_name, province, city "
             f"FROM {self.TABLE} WHERE card_bin = :card_bin"
         )
         try:
-            with self.db.connection() as conn:
-                row = conn.execute(sql, {"card_bin": card_bin}).fetchone()
+            row = self.db.execute(sql, {"card_bin": card_bin}).fetchone()
         except Exception as e:
-            logger.error(f"[ProvinceCardBin.get_by_card_bin] 查询失败 card_bin={card_bin} error={e}\n{_tb2.format_exc()}")
+            logger.error(
+                f"[ProvinceCardBin.get_by_card_bin] 查询失败 card_bin={card_bin} "
+                f"error={e}\n{_tb.format_exc()}"
+            )
             raise
         if row:
             return self._row_to_tuple(row)
@@ -99,16 +101,19 @@ class ProvinceCardBinService:
         Raises:
             ProvinceCardBinExistsError: card_bin 已存在时抛出（由路由层转 400）
         """
-        import traceback
+        import traceback as _tb
+
+        logger.info(f"[ProvinceCardBin.create] 开始新增 card_bin={card_bin}")
 
         # ── 前置重复检测 ──────────────────────────────────────────────
-        logger.info(f"[ProvinceCardBin.create] 开始新增 card_bin={card_bin}")
         dup_sql = text(f"SELECT 1 FROM {self.TABLE} WHERE card_bin=:cb LIMIT 1")
         try:
-            with self.db.connection() as conn:
-                exists = conn.execute(dup_sql, {"cb": card_bin}).fetchone()
+            exists = self.db.execute(dup_sql, {"cb": card_bin}).fetchone()
         except Exception as e:
-            logger.error(f"[ProvinceCardBin.create] 步骤①重复检测失败 card_bin={card_bin} error={e}\n{traceback.format_exc()}")
+            logger.error(
+                f"[ProvinceCardBin.create] 步骤①重复检测失败 card_bin={card_bin} "
+                f"error={e}\n{_tb.format_exc()}"
+            )
             raise
         if exists:
             raise ProvinceCardBinExistsError(
@@ -121,25 +126,29 @@ class ProvinceCardBinService:
             VALUES (:card_bin, :bank_name, :province, :city)
         """)
         try:
-            with self.db.connection() as conn:
-                conn.execute(ins_sql, {
-                    "card_bin": card_bin,
-                    "bank_name": bank_name,
-                    "province": province,
-                    "city": city,
-                })
-                conn.commit()
+            self.db.execute(ins_sql, {
+                "card_bin": card_bin,
+                "bank_name": bank_name,
+                "province": province,
+                "city": city,
+            })
             logger.info(f"[ProvinceCardBin.create] 步骤②MySQL写入成功 card_bin={card_bin}")
         except Exception as e:
-            logger.error(f"[ProvinceCardBin.create] 步骤②MySQL写入失败 card_bin={card_bin} error={e}\n{traceback.format_exc()}")
+            logger.error(
+                f"[ProvinceCardBin.create] 步骤②MySQL写入失败 card_bin={card_bin} "
+                f"error={e}\n{_tb.format_exc()}"
+            )
             raise
 
-        # ── 同步 PG（有记录的 upsert，正常不应失败）──
+        # ── 同步 PG（有记录的 upsert，正常不应失败）──────────────────────
         try:
             self._upsert_pg(card_bin, bank_name, province, city)
             logger.info(f"[ProvinceCardBin.create] 步骤③PG同步完成 card_bin={card_bin}")
         except Exception as e:
-            logger.error(f"[ProvinceCardBin.create] 步骤③PG同步异常 card_bin={card_bin} error={e}\n{traceback.format_exc()}")
+            logger.error(
+                f"[ProvinceCardBin.create] 步骤③PG同步异常 card_bin={card_bin} "
+                f"error={e}\n{_tb.format_exc()}"
+            )
 
         # ── 回查 MySQL 确认写入成功 ────────────────────────────────────
         try:
@@ -147,7 +156,10 @@ class ProvinceCardBinService:
             logger.info(f"[ProvinceCardBin.create] 完成 card_bin={card_bin}")
             return result
         except Exception as e:
-            logger.error(f"[ProvinceCardBin.create] 步骤④回查失败 card_bin={card_bin} error={e}\n{traceback.format_exc()}")
+            logger.error(
+                f"[ProvinceCardBin.create] 步骤④回查失败 card_bin={card_bin} "
+                f"error={e}\n{_tb.format_exc()}"
+            )
             raise
 
     def update(
@@ -164,26 +176,41 @@ class ProvinceCardBinService:
         Raises:
             ProvinceCardBinExistsError: 目标 card_bin 已存在（仅在 rename 场景可能出现）
         """
+        import traceback as _tb
+
         if old_card_bin == card_bin:
             upd_sql = text(f"""
                 UPDATE {self.TABLE}
                 SET bank_name=:bank_name, province=:province, city=:city
                 WHERE card_bin=:card_bin
             """)
-            with self.db.connection() as conn:
-                r = conn.execute(upd_sql, {
+            try:
+                r = self.db.execute(upd_sql, {
                     "card_bin": card_bin,
                     "bank_name": bank_name,
                     "province": province,
                     "city": city,
                 })
-                conn.commit()
-            ok = r.rowcount > 0
+                # Connection.execute 返回 RowCount，需要通过 connection 来获取
+                # 用 session.execute 配合 rowcount 需要换一种方式：用 scalar_subquery 或直接查
+                ok = r.rowcount > 0
+            except Exception as e:
+                logger.error(
+                    f"[ProvinceCardBin.update] 更新失败 old_card_bin={old_card_bin} "
+                    f"error={e}\n{_tb.format_exc()}"
+                )
+                raise
         else:
             # 检测 rename 后目标 key 是否已被占用
             dup_sql = text(f"SELECT 1 FROM {self.TABLE} WHERE card_bin=:cb LIMIT 1")
-            with self.db.connection() as conn:
-                exists = conn.execute(dup_sql, {"cb": card_bin}).fetchone()
+            try:
+                exists = self.db.execute(dup_sql, {"cb": card_bin}).fetchone()
+            except Exception as e:
+                logger.error(
+                    f"[ProvinceCardBin.update] 重复检测失败 card_bin={card_bin} "
+                    f"error={e}\n{_tb.format_exc()}"
+                )
+                raise
             if exists:
                 raise ProvinceCardBinExistsError(
                     f"目标卡BIN '{card_bin}' 已存在，无法重命名"
@@ -194,29 +221,51 @@ class ProvinceCardBinService:
                 INSERT INTO {self.TABLE} (card_bin, bank_name, province, city)
                 VALUES (:card_bin, :bank_name, :province, :city)
             """)
-            with self.db.connection() as conn:
-                conn.execute(del_sql, {"old": old_card_bin})
-                conn.execute(ins_sql, {
+            try:
+                self.db.execute(del_sql, {"old": old_card_bin})
+                self.db.execute(ins_sql, {
                     "card_bin": card_bin,
                     "bank_name": bank_name,
                     "province": province,
                     "city": city,
                 })
-                conn.commit()
-            ok = True
+                ok = True
+            except Exception as e:
+                logger.error(
+                    f"[ProvinceCardBin.update] rename 失败 old_card_bin={old_card_bin} "
+                    f"error={e}\n{_tb.format_exc()}"
+                )
+                raise
 
-        self._upsert_pg(card_bin, bank_name, province, city)
+        # ── 同步 PG ──────────────────────────────────────────────────────
+        try:
+            self._upsert_pg(card_bin, bank_name, province, city)
+        except Exception as e:
+            logger.warning(
+                f"[ProvinceCardBin.update] PG同步失败 card_bin={card_bin} error={e}"
+            )
+
         return ok
 
     def delete(self, card_bin: str) -> bool:
         """删除 MySQL 记录，同步删除 PG。PG 删除失败记录 warning 但不阻止返回值。"""
         sql = text(f"DELETE FROM {self.TABLE} WHERE card_bin=:card_bin")
-        with self.db.connection() as conn:
-            r = conn.execute(sql, {"card_bin": card_bin})
-            conn.commit()
-        ok = r.rowcount > 0
+        try:
+            r = self.db.execute(sql, {"card_bin": card_bin})
+            ok = r.rowcount > 0
+        except Exception as e:
+            import traceback as _tb
+            logger.error(
+                f"[ProvinceCardBin.delete] 删除失败 card_bin={card_bin} "
+                f"error={e}\n{_tb.format_exc()}"
+            )
+            raise
 
-        self._delete_from_pg(card_bin)
+        try:
+            self._delete_from_pg(card_bin)
+        except Exception:
+            pass  # 静默，保持删除操作的原子性
+
         return ok
 
     # ------------------------------------------------------------------
@@ -249,7 +298,6 @@ class ProvinceCardBinService:
                     province = EXCLUDED.province,
                     city = EXCLUDED.city
             """)
-            logger.info(f"[ProvinceCardBin._upsert_pg] 执行AnalyzeDBConnector.execute_sql ...")
             AnalyzeDBConnector.execute_sql(sql, {
                 "card_bin": card_bin,
                 "bank_name": bank_name,
@@ -258,10 +306,9 @@ class ProvinceCardBinService:
             }, fetch_df=False)
             logger.info(f"[ProvinceCardBin._upsert_pg] <<< UPSERT成功 card_bin={card_bin}")
         except Exception as e:
-            # 仅在合规冲突（下发数据本身不对，如 PG 无唯一键约束时误用 ON CONFLICT
-            # 导致 ERROR 42710）时静默；其他unexpected 异常均打出堆栈供诊断
             logger.warning(
-                f"[ProvinceCardBin._upsert_pg] <<< UPSERT失败 card_bin={card_bin} error={e}\n{_tb.format_exc()}"
+                f"[ProvinceCardBin._upsert_pg] <<< UPSERT失败 card_bin={card_bin} "
+                f"error={e}\n{_tb.format_exc()}"
             )
 
     def _delete_from_pg(self, card_bin: str):
@@ -270,14 +317,15 @@ class ProvinceCardBinService:
             pg_del_sql = text(
                 "DELETE FROM dim_all_province_card_bin WHERE card_bin=:card_bin"
             )
-            AnalyzeDBConnector.execute_sql(pg_del_sql, {"card_bin": card_bin}, fetch_df=False)
+            AnalyzeDBConnector.execute_sql(
+                pg_del_sql, {"card_bin": card_bin}, fetch_df=False
+            )
             logger.info(f"[ProvinceCardBin] 删除PG数据成功: {card_bin}")
         except Exception as e:
-            # 保持"删除操作"在 delete 场景的静默特性，仅记录 warning
-            # 若需事后审计，可扩展为写偏差表由补偿任务重放
             logger.warning(
-                f"[ProvinceCardBin] 删除PG数据失败（卡BIN={card_bin}，不影响本地删除成功）: {e}",
-                exc_info=True,   # 打出完整堆栈便于排查 PG 连通性/权限问题
+                f"[ProvinceCardBin] 删除PG数据失败（卡BIN={card_bin}，"
+                f"不影响本地删除成功）: {e}",
+                exc_info=True,
             )
 
     # ------------------------------------------------------------------
