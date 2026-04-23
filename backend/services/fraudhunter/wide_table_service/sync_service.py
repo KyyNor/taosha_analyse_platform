@@ -612,7 +612,7 @@ PIVOT (
             copy_vers = db.query(FraudHunterWideTableVersion).filter(
                            and_(
                                FraudHunterWideTableVersion.wide_table_name == wide_table_name,
-                               FraudHunterWideTableVersion.status.in_('history', 'current'),
+                               FraudHunterWideTableVersion.status.in_(['history', 'current']),
                            )
                        ).order_by(
                            FraudHunterWideTableVersion.created_at.desc()
