@@ -974,7 +974,7 @@ class ModelHitAlertManager:
             TrendResponse，含 series（时间刻度 × 模型 的去重账户数列表）
         """
         try:
-            req_start = datetime.strptime(req.start_date, "%Y-%m-dd").date()
+            req_start = datetime.strptime(req.start_date, "%Y-%m-%d").date()
             req_end = datetime.strptime(req.end_date, "%Y-%m-%d").date()
         except ValueError as e:
             raise ValueError(f"日期格式无效，应为 YYYY-MM-DD，当前值不合法: {e}")
