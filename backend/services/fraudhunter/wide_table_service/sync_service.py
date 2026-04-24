@@ -341,15 +341,8 @@ class WideTableSyncService:
             logger.info(f"[增量] 无static列可COPY或旧表不存在，跳过 (static={bool(static_cols)})")
 
         # === 步骤 C：创建辅助表（仅 inc_cols + target_id + etl_date，无分区，轻量）===
-        aux_specs = [("target_id", "varchar(100)"), ("etl_date", "varchar(30)")]
-        for code in inc_cols:
-            # 默认 float 类型，覆盖时请使用 target_metadata 中记录的 data_type
-            dt = target_metadata.get(code, {}).get('data_type', 'float')
-            pg_t = AnalyzeDBPartitionManager._map_pg_type(dt)
-            aux_specs.append((code, pg_t))
-
-        AnalyzeDBPartitionManager.create_heap_table(aux_table, aux_specs)
-        logger.debug(f"[增量] 辅助表已创建: {aux_table}，含 {len(aux_specs)-2} 个指标列")
+        AnalyzeDBPartitionManager.create_heap_table(aux_table, target_metadata)
+        logger.debug(f"[增量] 辅助表已创建: {aux_table}，含 {len(target_metadata)} 个指标列")
 
         try:
             # === 步骤 D：Spark PIVOT inc_cols → JDBC append 到辅助表 ===

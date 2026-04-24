@@ -366,20 +366,23 @@ class AnalyzeDBPartitionManager:
         }
         return type_mapping.get(indicator_type, 'varchar(1000)')
 
+    @classmethod
+    def _resolve_pg_column_def(cls, indicator_code: str, long_text_list: list) -> tuple:
+        """根据指标代码判断 PG 列定义：三档——短 varchar、text、长 varchar。"""
+        SHORT_VARCHAR_COLS = {'target_id', 'etl_date'}
+        if indicator_code in SHORT_VARCHAR_COLS:
+            pg_type = 'varchar(100) NOT NULL' if indicator_code == 'target_id' else 'varchar(30) NOT NULL'
+            return (indicator_code, pg_type)
+        if indicator_code in long_text_list:
+            return (indicator_code, 'text')
+        return (indicator_code, 'varchar(1000)')
+
     @staticmethod
     def create_wide_table(
         table_name: str,
         indicator_metadata: Dict[str, Any],
         partition_col: str = None
     ) -> bool:
-        columns = [
-            ("target_id", "varchar(100) NOT NULL"),
-            ("etl_date", "varchar(30) NOT NULL")
-        ]
-
-        if partition_col:
-            columns.append((partition_col, "varchar(50) NOT NULL"))
-
         # 从系统配置获取长文本指标列表
         long_text_indicator_list = []
         try:
@@ -392,13 +395,20 @@ class AnalyzeDBPartitionManager:
         except Exception as e:
             logger.warning(f"获取系统配置 long_text_indicator_list 失败: {e}，使用空列表")
 
+        columns = [AnalyzeDBPartitionManager._resolve_pg_column_def('target_id', [])]
+        columns.append(AnalyzeDBPartitionManager._resolve_pg_column_def('etl_date', []))
+
+        if partition_col:
+            columns.append((partition_col, 'varchar(50) NOT NULL'))
+
         for meta in indicator_metadata.values():
             indicator_code = meta.get('indicator_code')
             if indicator_code:
-                pg_type = AnalyzeDBPartitionManager._map_pg_type(meta.get('data_type', 'string'))
-                if indicator_code in long_text_indicator_list:
-                    pg_type = 'text'
-                columns.append((indicator_code, pg_type))
+                columns.append(
+                    AnalyzeDBPartitionManager._resolve_pg_column_def(
+                        indicator_code, long_text_indicator_list
+                    )
+                )
 
         if partition_col:
             success = AnalyzeDBPartitionManager.create_partitioned_table(table_name, columns, partition_col)
@@ -734,11 +744,42 @@ class AnalyzeDBPartitionManager:
             return False
 
     @staticmethod
-    def create_heap_table(table_name: str, column_specs: list) -> bool:
+    def create_heap_table(table_name: str, indicator_metadata: list) -> bool:
         """创建一个不分区的简易表（仅用于辅助表，创建和删除都快）"""
-        cols_def = ", ".join(f'"{col}" {dtype}' for col, dtype in column_specs)
-        sql = f'CREATE TABLE IF NOT EXISTS {table_name} ({cols_def})'
-        return AnalyzeDBPartitionManager._execute_ddl(sql, f"创建辅助表: {table_name}", "创建辅助表失败")
+        long_text_indicator_list = []
+        try:
+            with get_db_session() as db:
+                config_manager = SystemConfigManager(db)
+                long_text_indicator_list = config_manager.get_config_value(
+                    'long_text_indicator_list',
+                    default=[]
+                )
+        except Exception as e:
+            logger.warning(f"获取系统配置 long_text_indicator_list 失败: {e}，使用空列表")
+
+        columns = [AnalyzeDBPartitionManager._resolve_pg_column_def('target_id', [])]
+        columns.append(AnalyzeDBPartitionManager._resolve_pg_column_def('etl_date', []))
+
+        for meta in indicator_metadata.values():
+            indicator_code = meta.get('indicator_code')
+            if indicator_code:
+                columns.append(
+                    AnalyzeDBPartitionManager._resolve_pg_column_def(
+                        indicator_code, long_text_indicator_list
+                    )
+                )
+
+        columns_sql = ",\n    ".join(f"{name} {typ}" for name, typ in columns)
+            
+        sql = f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                {columns_sql},
+                created_at timestamptz DEFAULT now()
+            );
+        """
+        return AnalyzeDBPartitionManager._execute_ddl(
+            sql, f"表创建成功: {table_name}", f"表创建失败: {table_name}"
+        )
 
     @staticmethod
     def copy_static_columns(
