@@ -128,7 +128,7 @@ class WideTableSyncService:
             inc_codes = changed + new_cols
             pg_table_name = f"{wide_table_name}_{version_hash[:8]}"
 
-            if old_pg_table and inc_codes:
+            if 1==2 and old_pg_table and inc_codes:
                 # ===== 增量同步路径（真实实现）=====
                 # ① 建主表（含全量列）和分区（表名恒新，不需要 DROP）
                 AnalyzeDBPartitionManager.create_wide_table(pg_table_name, indicator_metadata)
