@@ -144,7 +144,7 @@ class DolphinSchedulerService:
 
                 # 指标SQL执行
                 sql_header_comment = (
-                    f"-- 任务ID: {indicator_task.id}, "
+                    f"-- 任务ID: {indicator_task.id} {indicator_task.task_code}, "
                     f"任务名称: {indicator_task.task_name}, "
                     f"修改时间: ${{date}}"
                 )
