@@ -131,31 +131,39 @@ class DolphinSchedulerService:
 #                 # 将所有SQL语句用分号连接
 #                 full_sql = ";\n\n".join(sql_statements) + ";"
 
-                # 生成横表转纵表的SQL
-                unpivot_unions = []
-                for indicator_code in indicator_codes:
-                    unpivot_unions.append(f"""
-                    SELECT
-                        target_id,
-                        {indicator_code} as indicator_value,
-                        '{indicator_task.object_type}' as object_type,
-                        etl_date as etl_date,
-                        '{indicator_code}' as indicator_id
-                    FROM temp_data
-                    """.strip())
-
-                unpivot_sql = "\nUNION ALL\n".join(unpivot_unions)
+                # 生成横表转纵表的SQL（使用 LATERAL VIEW STACK 替代 UNION ALL）
+                n_cols = len(indicator_codes)
+                stack_pairs = ", ".join([
+                    f"'{code}', cast(ifnull({code}, '') as string)"
+                    for code in indicator_codes
+                ])
+                lateral_view_stack = (
+                    f"LATERAL VIEW STACK({n_cols}, {stack_pairs}) "
+                    f"AS indicator_id, indicator_value"
+                )
 
                 # 指标SQL执行
+                sql_header_comment = (
+                    f"-- 任务ID: {indicator_task.id}, "
+                    f"任务名称: {indicator_task.task_name}, "
+                    f"修改时间: ${{date}}"
+                )
                 indicator_task_sql = Sql(
                     name="indicator_task_sql",
-                    sql=f"""with temp_data as (
-                                 {indicator_task.logic_content}
-                            )
-                            INSERT OVERWRITE TABLE
-                            hxb_dh_data_dwm.dwm_taosha_indicator_details
-                            {unpivot_sql}
-                            """,
+                    sql=f"""{sql_header_comment}
+WITH temp_data AS (
+                                    {indicator_task.logic_content}
+                                )
+                                INSERT OVERWRITE TABLE hxb_dh_data_dwm.dwm_taosha_indicator_details
+                                SELECT
+                                    target_id,
+                                    indicator_value,
+                                    '{indicator_task.object_type}' AS object_type,
+                                    etl_date,
+                                    indicator_id
+                                FROM temp_data
+                                {lateral_view_stack}
+                                """,
                     datasource_name=settings.dolphinscheduler_task_sql_task_datasource_name,
                     sql_type="1",  # NOT_SELECT 非查询
                     environment_name="bdspk",
