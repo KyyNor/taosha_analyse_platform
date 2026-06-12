@@ -41,6 +41,7 @@ export default function RiskControlModelsPage() {
 
   // 筛选状态
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [modelTypeFilter, setModelTypeFilter] = useState<string>("all");
 
   // 搜索状态
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -74,6 +75,7 @@ export default function RiskControlModelsPage() {
         page_size: pageSize,
       };
       if (statusFilter !== "all") params.status = statusFilter;
+      if (modelTypeFilter !== "all") params.model_type = modelTypeFilter;
       if (searchQuery.trim()) params.search = searchQuery.trim();
 
       const response = await riskControlModelService.list(params);
@@ -88,12 +90,12 @@ export default function RiskControlModelsPage() {
 
   useEffect(() => {
     load();
-  }, [statusFilter, searchQuery, currentPage]);
+  }, [statusFilter, modelTypeFilter, searchQuery, currentPage]);
 
   // 筛选条件或搜索变化时重置到第一页
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, searchQuery]);
+  }, [statusFilter, modelTypeFilter, searchQuery]);
 
   // 分页处理
   const handlePageChange = (page: number) => {
@@ -124,6 +126,16 @@ export default function RiskControlModelsPage() {
     { key: "id", label: "ID", type: "number" as const },
     { key: "model_code", label: "模型编码", type: "text" as const },
     {
+      key: "model_type",
+      label: "类型",
+      type: "custom" as const,
+      render: (value: string) => (
+        <span className="text-sm">
+          {value === "prefix" ? "前缀模型" : "普通模型"}
+        </span>
+      ),
+    },
+    {
       key: "model_name",
       label: "模型名称",
       type: "custom" as const,
@@ -146,6 +158,7 @@ export default function RiskControlModelsPage() {
     },
     { key: "current_version", label: "当前版本", type: "number" as const },
     { key: "latest_version", label: "最新版本", type: "number" as const },
+    { key: "online_at", label: "上线时间", type: "datetime" as const },
     {
       key: "is_send_alert_message",
       label: "发送告警",
@@ -403,6 +416,16 @@ export default function RiskControlModelsPage() {
             <SelectItem value="online">已上线</SelectItem>
             <SelectItem value="offline">已下线</SelectItem>
             <SelectItem value="archived">已归档</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={modelTypeFilter} onValueChange={setModelTypeFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="类型筛选" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部类型</SelectItem>
+            <SelectItem value="normal">普通模型</SelectItem>
+            <SelectItem value="prefix">前缀模型</SelectItem>
           </SelectContent>
         </Select>
         <Button

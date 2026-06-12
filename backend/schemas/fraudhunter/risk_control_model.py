@@ -3,7 +3,7 @@ FraudHunter预警管控模型管理相关Pydantic schemas
 """
 
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime
 from .rule import RuleConfig
 
@@ -14,6 +14,7 @@ class RiskControlModelBase(BaseModel):
     """预警管控模型基础模型"""
     model_code: Optional[str] = Field(None, max_length=64, description="模型编码（可选，不提供则自动生成）")
     model_name: str = Field(..., min_length=1, max_length=128, description="模型名称")
+    model_type: Literal["normal", "prefix"] = Field("normal", description="模型类型：normal/prefix")
     description: Optional[str] = Field(None, description="模型描述")
 
     # 规则配置
@@ -25,6 +26,11 @@ class RiskControlModelBase(BaseModel):
     is_acct_control: bool = Field(False, description="是否账户控制")
     is_send_financial_manager_alert: bool = Field(False, description="是否同时发送理财经理告警通知（前置：is_send_alert_message=True）")
 
+    @field_validator('model_type', mode='before')
+    @classmethod
+    def default_model_type(cls, v):
+        return v or 'normal'
+
 
 class RiskControlModelCreate(RiskControlModelBase):
     """创建预警管控模型请求模型"""
@@ -34,6 +40,7 @@ class RiskControlModelCreate(RiskControlModelBase):
 class RiskControlModelUpdate(BaseModel):
     """更新预警管控模型请求模型"""
     model_name: Optional[str] = Field(None, min_length=1, max_length=128, description="模型名称")
+    model_type: Optional[Literal["normal", "prefix"]] = Field(None, description="模型类型：normal/prefix")
     description: Optional[str] = Field(None, description="模型描述")
     rule_config: Optional[RuleConfig] = Field(None, description="规则配置")
     is_send_alert_message: Optional[bool] = Field(None, description="是否发送告警消息")
@@ -59,6 +66,8 @@ class RiskControlModelResponse(RiskControlModelBase):
 
     # 状态
     status: str
+    online_at: Optional[datetime] = None
+    online_by: Optional[str] = None
 
     # 审计
     created_by: Optional[str] = None

@@ -53,6 +53,7 @@ export interface ListRiskControlModelsParams {
   page?: number
   page_size?: number
   status?: string
+  model_type?: string
   object_type?: string
   model_code?: string
 }

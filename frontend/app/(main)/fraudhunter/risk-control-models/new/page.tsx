@@ -10,9 +10,17 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import { riskControlModelService } from "@/lib/services/fraudhunterService";
 import { indicatorService } from "@/lib/services/fraudhunterService";
 import type { RiskControlModelCreate } from "@/types/fraudhunter/risk-control-model";
+import type { RiskControlModel } from "@/types/fraudhunter/risk-control-model";
 import type { RuleConfig, Indicator } from "@/types/fraudhunter/rule";
 import { RuleBuilder } from "@/components/fraudhunter/model/RuleBuilder";
 import { RuleImportExport } from "@/components/fraudhunter/model/RuleImportExport";
@@ -23,10 +31,12 @@ export default function NewRiskControlModelPage() {
   const { confirm, DialogComponent } = useConfirmDialog();
   const [saving, setSaving] = useState(false);
   const [indicators, setIndicators] = useState<Indicator[]>([]);
+  const [prefixModels, setPrefixModels] = useState<RiskControlModel[]>([]);
 
   // 表单数据
   const [formData, setFormData] = useState<RiskControlModelCreate>({
     model_name: "",
+    model_type: "normal",
     description: "",
     rule_config: {
       logic: "AND",
@@ -63,6 +73,20 @@ export default function NewRiskControlModelPage() {
       }
     };
     loadIndicators();
+
+    const loadPrefixModels = async () => {
+      try {
+        const response = await riskControlModelService.list({
+          page: 1,
+          page_size: 2000,
+          model_type: "prefix"
+        });
+        setPrefixModels(response.items || []);
+      } catch (error) {
+        console.error("Failed to load prefix models:", error);
+      }
+    };
+    loadPrefixModels();
   }, []);
 
   // 从规则中提取所有指标编码
@@ -106,7 +130,11 @@ export default function NewRiskControlModelPage() {
     setSaving(true);
     try {
       const submitData = {
-        ...formData
+        ...formData,
+        is_send_alert_message: formData.model_type === "prefix" ? false : formData.is_send_alert_message,
+        alert_message_target: formData.model_type === "prefix" ? undefined : formData.alert_message_target,
+        is_acct_control: formData.model_type === "prefix" ? false : formData.is_acct_control,
+        is_send_financial_manager_alert: formData.model_type === "prefix" ? false : formData.is_send_financial_manager_alert
       };
       const result = await riskControlModelService.create(submitData);
       toast.success("预警管控模型创建成功");
@@ -178,6 +206,25 @@ export default function NewRiskControlModelPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
+              <Label htmlFor="model-type">模型类型</Label>
+              <Select
+                value={formData.model_type || "normal"}
+                onValueChange={(value: "normal" | "prefix") => updateField("model_type", value)}
+              >
+                <SelectTrigger id="model-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">普通模型</SelectItem>
+                  <SelectItem value="prefix">前缀模型</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground mt-1">
+                前缀模型只作为公共规则片段被其他模型引用，不单独发送告警或执行管控。
+              </p>
+            </div>
+
+            <div>
               <Label htmlFor="model-name">模型名称 *</Label>
               <Input
                 id="model-name"
@@ -221,11 +268,13 @@ export default function NewRiskControlModelPage() {
               indicators={indicators}
               initialRule={formData.rule_config}
               onChange={handleRuleChange}
+              prefixModels={prefixModels}
             />
           </CardContent>
         </Card>
 
         {/* 告警配置 */}
+        {formData.model_type !== "prefix" && (
         <Card>
           <CardHeader>
             <CardTitle>告警配置</CardTitle>
@@ -284,6 +333,7 @@ export default function NewRiskControlModelPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
     </div>
     </>

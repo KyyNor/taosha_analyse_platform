@@ -340,7 +340,8 @@ def step2_online_model_executor(db, offline_tables, generated_realtime_tables):
     logger.debug("=" * 60)
 
     online_models = db.query(FraudHunterModelDefinition).filter(
-        FraudHunterModelDefinition.status == 'online'
+        FraudHunterModelDefinition.status == 'online',
+        FraudHunterModelDefinition.model_type == 'normal'
     ).all()
 
     if not online_models:

@@ -21,11 +21,13 @@ from loguru import logger
 
 from schemas.fraudhunter.rule import (
     RuleConfig, Rule, ConditionRule, GroupRule,
+    ModelReferenceRule,
     ComparisonOperator, RuleValidationResult,
     ValueExpression, ConstantValue, IndicatorReference,
     TimeFunction, MathFunction, RelativeCalculation
 )
 from models.fraudhunter.indicator import FraudHunterIndicatorDefinition
+from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
 
 
 class RuleEngine:
@@ -42,6 +44,7 @@ class RuleEngine:
     def __init__(self, db: Session):
         self.db = db
         self._indicator_cache: Dict[str, Optional[FraudHunterIndicatorDefinition]] = {}
+        self._model_cache: Dict[int, Optional[FraudHunterModelDefinition]] = {}
 
     # ==================== 辅助方法 ====================
 
@@ -81,6 +84,22 @@ class RuleEngine:
 
         return self._indicator_cache[indicator_code]
 
+    def _get_model_cached(self, model_id: int) -> Optional[FraudHunterModelDefinition]:
+        """带缓存的模型查询。"""
+        if model_id not in self._model_cache:
+            model = self.db.query(FraudHunterModelDefinition).filter(
+                FraudHunterModelDefinition.id == model_id
+            ).first()
+            self._model_cache[model_id] = model
+
+        return self._model_cache[model_id]
+
+    def _get_model_rule_config(self, model: FraudHunterModelDefinition) -> RuleConfig:
+        """获取模型的规则配置对象。"""
+        if isinstance(model.rule_config, RuleConfig):
+            return model.rule_config
+        return RuleConfig(**model.rule_config)
+
     def _extract_indicators_from_value_expression(self, expr: ValueExpression) -> Set[str]:
         """
         从值表达式中提取指标编码
@@ -106,7 +125,11 @@ class RuleEngine:
 
     # ==================== 规则验证 ====================
 
-    def validate_rule_config(self, rule_config: RuleConfig) -> RuleValidationResult:
+    def validate_rule_config(
+        self,
+        rule_config: RuleConfig,
+        current_model_id: Optional[int] = None
+    ) -> RuleValidationResult:
         """
         验证规则配置的完整性和正确性
 
@@ -128,7 +151,7 @@ class RuleEngine:
 
         try:
             # 1. 提取所有使用的指标
-            indicators = self._extract_indicators(rule_config)
+            indicators = self._extract_indicators(rule_config, visited_model_ids={current_model_id} if current_model_id else set())
             result.extracted_indicators = list(indicators)
 
             # 2. 验证指标是否存在
@@ -136,11 +159,11 @@ class RuleEngine:
             logger.info(1)
 
             # 3. 验证规则结构
-            self._validate_rule_structure(rule_config, result)
+            self._validate_rule_structure(rule_config, result, current_model_id=current_model_id)
             logger.info(2)
 
             # 4. 验证数据类型和操作符匹配
-            self._validate_operator_compatibility(rule_config, result)
+            self._validate_operator_compatibility(rule_config, result, current_model_id=current_model_id)
             logger.info(3)
 
             # 6. 检查规则深度
@@ -168,9 +191,14 @@ class RuleEngine:
 
         return result
 
-    def _extract_indicators(self, config: RuleConfig) -> Set[str]:
+    def _extract_indicators(
+        self,
+        config: RuleConfig,
+        visited_model_ids: Optional[Set[int]] = None
+    ) -> Set[str]:
         """递归提取所有使用的指标编码（包括值表达式中的指标）"""
         indicators = set()
+        visited_model_ids = visited_model_ids or set()
 
         def extract_from_rule(rule: Rule):
             if isinstance(rule, ConditionRule):
@@ -181,6 +209,16 @@ class RuleEngine:
             elif isinstance(rule, GroupRule):
                 for sub_rule in rule.rules:
                     extract_from_rule(sub_rule)
+            elif isinstance(rule, ModelReferenceRule):
+                if rule.model_id in visited_model_ids:
+                    return
+                ref_model = self._get_model_cached(rule.model_id)
+                if not ref_model:
+                    return
+                visited_model_ids.add(rule.model_id)
+                ref_rule_config = self._get_model_rule_config(ref_model)
+                indicators.update(self._extract_indicators(ref_rule_config, visited_model_ids))
+                visited_model_ids.remove(rule.model_id)
 
         for rule in config.rules:
             extract_from_rule(rule)
@@ -220,9 +258,11 @@ class RuleEngine:
     def _validate_rule_structure(
         self,
         config: RuleConfig,
-        result: RuleValidationResult
+        result: RuleValidationResult,
+        current_model_id: Optional[int] = None
     ):
         """验证规则结构的合法性"""
+        visited_model_ids = {current_model_id} if current_model_id else set()
 
         def validate_rule(rule: Rule, path: str):
             if isinstance(rule, ConditionRule):
@@ -244,6 +284,33 @@ class RuleEngine:
                     # 递归验证子规则
                     for i, sub_rule in enumerate(rule.rules):
                         validate_rule(sub_rule, f"{path}.rules[{i}]")
+            elif isinstance(rule, ModelReferenceRule):
+                ref_model = self._get_model_cached(rule.model_id)
+                if not ref_model:
+                    result.errors.append(f"{path}: 引用模型不存在: {rule.model_id}")
+                    return
+
+                if ref_model.model_type != 'prefix':
+                    result.errors.append(
+                        f"{path}: 只能引用前缀模型，当前引用的是普通模型: {ref_model.model_code}"
+                    )
+
+                if rule.model_id in visited_model_ids:
+                    result.errors.append(f"{path}: 检测到模型循环引用: {ref_model.model_code}")
+                    return
+
+                if ref_model.status != 'online':
+                    result.warnings.append(
+                        f"{path}: 引用的前缀模型 {ref_model.model_code} 当前状态为 {ref_model.status}"
+                    )
+
+                visited_model_ids.add(rule.model_id)
+                try:
+                    ref_rule_config = self._get_model_rule_config(ref_model)
+                    for i, sub_rule in enumerate(ref_rule_config.rules):
+                        validate_rule(sub_rule, f"{path}.{ref_model.model_code}.rules[{i}]")
+                finally:
+                    visited_model_ids.remove(rule.model_id)
 
         for i, rule in enumerate(config.rules):
             validate_rule(rule, f"root.rules[{i}]")
@@ -251,7 +318,8 @@ class RuleEngine:
     def _validate_operator_compatibility(
         self,
         config: RuleConfig,
-        result: RuleValidationResult
+        result: RuleValidationResult,
+        current_model_id: Optional[int] = None
     ):
         """验证操作符与指标数据类型的兼容性，以及正则表达式语法"""
 
@@ -308,6 +376,8 @@ class RuleEngine:
                             f"{path}: 正则表达式语法错误: {str(e)}"
                         )
 
+        visited_model_ids = {current_model_id} if current_model_id else set()
+
         def traverse_rule(rule: Rule, path: str):
             logger.info(f"c {rule} {path}")
             if isinstance(rule, ConditionRule):
@@ -315,17 +385,31 @@ class RuleEngine:
             elif isinstance(rule, GroupRule):
                 for i, sub_rule in enumerate(rule.rules):
                     traverse_rule(sub_rule, f"{path}.rules[{i}]")
+            elif isinstance(rule, ModelReferenceRule):
+                if rule.model_id in visited_model_ids:
+                    return
+                ref_model = self._get_model_cached(rule.model_id)
+                if not ref_model:
+                    return
+                visited_model_ids.add(rule.model_id)
+                try:
+                    ref_rule_config = self._get_model_rule_config(ref_model)
+                    for i, sub_rule in enumerate(ref_rule_config.rules):
+                        traverse_rule(sub_rule, f"{path}.{ref_model.model_code}.rules[{i}]")
+                finally:
+                    visited_model_ids.remove(rule.model_id)
 
         for i, rule in enumerate(config.rules):
             traverse_rule(rule, f"root.rules[{i}]")
 
         # 调用值表达式类型验证
-        self._validate_value_expressions(config, result)
+        self._validate_value_expressions(config, result, current_model_id=current_model_id)
 
     def _validate_value_expressions(
         self,
         config: RuleConfig,
-        result: RuleValidationResult
+        result: RuleValidationResult,
+        current_model_id: Optional[int] = None
     ):
         """
         验证值表达式的类型兼容性（严格模式）
@@ -420,12 +504,27 @@ class RuleEngine:
                 if value_expr.operation == "divide" and value_expr.value == 0:
                     result.errors.append(f"{path}: 除法运算的除数不能为零")
 
+        visited_model_ids = {current_model_id} if current_model_id else set()
+
         def traverse_rule(rule: Rule, path: str):
             if isinstance(rule, ConditionRule):
                 validate_condition(rule, path)
             elif isinstance(rule, GroupRule):
                 for i, sub_rule in enumerate(rule.rules):
                     traverse_rule(sub_rule, f"{path}.rules[{i}]")
+            elif isinstance(rule, ModelReferenceRule):
+                if rule.model_id in visited_model_ids:
+                    return
+                ref_model = self._get_model_cached(rule.model_id)
+                if not ref_model:
+                    return
+                visited_model_ids.add(rule.model_id)
+                try:
+                    ref_rule_config = self._get_model_rule_config(ref_model)
+                    for i, sub_rule in enumerate(ref_rule_config.rules):
+                        traverse_rule(sub_rule, f"{path}.{ref_model.model_code}.rules[{i}]")
+                finally:
+                    visited_model_ids.remove(rule.model_id)
 
         for i, rule in enumerate(config.rules):
             traverse_rule(rule, f"root.rules[{i}]")
@@ -471,6 +570,8 @@ class RuleEngine:
                 if not rule.rules:
                     return 1
                 return 1 + max(get_depth(r) for r in rule.rules)
+            elif isinstance(rule, ModelReferenceRule):
+                return 1
             return 1
 
         if not config.rules:
@@ -485,6 +586,8 @@ class RuleEngine:
                 return 1
             elif isinstance(rule, GroupRule):
                 return sum(count(r) for r in rule.rules)
+            elif isinstance(rule, ModelReferenceRule):
+                return 1
             return 0
 
         return sum(count(r) for r in config.rules)
@@ -690,6 +793,13 @@ class RuleEngine:
                 return evaluate_condition(rule)
             elif isinstance(rule, GroupRule):
                 return evaluate_group(rule)
+            elif isinstance(rule, ModelReferenceRule):
+                ref_model = self._get_model_cached(rule.model_id)
+                if not ref_model:
+                    logger.warning(f"引用模型不存在: {rule.model_id}")
+                    return False
+                ref_rule_config = self._get_model_rule_config(ref_model)
+                return self.evaluate_rule(ref_rule_config, indicator_values)
             return False
 
         # 评估根规则组
@@ -1047,6 +1157,17 @@ class RuleEngine:
                     sub_expressions.append(condition_to_sql(rule))
                 elif isinstance(rule, GroupRule):
                     sub_expressions.append(f"({group_to_sql(rule)})")
+                elif isinstance(rule, ModelReferenceRule):
+                    ref_model = self._get_model_cached(rule.model_id)
+                    if not ref_model:
+                        raise ValueError(f"引用模型不存在: {rule.model_id}")
+                    ref_rule_config = self._get_model_rule_config(ref_model)
+                    ref_sql = self.generate_sql_expression(
+                        ref_rule_config,
+                        indicator_alias_mapping=indicator_alias_mapping,
+                        use_display_name=use_display_name
+                    )
+                    sub_expressions.append(f"({ref_sql})")
 
             logic_op = ' AND ' if group.logic == 'AND' else ' OR '
             return logic_op.join(sub_expressions)

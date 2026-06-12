@@ -24,7 +24,7 @@ export type LogicOperator = 'AND' | 'OR'
 /**
  * 规则类型
  */
-export type RuleType = 'condition' | 'group'
+export type RuleType = 'condition' | 'group' | 'model_ref'
 
 /**
  * 指标数据类型
@@ -121,9 +121,19 @@ export interface GroupRule {
 }
 
 /**
+ * 前缀模型引用规则
+ */
+export interface ModelReferenceRule {
+  type: 'model_ref'
+  model_id: number
+  model_code?: string
+  model_name?: string
+}
+
+/**
  * 联合类型
  */
-export type Rule = ConditionRule | GroupRule
+export type Rule = ConditionRule | GroupRule | ModelReferenceRule
 
 // ==================== 完整规则配置 ====================
 

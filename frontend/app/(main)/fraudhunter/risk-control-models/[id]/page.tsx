@@ -59,6 +59,7 @@ export default function RiskControlModelDetailPage() {
   const [originalData, setOriginalData] = useState<RiskControlModel | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [indicators, setIndicators] = useState<Indicator[]>([]);
+  const [prefixModels, setPrefixModels] = useState<RiskControlModel[]>([]);
   const [sqlPreview, setSqlPreview] = useState<string>("");
 
   // 发布对话框状态
@@ -116,6 +117,20 @@ export default function RiskControlModelDetailPage() {
       }
     };
     loadIndicators();
+
+    const loadPrefixModels = async () => {
+      try {
+        const response = await riskControlModelService.list({
+          page: 1,
+          page_size: 2000,
+          model_type: "prefix"
+        });
+        setPrefixModels((response.items || []).filter(model => model.id !== modelId));
+      } catch (error) {
+        console.error("Failed to load prefix models:", error);
+      }
+    };
+    loadPrefixModels();
     loadData();
   }, [modelId]);
 
@@ -180,6 +195,7 @@ export default function RiskControlModelDetailPage() {
     try {
       const updateData: RiskControlModelUpdate = {
         model_name: data.model_name,
+        model_type: data.model_type,
         description: data.description,
         rule_config: data.rule_config,
         is_send_alert_message: data.is_send_alert_message,
@@ -345,6 +361,26 @@ export default function RiskControlModelDetailPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
+              <Label htmlFor="model-type">模型类型</Label>
+              {isEditMode ? (
+                <Select
+                  value={data.model_type || "normal"}
+                  onValueChange={(value: "normal" | "prefix") => updateField("model_type", value)}
+                >
+                  <SelectTrigger id="model-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="normal">普通模型</SelectItem>
+                    <SelectItem value="prefix">前缀模型</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={data.model_type === "prefix" ? "前缀模型" : "普通模型"} disabled />
+              )}
+            </div>
+
+            <div>
               <Label>模型编码</Label>
               <Input value={data.model_code} disabled />
             </div>
@@ -410,6 +446,7 @@ export default function RiskControlModelDetailPage() {
               initialRule={data.rule_config}
               onChange={handleRuleChange}
               readOnly={!isEditMode}
+              prefixModels={prefixModels}
             />
           </CardContent>
         </Card>
@@ -446,6 +483,7 @@ export default function RiskControlModelDetailPage() {
         </Card>
 
         {/* 告警配置 */}
+        {data.model_type !== "prefix" && (
         <Card>
           <CardHeader>
             <CardTitle>告警配置</CardTitle>
@@ -507,6 +545,7 @@ export default function RiskControlModelDetailPage() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* 审计信息 */}
         <Card>
@@ -514,6 +553,17 @@ export default function RiskControlModelDetailPage() {
             <CardTitle>审计信息</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>上线人</Label>
+              <Input value={data.online_by || "-"} disabled />
+            </div>
+            <div>
+              <Label>上线时间</Label>
+              <Input
+                value={data.online_at ? new Date(data.online_at).toLocaleString() : "-"}
+                disabled
+              />
+            </div>
             <div>
               <Label>创建人</Label>
               <Input value={data.created_by || "-"} disabled />

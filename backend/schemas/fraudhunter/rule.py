@@ -313,8 +313,27 @@ class GroupRule(BaseModel):
         }
 
 
+class ModelReferenceRule(BaseModel):
+    """模型引用规则：引用一个前缀模型的规则配置"""
+
+    type: Literal["model_ref"]
+    model_id: int = Field(..., ge=1, description="引用的前缀模型ID")
+    model_code: Optional[str] = Field(None, description="引用的前缀模型编码（展示用）")
+    model_name: Optional[str] = Field(None, description="引用的前缀模型名称（展示用）")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "type": "model_ref",
+                "model_id": 12,
+                "model_code": "M000012",
+                "model_name": "公安涉诈公共前缀模型"
+            }
+        }
+
+
 # 联合类型定义
-Rule = Union[ConditionRule, GroupRule]
+Rule = Union[ConditionRule, GroupRule, ModelReferenceRule]
 
 # 更新前向引用（Pydantic递归模型）
 GroupRule.model_rebuild()

@@ -18,16 +18,18 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Trash2, Plus, Code, CheckCircle2, AlertCircle, Info } from 'lucide-react'
+import { Trash2, Plus, Code, CheckCircle2, AlertCircle, Info, Layers } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
   RuleConfig,
   GroupRule,
   ConditionRule,
+  ModelReferenceRule,
   Indicator,
   Rule
 } from '@/types/fraudhunter/rule'
+import type { RiskControlModel } from '@/types/fraudhunter/risk-control-model'
 import { ConditionRuleEditor } from './ConditionRuleEditor'
 import { modelService } from '@/lib/services/fraudhunter/modelService'
 
@@ -36,6 +38,7 @@ interface RuleBuilderProps {
   initialRule?: RuleConfig
   onChange?: (rule: RuleConfig) => void
   readOnly?: boolean
+  prefixModels?: RiskControlModel[]
 }
 
 // 路径类型：用于定位嵌套规则
@@ -160,6 +163,8 @@ interface RuleGroupRendererProps {
   onRemove: (path: RulePath) => void
   onAddCondition: (path: RulePath) => void
   onAddGroup: (path: RulePath) => void
+  onAddModelRef: (path: RulePath) => void
+  prefixModels: RiskControlModel[]
 }
 
 function RuleGroupRenderer({
@@ -172,7 +177,9 @@ function RuleGroupRenderer({
   onUpdate,
   onRemove,
   onAddCondition,
-  onAddGroup
+  onAddGroup,
+  onAddModelRef,
+  prefixModels
 }: RuleGroupRendererProps) {
   const indentWidth = depth * 16 // 每层缩进16px
 
@@ -224,6 +231,65 @@ function RuleGroupRenderer({
                     </Button>
                   )}
                 </div>
+              </div>
+            ) : rule.type === 'model_ref' ? (
+              <div className="flex items-center gap-2 border-b last:border-b-0 py-2 px-4 bg-blue-50/40" style={{ paddingLeft: `${indentWidth + 16}px` }}>
+                <div className="flex-shrink-0 w-12 text-center">
+                  <Badge variant={depth > 0 ? "outline" : "secondary"} className="text-xs">
+                    {index + 1}
+                  </Badge>
+                </div>
+
+                {index > 0 && (
+                  <div className="flex-shrink-0">
+                    <Badge variant="outline" className="text-xs">
+                      {parentLogic}
+                    </Badge>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 flex-1">
+                  <Badge variant="outline" className="gap-1">
+                    <Layers className="h-3 w-3" />
+                    前缀模型
+                  </Badge>
+                  <Select
+                    value={String(rule.model_id)}
+                    onValueChange={(value) => {
+                      const selected = prefixModels.find(model => model.id === Number(value))
+                      if (!selected) return
+                      onUpdate(currentPath, {
+                        type: 'model_ref',
+                        model_id: selected.id,
+                        model_code: selected.model_code,
+                        model_name: selected.model_name
+                      })
+                    }}
+                    disabled={readOnly}
+                  >
+                    <SelectTrigger className="min-w-[280px] h-8">
+                      <SelectValue placeholder="选择前缀模型" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {prefixModels.map((model) => (
+                        <SelectItem key={model.id} value={String(model.id)}>
+                          {model.model_name} ({model.model_code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {!readOnly && (
+                  <Button
+                    onClick={() => onRemove(currentPath)}
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
             ) : (
               // 规则组渲染（递归）
@@ -287,6 +353,16 @@ function RuleGroupRenderer({
                       添加规则组
                     </Button>
 
+                    <Button
+                      onClick={() => onAddModelRef(currentPath)}
+                      disabled={readOnly || prefixModels.length === 0}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      前缀模型
+                    </Button>
+
                     {/* 规则数量提示 */}
                     <div className="text-sm text-muted-foreground ml-auto">
                       {rule.rules.length} 个规则
@@ -320,6 +396,8 @@ function RuleGroupRenderer({
                       onRemove={onRemove}
                       onAddCondition={onAddCondition}
                       onAddGroup={onAddGroup}
+                      onAddModelRef={onAddModelRef}
+                      prefixModels={prefixModels}
                     />
                   </div>
                 ) : (
@@ -339,7 +417,7 @@ function RuleGroupRenderer({
   )
 }
 
-export function RuleBuilder({ indicators, initialRule, onChange, readOnly = false }: RuleBuilderProps) {
+export function RuleBuilder({ indicators, initialRule, onChange, readOnly = false, prefixModels = [] }: RuleBuilderProps) {
   const [rule, setRule] = useState<RuleConfig>(() =>
     initialRule || createDefaultRule(indicators[0]?.indicator_code)
   )
@@ -403,6 +481,26 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
       rules: addRuleAtPath(prevRule.rules, path, newGroup)
     }))
   }, [indicators, setRuleAndNotify])
+
+  const handleAddModelRef = useCallback((path: RulePath) => {
+    const firstPrefixModel = prefixModels[0]
+    if (!firstPrefixModel) {
+      toast.error('暂无可引用的前缀模型')
+      return
+    }
+
+    const newModelRef: ModelReferenceRule = {
+      type: 'model_ref',
+      model_id: firstPrefixModel.id,
+      model_code: firstPrefixModel.model_code,
+      model_name: firstPrefixModel.model_name
+    }
+
+    setRuleAndNotify(prevRule => ({
+      ...prevRule,
+      rules: addRuleAtPath(prevRule.rules, path, newModelRef)
+    }))
+  }, [prefixModels, setRuleAndNotify])
 
   // 删除规则（支持嵌套路径）
   const handleRemove = useCallback((path: RulePath) => {
@@ -503,6 +601,10 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
                 <Plus className="h-4 w-4 mr-1" />
                 规则组
               </Button>
+              <Button onClick={() => handleAddModelRef([])} disabled={readOnly || prefixModels.length === 0} variant="outline" size="sm">
+                <Plus className="h-4 w-4 mr-1" />
+                前缀模型
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -527,6 +629,8 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
                 onRemove={handleRemove}
                 onAddCondition={handleAddCondition}
                 onAddGroup={handleAddGroup}
+                onAddModelRef={handleAddModelRef}
+                prefixModels={prefixModels}
               />
             </div>
           )}

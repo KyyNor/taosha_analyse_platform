@@ -8,6 +8,7 @@ import { RuleConfig } from './rule'
  * 模型状态
  */
 export type ModelStatus = 'draft' | 'testing' | 'online' | 'offline' | 'archived'
+export type ModelType = 'normal' | 'prefix'
 
 /**
  * 预警管控模型基础信息
@@ -16,6 +17,7 @@ export interface RiskControlModel {
   id: number
   model_code: string
   model_name: string
+  model_type: ModelType
   description?: string
 
   // 规则配置
@@ -40,6 +42,8 @@ export interface RiskControlModel {
 
   // 状态
   status: ModelStatus
+  online_at?: string
+  online_by?: string
 
   // 审计字段
   created_by?: string
@@ -54,6 +58,7 @@ export interface RiskControlModel {
 export interface RiskControlModelCreate {
   model_code?: string  // 可选，后端会自动生成
   model_name: string
+  model_type?: ModelType
   description?: string
   rule_config: RuleConfig
   is_send_alert_message?: boolean
@@ -67,6 +72,7 @@ export interface RiskControlModelCreate {
  */
 export interface RiskControlModelUpdate {
   model_name?: string
+  model_type?: ModelType
   description?: string
   rule_config?: RuleConfig
   is_send_alert_message?: boolean

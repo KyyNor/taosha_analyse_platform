@@ -289,6 +289,7 @@ async def list_risk_control_models(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=2000, description="每页数量"),
     status: Optional[str] = Query(None, description="状态筛选"),
+    model_type: Optional[str] = Query(None, description="模型类型筛选（normal/prefix）"),
     search: Optional[str] = Query(None, description="搜索（模糊匹配模型编码、名称和描述）"),
     db: Session = Depends(get_db),
 ) -> RiskControlModelListResponse:
@@ -309,6 +310,7 @@ async def list_risk_control_models(
             page=page,
             page_size=page_size,
             status=status,
+            model_type=model_type,
             search_query=search  # 修改：使用search_query参数
         )
 

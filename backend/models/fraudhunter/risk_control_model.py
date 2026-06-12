@@ -18,6 +18,7 @@ class FraudHunterModelDefinition(Base):
     # 基本信息
     model_code = Column(String(64), unique=True, nullable=False, comment='模型编码')
     model_name = Column(String(128), nullable=False, comment='模型名称')
+    model_type = Column(String(16), default='normal', comment='模型类型：normal/prefix')
     description = Column(Text, comment='模型描述')
 
     offline_model_sql = Column(Text, comment='离线模型SQL，由模型规则生成')
@@ -40,6 +41,8 @@ class FraudHunterModelDefinition(Base):
 
     # 状态管理
     status = Column(String(16), default='draft', comment='状态：draft/testing/online/offline/archived')
+    online_at = Column(DateTime, comment='上线时间')
+    online_by = Column(String(64), comment='上线人')
 
     # 审计字段
     created_by = Column(String(64), comment='创建人')
@@ -54,6 +57,7 @@ class FraudHunterModelDefinition(Base):
     __table_args__ = (
         Index('idx_fh_model_code', 'model_code'),
         Index('idx_fh_model_status', 'status'),
+        Index('idx_fh_model_type', 'model_type'),
     )
 
     def __repr__(self):

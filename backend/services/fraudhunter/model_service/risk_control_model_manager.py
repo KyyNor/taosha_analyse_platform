@@ -5,6 +5,7 @@
 from typing import List, Optional, Set, Dict, Any
 from sqlalchemy.orm import Session
 import json
+from datetime import datetime
 from models.fraudhunter.risk_control_model import (
     FraudHunterModelDefinition,
     FraudHunterModelHistory
@@ -60,6 +61,13 @@ class RiskControlModelManager:
 
             if existing:
                 raise ValueError(f"模型编码已存在: {model_data.model_code}")
+
+        # 前缀模型只作为公共规则片段，不产生告警和管控动作
+        if model_data.model_type == 'prefix':
+            model_data.is_send_alert_message = False
+            model_data.alert_message_target = None
+            model_data.is_acct_control = False
+            model_data.is_send_financial_manager_alert = False
 
         # 验证rule_config
         validation_result = self.rule_engine.validate_rule_config(model_data.rule_config)
@@ -129,6 +137,7 @@ class RiskControlModelManager:
         page: int = 1,
         page_size: int = 20,
         status: Optional[str] = None,
+        model_type: Optional[str] = None,
         search_query: Optional[str] = None
     ) -> tuple[List[FraudHunterModelDefinition], int]:
         """获取预警管控模型列表
@@ -147,6 +156,9 @@ class RiskControlModelManager:
         # 状态筛选
         if status:
             query = query.filter(FraudHunterModelDefinition.status == status)
+
+        if model_type:
+            query = query.filter(FraudHunterModelDefinition.model_type == model_type)
 
         # 搜索（模糊匹配编码、名称和描述）
         if search_query:
@@ -197,10 +209,20 @@ class RiskControlModelManager:
         # 准备更新数据
         update_data = model_data.model_dump(exclude_unset=True, exclude={'rule_config'})
 
+        next_model_type = update_data.get('model_type', db_model.model_type)
+        if next_model_type == 'prefix':
+            update_data['is_send_alert_message'] = False
+            update_data['alert_message_target'] = None
+            update_data['is_acct_control'] = False
+            update_data['is_send_financial_manager_alert'] = False
+
         # 如果更新了rule_config，需要重新验证和生成SQL
         if model_data.rule_config is not None:
             # 验证规则配置
-            validation_result = self.rule_engine.validate_rule_config(model_data.rule_config)
+            validation_result = self.rule_engine.validate_rule_config(
+                model_data.rule_config,
+                current_model_id=model_id
+            )
             if not validation_result.valid:
                 raise ValueError(f"规则配置验证失败: {', '.join(validation_result.errors)}")
 
@@ -264,6 +286,8 @@ class RiskControlModelManager:
         db_model.current_version = version
         db_model.status = 'online'
         db_model.updated_by = updated_by
+        db_model.online_at = datetime.now()
+        db_model.online_by = updated_by
 
         self.db.commit()
         self.db.refresh(db_model)

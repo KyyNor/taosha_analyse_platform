@@ -101,27 +101,67 @@ def _apply_lightweight_migrations():
     项目当前没有 Alembic；create_all 不会修改既有表，所以新增字段需要在启动时补齐。
     """
     inspector = inspect(engine)
-    table_name = "fraudhunter_dryrun_execution"
+    table_names = inspector.get_table_names()
 
-    if table_name not in inspector.get_table_names():
-        return
-
-    columns = {column["name"] for column in inspector.get_columns(table_name)}
     with engine.begin() as connection:
-        if "parent_execution_id" not in columns:
-            connection.execute(text(
-                "ALTER TABLE fraudhunter_dryrun_execution "
-                "ADD COLUMN parent_execution_id VARCHAR(64) NULL COMMENT '父执行ID（批量任务关联子任务）'"
-            ))
-            logger.info("已为 fraudhunter_dryrun_execution 添加 parent_execution_id 字段")
+        if "fraudhunter_dryrun_execution" in table_names:
+            _migrate_dryrun_execution_table(connection, inspector)
 
-        index_names = {index["name"] for index in inspector.get_indexes(table_name)}
-        if "idx_fh_dryrun_parent_execution_id" not in index_names:
-            connection.execute(text(
-                "CREATE INDEX idx_fh_dryrun_parent_execution_id "
-                "ON fraudhunter_dryrun_execution (parent_execution_id)"
-            ))
-            logger.info("已为 fraudhunter_dryrun_execution.parent_execution_id 添加索引")
+        if "fraudhunter_model_definition" in table_names:
+            _migrate_model_definition_table(connection, inspector)
+
+
+def _migrate_dryrun_execution_table(connection, inspector):
+    table_name = "fraudhunter_dryrun_execution"
+    columns = {column["name"] for column in inspector.get_columns(table_name)}
+
+    if "parent_execution_id" not in columns:
+        connection.execute(text(
+            "ALTER TABLE fraudhunter_dryrun_execution "
+            "ADD COLUMN parent_execution_id VARCHAR(64) NULL COMMENT '父执行ID（批量任务关联子任务）'"
+        ))
+        logger.info("已为 fraudhunter_dryrun_execution 添加 parent_execution_id 字段")
+
+    index_names = {index["name"] for index in inspector.get_indexes(table_name)}
+    if "idx_fh_dryrun_parent_execution_id" not in index_names:
+        connection.execute(text(
+            "CREATE INDEX idx_fh_dryrun_parent_execution_id "
+            "ON fraudhunter_dryrun_execution (parent_execution_id)"
+        ))
+        logger.info("已为 fraudhunter_dryrun_execution.parent_execution_id 添加索引")
+
+
+def _migrate_model_definition_table(connection, inspector):
+    table_name = "fraudhunter_model_definition"
+    columns = {column["name"] for column in inspector.get_columns(table_name)}
+
+    if "model_type" not in columns:
+        connection.execute(text(
+            "ALTER TABLE fraudhunter_model_definition "
+            "ADD COLUMN model_type VARCHAR(16) NULL DEFAULT 'normal' COMMENT '模型类型：normal/prefix'"
+        ))
+        logger.info("已为 fraudhunter_model_definition 添加 model_type 字段")
+
+    if "online_at" not in columns:
+        connection.execute(text(
+            "ALTER TABLE fraudhunter_model_definition "
+            "ADD COLUMN online_at DATETIME NULL COMMENT '上线时间'"
+        ))
+        logger.info("已为 fraudhunter_model_definition 添加 online_at 字段")
+
+    if "online_by" not in columns:
+        connection.execute(text(
+            "ALTER TABLE fraudhunter_model_definition "
+            "ADD COLUMN online_by VARCHAR(64) NULL COMMENT '上线人'"
+        ))
+        logger.info("已为 fraudhunter_model_definition 添加 online_by 字段")
+
+    index_names = {index["name"] for index in inspector.get_indexes(table_name)}
+    if "idx_fh_model_type" not in index_names:
+        connection.execute(text(
+            "CREATE INDEX idx_fh_model_type ON fraudhunter_model_definition (model_type)"
+        ))
+        logger.info("已为 fraudhunter_model_definition.model_type 添加索引")
 
 def drop_tables():
     """删除所有表"""
