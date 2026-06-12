@@ -111,6 +111,18 @@ class ModelBacktestResponse(BaseModel):
     execution_id: Optional[str] = Field(None, description="任务执行ID")
 
 
+class ModelBatchBacktestRequest(ModelBacktestRequest):
+    """模型批量历史回测请求模型"""
+    model_ids: List[int] = Field(..., min_length=1, description="模型ID列表")
+
+
+class ModelBatchBacktestResponse(BaseModel):
+    """模型批量历史回测响应模型"""
+    success: bool = Field(..., description="提交是否成功")
+    message: str = Field(..., description="提示消息")
+    execution_id: Optional[str] = Field(None, description="批量任务执行ID")
+
+
 class ModelBacktestDayResult(BaseModel):
     """模型历史回测单日结果"""
     date: str = Field(..., description="日期")

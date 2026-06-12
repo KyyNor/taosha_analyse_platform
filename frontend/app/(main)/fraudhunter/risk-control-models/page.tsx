@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { riskControlModelService } from "@/lib/services/fraudhunterService";
 import type { RiskControlModel } from "@/types/fraudhunter/risk-control-model";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -50,6 +51,13 @@ export default function RiskControlModelsPage() {
   const [backtestStartDate, setBacktestStartDate] = useState<string>("");
   const [backtestEndDate, setBacktestEndDate] = useState<string>("");
   const [backtestLoading, setBacktestLoading] = useState(false);
+
+  // 批量历史回测对话框状态
+  const [selectedModelIds, setSelectedModelIds] = useState<number[]>([]);
+  const [batchBacktestDialogOpen, setBatchBacktestDialogOpen] = useState(false);
+  const [batchBacktestStartDate, setBatchBacktestStartDate] = useState<string>("");
+  const [batchBacktestEndDate, setBatchBacktestEndDate] = useState<string>("");
+  const [batchBacktestLoading, setBatchBacktestLoading] = useState(false);
 
   // 发布对话框状态
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
@@ -94,6 +102,25 @@ export default function RiskControlModelsPage() {
 
   // 表格列配置
   const columns = [
+    {
+      key: "select",
+      label: "选择",
+      type: "custom" as const,
+      render: (_value: any, row: RiskControlModel) => (
+        <Checkbox
+          checked={selectedModelIds.includes(row.id)}
+          onCheckedChange={(checked) => {
+            setSelectedModelIds((prev) =>
+              checked
+                ? Array.from(new Set([...prev, row.id]))
+                : prev.filter((id) => id !== row.id)
+            );
+          }}
+          disabled={row.status === "archived"}
+          aria-label={`选择模型 ${row.model_name}`}
+        />
+      ),
+    },
     { key: "id", label: "ID", type: "number" as const },
     { key: "model_code", label: "模型编码", type: "text" as const },
     {
@@ -264,6 +291,63 @@ export default function RiskControlModelsPage() {
     }
   };
 
+  const handleOpenBatchBacktestDialog = () => {
+    if (selectedModelIds.length === 0) {
+      toast.error("请先选择要批量回测的模型");
+      return;
+    }
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 7);
+    setBatchBacktestStartDate(startDate.toISOString().split('T')[0]);
+    setBatchBacktestEndDate(endDate.toISOString().split('T')[0]);
+    setBatchBacktestDialogOpen(true);
+  };
+
+  const handleSubmitBatchBacktest = async () => {
+    if (selectedModelIds.length === 0) {
+      toast.error("请先选择要批量回测的模型");
+      return;
+    }
+
+    if (!batchBacktestStartDate || !batchBacktestEndDate) {
+      toast.error("请选择开始日期和结束日期");
+      return;
+    }
+
+    if (new Date(batchBacktestStartDate) > new Date(batchBacktestEndDate)) {
+      toast.error("开始日期不能晚于结束日期");
+      return;
+    }
+
+    setBatchBacktestLoading(true);
+    try {
+      const response = await riskControlModelService.batchBacktest({
+        model_ids: selectedModelIds,
+        start_date: batchBacktestStartDate,
+        end_date: batchBacktestEndDate
+      });
+
+      if (response.success) {
+        toast.success(response.message);
+        setBatchBacktestDialogOpen(false);
+        toast.info("可在「试运行任务」页面查看批量任务和子任务进度", {
+          action: {
+            label: "前往查看",
+            onClick: () => router.push("/fraudhunter/dry-run")
+          }
+        });
+      } else {
+        toast.error(response.message || "提交失败");
+      }
+    } catch (error: any) {
+      console.error("Failed to submit batch backtest:", error);
+      toast.error(error.response?.data?.detail || "提交批量历史回测任务失败");
+    } finally {
+      setBatchBacktestLoading(false);
+    }
+  };
+
   // 自定义操作按钮
   const customActions = (item: RiskControlModel) => (
     <>
@@ -307,7 +391,7 @@ export default function RiskControlModelsPage() {
       </div>
 
       {/* 筛选器 */}
-      <div className="flex gap-4 mb-4">
+      <div className="flex gap-4 mb-4 flex-wrap items-center">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="状态筛选" />
@@ -321,6 +405,13 @@ export default function RiskControlModelsPage() {
             <SelectItem value="archived">已归档</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          variant="outline"
+          onClick={handleOpenBatchBacktestDialog}
+          disabled={selectedModelIds.length === 0}
+        >
+          批量回测（{selectedModelIds.length}）
+        </Button>
       </div>
 
       {/* 表格 */}
@@ -398,6 +489,59 @@ export default function RiskControlModelsPage() {
               disabled={backtestLoading}
             >
               {backtestLoading ? "提交中..." : "提交回测任务"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 批量历史回测对话框 */}
+      <Dialog open={batchBacktestDialogOpen} onOpenChange={setBatchBacktestDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>批量模型历史回测</DialogTitle>
+            <DialogDescription>
+              将为已选择的 {selectedModelIds.length} 个模型创建 1 个批量任务和 {selectedModelIds.length} 个普通模型回测子任务。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="batchStartDate" className="text-right">
+                开始日期
+              </Label>
+              <Input
+                id="batchStartDate"
+                type="date"
+                value={batchBacktestStartDate}
+                onChange={(e) => setBatchBacktestStartDate(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="batchEndDate" className="text-right">
+                结束日期
+              </Label>
+              <Input
+                id="batchEndDate"
+                type="date"
+                value={batchBacktestEndDate}
+                onChange={(e) => setBatchBacktestEndDate(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBatchBacktestDialogOpen(false)}
+              disabled={batchBacktestLoading}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleSubmitBatchBacktest}
+              disabled={batchBacktestLoading}
+            >
+              {batchBacktestLoading ? "提交中..." : "提交批量回测任务"}
             </Button>
           </DialogFooter>
         </DialogContent>

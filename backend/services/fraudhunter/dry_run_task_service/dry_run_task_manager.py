@@ -26,6 +26,7 @@ class DryRunTaskManager:
         task_func: Callable,
         created_by: str,
         task_name: Optional[str] = None,
+        parent_execution_id: Optional[str] = None,
         **kwargs
     ) -> str:
         """提交异步任务
@@ -37,6 +38,7 @@ class DryRunTaskManager:
             task_func: 任务执行函数
             created_by: 创建人
             task_name: 任务名称（用于模型回测等场景生成可读性更好的execution_id）
+            parent_execution_id: 父任务执行ID（用于批量任务关联子任务）
             **kwargs: 传递给任务函数的参数
 
         Returns:
@@ -47,6 +49,9 @@ class DryRunTaskManager:
             # 模型回测使用 task_{模型名称}_{时间戳} 格式
             timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
             execution_id = f"task_{task_name}_{timestamp}"
+        elif task_type == 'model_batch_backtest':
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+            execution_id = f"task_批量模型回测_{timestamp}_{uuid.uuid4().hex[:8]}"
         else:
             # 其他类型使用 UUID 格式
             execution_id = f"task_{uuid.uuid4()}"
@@ -56,6 +61,7 @@ class DryRunTaskManager:
             task_type=task_type,
             task_id=task_id,
             execution_id=execution_id,
+            parent_execution_id=parent_execution_id,
             status='pending',
             created_by=created_by
         )
@@ -170,6 +176,7 @@ class DryRunTaskManager:
         return {
             'task_id': task_execution.execution_id,
             'task_type': task_execution.task_type,
+            'parent_execution_id': task_execution.parent_execution_id,
             'status': task_execution.status,
             'progress': progress,
             'current_step': self._get_current_step(task_execution.status),
@@ -264,6 +271,8 @@ class DryRunTaskManager:
         db: Session,
         task_type: Optional[str] = None,
         task_id: Optional[int] = None,
+        status: Optional[str] = None,
+        parent_execution_id: Optional[str] = None,
         result_summary: Optional[str] = None,
         page: int = 1,
         page_size: int = 20
@@ -274,6 +283,8 @@ class DryRunTaskManager:
             db: 数据库会话
             task_type: 任务类型筛选
             task_id: 任务ID筛选
+            status: 任务状态筛选
+            parent_execution_id: 父任务执行ID筛选
             result_summary: 结果摘要模糊搜索
             page: 页码
             page_size: 每页数量
@@ -290,6 +301,12 @@ class DryRunTaskManager:
 
         if task_id:
             query = query.filter(FraudHunterDryRunExecution.task_id == task_id)
+
+        if status:
+            query = query.filter(FraudHunterDryRunExecution.status == status)
+
+        if parent_execution_id:
+            query = query.filter(FraudHunterDryRunExecution.parent_execution_id == parent_execution_id)
 
         if result_summary:
             # 将JSON字段转换为文本后进行LIKE搜索

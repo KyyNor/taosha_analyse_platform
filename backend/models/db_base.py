@@ -3,7 +3,7 @@ SQLAlchemy基础配置
 改进MySQL连接超时问题
 """
 
-from sqlalchemy import create_engine, MetaData
+from sqlalchemy import create_engine, MetaData, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from contextlib import contextmanager
@@ -89,10 +89,39 @@ def create_tables():
     """创建所有表"""
     try:
         Base.metadata.create_all(bind=engine)
+        _apply_lightweight_migrations()
         logger.info("数据库表创建成功")
     except Exception as e:
         logger.error(f"数据库表创建失败: {e}")
         raise
+
+def _apply_lightweight_migrations():
+    """应用少量向后兼容的表结构补丁。
+
+    项目当前没有 Alembic；create_all 不会修改既有表，所以新增字段需要在启动时补齐。
+    """
+    inspector = inspect(engine)
+    table_name = "fraudhunter_dryrun_execution"
+
+    if table_name not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns(table_name)}
+    with engine.begin() as connection:
+        if "parent_execution_id" not in columns:
+            connection.execute(text(
+                "ALTER TABLE fraudhunter_dryrun_execution "
+                "ADD COLUMN parent_execution_id VARCHAR(64) NULL COMMENT '父执行ID（批量任务关联子任务）'"
+            ))
+            logger.info("已为 fraudhunter_dryrun_execution 添加 parent_execution_id 字段")
+
+        index_names = {index["name"] for index in inspector.get_indexes(table_name)}
+        if "idx_fh_dryrun_parent_execution_id" not in index_names:
+            connection.execute(text(
+                "CREATE INDEX idx_fh_dryrun_parent_execution_id "
+                "ON fraudhunter_dryrun_execution (parent_execution_id)"
+            ))
+            logger.info("已为 fraudhunter_dryrun_execution.parent_execution_id 添加索引")
 
 def drop_tables():
     """删除所有表"""

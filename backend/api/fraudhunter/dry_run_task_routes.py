@@ -110,6 +110,8 @@ async def cancel_task(
 async def list_task_executions(
     task_type: Optional[str] = Query(None, description="任务类型筛选（indicator/model）"),
     task_id: Optional[int] = Query(None, description="任务ID筛选"),
+    status: Optional[str] = Query(None, description="状态筛选"),
+    parent_execution_id: Optional[str] = Query(None, description="父任务执行ID筛选"),
     result_summary: Optional[str] = Query(None, description="结果摘要搜索（LIKE %%）"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
@@ -135,6 +137,8 @@ async def list_task_executions(
             db=db,
             task_type=task_type,
             task_id=task_id,
+            status=status,
+            parent_execution_id=parent_execution_id,
             result_summary=result_summary,
             page=page,
             page_size=page_size
@@ -173,6 +177,58 @@ async def export_task_result_excel(
             raise HTTPException(status_code=400, detail="只有成功的任务才能导出结果")
 
         result_data = task_result.get('result', {})
+
+        if result_data.get('task_type') == 'model_batch_backtest':
+            data_sheets = {}
+
+            account_summaries = result_data.get('account_hit_summaries', [])
+            if account_summaries:
+                flattened_accounts = []
+                for item in account_summaries:
+                    hit_models = item.get('hit_models', [])
+                    flattened_accounts.append({
+                        '账号': item.get('account', ''),
+                        '命中模型数': item.get('hit_model_count', 0),
+                        '命中模型': ', '.join(
+                            f"{model.get('model_code', '')}({model.get('model_name', '')})"
+                            for model in hit_models
+                        ),
+                        '命中日期': ', '.join(item.get('hit_dates', [])),
+                        '是否白名单': item.get('is_whitelist', False),
+                    })
+                data_sheets['账号命中汇总'] = pd.DataFrame(flattened_accounts)
+
+            model_summaries = result_data.get('model_summaries', [])
+            if model_summaries:
+                data_sheets['模型执行汇总'] = pd.DataFrame(model_summaries)
+
+            daily_summaries = result_data.get('daily_summaries', [])
+            if daily_summaries:
+                data_sheets['每日汇总'] = pd.DataFrame(daily_summaries)
+
+            failed_models = result_data.get('failed_models_detail', [])
+            if failed_models:
+                data_sheets['失败模型'] = pd.DataFrame(failed_models)
+
+            warnings = result_data.get('warnings', [])
+            if warnings:
+                data_sheets['警告信息'] = pd.DataFrame({'警告': warnings})
+
+            if not data_sheets:
+                raise HTTPException(status_code=400, detail="没有可导出的批量回测结果")
+
+            exporter = create_excel_exporter()
+            output = exporter.export_to_bytes(data_sheets)
+            filename = f"batch_backtest_{task_id}.xlsx"
+            encoded_filename = quote(filename)
+
+            return StreamingResponse(
+                io.BytesIO(output.read()),
+                media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                headers={
+                    "Content-Disposition": f"attachment; filename={filename}; filename*=UTF-8''{encoded_filename}"
+                }
+            )
 
         # 提取matched_records数据
         matched_records = result_data.get('matched_records', [])

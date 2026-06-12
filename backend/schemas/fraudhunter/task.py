@@ -11,6 +11,7 @@ class TaskProgressResponse(BaseModel):
     """任务进度响应模型"""
     task_id: str = Field(..., description="任务ID")
     task_type: str = Field(..., description="任务类型")
+    parent_execution_id: Optional[str] = Field(None, description="父任务执行ID")
     status: str = Field(..., description="任务状态：pending/running/success/failed/cancelled")
     progress: Optional[float] = Field(None, description="进度百分比（0-100）")
     current_step: Optional[str] = Field(None, description="当前步骤")
@@ -39,6 +40,7 @@ class TaskExecutionItem(BaseModel):
     task_type: str
     task_id: int
     execution_id: str
+    parent_execution_id: Optional[str] = None
     status: str
     start_time: Optional[datetime]
     end_time: Optional[datetime]

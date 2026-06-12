@@ -97,7 +97,8 @@ export const executionStatusBadgeConfig = {
 export const taskTypeBadgeConfig = {
   indicator_task: { variant: "default" as const, label: "指标任务试运行" },
   indicator: { variant: "secondary" as const, label: "指标试运行" },
-  model_backtest: { variant: "outline" as const, label: "模型历史回测" }
+  model_backtest: { variant: "outline" as const, label: "模型历史回测" },
+  model_batch_backtest: { variant: "default" as const, label: "批量模型回测" }
 };
 
 // 宽表名称标签配置

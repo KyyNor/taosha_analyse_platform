@@ -14,6 +14,7 @@ import { TaskProgressCard } from "./components/TaskProgress";
 
 // 导入模板
 import { ModelBacktestTemplate } from "./templates/ModelBacktestTemplate";
+import { ModelBatchBacktestTemplate } from "./templates/ModelBatchBacktestTemplate";
 import { IndicatorTaskTemplate } from "./templates/IndicatorTaskTemplate";
 
 export default function TaskDetailPage() {
@@ -109,6 +110,15 @@ export default function TaskDetailPage() {
         <ModelBacktestTemplate 
           result={result.result} 
           taskId={taskId} 
+        />
+      );
+    }
+
+    if (taskType === 'model_batch_backtest') {
+      return (
+        <ModelBatchBacktestTemplate
+          result={result.result}
+          taskId={taskId}
         />
       );
     }

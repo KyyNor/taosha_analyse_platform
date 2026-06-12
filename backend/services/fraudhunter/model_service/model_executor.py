@@ -531,6 +531,316 @@ LIMIT 10000
 
         return results
 
+    async def execute_batch_backtest(
+        self,
+        db: Session,
+        execution_id: str,
+        task_id: int,
+        model_ids: List[int],
+        start_date: str,
+        end_date: str,
+        submitted_by: str,
+        max_concurrency: int = 3
+    ) -> Dict[str, Any]:
+        """执行模型批量历史回测父任务。
+
+        父任务只保存固定维度的聚合结果；每个模型的动态指标明细保留在子回测任务中。
+        """
+        from services.fraudhunter.dry_run_task_service import dry_run_task_manager
+
+        execution = db.query(FraudHunterDryRunExecution).filter(
+            FraudHunterDryRunExecution.execution_id == execution_id
+        ).first()
+        if not execution:
+            raise ValueError(f"批量执行记录不存在: {execution_id}")
+
+        unique_model_ids = list(dict.fromkeys(model_ids))
+        models = db.query(FraudHunterModelDefinition).filter(
+            FraudHunterModelDefinition.id.in_(unique_model_ids)
+        ).all()
+        model_by_id = {model.id: model for model in models}
+        ordered_models = [model_by_id[model_id] for model_id in unique_model_ids if model_id in model_by_id]
+
+        execution.parameters = {
+            'model_ids': unique_model_ids,
+            'start_date': start_date,
+            'end_date': end_date,
+            'max_concurrency': max_concurrency
+        }
+        db.flush()
+
+        child_execution_ids: List[str] = []
+        logger.info(
+            f"开始执行模型批量历史回测: execution_id={execution_id}, "
+            f"模型数={len(ordered_models)}, 日期范围={start_date} 至 {end_date}"
+        )
+
+        max_concurrency = max(1, max_concurrency)
+        for start_index in range(0, len(ordered_models), max_concurrency):
+            batch_models = ordered_models[start_index:start_index + max_concurrency]
+            running_child_tasks = []
+
+            for model in batch_models:
+                child_execution_id = await dry_run_task_manager.submit_task(
+                    db=db,
+                    task_type='model_backtest',
+                    task_id=model.id,
+                    task_func=self.execute_backtest,
+                    created_by=submitted_by,
+                    task_name=model.model_name,
+                    parent_execution_id=execution_id,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+                child_execution_ids.append(child_execution_id)
+                child_task = dry_run_task_manager.running_tasks.get(child_execution_id)
+                if child_task:
+                    running_child_tasks.append(child_task)
+
+            if running_child_tasks:
+                await asyncio.gather(*running_child_tasks, return_exceptions=True)
+
+        db.expire_all()
+        child_executions = db.query(FraudHunterDryRunExecution).filter(
+            FraudHunterDryRunExecution.parent_execution_id == execution_id
+        ).all()
+
+        child_by_model_id = {child.task_id: child for child in child_executions}
+        account_hit_map: Dict[str, Dict[str, Any]] = {}
+        daily_summary_map: Dict[str, Dict[str, Any]] = {}
+        model_summaries: List[Dict[str, Any]] = []
+        failed_models_detail: List[Dict[str, Any]] = []
+        warnings: List[str] = []
+        total_hit_records = 0
+
+        for model in ordered_models:
+            child = child_by_model_id.get(model.id)
+            if not child:
+                failed_models_detail.append({
+                    'model_id': model.id,
+                    'model_code': model.model_code,
+                    'model_name': model.model_name,
+                    'status': 'failed',
+                    'message': '未找到子任务执行记录'
+                })
+                continue
+
+            result = child.result_summary or {}
+            matched_records = result.get('matched_records') or []
+            daily_results = result.get('daily_results') or []
+            model_hit_accounts = set()
+            model_hit_records = len(matched_records)
+            total_hit_records += model_hit_records
+
+            for warning in result.get('warnings') or []:
+                warnings.append(f"{model.model_code}: {warning}")
+
+            for day in daily_results:
+                date_value = day.get('date', '')
+                if not date_value:
+                    continue
+                day_summary = daily_summary_map.setdefault(date_value, {
+                    'date': date_value,
+                    'success_models': 0,
+                    'failed_models': 0,
+                    'skipped_models': 0,
+                    'hit_records': 0,
+                    'hit_accounts': set()
+                })
+                status = day.get('status')
+                if status == 'success':
+                    day_summary['success_models'] += 1
+                elif status == 'failed':
+                    day_summary['failed_models'] += 1
+                elif status == 'skipped':
+                    day_summary['skipped_models'] += 1
+                day_summary['hit_records'] += day.get('rows_matched', 0) or 0
+
+            for record in matched_records:
+                account = str(record.get('账号', '') or '').strip()
+                if not account:
+                    continue
+
+                model_hit_accounts.add(account)
+                hit_date = str(record.get('实时数据日期', '') or '').strip()
+                is_whitelist = bool(record.get('是否白名单', False))
+
+                account_summary = account_hit_map.setdefault(account, {
+                    'account': account,
+                    'hit_model_count': 0,
+                    'hit_models': [],
+                    'hit_dates': set(),
+                    'is_whitelist': is_whitelist
+                })
+
+                if is_whitelist:
+                    account_summary['is_whitelist'] = True
+
+                if hit_date:
+                    account_summary['hit_dates'].add(hit_date)
+                    day_summary = daily_summary_map.setdefault(hit_date, {
+                        'date': hit_date,
+                        'success_models': 0,
+                        'failed_models': 0,
+                        'skipped_models': 0,
+                        'hit_records': 0,
+                        'hit_accounts': set()
+                    })
+                    day_summary['hit_accounts'].add(account)
+
+                if not any(hit_model['model_id'] == model.id for hit_model in account_summary['hit_models']):
+                    account_summary['hit_models'].append({
+                        'model_id': model.id,
+                        'model_code': model.model_code,
+                        'model_name': model.model_name,
+                        'child_task_id': child.id,
+                        'child_execution_id': child.execution_id
+                    })
+
+            success_days = result.get('success_days', 0)
+            failed_days = result.get('failed_days', 0)
+            skipped_days = result.get('skipped_days', 0)
+
+            model_summary = {
+                'model_id': model.id,
+                'model_code': model.model_code,
+                'model_name': model.model_name,
+                'status': child.status,
+                'child_task_id': child.id,
+                'child_execution_id': child.execution_id,
+                'total_rows_matched': result.get('total_rows_matched', model_hit_records),
+                'hit_accounts': len(model_hit_accounts),
+                'total_days': result.get('total_days', 0),
+                'success_days': success_days,
+                'failed_days': failed_days,
+                'skipped_days': skipped_days,
+                'error_message': child.error_message
+            }
+            model_summaries.append(model_summary)
+
+            if child.status == 'failed':
+                failed_models_detail.append({
+                    'model_id': model.id,
+                    'model_code': model.model_code,
+                    'model_name': model.model_name,
+                    'status': child.status,
+                    'message': child.error_message or result.get('error') or '子任务执行失败',
+                    'child_task_id': child.id,
+                    'child_execution_id': child.execution_id
+                })
+
+        account_hit_summaries = []
+        for account_summary in account_hit_map.values():
+            hit_models = account_summary['hit_models']
+            account_hit_summaries.append({
+                'account': account_summary['account'],
+                'hit_model_count': len(hit_models),
+                'hit_models': hit_models,
+                'hit_dates': sorted(account_summary['hit_dates']),
+                'is_whitelist': account_summary['is_whitelist']
+            })
+
+        account_hit_summaries.sort(
+            key=lambda item: (item['hit_model_count'], len(item['hit_dates'])),
+            reverse=True
+        )
+
+        daily_summaries = []
+        for day_summary in daily_summary_map.values():
+            daily_summaries.append({
+                'date': day_summary['date'],
+                'success_models': day_summary['success_models'],
+                'failed_models': day_summary['failed_models'],
+                'skipped_models': day_summary['skipped_models'],
+                'hit_records': day_summary['hit_records'],
+                'hit_accounts': len(day_summary['hit_accounts'])
+            })
+        daily_summaries.sort(key=lambda item: item['date'])
+
+        success_models = sum(1 for item in model_summaries if item['status'] == 'success')
+        failed_models = sum(1 for item in model_summaries if item['status'] == 'failed')
+        cancelled_models = sum(1 for item in model_summaries if item['status'] == 'cancelled')
+
+        summary = {
+            'task_type': 'model_batch_backtest',
+            'start_date': start_date,
+            'end_date': end_date,
+            'model_count': len(ordered_models),
+            'success_models': success_models,
+            'failed_models': failed_models,
+            'cancelled_models': cancelled_models,
+            'total_hit_accounts': len(account_hit_summaries),
+            'total_hit_records': total_hit_records,
+            'child_execution_ids': child_execution_ids,
+            'model_summaries': model_summaries,
+            'account_hit_summaries': account_hit_summaries,
+            'daily_summaries': daily_summaries,
+            'warnings': warnings,
+            'failed_models_detail': failed_models_detail,
+            'log_content': self._format_batch_log(
+                execution_id=execution_id,
+                start_date=start_date,
+                end_date=end_date,
+                model_summaries=model_summaries,
+                total_hit_accounts=len(account_hit_summaries),
+                total_hit_records=total_hit_records,
+                warnings=warnings
+            )
+        }
+
+        execution.rows_processed = len(ordered_models)
+        execution.rows_output = success_models
+        execution.log_content = summary['log_content']
+        db.commit()
+
+        logger.info(
+            f"模型批量历史回测完成: execution_id={execution_id}, "
+            f"成功模型={success_models}/{len(ordered_models)}, "
+            f"命中账号={len(account_hit_summaries)}"
+        )
+
+        return summary
+
+    def _format_batch_log(
+        self,
+        execution_id: str,
+        start_date: str,
+        end_date: str,
+        model_summaries: List[Dict[str, Any]],
+        total_hit_accounts: int,
+        total_hit_records: int,
+        warnings: List[str]
+    ) -> str:
+        """格式化批量回测日志。"""
+        lines = [
+            "[模型批量历史回测执行日志]",
+            f"执行ID: {execution_id}",
+            f"执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"日期范围: {start_date} 至 {end_date}",
+            "",
+            "执行结果:",
+            f"- 模型数量: {len(model_summaries)}",
+            f"- 成功模型: {sum(1 for item in model_summaries if item['status'] == 'success')}",
+            f"- 失败模型: {sum(1 for item in model_summaries if item['status'] == 'failed')}",
+            f"- 命中账号数: {total_hit_accounts}",
+            f"- 命中记录数: {total_hit_records}",
+            "",
+            "模型执行详情:"
+        ]
+        for item in model_summaries:
+            lines.append(
+                f"  - {item['model_code']} {item['model_name']}: "
+                f"{item['status']}, 命中账号={item['hit_accounts']}, "
+                f"命中记录={item['total_rows_matched']}"
+            )
+
+        lines.extend([
+            "",
+            "警告信息:",
+            "\n".join(warnings) if warnings else "无"
+        ])
+        return "\n".join(lines)
+
     def _format_daily_results(self, daily_results: List[Dict[str, Any]]) -> str:
         """格式化每日执行结果为日志文本
 

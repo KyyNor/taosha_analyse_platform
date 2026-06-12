@@ -26,6 +26,16 @@ export interface ModelBacktestResponse {
   execution_id?: string
 }
 
+export interface ModelBatchBacktestRequest extends ModelBacktestRequest {
+  model_ids: number[]
+}
+
+export interface ModelBatchBacktestResponse {
+  success: boolean
+  message: string
+  execution_id?: string
+}
+
 export interface ModelOnlineRequest {
   schedule_cron?: string
   description?: string
@@ -139,6 +149,17 @@ export const riskControlModelService = {
    */
   async backtest(modelId: number, data: ModelBacktestRequest): Promise<ModelBacktestResponse> {
     const response = await api.post<ModelBacktestResponse>(`${BASE_PATH}/${modelId}/backtest`, data)
+    return response.data
+  },
+
+  /**
+   * 提交模型批量历史回测任务
+   *
+   * @param data 批量回测参数（模型ID列表、开始日期、结束日期）
+   * @returns 批量回测任务提交结果
+   */
+  async batchBacktest(data: ModelBatchBacktestRequest): Promise<ModelBatchBacktestResponse> {
+    const response = await api.post<ModelBatchBacktestResponse>(`${BASE_PATH}/batch-backtest`, data)
     return response.data
   }
 }

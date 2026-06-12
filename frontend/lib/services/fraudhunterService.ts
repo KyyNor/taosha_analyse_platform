@@ -174,6 +174,7 @@ export interface TaskExecution {
   task_type: string;
   task_id: number;
   execution_id: string;
+  parent_execution_id?: string;
   start_time?: string;
   end_time?: string;
   status: string;
@@ -192,6 +193,7 @@ export interface TaskExecutionListResponse {
 export interface TaskProgress {
   task_id: string;
   task_type: string;
+  parent_execution_id?: string;
   status: string;
   progress?: number;
   current_step?: string;
@@ -512,6 +514,8 @@ export const taskService = {
     task_type?: string;
     task_id?: number;
     status?: string;
+    parent_execution_id?: string;
+    result_summary?: string;
   }): Promise<TaskExecutionListResponse> {
     const response = await api.get(`${BASE_PATH}/tasks/executions`, { params });
     return response.data;

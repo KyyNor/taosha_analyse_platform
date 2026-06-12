@@ -14,6 +14,8 @@ from sqlalchemy.orm import Session
 from middleware.auth_middleware import get_current_user
 from models.db_base import get_db
 from schemas.fraudhunter.risk_control_model import (
+    ModelBatchBacktestRequest,
+    ModelBatchBacktestResponse,
     ModelBacktestRequest,
     ModelBacktestResponse,
     RiskControlModelCreate,
@@ -486,6 +488,47 @@ async def archive_risk_control_model(
 
 
 # ==================== 模型执行端点 ====================
+
+@risk_control_model_router.post(
+    "/batch-backtest",
+    response_model=ModelBatchBacktestResponse,
+    summary="提交模型批量历史回测任务"
+)
+async def submit_model_batch_backtest(
+    batch_data: ModelBatchBacktestRequest,
+    db: Session = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user),
+) -> ModelBatchBacktestResponse:
+    """提交模型批量历史回测任务。
+
+    批量任务会创建一个父任务，并为每个模型创建普通模型回测子任务。
+    父任务展示固定维度的聚合结果；子任务继续展示单模型动态指标明细。
+    """
+    try:
+        manager = RiskControlModelManager(db)
+
+        execution_id = await manager.submit_batch_backtest_task(
+            model_ids=batch_data.model_ids,
+            start_date=batch_data.start_date,
+            end_date=batch_data.end_date,
+            created_by=current_user.user_id
+        )
+
+        return ModelBatchBacktestResponse(
+            success=True,
+            message=(
+                f"批量历史回测任务已提交，模型数: {len(set(batch_data.model_ids))}，"
+                f"日期范围: {batch_data.start_date} 至 {batch_data.end_date}"
+            ),
+            execution_id=execution_id
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"提交模型批量历史回测任务失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"提交模型批量历史回测任务失败: {str(e)}")
+
 
 @risk_control_model_router.post(
     "/{model_id}/backtest",

@@ -18,6 +18,7 @@ class FraudHunterDryRunExecution(Base):
     task_type = Column(String(32), nullable=False, comment='任务类型：indicator/model')
     task_id = Column(Integer, nullable=False, comment='任务关联ID（指标组ID或模型ID）')
     execution_id = Column(String(64), unique=True, nullable=False, comment='执行ID（UUID）')
+    parent_execution_id = Column(String(64), nullable=True, comment='父执行ID（批量任务关联子任务）')
 
     # 执行详情
     etl_date = Column(Date, comment='ETL日期')
@@ -53,6 +54,7 @@ class FraudHunterDryRunExecution(Base):
     __table_args__ = (
         Index('idx_fh_dryrun_type_id', 'task_type', 'task_id'),
         Index('idx_fh_dryrun_execution_id', 'execution_id'),
+        Index('idx_fh_dryrun_parent_execution_id', 'parent_execution_id'),
         Index('idx_fh_dryrun_status', 'status'),
         Index('idx_fh_dryrun_etl_date', 'etl_date'),
         Index('idx_fh_dryrun_created_at', 'created_at'),

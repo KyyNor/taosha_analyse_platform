@@ -425,3 +425,44 @@ class RiskControlModelManager:
 
         logger.info(f"模型历史回测任务已提交: {execution_id}")
         return execution_id
+
+    async def submit_batch_backtest_task(
+        self,
+        model_ids: List[int],
+        start_date: str,
+        end_date: str,
+        created_by: str
+    ) -> str:
+        """提交模型批量历史回测任务"""
+        if not model_ids:
+            raise ValueError("模型ID列表不能为空")
+
+        unique_model_ids = list(dict.fromkeys(model_ids))
+        models = self.db.query(FraudHunterModelDefinition).filter(
+            FraudHunterModelDefinition.id.in_(unique_model_ids)
+        ).all()
+        found_model_ids = {model.id for model in models}
+        missing_model_ids = [model_id for model_id in unique_model_ids if model_id not in found_model_ids]
+        if missing_model_ids:
+            raise ValueError(f"以下模型不存在: {missing_model_ids}")
+
+        logger.info(
+            f"提交模型批量历史回测任务: 模型数={len(unique_model_ids)}, "
+            f"日期范围: {start_date} 至 {end_date}"
+        )
+
+        execution_id = await dry_run_task_manager.submit_task(
+            db=self.db,
+            task_type='model_batch_backtest',
+            task_id=0,
+            task_func=model_executor.execute_batch_backtest,
+            created_by=created_by,
+            task_name='批量模型回测',
+            model_ids=unique_model_ids,
+            start_date=start_date,
+            end_date=end_date,
+            submitted_by=created_by
+        )
+
+        logger.info(f"模型批量历史回测任务已提交: {execution_id}")
+        return execution_id

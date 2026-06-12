@@ -112,6 +112,18 @@ export default function TasksPage() {
     },
     { key: "task_id", label: "关联ID", type: "number" as const },
     {
+      key: "parent_execution_id",
+      label: "父任务",
+      type: "custom" as const,
+      render: (value: string) => (
+        value ? (
+          <span className="font-mono text-xs text-muted-foreground">{value}</span>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        )
+      )
+    },
+    {
       key: "status",
       label: "状态",
       type: "badge" as const,
@@ -150,6 +162,7 @@ export default function TasksPage() {
             <SelectItem value="indicator_task">指标任务试运行</SelectItem>
             <SelectItem value="indicator">指标试运行</SelectItem>
             <SelectItem value="model_backtest">模型历史回测</SelectItem>
+            <SelectItem value="model_batch_backtest">批量模型回测</SelectItem>
           </SelectContent>
         </Select>
 

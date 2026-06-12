@@ -32,7 +32,8 @@ const getTaskTypeLabel = (taskType: string) => {
   const labels: Record<string, string> = {
     indicator_task: "指标任务",
     indicator: "指标",
-    model_backtest: "模型回测"
+    model_backtest: "模型回测",
+    model_batch_backtest: "批量模型回测"
   };
   return labels[taskType] || taskType;
 };
@@ -79,6 +80,15 @@ export function TaskHeader({ progress }: TaskHeaderProps) {
             </div>
           </div>
         </div>
+
+        {progress.parent_execution_id && (
+          <div>
+            <div className="text-sm font-medium text-muted-foreground">父任务执行ID</div>
+            <div className="mt-1 p-2 bg-muted rounded font-mono text-sm">
+              {progress.parent_execution_id}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
