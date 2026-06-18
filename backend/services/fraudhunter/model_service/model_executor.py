@@ -109,6 +109,33 @@ class ModelExecutor:
         """
         return OBJECT_TYPE_TO_WIDE_TABLE.get(object_type, 'dep_acct_wide_table')
 
+    @staticmethod
+    def _build_cust_realtime_join_clause(cust_realtime_table_name: Optional[str]) -> List[str]:
+        """构建客户实时宽表 LEFT JOIN 的 SQL 行（与回测现有 cust_offline JOIN 同风格、同关联键）。
+
+        关联键：存款实时宽表的客户号外键列 i_dep_acct_no_offline_00001
+        = 客户实时宽表 target_id（与 cust_offline JOIN 完全平行）。
+
+        Args:
+            cust_realtime_table_name: 当天客户宽表 PG 表名；为空则不生成 JOIN。
+
+        Returns:
+            JOIN 子句的 SQL 行列表；无表名(None/空串/纯空白)时返回空列表（不 JOIN）。
+        """
+        if not cust_realtime_table_name or not cust_realtime_table_name.strip():
+            return []
+        return [
+            "LEFT JOIN",
+            f"    {cust_realtime_table_name} as cust_realtime_indicator",
+            "ON",
+            "    dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_realtime_indicator.target_id",
+        ]
+
+    @staticmethod
+    def _uses_cust_realtime_indicator(alias_mapping: Optional[Dict[str, str]]) -> bool:
+        """判断规则是否引用了客户实时指标（别名映射 values 含 cust_realtime_indicator）。"""
+        return bool(alias_mapping) and 'cust_realtime_indicator' in alias_mapping.values()
+
     def _get_latest_version_snapshot(
         self,
         db: Session,
