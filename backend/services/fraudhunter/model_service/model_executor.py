@@ -219,7 +219,8 @@ class ModelExecutor:
         dep_acct_realtime_table_name: str,
         dep_acct_offline_table_name: str,
         cust_offline_table_name: str,
-        etl_date: date
+        etl_date: date,
+        cust_realtime_table_name: Optional[str] = None,
     ) -> str:
         """生成历史回测SQL
 
@@ -227,6 +228,7 @@ class ModelExecutor:
         - 实时指标使用当天的存款宽表（dep_acct_no_realtime_indicator）
         - 离线指标使用前一天的存款宽表（dep_acct_no_offline_indicator）
         - 客户离线指标使用前一天的客户宽表（cust_offline_indicator）
+        - 客户实时指标使用当天的客户宽表（cust_realtime_indicator，可选）
 
         Args:
             db: 数据库会话
@@ -269,6 +271,22 @@ class ModelExecutor:
         # 生成WHERE子句，使用 RuleEngine
         where_clause = rule_engine.generate_sql_expression(rule_config, indicator_alias_mapping)
 
+        # 构建 FROM/JOIN 子句（含可选的客户实时 JOIN）
+        from_join_lines = [
+            "FROM",
+            f"    {dep_acct_realtime_table_name} as dep_acct_realtime_indicator",
+            "LEFT JOIN",
+            f"    {dep_acct_offline_table_name} as dep_acct_offline_indicator",
+            "ON",
+            "    dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id",
+            "LEFT JOIN",
+            f"    {cust_offline_table_name} as cust_offline_indicator",
+            "ON",
+            "    dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id",
+        ]
+        from_join_lines.extend(self._build_cust_realtime_join_clause(cust_realtime_table_name))
+        from_join_clause = "\n".join(from_join_lines)
+
         # 生成完整SQL - 使用PG表
         sql = f"""-- 模型历史回测SQL
 -- 模型: {model.model_code} ({model.model_name})
@@ -276,16 +294,7 @@ class ModelExecutor:
 
 SELECT
     {select_clause}
-FROM
-    {dep_acct_realtime_table_name} as dep_acct_realtime_indicator
-LEFT JOIN
-    {dep_acct_offline_table_name} as dep_acct_offline_indicator
-ON
-    dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id
-LEFT JOIN
-    {cust_offline_table_name} as cust_offline_indicator
-ON
-    dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id
+{from_join_clause}
 WHERE
     {where_clause}
 LIMIT 10000
