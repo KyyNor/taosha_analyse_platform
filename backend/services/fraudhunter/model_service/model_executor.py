@@ -414,6 +414,11 @@ LIMIT 10000
                     db, cust_wide_table_name, previous_date
                 )
 
+                # 获取当天的最新版本客户宽表快照（用于客户实时指标，与 dep_acct_realtime 同口径）
+                cust_realtime_result = self._get_latest_version_snapshot(
+                    db, cust_wide_table_name, current_date
+                )
+
                 # 记录版本信息
                 day_result['version_fallbacks'] = {
                     'realtime': dep_acct_realtime_result.version_hash[:8] if dep_acct_realtime_result.version_hash else '',
@@ -428,6 +433,7 @@ LIMIT 10000
                 dep_acct_realtime_table = dep_acct_realtime_result.pg_table_name
                 dep_acct_offline_table = dep_acct_offline_result.pg_table_name
                 cust_offline_table = cust_offline_result.pg_table_name
+                cust_realtime_table = cust_realtime_result.pg_table_name
 
                 if not dep_acct_realtime_table:
                     warning_msg = f"日期 {current_date} 的宽表不存在，跳过"
@@ -451,14 +457,33 @@ LIMIT 10000
                     current_date += timedelta(days=1)
                     continue
 
-                # 生成SQL
+                # 判断模型是否引用客户实时指标；引用且当天客户宽表缺失则跳过当天
+                rule_config_for_check = RuleConfig(**model.rule_config)
+                check_engine = RuleEngine(db=db)
+                alias_mapping_for_check = check_engine.build_indicator_alias_mapping(
+                    rule_config_for_check, use_alias=True
+                )
+                uses_cust_realtime = self._uses_cust_realtime_indicator(alias_mapping_for_check)
+                if uses_cust_realtime and not cust_realtime_table:
+                    warning_msg = f"日期 {current_date} 的当天客户宽表不存在，无法回测客户实时指标，跳过"
+                    logger.warning(warning_msg)
+                    results['warnings'].append(warning_msg)
+                    results['skipped_days'] += 1
+                    day_result['status'] = 'skipped'
+                    day_result['message'] = '当天客户宽表不存在（客户实时指标）'
+                    results['daily_results'].append(day_result)
+                    current_date += timedelta(days=1)
+                    continue
+
+                # 生成SQL（仅当模型引用客户实时指标时才传入当天客户宽表，避免无谓 JOIN）
                 sql = self._generate_backtest_sql(
                     db,
                     model,
                     dep_acct_realtime_table,
                     dep_acct_offline_table,
                     cust_offline_table,
-                    current_date
+                    current_date,
+                    cust_realtime_table if uses_cust_realtime else None,
                 )
 
                 logger.info(f"模型sql已生成：{sql[:200]} ..................................... {sql[-200:]}")
