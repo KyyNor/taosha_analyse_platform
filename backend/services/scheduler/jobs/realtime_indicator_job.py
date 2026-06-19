@@ -17,6 +17,7 @@ from models.fraudhunter.model_execution_tracking import FraudHunterModelExecutio
 from services.fraudhunter.model_service.model_hit_alert_manager import ModelHitAlertManager, ModelHit
 from services.fraudhunter.system_config_service import SystemConfigManager
 from services.fraudhunter.model_service.model_executor import build_model_whitelist_dict
+from services.fraudhunter.wide_table_service.numeric_type_utils import WideTableNumericTypeHelper
 from utils.logger import logger
 from utils.config import settings
 from utils.analyze_db_utils import AnalyzeDBConnector, AnalyzeDBPartitionManager
@@ -298,6 +299,19 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
             )
         final_result['etl_date'] = today
         final_result['run_time'] = half_hour_slot
+        final_result, numeric_conversion_stats = (
+            WideTableNumericTypeHelper.convert_numeric_dataframe_columns(
+                final_result,
+                current_version.indicator_metadata or {},
+            )
+        )
+        for stats in numeric_conversion_stats:
+            if stats.blank_count or stats.invalid_count:
+                logger.info(
+                    f"[{object_type}] 实时数值指标转换: "
+                    f"indicator_code={stats.indicator_code}, "
+                    f"blank_count={stats.blank_count}, invalid_count={stats.invalid_count}"
+                )
         merge_sec = time.perf_counter() - t_merge
         logger.info(f"[{object_type}] 合并完成: {merge_sec:.2f}s")
 

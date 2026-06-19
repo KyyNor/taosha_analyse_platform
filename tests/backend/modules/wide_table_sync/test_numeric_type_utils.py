@@ -149,6 +149,51 @@ class TestWideTableNumericTypeHelper:
             NumericConversionStats(indicator_code="i_amt", blank_count=2, invalid_count=1)
         ]
 
+    def test_convert_realtime_numeric_dataframe_columns_counts_blank_not_invalid(self):
+        df = pd.DataFrame(
+            {
+                "target_id": ["a", "b"],
+                "i_amt": ["100.25", ""],
+            }
+        )
+        metadata = {
+            "1": {"indicator_code": "i_amt", "data_type": "numeric"},
+        }
+
+        converted, stats = WideTableNumericTypeHelper.convert_numeric_dataframe_columns(df, metadata)
+
+        assert converted["i_amt"].tolist()[0] == 100.25
+        assert pd.isna(converted["i_amt"].tolist()[1])
+        assert stats == [
+            NumericConversionStats(indicator_code="i_amt", blank_count=1, invalid_count=0)
+        ]
+
+    def test_realtime_indicator_job_uses_numeric_conversion_before_copy(self):
+        job_source = (
+            _backend_root
+            / "services"
+            / "scheduler"
+            / "jobs"
+            / "realtime_indicator_job.py"
+        ).read_text()
+
+        assert (
+            "from services.fraudhunter.wide_table_service.numeric_type_utils "
+            "import WideTableNumericTypeHelper"
+        ) in job_source
+        etl_pos = job_source.index("final_result['etl_date'] = today")
+        run_time_pos = job_source.index("final_result['run_time'] = half_hour_slot")
+        convert_pos = job_source.index(
+            "WideTableNumericTypeHelper.convert_numeric_dataframe_columns("
+        )
+        copy_pos = job_source.index("AnalyzeDBConnector.batch_insert_copy(")
+
+        assert etl_pos < convert_pos
+        assert run_time_pos < convert_pos
+        assert convert_pos < copy_pos
+        assert "stats.blank_count" in job_source
+        assert "stats.invalid_count" in job_source
+
     def test_convert_numeric_dataframe_columns_counts_null_blank_and_invalid(self):
         df = pd.DataFrame(
             {
