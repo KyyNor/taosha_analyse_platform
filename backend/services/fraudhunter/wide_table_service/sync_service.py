@@ -26,6 +26,7 @@ from utils.logger import logger
 from utils.config import settings
 from utils.analyze_db_utils import AnalyzeDBConnector, AnalyzeDBPartitionManager
 from domain.wide_table.version_delta import WideTableComparator
+from services.fraudhunter.wide_table_service.numeric_type_utils import WideTableNumericTypeHelper
 
 # 宽表名称到对象类型的反向映射
 WIDE_TABLE_TO_OBJECT_TYPE = {
@@ -533,6 +534,35 @@ class WideTableSyncService:
         logger.debug(f"未找到任何可用的旧表（行数>0），copy_candidates共{len(copy_candidates)}个")
         return None, None
 
+    @staticmethod
+    def _metadata_for_codes(indicator_metadata: dict, indicator_codes: list) -> dict:
+        indicator_code_set = set(indicator_codes)
+        return {
+            key: meta
+            for key, meta in indicator_metadata.items()
+            if meta.get("indicator_code") in indicator_code_set
+        }
+
+    def _build_typed_pivot_outer_select(
+        self,
+        pivot_sql: str,
+        indicator_metadata: dict,
+        etl_date: date,
+    ) -> str:
+        select_columns = [
+            "target_id",
+            *WideTableNumericTypeHelper.spark_select_expressions(indicator_metadata),
+            f"'{etl_date.strftime('%Y-%m-%d')}' as etl_date",
+        ]
+        select_clause = ",\n    ".join(select_columns)
+        return f"""
+SELECT
+    {select_clause}
+FROM (
+{pivot_sql}
+) AS pivot_result
+""".strip()
+
     def _build_pivot_sql_inc(
         self,
         wide_table_name: str,
@@ -549,14 +579,10 @@ class WideTableSyncService:
 
         object_type = WIDE_TABLE_TO_OBJECT_TYPE.get(wide_table_name, '')
         in_clause = ", ".join([f"'{code}' AS {code}" for code in inc_codes])
-        select_columns = ", ".join(inc_codes)
         etl_date_str = etl_date.strftime('%Y-%m-%d')
 
-        sql = f"""
-SELECT
-    target_id,
-    {select_columns},
-    '{etl_date_str}' as etl_date
+        inner_sql = f"""
+SELECT *
 FROM (
     SELECT
         target_id,
@@ -573,6 +599,12 @@ PIVOT (
     FOR indicator_id IN ({in_clause})
 )
 """.strip()
+        inc_metadata = self._metadata_for_codes(indicator_metadata, inc_codes)
+        sql = self._build_typed_pivot_outer_select(
+            pivot_sql=inner_sql,
+            indicator_metadata=inc_metadata,
+            etl_date=etl_date,
+        )
         logger.debug(f"生成增量PIVOT SQL ({len(inc_codes)}个指标):\n{sql}")
         return sql
 
@@ -802,14 +834,10 @@ PIVOT (
 
         # 3. 构建PIVOT IN子句和SELECT列
         in_clause = ", ".join([f"'{code}' AS {code}" for code in indicator_codes])
-        select_columns = ", ".join(indicator_codes)
         etl_date_str = etl_date.strftime('%Y-%m-%d')
 
-        sql = f"""
-SELECT
-    target_id,
-    {select_columns},
-    '{etl_date_str}' as etl_date
+        inner_sql = f"""
+SELECT *
 FROM (
     SELECT
         target_id,
@@ -825,6 +853,11 @@ PIVOT (
     FOR indicator_id IN ({in_clause})
 )
 """.strip()
+        sql = self._build_typed_pivot_outer_select(
+            pivot_sql=inner_sql,
+            indicator_metadata=indicator_metadata,
+            etl_date=etl_date,
+        )
 
         logger.debug(f"生成PIVOT SQL ({len(indicator_codes)}个指标):\n{sql}")
         return sql
