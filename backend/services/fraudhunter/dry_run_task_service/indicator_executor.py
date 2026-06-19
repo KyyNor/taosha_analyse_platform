@@ -7,10 +7,12 @@ import asyncio
 import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta, timezone
+import pandas as pd
 from sqlalchemy.orm import Session
 from models.fraudhunter.indicator import FraudHunterIndicatorTask, FraudHunterIndicatorDefinition
 from models.fraudhunter.dry_run_task import FraudHunterDryRunExecution
 from schemas.fraudhunter.indicator import IndicatorTaskCreate
+from services.fraudhunter.wide_table_service.numeric_type_utils import WideTableNumericTypeHelper
 from utils.logger import logger
 from utils.spark_utils import spark_utils
 from models.db_base import SessionLocal
@@ -179,6 +181,24 @@ class IndicatorExecutor:
                 indicator_codes
             )
 
+            numeric_conversion_stats = []
+            if indicator_ids:
+                indicators = db.query(FraudHunterIndicatorDefinition).filter(
+                    FraudHunterIndicatorDefinition.id.in_(indicator_ids)
+                ).all()
+                stats_metadata = {
+                    str(ind.id): {
+                        'indicator_code': ind.indicator_code,
+                        'data_type': ind.data_type,
+                    }
+                    for ind in indicators
+                }
+                _, conversion_stats = WideTableNumericTypeHelper.convert_numeric_dataframe_columns(
+                    pd.DataFrame(result['sample_result']),
+                    stats_metadata,
+                )
+                numeric_conversion_stats = [stat.__dict__ for stat in conversion_stats]
+
             # 字段验证（如果启用）
             validation_result = None
             if validate_fields and indicator_ids:
@@ -206,6 +226,7 @@ class IndicatorExecutor:
                 'sample_result': result['sample_result'],
                 'execution_time_seconds': result['duration_seconds'],
                 'validation_result': validation_result,
+                'numeric_conversion_stats': numeric_conversion_stats,
                 'processed_sql': processed_sql
             }
 

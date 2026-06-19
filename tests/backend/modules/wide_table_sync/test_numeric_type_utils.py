@@ -237,6 +237,13 @@ class TestWideTableNumericTypeHelper:
         assert NumericConversionStats("i_amt", 1, 2) == NumericConversionStats("i_amt", 1, 2)
         assert NumericConversionStats("i_amt", 1, 2) != NumericConversionStats("i_amt", 2, 1)
 
+    def test_numeric_conversion_stats_serializes_with_dict(self):
+        stats = [NumericConversionStats(indicator_code="i_amt", blank_count=1, invalid_count=2)]
+
+        assert [stat.__dict__ for stat in stats] == [
+            {"indicator_code": "i_amt", "blank_count": 1, "invalid_count": 2}
+        ]
+
 
 class TestAnalyzeDBPartitionManagerNumericColumns:
     def test_resolve_indicator_column_def_uses_double_precision_for_numeric(self, monkeypatch):
