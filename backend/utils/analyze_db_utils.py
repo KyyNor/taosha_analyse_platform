@@ -414,13 +414,11 @@ class AnalyzeDBPartitionManager:
             columns.append((partition_col, 'varchar(50) NOT NULL'))
 
         for meta in indicator_metadata.values():
-            indicator_code = meta.get('indicator_code')
-            if indicator_code:
-                columns.append(
-                    AnalyzeDBPartitionManager.resolve_indicator_column_def(
-                        meta, long_text_indicator_list
-                    )
+            columns.append(
+                AnalyzeDBPartitionManager.resolve_indicator_column_def(
+                    meta, long_text_indicator_list
                 )
+            )
 
         if partition_col:
             success = AnalyzeDBPartitionManager.create_partitioned_table(table_name, columns, partition_col)
@@ -773,13 +771,11 @@ class AnalyzeDBPartitionManager:
         columns.append(AnalyzeDBPartitionManager._resolve_pg_column_def('etl_date', []))
 
         for meta in indicator_metadata.values():
-            indicator_code = meta.get('indicator_code')
-            if indicator_code:
-                columns.append(
-                    AnalyzeDBPartitionManager.resolve_indicator_column_def(
-                        meta, long_text_indicator_list
-                    )
+            columns.append(
+                AnalyzeDBPartitionManager.resolve_indicator_column_def(
+                    meta, long_text_indicator_list
                 )
+            )
 
         columns_sql = ",\n    ".join(f"{name} {typ}" for name, typ in columns)
             

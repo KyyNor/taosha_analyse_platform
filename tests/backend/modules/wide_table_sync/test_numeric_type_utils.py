@@ -227,6 +227,32 @@ class TestAnalyzeDBPartitionManagerNumericColumns:
         else:
             raise AssertionError("Expected ValueError")
 
+    def test_create_wide_table_requires_indicator_code(self, monkeypatch):
+        module = _load_analyze_db_utils_with_stubs(monkeypatch)
+
+        try:
+            module.AnalyzeDBPartitionManager.create_wide_table(
+                "wide_table",
+                {"1": {"data_type": "numeric"}},
+            )
+        except ValueError as exc:
+            assert str(exc) == "indicator_code is required"
+        else:
+            raise AssertionError("Expected ValueError")
+
+    def test_create_heap_table_requires_indicator_code(self, monkeypatch):
+        module = _load_analyze_db_utils_with_stubs(monkeypatch)
+
+        try:
+            module.AnalyzeDBPartitionManager.create_heap_table(
+                "heap_table",
+                {"1": {"data_type": "numeric"}},
+            )
+        except ValueError as exc:
+            assert str(exc) == "indicator_code is required"
+        else:
+            raise AssertionError("Expected ValueError")
+
 
 def _load_version_manager_with_stubs(monkeypatch):
     class DummyTask:
