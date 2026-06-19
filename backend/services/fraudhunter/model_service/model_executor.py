@@ -269,7 +269,11 @@ class ModelExecutor:
         select_clause = ",\n    ".join(select_fields)
 
         # 生成WHERE子句，使用 RuleEngine
-        where_clause = rule_engine.generate_sql_expression(rule_config, indicator_alias_mapping)
+        where_clause = rule_engine.generate_sql_expression(
+            rule_config,
+            indicator_alias_mapping,
+            numeric_columns_are_typed=True
+        )
 
         # 构建 FROM/JOIN 子句（含可选的客户实时 JOIN）
         from_join_lines = [

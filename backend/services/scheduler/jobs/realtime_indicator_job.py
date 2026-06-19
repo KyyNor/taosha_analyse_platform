@@ -635,7 +635,11 @@ def _build_model_matching_sql(
         indicator_alias_mapping = rule_engine.build_indicator_alias_mapping(
             rule_config, use_alias=True
         )
-        where_condition = rule_engine.generate_sql_expression(rule_config, indicator_alias_mapping)
+        where_condition = rule_engine.generate_sql_expression(
+            rule_config,
+            indicator_alias_mapping,
+            numeric_columns_are_typed=True
+        )
         case_when_clauses.append(f"CASE WHEN ({where_condition}) THEN {model.id} ELSE NULL END")
 
     array_expr = f"ARRAY(SELECT x FROM UNNEST(ARRAY[{', '.join(case_when_clauses)}]) x WHERE x IS NOT NULL)"

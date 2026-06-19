@@ -911,7 +911,8 @@ class RuleEngine:
     def _get_indicator_sql_with_cast(
         self,
         indicator_code: str,
-        indicator_alias_mapping: Optional[Dict[str, str]] = None
+        indicator_alias_mapping: Optional[Dict[str, str]] = None,
+        numeric_columns_are_typed: bool = False
     ) -> str:
         """
         获取指标的SQL表达式，数值型指标自动添加CAST转换
@@ -919,6 +920,7 @@ class RuleEngine:
         Args:
             indicator_code: 指标编码
             indicator_alias_mapping: 指标别名映射
+            numeric_columns_are_typed: 数值指标列是否已是 DOUBLE PRECISION 物理类型
 
         Returns:
             str: SQL表达式，数值型指标会包含CAST转换
@@ -934,6 +936,8 @@ class RuleEngine:
         indicator = self._get_indicator_cached(indicator_code)
         if indicator and indicator.data_type == 'numeric':
             # 数值类型增加 COALESCE 默认值 0，避免 NULL 比较问题
+            if numeric_columns_are_typed:
+                return f"COALESCE({base_sql}, 0)"
             return f"COALESCE({base_sql}::DOUBLE PRECISION, 0)"
 
         if indicator and indicator.data_type == 'date':
@@ -945,7 +949,8 @@ class RuleEngine:
         self,
         value_expr: ValueExpression,
         indicator_alias_mapping: Optional[Dict[str, str]] = None,
-        use_display_name: bool = False
+        use_display_name: bool = False,
+        numeric_columns_are_typed: bool = False
     ) -> str:
         """
         将值表达式转换为 Spark SQL
@@ -954,6 +959,7 @@ class RuleEngine:
             value_expr: 值表达式
             indicator_alias_mapping: 指标别名映射 {indicator_code: table_alias}
             use_display_name: 是否使用中文显示名称（用于SQL预览）
+            numeric_columns_are_typed: 数值指标列是否已是 DOUBLE PRECISION 物理类型
 
         Returns:
             str: SQL 字符串
@@ -967,7 +973,11 @@ class RuleEngine:
             indicator = value_expr.indicator
             if use_display_name:
                 return self._get_indicator_display_name(indicator)
-            return self._get_indicator_sql_with_cast(indicator, indicator_alias_mapping)
+            return self._get_indicator_sql_with_cast(
+                indicator,
+                indicator_alias_mapping,
+                numeric_columns_are_typed=numeric_columns_are_typed
+            )
 
         # 时间函数
         elif isinstance(value_expr, TimeFunction):
@@ -1024,7 +1034,11 @@ class RuleEngine:
             if use_display_name:
                 ind_sql = self._get_indicator_display_name(ind)
             else:
-                ind_sql = self._get_indicator_sql_with_cast(ind, indicator_alias_mapping)
+                ind_sql = self._get_indicator_sql_with_cast(
+                    ind,
+                    indicator_alias_mapping,
+                    numeric_columns_are_typed=numeric_columns_are_typed
+                )
             if value_expr.function == "abs":
                 return f"ABS({ind_sql})"
 
@@ -1034,7 +1048,11 @@ class RuleEngine:
             if use_display_name:
                 indicator_sql = self._get_indicator_display_name(value_expr.indicator)
             else:
-                indicator_sql = self._get_indicator_sql_with_cast(value_expr.indicator, indicator_alias_mapping)
+                indicator_sql = self._get_indicator_sql_with_cast(
+                    value_expr.indicator,
+                    indicator_alias_mapping,
+                    numeric_columns_are_typed=numeric_columns_are_typed
+                )
 
             # 构建运算符SQL
             operator_map = {
@@ -1066,7 +1084,8 @@ class RuleEngine:
         self,
         rule_config: RuleConfig,
         indicator_alias_mapping: Optional[Dict[str, str]] = None,
-        use_display_name: bool = False
+        use_display_name: bool = False,
+        numeric_columns_are_typed: bool = False
     ) -> str:
         """
         将规则配置转换为SQL WHERE子句表达式（支持所有操作符和值表达式）
@@ -1081,6 +1100,7 @@ class RuleEngine:
                     - 存款离线指标: {'i_xxx_offline': 'dep_acct_offline_indicator'}
                     - 客户指标: {'cust_xxx': 'cust_offline_indicator'}
             use_display_name: 是否使用中文显示名称（实时指标带[实时]前缀）
+            numeric_columns_are_typed: 数值指标列是否已是 DOUBLE PRECISION 物理类型
 
         Returns:
             str: SQL表达式，如 "(登录次数 > 10 AND ([实时]设备变更次数 >= 3 OR 用户状态 IN ('suspended', 'banned')))"
@@ -1097,7 +1117,11 @@ class RuleEngine:
             if use_display_name:
                 left_sql = self._get_indicator_display_name(indicator)
             else:
-                left_sql = self._get_indicator_sql_with_cast(indicator, indicator_alias_mapping)
+                left_sql = self._get_indicator_sql_with_cast(
+                    indicator,
+                    indicator_alias_mapping,
+                    numeric_columns_are_typed=numeric_columns_are_typed
+                )
 
             # 处理左元素函数
             if condition.left_function == 'abs':
@@ -1105,7 +1129,12 @@ class RuleEngine:
 
             # 基础比较操作符
             if operator in ['>', '>=', '<', '<=', '=', '!=']:
-                right_sql = self._value_expression_to_sql(value_expr, indicator_alias_mapping, use_display_name)
+                right_sql = self._value_expression_to_sql(
+                    value_expr,
+                    indicator_alias_mapping,
+                    use_display_name,
+                    numeric_columns_are_typed=numeric_columns_are_typed
+                )
                 return f"{left_sql} {operator} {right_sql}"
 
             # 集合操作（只支持常量值）
@@ -1165,7 +1194,8 @@ class RuleEngine:
                     ref_sql = self.generate_sql_expression(
                         ref_rule_config,
                         indicator_alias_mapping=indicator_alias_mapping,
-                        use_display_name=use_display_name
+                        use_display_name=use_display_name,
+                        numeric_columns_are_typed=numeric_columns_are_typed
                     )
                     sub_expressions.append(f"({ref_sql})")
 
