@@ -24,6 +24,44 @@ NumericConversionStats = numeric_type_utils.NumericConversionStats
 WideTableNumericTypeHelper = numeric_type_utils.WideTableNumericTypeHelper
 
 
+def _load_analyze_db_utils_with_stubs(monkeypatch):
+    services_module = types.ModuleType("services")
+    fraudhunter_module = types.ModuleType("services.fraudhunter")
+    wide_table_service_module = types.ModuleType("services.fraudhunter.wide_table_service")
+
+    config_module = types.ModuleType("utils.config")
+    config_module.settings = types.SimpleNamespace(
+        fraudhunter_analyze_db={
+            "db_type": "postgresql",
+            "postgresql": {},
+        }
+    )
+
+    db_base_module = types.ModuleType("models.db_base")
+    db_base_module.get_db_session = lambda: None
+
+    system_config_module = types.ModuleType("services.fraudhunter.system_config_service")
+    system_config_module.SystemConfigManager = object
+
+    for name, module in {
+        "services": services_module,
+        "services.fraudhunter": fraudhunter_module,
+        "services.fraudhunter.wide_table_service": wide_table_service_module,
+        "services.fraudhunter.wide_table_service.numeric_type_utils": numeric_type_utils,
+        "utils.config": config_module,
+        "models.db_base": db_base_module,
+        "services.fraudhunter.system_config_service": system_config_module,
+    }.items():
+        monkeypatch.setitem(sys.modules, name, module)
+
+    module_path = _backend_root / "utils" / "analyze_db_utils.py"
+    spec = importlib.util.spec_from_file_location("analyze_db_utils_for_test", module_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["analyze_db_utils_for_test"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 class TestWideTableNumericTypeHelper:
     def test_is_numeric_meta_true_for_numeric(self):
         meta = {"indicator_code": "i_amt", "data_type": "numeric"}
@@ -153,6 +191,41 @@ class TestWideTableNumericTypeHelper:
     def test_numeric_conversion_stats_equality(self):
         assert NumericConversionStats("i_amt", 1, 2) == NumericConversionStats("i_amt", 1, 2)
         assert NumericConversionStats("i_amt", 1, 2) != NumericConversionStats("i_amt", 2, 1)
+
+
+class TestAnalyzeDBPartitionManagerNumericColumns:
+    def test_resolve_indicator_column_def_uses_double_precision_for_numeric(self, monkeypatch):
+        module = _load_analyze_db_utils_with_stubs(monkeypatch)
+
+        result = module.AnalyzeDBPartitionManager.resolve_indicator_column_def(
+            {"indicator_code": "i_amt", "data_type": "numeric"},
+            [],
+        )
+
+        assert result == ("i_amt", "DOUBLE PRECISION")
+
+    def test_resolve_indicator_column_def_keeps_long_text_for_nonnumeric(self, monkeypatch):
+        module = _load_analyze_db_utils_with_stubs(monkeypatch)
+
+        result = module.AnalyzeDBPartitionManager.resolve_indicator_column_def(
+            {"indicator_code": "i_desc", "data_type": "string"},
+            ["i_desc"],
+        )
+
+        assert result == ("i_desc", "text")
+
+    def test_resolve_indicator_column_def_requires_indicator_code(self, monkeypatch):
+        module = _load_analyze_db_utils_with_stubs(monkeypatch)
+
+        try:
+            module.AnalyzeDBPartitionManager.resolve_indicator_column_def(
+                {"data_type": "numeric"},
+                [],
+            )
+        except ValueError as exc:
+            assert str(exc) == "indicator_code is required"
+        else:
+            raise AssertionError("Expected ValueError")
 
 
 def _load_version_manager_with_stubs(monkeypatch):

@@ -15,6 +15,7 @@ from sqlalchemy.pool import QueuePool
 from utils.config import settings
 from models.db_base import get_db_session
 from services.fraudhunter.system_config_service import SystemConfigManager
+from services.fraudhunter.wide_table_service.numeric_type_utils import WideTableNumericTypeHelper
 
 
 def _get_pg_config() -> Dict[str, Any]:
@@ -377,6 +378,17 @@ class AnalyzeDBPartitionManager:
             return (indicator_code, 'text')
         return (indicator_code, 'varchar(1000)')
 
+    @classmethod
+    def resolve_indicator_column_def(cls, meta: Dict[str, Any], long_text_list: list) -> tuple:
+        """根据指标元数据解析宽表指标列定义。"""
+        indicator_code = meta.get('indicator_code')
+        if not indicator_code:
+            raise ValueError("indicator_code is required")
+        return (
+            indicator_code,
+            WideTableNumericTypeHelper.pg_type_for_indicator(meta, long_text_list),
+        )
+
     @staticmethod
     def create_wide_table(
         table_name: str,
@@ -405,8 +417,8 @@ class AnalyzeDBPartitionManager:
             indicator_code = meta.get('indicator_code')
             if indicator_code:
                 columns.append(
-                    AnalyzeDBPartitionManager._resolve_pg_column_def(
-                        indicator_code, long_text_indicator_list
+                    AnalyzeDBPartitionManager.resolve_indicator_column_def(
+                        meta, long_text_indicator_list
                     )
                 )
 
@@ -764,8 +776,8 @@ class AnalyzeDBPartitionManager:
             indicator_code = meta.get('indicator_code')
             if indicator_code:
                 columns.append(
-                    AnalyzeDBPartitionManager._resolve_pg_column_def(
-                        indicator_code, long_text_indicator_list
+                    AnalyzeDBPartitionManager.resolve_indicator_column_def(
+                        meta, long_text_indicator_list
                     )
                 )
 
