@@ -1,4 +1,5 @@
 import importlib.util
+import asyncio
 import sys
 import types
 from pathlib import Path
@@ -387,3 +388,210 @@ class TestWideTableVersionManagerNumericMetadata:
         _version_hash, indicator_metadata = manager.generate_version_hash([indicator])
 
         assert indicator_metadata[1]["data_type"] == "numeric"
+
+
+def _load_indicator_executor(monkeypatch):
+    class DummyColumn:
+        def __eq__(self, _other):
+            return True
+
+        def in_(self, _values):
+            return True
+
+    class DummyTask:
+        id = DummyColumn()
+
+    class DummyExecution:
+        execution_id = DummyColumn()
+
+    class DummyIndicator:
+        id = DummyColumn()
+
+    sqlalchemy_orm_module = types.ModuleType("sqlalchemy.orm")
+    sqlalchemy_orm_module.Session = object
+
+    models_module = types.ModuleType("models")
+    fraudhunter_module = types.ModuleType("models.fraudhunter")
+    indicator_module = types.ModuleType("models.fraudhunter.indicator")
+    indicator_module.FraudHunterIndicatorTask = DummyTask
+    indicator_module.FraudHunterIndicatorDefinition = DummyIndicator
+
+    dry_run_model_module = types.ModuleType("models.fraudhunter.dry_run_task")
+    dry_run_model_module.FraudHunterDryRunExecution = DummyExecution
+
+    schemas_module = types.ModuleType("schemas")
+    schemas_fraudhunter_module = types.ModuleType("schemas.fraudhunter")
+    schemas_indicator_module = types.ModuleType("schemas.fraudhunter.indicator")
+    schemas_indicator_module.IndicatorTaskCreate = object
+
+    services_module = types.ModuleType("services")
+    services_fraudhunter_module = types.ModuleType("services.fraudhunter")
+    wide_table_service_module = types.ModuleType("services.fraudhunter.wide_table_service")
+
+    logger_module = types.ModuleType("utils.logger")
+    logger_module.logger = types.SimpleNamespace(
+        info=lambda *args, **kwargs: None,
+        debug=lambda *args, **kwargs: None,
+        warning=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
+    )
+
+    spark_utils_module = types.ModuleType("utils.spark_utils")
+    spark_utils_module.spark_utils = types.SimpleNamespace(query_sql=lambda _sql: [])
+
+    db_base_module = types.ModuleType("models.db_base")
+    db_base_module.SessionLocal = lambda: None
+
+    for name, module in {
+        "sqlalchemy.orm": sqlalchemy_orm_module,
+        "models": models_module,
+        "models.fraudhunter": fraudhunter_module,
+        "models.fraudhunter.indicator": indicator_module,
+        "models.fraudhunter.dry_run_task": dry_run_model_module,
+        "schemas": schemas_module,
+        "schemas.fraudhunter": schemas_fraudhunter_module,
+        "schemas.fraudhunter.indicator": schemas_indicator_module,
+        "services": services_module,
+        "services.fraudhunter": services_fraudhunter_module,
+        "services.fraudhunter.wide_table_service": wide_table_service_module,
+        "services.fraudhunter.wide_table_service.numeric_type_utils": numeric_type_utils,
+        "utils.logger": logger_module,
+        "utils.spark_utils": spark_utils_module,
+        "models.db_base": db_base_module,
+    }.items():
+        monkeypatch.setitem(sys.modules, name, module)
+
+    module_path = (
+        _backend_root
+        / "services"
+        / "fraudhunter"
+        / "dry_run_task_service"
+        / "indicator_executor.py"
+    )
+    spec = importlib.util.spec_from_file_location("indicator_executor_for_test", module_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["indicator_executor_for_test"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+class TestIndicatorExecutorNumericConversionStats:
+    class FakeQuery:
+        def __init__(self, db, model):
+            self.db = db
+            self.model = model
+
+        def filter(self, *args):
+            return self
+
+        def first(self):
+            if self.model is self.db.module.FraudHunterIndicatorTask:
+                return self.db.task
+            if self.model is self.db.module.FraudHunterDryRunExecution:
+                return self.db.execution
+            raise AssertionError(f"unexpected first() model: {self.model}")
+
+        def all(self):
+            if self.model is self.db.module.FraudHunterIndicatorDefinition:
+                if self.db.after_spark and self.db.fail_indicator_query_after_spark:
+                    raise AssertionError("indicator metadata must be fetched before Spark execution")
+                return self.db.indicators
+            raise AssertionError(f"unexpected all() model: {self.model}")
+
+    class FakeDb:
+        def __init__(self, module, task, execution, indicators):
+            self.module = module
+            self.task = task
+            self.execution = execution
+            self.indicators = indicators
+            self.after_spark = False
+            self.fail_indicator_query_after_spark = False
+            self.commits = 0
+
+        def query(self, model):
+            return TestIndicatorExecutorNumericConversionStats.FakeQuery(self, model)
+
+        def flush(self):
+            pass
+
+        def commit(self):
+            self.commits += 1
+
+    def _make_executor_and_db(self, monkeypatch):
+        module = _load_indicator_executor(monkeypatch)
+        execution = types.SimpleNamespace(
+            execution_id="exec-1",
+            etl_date=None,
+            version=None,
+            parameters=None,
+            rows_processed=None,
+            rows_output=None,
+            duration_seconds=None,
+            log_content=None,
+            error_message=None,
+        )
+        indicators = [
+            types.SimpleNamespace(id=1, indicator_code="i_amt", data_type="numeric"),
+            types.SimpleNamespace(id=2, indicator_code="i_name", data_type="text"),
+        ]
+        task = types.SimpleNamespace(
+            id=10,
+            task_code="task_amt",
+            logic_content="select * from source",
+            current_version=1,
+            indicators=indicators,
+        )
+        db = self.FakeDb(module, task, execution, indicators)
+
+        class FakeExecutor(module.IndicatorExecutor):
+            async def _spark_execution(self, sql, etl_date, sample_size, indicator_codes=None):
+                db.after_spark = True
+                return {
+                    "rows_processed": 3,
+                    "rows_output": 3,
+                    "duration_seconds": 0.1,
+                    "sample_result": [
+                        {"target_id": "a", "etl_date": etl_date, "i_amt": "12.5", "i_name": "ok"},
+                        {"target_id": "b", "etl_date": etl_date, "i_amt": "", "i_name": "blank"},
+                        {"target_id": "c", "etl_date": etl_date, "i_amt": "bad", "i_name": "invalid"},
+                    ],
+                    "log_content": "ok",
+                }
+
+        return FakeExecutor(), db
+
+    def test_execute_dry_run_reports_numeric_stats_from_task_indicators_without_indicator_ids(self, monkeypatch):
+        executor, db = self._make_executor_and_db(monkeypatch)
+
+        result = asyncio.run(
+            executor.execute_dry_run(
+                db=db,
+                execution_id="exec-1",
+                task_id=10,
+                etl_date="2026-06-19",
+                sample_size=10,
+            )
+        )
+
+        assert result["numeric_conversion_stats"] == [
+            {"indicator_code": "i_amt", "blank_count": 1, "invalid_count": 1}
+        ]
+        assert result["sample_result"][1]["i_amt"] == ""
+        assert result["sample_result"][2]["i_amt"] == "bad"
+
+    def test_execute_dry_run_prefetches_numeric_metadata_before_spark(self, monkeypatch):
+        executor, db = self._make_executor_and_db(monkeypatch)
+        db.fail_indicator_query_after_spark = True
+
+        result = asyncio.run(
+            executor.execute_dry_run(
+                db=db,
+                execution_id="exec-1",
+                task_id=10,
+                etl_date="2026-06-19",
+                sample_size=10,
+                indicator_ids=[1, 2],
+            )
+        )
+
+        assert result["numeric_conversion_stats"][0]["indicator_code"] == "i_amt"

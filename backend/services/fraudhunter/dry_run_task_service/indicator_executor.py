@@ -24,6 +24,30 @@ class IndicatorExecutor:
     修复MySQL连接超时问题
     """
 
+    def _get_dry_run_indicators(
+        self,
+        db: Session,
+        task: FraudHunterIndicatorTask,
+        indicator_ids: Optional[List[int]] = None,
+    ) -> List[FraudHunterIndicatorDefinition]:
+        if indicator_ids:
+            return db.query(FraudHunterIndicatorDefinition).filter(
+                FraudHunterIndicatorDefinition.id.in_(indicator_ids)
+            ).all()
+        return list(getattr(task, 'indicators', None) or [])
+
+    def _build_numeric_stats_metadata(
+        self,
+        indicators: List[FraudHunterIndicatorDefinition],
+    ) -> Dict[str, Dict[str, Any]]:
+        return {
+            str(ind.id): {
+                'indicator_code': ind.indicator_code,
+                'data_type': ind.data_type,
+            }
+            for ind in indicators
+        }
+
     def _replace_date_variables(self, sql: str, etl_date: Optional[str] = None) -> str:
         """替换SQL中的日期变量
 
@@ -165,12 +189,12 @@ class IndicatorExecutor:
         db.flush()
 
         try:
+            indicators = self._get_dry_run_indicators(db, task, indicator_ids)
+            numeric_stats_metadata = self._build_numeric_stats_metadata(indicators)
+
             # 获取关联的指标编码（用于生成模拟数据和字段验证）
             indicator_codes = None
-            if validate_fields and indicator_ids:
-                indicators = db.query(FraudHunterIndicatorDefinition).filter(
-                    FraudHunterIndicatorDefinition.id.in_(indicator_ids)
-                ).all()
+            if validate_fields and indicators:
                 indicator_codes = [ind.indicator_code for ind in indicators]
 
             # 调用Spark JDBC连接执行
@@ -182,20 +206,10 @@ class IndicatorExecutor:
             )
 
             numeric_conversion_stats = []
-            if indicator_ids:
-                indicators = db.query(FraudHunterIndicatorDefinition).filter(
-                    FraudHunterIndicatorDefinition.id.in_(indicator_ids)
-                ).all()
-                stats_metadata = {
-                    str(ind.id): {
-                        'indicator_code': ind.indicator_code,
-                        'data_type': ind.data_type,
-                    }
-                    for ind in indicators
-                }
+            if numeric_stats_metadata:
                 _, conversion_stats = WideTableNumericTypeHelper.convert_numeric_dataframe_columns(
                     pd.DataFrame(result['sample_result']),
-                    stats_metadata,
+                    numeric_stats_metadata,
                 )
                 numeric_conversion_stats = [stat.__dict__ for stat in conversion_stats]
 
