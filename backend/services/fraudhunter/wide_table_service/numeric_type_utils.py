@@ -1,12 +1,15 @@
 """Utilities for typed numeric FraudHunter wide-table columns."""
 
 from dataclasses import dataclass
+import re
 from typing import Any, Dict, Iterable, List, Tuple
 
 import pandas as pd
 
 
 NUMERIC_REGEX_SPARK = r"^-?(\\d+(\\.\\d*)?|\\.\\d+)([eE][+-]?\\d+)?$"
+NUMERIC_REGEX_PANDAS = r"^-?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$"
+NUMERIC_PATTERN_PANDAS = re.compile(NUMERIC_REGEX_PANDAS)
 
 
 @dataclass(frozen=True)
@@ -82,8 +85,9 @@ class WideTableNumericTypeHelper:
             as_text = raw.astype("string")
             stripped = as_text.str.strip()
             blank_mask = raw.isna() | stripped.fillna("").eq("")
-            numeric_values = pd.to_numeric(stripped.mask(blank_mask), errors="coerce")
-            invalid_mask = numeric_values.isna() & ~blank_mask
+            valid_mask = stripped.str.fullmatch(NUMERIC_PATTERN_PANDAS).fillna(False)
+            numeric_values = pd.to_numeric(stripped.where(valid_mask), errors="coerce")
+            invalid_mask = ~blank_mask & ~valid_mask
 
             converted[code] = numeric_values.astype("float64")
             stats.append(
