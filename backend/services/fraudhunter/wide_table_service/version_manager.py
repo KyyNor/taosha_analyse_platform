@@ -97,6 +97,7 @@ class WideTableVersionManager:
                 "indicator_code": indicator.indicator_code,
                 "indicator_name": indicator.indicator_name,
                 "indicator_type": indicator.indicator_type,
+                "data_type": indicator.data_type,
                 "object_type": indicator.object_type,
                 "indicator_task_id": indicator.indicator_task_id
             }
