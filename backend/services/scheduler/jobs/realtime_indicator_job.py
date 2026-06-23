@@ -119,7 +119,7 @@ def _execute_single_task(
     task: "FraudHunterIndicatorTask",
     user_variable_config: dict,
     today_str: str,
-    offline_table: str,
+    dep_acct_no_offline_table: str,
     cust_offline_table: Optional[str],
     object_type: str,
 ) -> Tuple["FraudHunterIndicatorTask", Optional[pd.DataFrame]]:
@@ -129,14 +129,10 @@ def _execute_single_task(
         sql = sql.replace("${" + k + "}", v)
     sql = sql.replace("${date}", today_str)
 
-    if object_type == 'dep_acct_no':
-        sql = sql.replace('offline_dep_acct_no_table', offline_table)
-        if cust_offline_table:
-            sql = sql.replace('offline_cust_no_table', cust_offline_table)
-    elif object_type == 'cust_no':
-        sql = sql.replace('offline_cust_no_table', offline_table)
-    elif object_type == 'loan_acct_no':
-        sql = sql.replace('offline_loan_acct_no_table', offline_table)
+    if dep_acct_no_offline_table:
+        sql = sql.replace('offline_dep_acct_no_table', dep_acct_no_offline_table)
+    if cust_offline_table:
+        sql = sql.replace('offline_cust_no_table', cust_offline_table)
 
     try:
         result_df = AnalyzeDBConnector.execute_sql(sql, fetch_df=True)
@@ -268,11 +264,12 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
 
         # 并发执行所有任务，按完成顺序收集结果
         cust_offline_table = offline_tables.get('cust_no')
+        dep_acct_no_offline_table = offline_tables.get('dep_acct_no')
         with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
             futures = {
                 pool.submit(
                     _execute_single_task, task, user_variable_config,
-                    today_str, offline_table, cust_offline_table, object_type
+                    today_str, dep_acct_no_offline_table, cust_offline_table, object_type
                 ): task
                 for task in tasks
             }
