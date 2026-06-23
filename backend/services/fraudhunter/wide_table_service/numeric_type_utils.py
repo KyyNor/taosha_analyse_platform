@@ -41,7 +41,7 @@ class WideTableNumericTypeHelper:
             result_type = "varchar(1000)"
 
         from utils.logger import logger
-        logger.info(
+        logger.debug(
             f"[pg_type_for_indicator] indicator_code={indicator_code}, "
             f"raw_data_type={repr(data_type_raw)}, "
             f"is_numeric={is_numeric}, "

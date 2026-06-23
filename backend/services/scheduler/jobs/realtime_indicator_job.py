@@ -307,7 +307,7 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
         )
         for stats in numeric_conversion_stats:
             if stats.blank_count or stats.invalid_count:
-                logger.info(
+                logger.debug(
                     f"[{object_type}] 实时数值指标转换: "
                     f"indicator_code={stats.indicator_code}, "
                     f"blank_count={stats.blank_count}, invalid_count={stats.invalid_count}"
