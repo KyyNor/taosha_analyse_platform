@@ -20,7 +20,6 @@ from models.fraudhunter.wide_table import (
 )
 from utils.logger import logger
 
-
 # object_type到wide_table_name的映射
 OBJECT_TYPE_TO_TABLE_NAME = {
     'dep_acct_no': 'dep_acct_wide_table',
@@ -98,7 +97,6 @@ class WideTableVersionManager:
                 "indicator_code": indicator.indicator_code,
                 "indicator_name": indicator.indicator_name,
                 "indicator_type": indicator.indicator_type,
-                "data_type": indicator.data_type,
                 "object_type": indicator.object_type,
                 "indicator_task_id": indicator.indicator_task_id
             }
@@ -314,9 +312,11 @@ class WideTableVersionManager:
         indicator_metadata: Dict,
         etl_date: date
     ) -> List[Dict]:
-        """检查指标的运行进度"""
+        """检查指标的运行进度（批量查询优化）"""
         missing_tasks = []
 
+        # 先收集有 indicator_task_id 的指标，无 task_id 的直接记录缺失
+        pending_items = {}  # (indicator_task_id, indicator_version) -> (indicator_id, metadata)
         for indicator_id, metadata in indicator_metadata.items():
             indicator_task_id = metadata.get('indicator_task_id')
 
@@ -328,23 +328,38 @@ class WideTableVersionManager:
                 })
                 continue
 
-            progress = self.db.query(FraudHunterIndicatorRunProgress).filter(
-                and_(
-                    FraudHunterIndicatorRunProgress.indicator_task_id == indicator_task_id,
-                    FraudHunterIndicatorRunProgress.etl_date == etl_date,
-                    FraudHunterIndicatorRunProgress.indicator_version == metadata['version']
-                )
-            ).first()
+            pending_items[(indicator_task_id, metadata['version'])] = (indicator_id, metadata)
 
-            if not progress:
-                missing_tasks.append({
-                    "indicator_id": indicator_id,
-                    "indicator_code": metadata.get('indicator_code'),
-                    "indicator_task_id": indicator_task_id,
-                    "etl_date": str(etl_date),
-                    "version": metadata['version'],
-                    "reason": "未找到运行进度记录"
-                })
+        # 批量查询所有需要的运行进度记录
+        if pending_items:
+            task_ids = [key[0] for key in pending_items.keys()]
+            versions = [key[1] for key in pending_items.keys()]
+
+            progress_records = self.db.query(
+                FraudHunterIndicatorRunProgress.indicator_task_id,
+                FraudHunterIndicatorRunProgress.indicator_version,
+            ).filter(
+                and_(
+                    FraudHunterIndicatorRunProgress.indicator_task_id.in_(task_ids),
+                    FraudHunterIndicatorRunProgress.etl_date == etl_date,
+                    FraudHunterIndicatorRunProgress.indicator_version.in_(versions),
+                )
+            ).all()
+
+            # 构建已完成的集合，用于快速查找
+            completed_set = {(r.indicator_task_id, r.indicator_version) for r in progress_records}
+
+            # 对比找出未完成的
+            for (indicator_task_id, version), (indicator_id, metadata) in pending_items.items():
+                if (indicator_task_id, version) not in completed_set:
+                    missing_tasks.append({
+                        "indicator_id": indicator_id,
+                        "indicator_code": metadata.get('indicator_code'),
+                        "indicator_task_id": indicator_task_id,
+                        "etl_date": str(etl_date),
+                        "version": version,
+                        "reason": "未找到运行进度记录"
+                    })
 
         return missing_tasks
 
