@@ -941,7 +941,8 @@ class RuleEngine:
             return f"COALESCE({base_sql}::DOUBLE PRECISION, 0)"
 
         if indicator and indicator.data_type == 'date':
-            return f"CAST({base_sql} AS DATE)"
+            # 使用 NULLIF 容错处理空字符串，避免 "invalid input syntax for type date: """ 错误
+            return f"NULLIF({base_sql}, '')::DATE"
 
         return base_sql
 
@@ -983,19 +984,19 @@ class RuleEngine:
         elif isinstance(value_expr, TimeFunction):
             ind = value_expr.indicator
             
-            # 处理特殊的系统时间变量
+            # 处理特殊的系统时间变量，同时添加 NULLIF 容错处理空字符串
             if ind == '__T0__':
                 # T日: 实时宽表的etl_date
                 if use_display_name:
                     ind_sql = "T日(实时数据日期)"
                 else:
-                    ind_sql = "dep_acct_realtime_indicator.etl_date"
+                    ind_sql = "NULLIF(dep_acct_realtime_indicator.etl_date, '')"
             elif ind == '__T_1__':
                 # T-1日: 离线宽表的etl_date
                 if use_display_name:
                     ind_sql = "T-1日(离线数据日期)"
                 else:
-                    ind_sql = "dep_acct_offline_indicator.etl_date"
+                    ind_sql = "NULLIF(dep_acct_offline_indicator.etl_date, '')"
             else:
                 # 普通日期指标
                 if use_display_name:
@@ -1008,24 +1009,25 @@ class RuleEngine:
 
             offset = value_expr.offset
 
-            # 使用 INTERVAL 语法
+            # 使用 INTERVAL 语法，同时添加 NULLIF 容错处理空字符串
+            safe_sql = f"NULLIF({ind_sql}, '')"
             if value_expr.unit == "days":
                 if offset >= 0:
-                    return f"(cast({ind_sql} as date) + INTERVAL '{offset} DAY')"
+                    return f"({safe_sql}::DATE + INTERVAL '{offset} DAY')"
                 else:
-                    return f"(cast({ind_sql} as date) - INTERVAL '{-offset} DAY')"
+                    return f"({safe_sql}::DATE - INTERVAL '{-offset} DAY')"
 
             elif value_expr.unit == "months":
                 if offset >= 0:
-                    return f"(cast({ind_sql} as date) + INTERVAL '{offset} MONTH')"
+                    return f"({safe_sql}::DATE + INTERVAL '{offset} MONTH')"
                 else:
-                    return f"(cast({ind_sql} as date) - INTERVAL '{-offset} MONTH')"
+                    return f"({safe_sql}::DATE - INTERVAL '{-offset} MONTH')"
 
             elif value_expr.unit == "years":
                 if offset >= 0:
-                    return f"(cast({ind_sql} as date) + INTERVAL '{offset} YEAR')"
+                    return f"({safe_sql}::DATE + INTERVAL '{offset} YEAR')"
                 else:
-                    return f"(cast({ind_sql} as date) - INTERVAL '{-offset} YEAR')"
+                    return f"({safe_sql}::DATE - INTERVAL '{-offset} YEAR')"
 
         # 数学函数
         elif isinstance(value_expr, MathFunction):
