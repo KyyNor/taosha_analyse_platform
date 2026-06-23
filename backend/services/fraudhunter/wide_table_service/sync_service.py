@@ -24,7 +24,6 @@ from models.db_base import get_db_session
 from .version_manager import WideTableVersionManager
 from utils.logger import logger
 from utils.config import settings
-from utils.analyze_db_utils import AnalyzeDBConnector, AnalyzeDBPartitionManager
 from domain.wide_table.version_delta import WideTableComparator
 from services.fraudhunter.wide_table_service.numeric_type_utils import WideTableNumericTypeHelper
 
@@ -42,6 +41,8 @@ class WideTableSyncService:
     此服务不持有长期的db session引用，而是在每次数据库操作时获取新的session，
     以避免长时间Spark任务导致MySQL连接丢失。
     """
+
+    from utils.analyze_db_utils import AnalyzeDBConnector, AnalyzeDBPartitionManager
 
     def __init__(self) -> None:
         """初始化同步服务"""
