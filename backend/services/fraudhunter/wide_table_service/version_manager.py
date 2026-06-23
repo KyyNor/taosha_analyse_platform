@@ -91,6 +91,14 @@ class WideTableVersionManager:
             indicator_task = self.db.query(FraudHunterIndicatorTask).filter(
                 FraudHunterIndicatorTask.id == indicator.indicator_task_id
             ).first()
+
+            # DEBUG: 打出原始属性
+            logger.info(
+                f"[generate_version_hash] indicator={indicator.indicator_code}, "
+                f"db_data_type={repr(indicator.data_type)}, "
+                f"type={type(indicator.data_type).__name__}"
+            )
+
             parts.append(f"{indicator.id}_{indicator.current_version}")
             indicator_metadata[indicator.id] = {
                 "version": indicator_task.current_version,
@@ -101,6 +109,13 @@ class WideTableVersionManager:
                 "object_type": indicator.object_type,
                 "indicator_task_id": indicator.indicator_task_id
             }
+
+            # DEBUG: 打出存入后的值
+            stored_meta = indicator_metadata[indicator.id]
+            logger.info(
+                f"[generate_version_hash] stored meta[{indicator.id}]: "
+                f"data_type={repr(stored_meta.get('data_type'))}"
+            )
 
         version_string = "#".join(parts)
         version_hash = hashlib.sha256(version_string.encode('utf-8')).hexdigest()[:HASH_SHORT_LENGTH]
