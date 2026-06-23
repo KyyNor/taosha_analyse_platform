@@ -42,8 +42,6 @@ class WideTableSyncService:
     以避免长时间Spark任务导致MySQL连接丢失。
     """
 
-    from utils.analyze_db_utils import AnalyzeDBConnector, AnalyzeDBPartitionManager
-
     def __init__(self) -> None:
         """初始化同步服务"""
         self.source_table = settings.fraudhunter_wide_table_source_table
@@ -79,6 +77,8 @@ class WideTableSyncService:
         snapshot_id = None
 
         try:
+            from utils.analyze_db_utils import AnalyzeDBPartitionManager
+
             # 0. 防御性守卫：version_hash 为 None 时直接跳过（避免后续三处 slice/write 先行炸掉）
             if not version_hash:
                 logger.warning(
@@ -288,6 +288,9 @@ class WideTableSyncService:
         Returns:
             (row_count, column_count)
         """
+
+        from utils.analyze_db_utils import AnalyzeDBPartitionManager
+
         # 1. 保证 PG 表和分区存在
         if create_table:
             AnalyzeDBPartitionManager.create_wide_table(pg_table_name, indicator_metadata)
@@ -322,6 +325,9 @@ class WideTableSyncService:
           E. PG 侧 UPDATE ... FROM 合并到主表
           F. 删除辅助表
         """
+
+        from utils.analyze_db_utils import AnalyzeDBPartitionManager
+
         etl_date_str = etl_date.strftime('%Y-%m-%d')
         aux_table = f"_incr_{pg_table_name}_{etl_date_str.replace('-', '')}"
         column_count = len(list(target_metadata.keys())) + 2  # +2 = target_id + etl_date
@@ -515,6 +521,9 @@ class WideTableSyncService:
         Returns:
             (old_pg_partitioned_table_name, old_indicator_metadata) 或 (None, None)
         """
+
+        from utils.analyze_db_utils import AnalyzeDBPartitionManager
+
         etl_date_str = etl_date.strftime('%Y%m%d')
 
         for cand in copy_candidates:
@@ -950,6 +959,8 @@ PIVOT (
         Returns:
             (row_count, column_count)
         """
+
+        from utils.analyze_db_utils import AnalyzeDBConnector
         from utils.spark_utils import spark_utils
 
         logger.info(f"使用JDBC执行Spark查询并写入PG表: {pg_table_name}")
