@@ -19,7 +19,7 @@ from models.fraudhunter.wide_table import (
     FraudHunterIndicatorRunProgress
 )
 from utils.logger import logger
-from utils.analyze_db_utils import AnalyzeDBPartitionManager
+
 
 # object_type到wide_table_name的映射
 OBJECT_TYPE_TO_TABLE_NAME = {
@@ -261,6 +261,7 @@ class WideTableVersionManager:
         version_hash: str,
         indicator_metadata: Dict
     ) -> None:
+        from utils.analyze_db_utils import AnalyzeDBPartitionManager
         """为版本创建PG表"""
         pg_table_name = f"{wide_table_name}_{version_hash[:HASH_SHORT_LENGTH]}"
         try:
@@ -473,6 +474,7 @@ class WideTableVersionManager:
 
         # 删除PG表
         try:
+            from utils.analyze_db_utils import AnalyzeDBPartitionManager
             AnalyzeDBPartitionManager.drop_table(pg_table_name)
             logger.info(f"删除历史版本PG表: {pg_table_name}")
         except Exception as e:
