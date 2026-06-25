@@ -475,10 +475,11 @@ def step3_hit_record(db, today, matched_df, execution_record, hit_time):
 
         # 检查模型白名单（如果账号在任何一个命中模型的白名单中，则跳过该记录）
         is_model_whitelist = False
+        logger.info(f"准备开始白名单检测，命中的模型：{hit_models}，生效的白名单：{model_whitelist_acct}，当前处理的账号：{account_id}")
         for hit_model in hit_models:
             model_whitelist = model_whitelist_acct.get(hit_model.model_id, [])
             if model_whitelist and account_id in model_whitelist:
-                logger.debug(
+                logger.info(
                     f"跳过模型白名单账户: 账号={account_id}, "
                     f"模型={hit_model.model_name}"
                 )

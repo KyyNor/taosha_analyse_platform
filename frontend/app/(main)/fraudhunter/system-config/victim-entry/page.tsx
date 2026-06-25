@@ -4,6 +4,7 @@ import { MetadataTable } from "@/components/ui/MetadataTable";
 import {
   getVictimEntries,
   updateVictimEntry,
+  importVictimEntries,
   VictimEntryRecord,
 } from "@/lib/services/metadataService";
 import { Card } from "@/components/ui/card";
@@ -188,18 +189,9 @@ export default function Page() {
 
     setImporting(true);
     try {
-      // 直接把文件发给后端，由后端解析和处理
-      const formData = new FormData();
-      formData.append("file", selectedFile);
+      const result = await importVictimEntries(selectedFile);
 
-      const res = await fetch("/api/taosha/v1/fraudhunter/system-config/victim-entries/import", {
-        method: "POST",
-        body: formData,
-      });
-
-      const result = await res.json();
-
-      if (res.ok && result.success) {
+      if (result.success) {
         toast.success(result.message);
         setImportDialogOpen(false);
         load(); // 刷新列表
@@ -207,7 +199,11 @@ export default function Page() {
         toast.error(result.detail || result.message || "导入失败");
       }
     } catch (e: any) {
-      toast.error(e?.message ?? "导入失败，请检查网络连接");
+      const msg =
+        e?.response?.data?.detail ??
+        e?.message ??
+        "导入失败，请检查网络连接";
+      toast.error(msg);
     } finally {
       setImporting(false);
     }

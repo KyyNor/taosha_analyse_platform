@@ -274,3 +274,29 @@ export async function updateVictimEntry(
       : await api.put(`/fraudhunter/system-config/victim-entries/${encoded}`, data);
   return res.data;
 }
+
+export interface ImportResult {
+  success: boolean;
+  message: string;
+  total_rows: number;
+  success_count: number;
+  fail_count: number;
+  errors?: string[];
+}
+
+export async function importVictimEntries(file: File): Promise<ImportResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await api.post<ImportResult>(
+    "/fraudhunter/system-config/victim-entries/import",
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+
+  return res.data;
+}
