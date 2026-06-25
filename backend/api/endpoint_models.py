@@ -226,3 +226,24 @@ class ProvinceCardBinRequest(BaseModel):
     city: Optional[str] = None
 
 
+# 受害人录入维表
+class VictimEntryRequest(BaseModel):
+    """
+    受害人录入新增/更新请求。
+
+    所有字段均为 Optional，全量更新时传齐，部分更新时只传欲变更的字段；
+    未传的字段将以空字符串（空串，非 NULL）写入 MySQL，最终同步至 PG。
+
+    【空值语义约定】
+    此表中空值用空字符串（''）表示，与 MySQL NULL 不等价。
+    不得以"留空表示未知"的思路传给 NULL，后续服务层会统一规范。
+    """
+    account_no: Optional[str] = None
+    account_name: Optional[str] = None
+
+
+class VictimBatchImportRequest(BaseModel):
+    """受害人批量导入请求（追加模式）"""
+    records: List[Dict[str, str]] = Field(..., description="待导入的记录列表，每条记录包含 account_no 和 account_name")
+
+

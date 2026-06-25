@@ -22,7 +22,8 @@ from schemas.fraudhunter.system_config import (
 )
 from services.fraudhunter.system_config_service import SystemConfigManager
 from services.fraudhunter.province_card_bin_service import ProvinceCardBinExistsError, ProvinceCardBinService
-from api.endpoint_models import ProvinceCardBinRequest
+from services.fraudhunter.victim_entry_service import VictimAccountExistsError, VictimEntryService
+from api.endpoint_models import ProvinceCardBinRequest, VictimEntryRequest, VictimBatchImportRequest
 from utils.logger import logger
 
 
@@ -125,6 +126,123 @@ async def delete_province_card_bin(card_bin: str, db: Session = Depends(get_db))
         raise HTTPException(status_code=404, detail=f"未找到 card_bin: {card_bin}")
     except Exception as e:
         logger.error(f"删除省市卡BIN失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==============================================================================
+# 受害人录入维表管理（放在通配路由前，避免被 /{config_id} 通配路由兜住）
+# ==============================================================================
+
+def _get_victim_svc(db: Session) -> VictimEntryService:
+    return VictimEntryService(db)
+
+
+@router.get("/victim-entries")
+async def list_victim_entries(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """分页查询受害人录入（支持模糊搜索）"""
+    try:
+        svc = _get_victim_svc(db)
+        result = svc.list_paginated(page=page, page_size=page_size, search=search)
+        return result
+    except Exception as e:
+        logger.exception(str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/victim-entries/{account_no}")
+async def get_victim_entry(account_no: str, db: Session = Depends(get_db)):
+    """根据 account_no 精确查询一条"""
+    try:
+        svc = _get_victim_svc(db)
+        row = svc.get_by_account_no(account_no)
+        if not row:
+            raise HTTPException(status_code=404, detail=f"未找到账号: {account_no}")
+        return row
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"查询受害人录入失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/victim-entries", status_code=201)
+async def create_victim_entry(req: VictimEntryRequest, db: Session = Depends(get_db)):
+    """新增一条受害人记录，同时同步至 PostgreSQL"""
+    if not req.account_no:
+        raise HTTPException(status_code=400, detail="账号不能为空")
+    try:
+        svc = _get_victim_svc(db)
+        return svc.create(
+            account_no=req.account_no,
+            account_name=req.account_name or "",
+        )
+    except VictimAccountExistsError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"新增受害人录入失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/victim-entries/{account_no}")
+async def update_victim_entry(account_no: str, req: VictimEntryRequest, db: Session = Depends(get_db)):
+    """更新受害人记录，同时同步至 PostgreSQL"""
+    try:
+        svc = _get_victim_svc(db)
+        new_account_no = req.account_no if req.account_no is not None else account_no
+        updated = svc.update(
+            old_account_no=account_no,
+            account_no=new_account_no,
+            account_name=req.account_name or "",
+        )
+        if updated:
+            updated_row = svc.get_by_account_no(new_account_no)
+            return updated_row
+        raise HTTPException(status_code=404, detail=f"未找到账号: {account_no}")
+    except VictimAccountExistsError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"更新受害人录入失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/victim-entries/{account_no}", status_code=200)
+async def delete_victim_entry(account_no: str, db: Session = Depends(get_db)):
+    """删除受害人记录，连带删除 PG 中的同一笔"""
+    try:
+        svc = _get_victim_svc(db)
+        ok = svc.delete(account_no)
+        if ok:
+            return {"success": True, "message": f"已删除: {account_no}"}
+        raise HTTPException(status_code=404, detail=f"未找到账号: {account_no}")
+    except Exception as e:
+        logger.error(f"删除受害人录入失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/victim-entries/import", status_code=200)
+async def import_victim_entries(req: VictimBatchImportRequest, db: Session = Depends(get_db)):
+    """
+    批量导入受害人记录（追加模式）。
+
+    - 对于已存在的账号，执行覆盖更新
+    - 对于新账号，执行插入
+    - 返回导入统计信息
+    """
+    try:
+        svc = _get_victim_svc(db)
+        result = svc.batch_import(req.records)
+        return {
+            "success": True,
+            "message": f"导入完成，成功: {result['success_count']} 条",
+            **result
+        }
+    except Exception as e:
+        logger.error(f"导入受害人录入失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
