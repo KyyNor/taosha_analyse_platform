@@ -282,6 +282,7 @@ export interface ImportResult {
   success_count: number;
   fail_count: number;
   errors?: string[];
+  detail?: string; // 后端错误时可能返回此字段
 }
 
 export async function importVictimEntries(file: File): Promise<ImportResult> {
