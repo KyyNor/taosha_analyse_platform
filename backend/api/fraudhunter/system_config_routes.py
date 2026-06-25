@@ -23,7 +23,7 @@ from schemas.fraudhunter.system_config import (
 from services.fraudhunter.system_config_service import SystemConfigManager
 from services.fraudhunter.province_card_bin_service import ProvinceCardBinExistsError, ProvinceCardBinService
 from services.fraudhunter.victim_entry_service import VictimAccountExistsError, VictimEntryService
-from api.endpoint_models import ProvinceCardBinRequest, VictimEntryRequest, VictimBatchImportRequest
+from api.endpoint_models import ProvinceCardBinRequest, VictimEntryRequest
 from utils.logger import logger
 
 
@@ -225,22 +225,34 @@ async def delete_victim_entry(account_no: str, db: Session = Depends(get_db)):
 
 
 @router.post("/victim-entries/import", status_code=200)
-async def import_victim_entries(req: VictimBatchImportRequest, db: Session = Depends(get_db)):
+async def import_victim_entries(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
     批量导入受害人记录（追加模式）。
 
+    - 前端上传 Excel 文件
+    - 后端解析文件，提取'账号'和'户名'列
     - 对于已存在的账号，执行覆盖更新
     - 对于新账号，执行插入
     - 返回导入统计信息
     """
+    # 验证文件类型
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="未提供文件名")
+
+    if not (file.filename.endswith(".xlsx") or file.filename.endswith(".xls")):
+        raise HTTPException(status_code=400, detail="仅支持 Excel 文件格式（.xlsx/.xls）")
+
     try:
+        content = await file.read()
         svc = _get_victim_svc(db)
-        result = svc.batch_import(req.records)
+        result = svc.batch_import_from_file(content)
         return {
             "success": True,
-            "message": f"导入完成，成功: {result['success_count']} 条",
+            "message": f"导入完成，共 {result['total_rows']} 条数据，成功: {result['success_count']} 条",
             **result
         }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"导入受害人录入失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -253,7 +253,16 @@ class VictimEntryService:
 
         return ok
 
-    def batch_import(self, records: List[Dict[str, str]]) -> Dict[str, Any]:
+    def batch_import_from_records(self, records: List[Dict[str, str]]) -> Dict[str, Any]:
+        """
+        从记录列表批量导入（追加模式）。
+
+        Args:
+            records: [{"account_no": "...", "account_name": "..."}, ...]
+
+        Returns:
+            {"success_count": N, "skip_count": M, "errors": [...]}
+        """
         """
         批量导入（追加模式）。
         对于已存在的账号，执行覆盖更新；对于新账号，执行插入。
@@ -296,13 +305,85 @@ class VictimEntryService:
                 errors.append(err_msg)
 
         logger.info(
-            f"[VictimEntry.batch_import] 完成，成功:{success_count}，跳过:{skip_count}，失败:{len(errors)}"
+            f"[VictimEntry.batch_import_from_records] 完成，成功:{success_count}，跳过:{skip_count}，失败:{len(errors)}"
         )
 
         return {
             "success_count": success_count,
             "skip_count": skip_count,
             "errors": errors[:100],  # 最多保留100条错误信息
+        }
+
+    def batch_import_from_file(self, file_content: bytes) -> Dict[str, Any]:
+        """
+        从 Excel 文件批量导入（追加模式）。
+
+        Args:
+            file_content: Excel 文件二进制内容
+
+        Returns:
+            {"success_count": N, "total_rows": M, "errors": [...], "skipped_rows": K}
+        """
+        import io as _io
+        import pandas as _pd
+
+        logger.info("[VictimEntry.batch_import_from_file] 开始解析 Excel 文件")
+
+        try:
+            df = _pd.read_excel(_io.BytesIO(file_content))
+        except Exception as e:
+            raise ValueError(f"无法解析 Excel 文件，请确保是有效的 .xlsx 或 .xls 文件：{str(e)}")
+
+        # 处理 NaN 值
+        df = df.fillna("")
+        headers = [str(h).strip().lower() for h in df.columns]
+
+        # 找账号列和户名列（支持多种表头名称）
+        account_no_idx = None
+        account_name_idx = None
+
+        for idx, h in enumerate(headers):
+            if account_no_idx is None and ("账号" in h or "account" in h or "卡号" in h):
+                account_no_idx = idx
+            elif account_name_idx is None and ("户名" in h or "姓名" in h or "name" in h or "account_name" in h):
+                account_name_idx = idx
+
+        if account_no_idx is None:
+            raise ValueError("未找到'账号'列，请在 Excel 第一行添加包含'账号'或'卡号'的列名")
+
+        # 构建记录列表
+        records: List[Dict[str, str]] = []
+        skipped_rows = 0
+
+        for _, row in df.iterrows():
+            account_no = str(row.iloc[account_no_idx]).strip()
+            if not account_no:
+                skipped_rows += 1
+                continue
+
+            account_name = ""
+            if account_name_idx is not None:
+                account_name = str(row.iloc[account_name_idx]).strip()
+
+            records.append({
+                "account_no": account_no,
+                "account_name": account_name,
+            })
+
+        total_rows = len(records)
+        logger.info(f"[VictimEntry.batch_import_from_file] 解析完成，共 {total_rows} 条有效数据，跳过 {skipped_rows} 空行")
+
+        if total_rows == 0:
+            raise ValueError("文件中没有可导入的有效数据（账号列为空）")
+
+        # 执行批量导入
+        result = self.batch_import_from_records(records)
+
+        return {
+            "success_count": result["success_count"],
+            "total_rows": total_rows,
+            "skipped_rows": skipped_rows + result["skip_count"],
+            "errors": result["errors"],
         }
 
     # ------------------------------------------------------------------

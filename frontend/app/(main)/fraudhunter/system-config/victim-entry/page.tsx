@@ -4,7 +4,6 @@ import { MetadataTable } from "@/components/ui/MetadataTable";
 import {
   getVictimEntries,
   updateVictimEntry,
-  importVictimEntries,
   VictimEntryRecord,
 } from "@/lib/services/metadataService";
 import { Card } from "@/components/ui/card";
@@ -181,47 +180,6 @@ export default function Page() {
     }
   };
 
-  const parseExcelAndPreview = async (file: File): Promise<VictimEntryRecord[]> => {
-    // 简单的客户端 Excel 解析，使用 SheetJS
-    const XLSX = await import("xlsx");
-    const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array" });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-
-    if (jsonData.length < 2) {
-      throw new Error("Excel 文件没有数据或只有表头");
-    }
-
-    // 第一行是表头，找列索引
-    const headers = jsonData[0].map((h) => String(h).toLowerCase().trim());
-    const accountNoIdx = headers.findIndex(
-      (h) => h.includes("账号") || h.includes("account")
-    );
-    const accountNameIdx = headers.findIndex(
-      (h) => h.includes("户名") || h.includes("姓名") || h.includes("name")
-    );
-
-    if (accountNoIdx === -1) {
-      throw new Error("无法识别'账号'列，请在第一行添加'账号'表头");
-    }
-
-    const records: VictimEntryRecord[] = [];
-    for (let i = 1; i < jsonData.length; i++) {
-      const row = jsonData[i];
-      const accountNo = String(row[accountNoIdx] ?? "").trim();
-      if (!accountNo) continue; // 跳过空账号
-
-      const accountName = accountNameIdx !== -1
-        ? String(row[accountNameIdx] ?? "").trim()
-        : "";
-      records.push({ account_no: accountNo, account_name: accountName });
-    }
-
-    return records;
-  };
-
   const handleImportConfirm = async () => {
     if (!selectedFile) {
       toast.error("请选择要导入的文件");
@@ -230,26 +188,26 @@ export default function Page() {
 
     setImporting(true);
     try {
-      // 先解析 Excel，获取记录列表
-      const records = await parseExcelAndPreview(selectedFile);
+      // 直接把文件发给后端，由后端解析和处理
+      const formData = new FormData();
+      formData.append("file", selectedFile);
 
-      if (records.length === 0) {
-        toast.error("文件中没有可导入的数据");
-        return;
-      }
+      const res = await fetch("/api/taosha/v1/fraudhunter/system-config/victim-entries/import", {
+        method: "POST",
+        body: formData,
+      });
 
-      // 调用后端导入接口
-      const result = await importVictimEntries(records);
+      const result = await res.json();
 
-      if (result.success) {
+      if (res.ok && result.success) {
         toast.success(result.message);
         setImportDialogOpen(false);
         load(); // 刷新列表
       } else {
-        toast.error(result.message || "导入失败");
+        toast.error(result.detail || result.message || "导入失败");
       }
     } catch (e: any) {
-      toast.error(e?.message ?? "导入失败，请检查文件格式");
+      toast.error(e?.message ?? "导入失败，请检查网络连接");
     } finally {
       setImporting(false);
     }

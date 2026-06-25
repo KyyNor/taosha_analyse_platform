@@ -249,14 +249,6 @@ export interface VictimEntryRecord {
   account_name?: string;
 }
 
-export interface ImportVictimEntriesResult {
-  success: boolean;
-  message: string;
-  success_count: number;
-  skip_count: number;
-  errors: string[];
-}
-
 export async function getVictimEntries(params?: {
   page?: number;
   page_size?: number;
@@ -280,14 +272,5 @@ export async function updateVictimEntry(
     method === "POST"
       ? await api.post("/fraudhunter/system-config/victim-entries", data)
       : await api.put(`/fraudhunter/system-config/victim-entries/${encoded}`, data);
-  return res.data;
-}
-
-export async function importVictimEntries(
-  records: VictimEntryRecord[]
-): Promise<ImportVictimEntriesResult> {
-  const res = await api.post("/fraudhunter/system-config/victim-entries/import", {
-    records,
-  });
   return res.data;
 }
