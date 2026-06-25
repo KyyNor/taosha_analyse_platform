@@ -59,7 +59,7 @@ def build_model_whitelist_dict(
         except (TypeError, ValueError):
             continue  # 配置项格式错误（如空字典 / 非数字值），静默跳过
         if model_id and account_id:
-            result.setdefault(model_id, []).append(account_id)
+            result.setdefault(model_id, []).append(str(account_id))
     return result
 from utils.logger import logger
 from utils.analyze_db_utils import AnalyzeDBConnector

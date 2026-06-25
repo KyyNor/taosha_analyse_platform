@@ -440,28 +440,9 @@ def step3_hit_record(db, today, matched_df, execution_record, hit_time):
 
     # 获取模型级别的白名单账户列表
     model_whitelist_acct_raw = SystemConfigManager(db).get_config_value('model_whitelist_acct', default=[])
-    logger.info(
-        f"[白名单原始数据] model_whitelist_acct_raw={repr(model_whitelist_acct_raw)}, "
-        f"raw_types={[type(x) for x in model_whitelist_acct_raw]}"
-    )
     model_whitelist_acct = build_model_whitelist_dict(model_whitelist_acct_raw)
     if model_whitelist_acct:
-        # 逐个打印每个 key 和其中每个 value 的类型，方便定位类型不匹配问题
-        whitelist_detail = {
-            k: {
-                'key_type': type(k).__name__,
-                'values': [
-                    {'acct_id': v, 'value_type': type(v).__name__}
-                    for v in lst
-                ]
-            }
-            for k, lst in model_whitelist_acct.items()
-        }
-        logger.info(
-            f"加载模型白名单配置，模型数={len(model_whitelist_acct)}, "
-            f"detail={whitelist_detail}, "
-            f"full_data={model_whitelist_acct}"
-        )
+        logger.debug(f"加载模型白名单配置，模型数={len(model_whitelist_acct)}")
 
     all_hit_accounts = set()
     new_hit_accounts = set()
@@ -496,15 +477,7 @@ def step3_hit_record(db, today, matched_df, execution_record, hit_time):
         is_model_whitelist = False
         logger.info(f"准备开始白名单检测，命中的模型：{hit_models}，生效的白名单：{model_whitelist_acct}，当前处理的账号：{account_id}")
         for hit_model in hit_models:
-            model_id = hit_model.model_id
-            model_whitelist = model_whitelist_acct.get(model_id, [])
-            # 详细日志：打印两边值的类型，用于排查类型不匹配问题
-            logger.info(
-                f"[白名单类型检查] account_id={repr(account_id)} (type={type(account_id).__name__}), "
-                f"model_id={model_id} (type={type(model_id).__name__}), "
-                f"model_whitelist={model_whitelist}, "
-                f"whitelist_types={[type(x).__name__ for x in model_whitelist]}"
-            )
+            model_whitelist = model_whitelist_acct.get(hit_model.model_id, [])
             if model_whitelist and account_id in model_whitelist:
                 logger.info(
                     f"跳过模型白名单账户: 账号={account_id}, "
