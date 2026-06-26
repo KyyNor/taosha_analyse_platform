@@ -1,6 +1,7 @@
 """实时指标宽表定时生成任务"""
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import date, datetime
 import time
 from typing import List, Dict, Any, Optional, Tuple
@@ -144,6 +145,160 @@ def _execute_single_task(
     return (task, None)
 
 
+@dataclass
+class ObjectTypeProcessResult:
+    """单种 object_type 的处理结果"""
+    object_type: str
+    generated_table_name: Optional[str] = None
+    success: bool = False
+    error_msg: Optional[str] = None
+
+
+def _process_single_object_type(
+    object_type: str,
+    tasks: List["FraudHunterIndicatorTask"],
+    wide_table_name: str,
+    offline_table: str,
+    current_version: "FraudHunterWideTableVersion",
+    user_variable_config: dict,
+    today: date,
+    today_str: str,
+    half_hour_slot: str,
+    offline_tables: Dict[str, Optional[str]],
+) -> ObjectTypeProcessResult:
+    """
+    处理单个 object_type 的实时指标任务（在独立进程中执行，避免共享 Session）
+
+    Returns:
+        ObjectTypeProcessResult: 处理结果，包含生成的表名和是否成功
+    """
+    from models.db_base import get_db_session
+
+    # 为这个 object_type 创建独立的数据库会话
+    with get_db_session() as db:
+        try:
+            logger.debug(f"\n处理 object_type: {object_type}, 任务数: {len(tasks)}")
+
+            realtime_table_name = f"{wide_table_name}_realtime_{current_version.version_hash[:8]}"
+
+            # 创建实时表（如果不存在）
+            table_exists_sql = """
+                SELECT EXISTS (
+                    SELECT 1 FROM pg_tables
+                    WHERE schemaname = 'public' AND tablename = :table_name
+                )
+            """
+            table_exists = AnalyzeDBConnector.execute_sql(
+                table_exists_sql, params={"table_name": realtime_table_name}, fetch_df=True
+            )
+
+            if table_exists is not None and not table_exists.iloc[0]['exists']:
+                AnalyzeDBPartitionManager.create_wide_table(
+                    realtime_table_name, current_version.indicator_metadata, partition_col='run_time'
+                )
+                logger.info(f"创建实时宽表: {realtime_table_name}")
+
+            # 确保分区存在（使用半小时间隔作为分区标识）
+            AnalyzeDBPartitionManager.ensure_partition(realtime_table_name, today, partition_str=half_hour_slot)
+
+            # 执行该 object_type 的所有实时指标任务
+            all_indicator_results = []
+
+            logger.info(f"[{object_type}] 实时指标任务开始（并发）...")
+            t_loop = time.perf_counter()
+
+            # 并发执行所有任务，按完成顺序收集结果
+            cust_offline_table = offline_tables.get('cust_no')
+            dep_acct_no_offline_table = offline_tables.get('dep_acct_no')
+
+            # 同一种 object_type 内部的子任务并发，上限 16
+            max_workers = min(len(tasks), 16)
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                futures = {
+                    pool.submit(
+                        _execute_single_task, task, user_variable_config,
+                        today_str, dep_acct_no_offline_table, cust_offline_table, object_type
+                    ): task
+                    for task in tasks
+                }
+                for future in as_completed(futures):
+                    task, result_df = future.result()
+                    if result_df is not None:
+                        all_indicator_results.append(result_df)
+                        logger.info(f" {task.task_name} -> 返回 {len(result_df)} 行，{len(result_df.columns)} 列")
+
+            t_loop_elapsed = time.perf_counter() - t_loop
+            logger.info(f"[{object_type}] 所有SQL执行完成，共 {len(tasks)} 个任务，耗时: {t_loop_elapsed:.2f}s")
+
+            if not all_indicator_results:
+                logger.warning(f"object_type '{object_type}' 没有成功执行的实时指标任务")
+                return ObjectTypeProcessResult(object_type=object_type, success=False, error_msg="无有效结果")
+
+            # 合并所有指标结果
+            t_merge = time.perf_counter()
+            logger.info(f"[{object_type}] 合并所有指标结果开始...")
+            final_result = all_indicator_results[0]
+            for i in range(1, len(all_indicator_results)):
+                final_result = final_result.merge(
+                    all_indicator_results[i], on='target_id', how='outer', suffixes=('', f'_dup_{i}')
+                )
+            final_result['etl_date'] = today
+            final_result['run_time'] = half_hour_slot
+            final_result, numeric_conversion_stats = (
+                WideTableNumericTypeHelper.convert_numeric_dataframe_columns(
+                    final_result,
+                    current_version.indicator_metadata or {},
+                )
+            )
+            for stats in numeric_conversion_stats:
+                if stats.blank_count or stats.invalid_count:
+                    logger.debug(
+                        f"[{object_type}] 实时数值指标转换: "
+                        f"indicator_code={stats.indicator_code}, "
+                        f"blank_count={stats.blank_count}, invalid_count={stats.invalid_count}"
+                    )
+            merge_sec = time.perf_counter() - t_merge
+            logger.info(f"[{object_type}] 合并完成: {merge_sec:.2f}s")
+
+            # 写入实时表（使用 COPY 命令优化性能）
+            t_copy = time.perf_counter()
+            partition_table_name = f"{realtime_table_name}_{half_hour_slot}"
+            AnalyzeDBConnector.truncate_table(partition_table_name)
+            rows_inserted = AnalyzeDBConnector.batch_insert_copy(
+                realtime_table_name, final_result
+            )
+            copy_sec = time.perf_counter() - t_copy
+            logger.info(f"[{object_type}] COPY完成: {copy_sec:.2f}s")
+
+            row_count = len(final_result)
+            column_count = len(final_result.columns)
+            logger.info(f"[{object_type}] 写入实时指标宽表完成: {realtime_table_name}, 行数: {row_count}, 列数: {column_count}")
+            logger.info(f"=== {object_type} 三阶段汇总 => SQL:{t_loop_elapsed:.2f}s + 合并:{merge_sec:.2f}s + COPY:{copy_sec:.2f}s ===")
+
+            realtime_table_name_with_partition = f'{realtime_table_name}_{half_hour_slot}'
+
+            # 更新快照（在这个独立会话中）
+            _update_realtime_snapshot(
+                db, f'{wide_table_name}_realtime', today, realtime_table_name_with_partition, row_count, column_count
+            )
+
+            # 提交这个 object_type 的更改
+            db.commit()
+
+            return ObjectTypeProcessResult(
+                object_type=object_type,
+                generated_table_name=realtime_table_name_with_partition,
+                success=True
+            )
+
+        except Exception as e:
+            logger.error(f"处理 object_type '{object_type}' 时出错: {e}", exc_info=True)
+            db.rollback()
+            return ObjectTypeProcessResult(object_type=object_type, success=False, error_msg=str(e))
+
+    return ObjectTypeProcessResult(object_type=object_type, success=False, error_msg="未知错误")
+
+
 @timing_it
 def step1_generate_realtime_indicators(db, today, today_str, now_str):
     logger.debug("=" * 60)
@@ -203,40 +358,27 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
         'cust_no': offline_cust_table_name,
     }
 
-    # 处理每个 object_type 的实时指标
+    # 构建公共的用户变量配置（一次性读取，供所有线程复用）
     user_variable_config = _build_all_user_variable_config(db)
-    generated_realtime_tables: Dict[str, str] = {}
 
+    # --- 预热：提前创建好实时表和分区，避免各子任务重复建表 ---
     for object_type, tasks in tasks_by_object_type.items():
-        logger.debug(f"\n处理 object_type: {object_type}, 任务数: {len(tasks)}")
-
         wide_table_name = object_type_to_wide_table.get(object_type)
         if not wide_table_name:
-            logger.warning(f"未定义 object_type '{object_type}' 的宽表映射，跳过")
             continue
-
-        # 获取对应的离线宽表
         offline_table = offline_tables.get(object_type)
         if not offline_table:
-            logger.warning(f"没有找到 {wide_table_name} 的当前版本，跳过")
             continue
-
-        # 获取当前版本信息
         current_version = db.query(FraudHunterWideTableVersion).filter(
             and_(
                 FraudHunterWideTableVersion.wide_table_name == wide_table_name,
                 FraudHunterWideTableVersion.status.in_(['current', 'target'])
             )
         ).order_by(desc(FraudHunterWideTableVersion.created_at)).first()
-
         if not current_version:
-            logger.warning(f"没有找到 {wide_table_name} 的current版本，跳过")
             continue
 
         realtime_table_name = f"{wide_table_name}_realtime_{current_version.version_hash[:8]}"
-        
-
-        # 创建实时表（如果不存在）
         table_exists_sql = """
             SELECT EXISTS (
                 SELECT 1 FROM pg_tables
@@ -246,101 +388,73 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
         table_exists = AnalyzeDBConnector.execute_sql(
             table_exists_sql, params={"table_name": realtime_table_name}, fetch_df=True
         )
-
         if table_exists is not None and not table_exists.iloc[0]['exists']:
             AnalyzeDBPartitionManager.create_wide_table(
                 realtime_table_name, current_version.indicator_metadata, partition_col='run_time'
             )
-            logger.info(f"创建实时宽表: {realtime_table_name}")
-
-        # 确保分区存在（使用半小时间隔作为分区标识）
+            logger.info(f"[预热] 创建实时宽表: {realtime_table_name}")
         AnalyzeDBPartitionManager.ensure_partition(realtime_table_name, today, partition_str=half_hour_slot)
 
-        # 执行该 object_type 的所有实时指标任务
-        all_indicator_results = []
+    # --- 并行处理所有 object_type ---
+    t_parallel = time.perf_counter()
+    logger.info(f"开始并行处理 {len(tasks_by_object_type)} 种 object_type ...")
 
-        logger.info(f"[{object_type}] 实时指标任务开始（并发）...")
-        t_loop = time.perf_counter()
-
-        # 并发执行所有任务，按完成顺序收集结果
-        cust_offline_table = offline_tables.get('cust_no')
-        dep_acct_no_offline_table = offline_tables.get('dep_acct_no')
-        with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
-            futures = {
-                pool.submit(
-                    _execute_single_task, task, user_variable_config,
-                    today_str, dep_acct_no_offline_table, cust_offline_table, object_type
-                ): task
-                for task in tasks
-            }
-            for future in as_completed(futures):
-                task, result_df = future.result()
-                if result_df is not None:
-                    all_indicator_results.append(result_df)
-                    logger.info(f" {task.task_name} -> 返回 {len(result_df)} 行，{len(result_df.columns)} 列")
-
-        t_loop_elapsed = time.perf_counter() - t_loop
-        logger.info(f"[{object_type}] 所有SQL执行完成，共 {len(tasks)} 个任务，耗时: {t_loop_elapsed:.2f}s")
-
-        if not all_indicator_results:
-            logger.warning(f"object_type '{object_type}' 没有成功执行的实时指标任务")
-            continue
-
-        # 合并所有指标结果
-        t_merge = time.perf_counter()
-        logger.info(f"[{object_type}] 合并所有指标结果开始...")
-        final_result = all_indicator_results[0]
-        for i in range(1, len(all_indicator_results)):
-            final_result = final_result.merge(
-                all_indicator_results[i], on='target_id', how='outer', suffixes=('', f'_dup_{i}')
-            )
-        final_result['etl_date'] = today
-        final_result['run_time'] = half_hour_slot
-        final_result, numeric_conversion_stats = (
-            WideTableNumericTypeHelper.convert_numeric_dataframe_columns(
-                final_result,
-                current_version.indicator_metadata or {},
-            )
-        )
-        for stats in numeric_conversion_stats:
-            if stats.blank_count or stats.invalid_count:
-                logger.debug(
-                    f"[{object_type}] 实时数值指标转换: "
-                    f"indicator_code={stats.indicator_code}, "
-                    f"blank_count={stats.blank_count}, invalid_count={stats.invalid_count}"
+    # 最多同时跑 4 个 object_type，防止 IO 打满
+    max_workers = min(len(tasks_by_object_type), 4)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {}
+        for object_type, tasks in tasks_by_object_type.items():
+            wide_table_name = object_type_to_wide_table.get(object_type)
+            if not wide_table_name:
+                logger.warning(f"未定义 object_type '{object_type}' 的宽表映射，跳过")
+                continue
+            offline_table = offline_tables.get(object_type)
+            if not offline_table:
+                logger.warning(f"没有找到 {wide_table_name} 的当前版本，跳过")
+                continue
+            current_version = db.query(FraudHunterWideTableVersion).filter(
+                and_(
+                    FraudHunterWideTableVersion.wide_table_name == wide_table_name,
+                    FraudHunterWideTableVersion.status.in_(['current', 'target'])
                 )
-        merge_sec = time.perf_counter() - t_merge
-        logger.info(f"[{object_type}] 合并完成: {merge_sec:.2f}s")
+            ).order_by(desc(FraudHunterWideTableVersion.created_at)).first()
+            if not current_version:
+                logger.warning(f"没有找到 {wide_table_name} 的current版本，跳过")
+                continue
 
-        # 写入实时表（使用 COPY 命令优化性能）
-        t_copy = time.perf_counter()
-        partition_table_name = f"{realtime_table_name}_{half_hour_slot}"
-        AnalyzeDBConnector.truncate_table(partition_table_name)
-        rows_inserted = AnalyzeDBConnector.batch_insert_copy(
-            realtime_table_name, final_result
-        )
-        copy_sec = time.perf_counter() - t_copy
-        logger.info(f"[{object_type}] COPY完成: {copy_sec:.2f}s")
+            future = executor.submit(
+                _process_single_object_type,
+                object_type, tasks, wide_table_name, offline_table,
+                current_version, user_variable_config,
+                today, today_str, half_hour_slot, offline_tables
+            )
+            futures[future] = object_type
 
-        row_count = len(final_result)
-        column_count = len(final_result.columns)
-        logger.info(f"[{object_type}] 写入实时指标宽表完成: {realtime_table_name}, 行数: {row_count}, 列数: {column_count}")
-        logger.info(f"=== {object_type} 三阶段汇总 => SQL:{t_loop_elapsed:.2f}s + 合并:{merge_sec:.2f}s + COPY:{copy_sec:.2f}s ===")
+        # 等待全部完成，收集结果
+        results: Dict[str, ObjectTypeProcessResult] = {}
+        for future in as_completed(futures):
+            object_type = futures[future]
+            result = future.result()
+            results[object_type] = result
+            if result.success:
+                logger.info(f"[{object_type}] ✓ 处理成功，产出表: {result.generated_table_name}")
+            else:
+                logger.warning(f"[{object_type}] ✗ 处理失败: {result.error_msg}")
 
-        realtime_table_name_with_partition = f'{realtime_table_name}_{half_hour_slot}'
-        generated_realtime_tables[object_type] = realtime_table_name_with_partition
+    t_parallel_elapsed = time.perf_counter() - t_parallel
+    logger.info(f"所有 object_type 并行处理完毕，总耗时: {t_parallel_elapsed:.2f}s")
 
-        # 更新快照
-        _update_realtime_snapshot(
-            db, f'{wide_table_name}_realtime', today, realtime_table_name_with_partition, row_count, column_count
-        )
+    # 整理生成的实时表
+    generated_realtime_tables: Dict[str, str] = {
+        ot: r.generated_table_name
+        for ot, r in results.items()
+        if r.success and r.generated_table_name
+    }
 
-    db.commit()
-
-    # 如果没有生成任何实时表，直接返回
     if not generated_realtime_tables:
-        logger.warning("没有成功生成任何实时宽表")
+        logger.warning("没有任何 object_type 成功生成实时宽表")
         return None, None
+
     return offline_tables, generated_realtime_tables
 
 
@@ -475,7 +589,7 @@ def step3_hit_record(db, today, matched_df, execution_record, hit_time):
 
         # 检查模型白名单（如果账号在任何一个命中模型的白名单中，则跳过该记录）
         is_model_whitelist = False
-        logger.info(f"准备开始白名单检测，命中的模型：{hit_models}，生效的白名单：{model_whitelist_acct}，当前处理的账号：{account_id}")
+        logger.debug(f"准备开始白名单检测，命中的模型：{hit_models}，生效的白名单：{model_whitelist_acct}，当前处理的账号：{account_id}")
         for hit_model in hit_models:
             model_whitelist = model_whitelist_acct.get(hit_model.model_id, [])
             if model_whitelist and account_id in model_whitelist:
