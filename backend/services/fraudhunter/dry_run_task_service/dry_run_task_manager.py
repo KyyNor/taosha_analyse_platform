@@ -107,90 +107,10 @@ class DryRunTaskManager:
                 # 执行任务，传递 task_id 作为参数
                 result = await task_func(db, execution_id, task_id, **kwargs)
 
-                # ═══════════════════ 精确定位 MySQL JSON 错误根源 ══════════════════════
-                # MySQL JSON 解析器比 Python json 更严格，以下情况会报错：
-                #   1. Lone Surrogate: U+D800~UDFFF 的孤立半个代理码点
-                #   2. 非法控制字符: 除 \t\n\r 外的 < 0x20 字符
-                import json as _json
-
-                SURROGATE_START, SURROGATE_END = 0xD800, 0xDFFF
-                LEGAL_CTRL = frozenset({0x09, 0x0A, 0x0D})
-
-                def _scan_lone_surrogate(obj, path=""):
-                    """遍历所有字符串叶节点，找第一个 lone surrogate"""
-                    if isinstance(obj, str):
-                        for i, ch in enumerate(obj):
-                            cp = ord(ch)
-                            if SURROGATE_START <= cp <= SURROGATE_END:
-                                ctx = repr(obj[max(0,i-10):i+12])
-                                return (path, hex(cp), ctx)
-                    elif isinstance(obj, dict):
-                        for k, v in obj.items():
-                            found = _scan_lone_surrogate(v, f"{path}.{k}")
-                            if found:
-                                return found
-                    elif isinstance(obj, list):
-                        for i, item in enumerate(obj):
-                            found = _scan_lone_surrogate(item, f"{path}[{i}]")
-                            if found:
-                                return found
-                    return None
-
-                # 先扫 lone surrogate（最常见的问题来源）
-                sfx = _scan_lone_surrogate(result)
-                if sfx:
-                    p, c, ctx = sfx
-                    logger.error(f"[DIAG] ❌ LONE SURROGATE → path={p} codepoint={c} ctx={ctx}")
-                else:
-                    logger.info("[DIAG] ✅ 未发现 lone surrogate")
-
-                # 再扫非法控制字符
-                def _scan_bad_ctrl(obj, path=""):
-                    violations = []
-                    if isinstance(obj, str):
-                        for i, ch in enumerate(obj):
-                            cp = ord(ch)
-                            if cp < 0x20 and cp not in LEGAL_CTRL:
-                                ctx = repr(obj[max(0,i-5):i+8])
-                                violations.append(f"path={path}[{i}] cp={hex(cp)} ctx={ctx}")
-                    elif isinstance(obj, dict):
-                        for k, v in obj.items():
-                            violations.extend(_scan_bad_ctrl(v, f"{path}.{k}"))
-                    elif isinstance(obj, list):
-                        for i, item in enumerate(obj):
-                            violations.extend(_scan_bad_ctrl(item, f"{path}[{i}]"))
-                    return violations
-
-                bad_ctrls = _scan_bad_ctrl(result)
-                if bad_ctrls:
-                    logger.error(f"[DIAG] ❌ ILLEGAL CTRL 共 {len(bad_ctrls)} 处，前5: {bad_ctrls[:5]}")
-                else:
-                    logger.info("[DIAG] ✅ 无非法控制字符")
-
-                # 针对已知出错位置 177953 做定向检查
-                TARGET_POS = 177953
-                try:
-                    encoded = _json.dumps(result, ensure_ascii=False)
-                    total_len = len(encoded)
-                    logger.info(f"[DIAG] ✅ json.dumps 正常，总长度={total_len}")
-
-                    # 显示错误位置附近的原始字节
-                    chunk_start = max(0, TARGET_POS - 50)
-                    chunk_end = min(total_len, TARGET_POS + 100)
-                    logger.warning(f"[DIAG] 📍 Position {TARGET_POS} 附近内容:")
-                    logger.warning(f"       >>> {repr(encoded[chunk_start:chunk_end])} <<<")
-                except Exception as je:
-                    raw_str = str(result)
-                    logger.error(f"[DIAG] ❌ json.dumps 本身失败: {je}")
-                    if len(raw_str) > TARGET_POS:
-                        logger.warning(f"[DIAG] 📍 出错位置 {TARGET_POS} 周围原始内容:")
-                        logger.warning(f"       >>> {repr(raw_str[TARGET_POS-50:TARGET_POS+100])} <<<")
-
                 # 更新任务状态为成功
                 task_execution.status = 'success'
                 task_execution.end_time = datetime.now()
                 task_execution.result_summary = result
-                logger.info(result)
                 db.commit()
 
                 logger.info(f"任务执行成功: {execution_id}")

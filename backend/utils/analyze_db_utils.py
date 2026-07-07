@@ -4,6 +4,7 @@ from datetime import date, timedelta, datetime
 from contextlib import contextmanager
 from typing import Optional, Any, List, Tuple, Dict
 
+import numpy as np
 import pandas as pd
 from loguru import logger
 from sqlalchemy import create_engine, text
@@ -83,7 +84,11 @@ class AnalyzeDBConnector:
         engine = cls.get_engine()
         try:
             if fetch_df:
-                return pd.read_sql_query(text(sql), engine, params=params)
+                df = pd.read_sql_query(text(sql), engine, params=params)
+                # ── 安全清洗：PG 可能返回 nan/inf（空集合聚合、除零等），MySQL JSON 列不接受
+                # 将所有 nan/inf 替换为 None，DataFrame.where(pd.notnull(df), None) 同时处理 nan 和 NaT
+                df = df.replace([np.inf, -np.inf], np.nan).where(pd.notnull(df), None)
+                return df
             with engine.connect() as conn:
                 conn.execute(text(sql), params or {})
                 conn.commit()
