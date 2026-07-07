@@ -107,12 +107,7 @@ class WideTableSyncService:
             if existing_result:
                 return existing_result
 
-            # 3. 创建或更新Snapshot记录为generating状态（必须在同步开始前记录状态）
-            snapshot_id = self._create_generating_snapshot(
-                wide_table_name, etl_date, version_hash
-            )
-
-            # 4. 计算指标差异，确定同步路径
+            # 3. 计算指标差异，确定同步路径
             # 先尝试寻找可复用的旧版本表（有该表的候选人，其 metadata 才是可比的前任版本）
             effective_curr_md: dict = {}
             effective_candidates = copy_candidates or []
@@ -132,6 +127,25 @@ class WideTableSyncService:
             inc_codes = delta.deferred_cols
             pg_table_name = f"{wide_table_name}_{version_hash[:8]}"
 
+            if old_pg_table and delta.is_unchanged:
+                logger.info(
+                    f"[跳过] 版本无变化且存在可复用旧表: {pg_table_name}, "
+                    f"reusable_base={old_pg_table}"
+                )
+                return {
+                    "status": "skipped",
+                    "skip_reason": "version_unchanged_with_reusable_base",
+                    "wide_table_name": wide_table_name,
+                    "etl_date": str(etl_date),
+                    "reusable_base_table": old_pg_table,
+                    "is_new_sync": False,
+                }
+
+            # 4. 创建或更新Snapshot记录为generating状态（仅真正执行同步时记录状态）
+            snapshot_id = self._create_generating_snapshot(
+                wide_table_name, etl_date, version_hash
+            )
+
             if old_pg_table and delta.has_any_change:
                 logger.info(
                     f"[增量] 走delta insert-select路径: {pg_table_name}, "
@@ -148,7 +162,7 @@ class WideTableSyncService:
                     inc_cols=inc_codes,
                 )
             else:
-                logger.info("[全量] 走全量同步路径（无可用旧表或版本无变化）")
+                logger.info("[全量] 走全量同步路径（无可用旧表）")
                 row_count, column_count = self._execute_data_sync(
                     wide_table_name, indicator_metadata, etl_date, pg_table_name
                 )

@@ -1,6 +1,7 @@
 import importlib.util
 import sys
 import types
+from datetime import date
 from pathlib import Path
 
 _backend_root = Path(__file__).parents[4] / "backend"
@@ -117,3 +118,60 @@ def test_build_sync_delta_reports_removed_and_deferred_columns(monkeypatch):
     assert delta.static_cols == ["i_static"]
     assert delta.deferred_cols == ["i_changed", "i_new"]
     assert delta.removed_cols == ["i_removed"]
+
+
+def test_sync_wide_table_skips_unchanged_metadata_with_reusable_base(monkeypatch):
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
+    service = WideTableSyncService.__new__(WideTableSyncService)
+
+    target_metadata = {
+        "1": {"version": 1, "indicator_code": "i_same"},
+    }
+    calls = {
+        "full_sync": 0,
+        "delta_sync": 0,
+        "mark_ready": 0,
+    }
+
+    monkeypatch.setattr(service, "_check_version_ready", lambda *args: True)
+    monkeypatch.setattr(service, "_get_existing_snapshot", lambda *args: None)
+    monkeypatch.setattr(
+        service,
+        "_find_copy_source",
+        lambda *args: ("dep_acct_wide_table_base_20260102", target_metadata),
+    )
+    monkeypatch.setattr(service, "_create_generating_snapshot", lambda *args: 123)
+
+    def record_full_sync(*args, **kwargs):
+        calls["full_sync"] += 1
+        return (10, 3)
+
+    def record_delta_sync(*args, **kwargs):
+        calls["delta_sync"] += 1
+        return (10, 3)
+
+    def record_mark_ready(*args, **kwargs):
+        calls["mark_ready"] += 1
+
+    monkeypatch.setattr(service, "_execute_data_sync", record_full_sync)
+    monkeypatch.setattr(service, "_execute_delta_insert_select_sync", record_delta_sync)
+    monkeypatch.setattr(service, "_update_snapshot_ready", record_mark_ready)
+    monkeypatch.setattr(service, "_update_snapshot_failed", lambda *args: None)
+
+    result = service.sync_wide_table(
+        target_version_id=1,
+        wide_table_name="dep_acct_wide_table",
+        version_hash="abcdef1234567890",
+        indicator_metadata=target_metadata,
+        etl_date=date(2026, 1, 2),
+        copy_candidates=[{"version_hash": "basehash12345678"}],
+    )
+
+    assert result["status"] == "skipped"
+    assert result["skip_reason"] == "version_unchanged_with_reusable_base"
+    assert result["is_new_sync"] is False
+    assert calls == {
+        "full_sync": 0,
+        "delta_sync": 0,
+        "mark_ready": 0,
+    }
