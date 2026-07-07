@@ -831,6 +831,85 @@ class AnalyzeDBPartitionManager:
             conn.commit()
             return result.rowcount
 
+    @staticmethod
+    def _indicator_codes_in_metadata_order(indicator_metadata: Dict[str, Any]) -> List[str]:
+        return [
+            meta.get("indicator_code")
+            for meta in indicator_metadata.values()
+            if meta.get("indicator_code")
+        ]
+
+    @staticmethod
+    def build_insert_select_from_base_delta_sql(
+        dest_table: str,
+        base_table: str,
+        delta_table: Optional[str],
+        target_metadata: Dict[str, Any],
+        static_cols: list,
+        inc_cols: list,
+        etl_date: str,
+    ) -> str:
+        target_indicator_cols = AnalyzeDBPartitionManager._indicator_codes_in_metadata_order(
+            target_metadata
+        )
+        static_set = set(static_cols)
+        inc_set = set(inc_cols)
+
+        insert_cols = ["target_id", *target_indicator_cols, "etl_date"]
+        select_exprs = ["b.target_id"]
+
+        for col in target_indicator_cols:
+            if col in inc_set:
+                select_exprs.append(f"d.{col}")
+            elif col in static_set:
+                select_exprs.append(f"b.{col}")
+            else:
+                select_exprs.append("NULL")
+
+        select_exprs.append("b.etl_date")
+
+        insert_clause = ", ".join(insert_cols)
+        select_clause = ", ".join(select_exprs)
+        join_clause = ""
+        if delta_table and inc_cols:
+            join_clause = (
+                f"\nLEFT JOIN {delta_table} d"
+                f"\n  ON b.target_id = d.target_id"
+                f"\n AND b.etl_date = d.etl_date"
+            )
+
+        return f"""
+            INSERT INTO {dest_table} ({insert_clause})
+            SELECT {select_clause}
+            FROM {base_table} b{join_clause}
+            WHERE b.etl_date = '{etl_date}'
+        """
+
+    @staticmethod
+    def insert_select_from_base_delta(
+        dest_table: str,
+        base_table: str,
+        delta_table: Optional[str],
+        target_metadata: Dict[str, Any],
+        static_cols: list,
+        inc_cols: list,
+        etl_date: str,
+    ) -> int:
+        sql = text(AnalyzeDBPartitionManager.build_insert_select_from_base_delta_sql(
+            dest_table=dest_table,
+            base_table=base_table,
+            delta_table=delta_table,
+            target_metadata=target_metadata,
+            static_cols=static_cols,
+            inc_cols=inc_cols,
+            etl_date=etl_date,
+        ))
+        engine = AnalyzeDBConnector.get_engine()
+        with engine.connect() as conn:
+            result = conn.execute(sql)
+            conn.commit()
+            return result.rowcount
+
 
 def get_analyze_db_session() -> Session:
     return AnalyzeDBConnector.get_session()
