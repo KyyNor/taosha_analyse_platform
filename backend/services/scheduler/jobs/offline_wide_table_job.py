@@ -90,12 +90,17 @@ def _sync_wide_table(wide_table_name: str, lookback_days: int) -> Dict:
         }
 
 
-async def sync_all_wide_tables_job():
+async def sync_all_wide_tables_job(max_success_tables: int = 10):
     """
     定时同步所有离线宽表（异步版本，不阻塞其他任务）
 
     遍历所有宽表（dep_acct_wide_table, cust_wide_table, loan_acct_wide_table）
     并调用同步服务进行批量同步
+
+    参数:
+        max_success_tables: 最大允许成功同步的表数量，默认10张。
+                          当成功同步达到此数量后，不再继续同步剩余的表。
+                          设置为 None 则同步所有表。
 
     特点：
     - 使用 asyncio.to_thread 将同步阻塞操作放到线程池执行
@@ -127,10 +132,19 @@ async def sync_all_wide_tables_job():
         total_skipped_not_ready = 0  # 因指标不足而跳过
         total_failed = 0
         promoted_versions = []
+        successful_table_count = 0  # 成功同步的表数量（不是天数）
 
         # 顺序执行每个宽表的同步（在线程池中）
         # 注意：这里选择顺序执行而非并行，避免Spark资源竞争
-        for wide_table_name in wide_table_names:
+        for idx, wide_table_name in enumerate(wide_table_names):
+            # 如果已达到最大成功表数量，提前退出
+            if max_success_tables is not None and successful_table_count >= max_success_tables:
+                remaining_tables = wide_table_names[idx:]
+                logger.info(
+                    f"已完成{successful_table_count}张表成功同步（max={max_success_tables}），"
+                    f"剩余表 {remaining_tables} 将在下个任务同步"
+                )
+                break
             try:
                 # 使用 asyncio.to_thread 在线程池中执行同步操作
                 # 这样不会阻塞事件循环
@@ -141,7 +155,12 @@ async def sync_all_wide_tables_job():
                     lookback_days
                 )
 
-                total_synced += result.get('synced', 0)
+                table_synced = result.get('synced', 0)
+                total_synced += table_synced
+
+                # 只有当该表有实际成功同步的数据时才计入成功表数量
+                if table_synced > 0:
+                    successful_table_count += 1
                 total_skipped += result.get('skipped', 0)
                 total_skipped_ready += result.get('skipped_ready', 0)
                 total_skipped_not_ready += result.get('skipped_not_ready', 0)

@@ -121,6 +121,19 @@ class DryRunTaskManager:
                     FraudHunterDryRunExecution.execution_id == execution_id
                 ).first()
 
+                # 把完整的 result 打日志，方便排查 JSON 问题
+                import json
+                try:
+                    result_str = json.dumps(result, ensure_ascii=False)
+                    logger.error(
+                        f"任务执行失败，回写 result_summary 出错，result 内容如下:\n{result_str}\n"
+                        f"[EOF - total length: {len(result_str)}]",
+                        exc_info=True
+                    )
+                except Exception:
+                    logger.error(f"任务执行失败，但无法序列化 result，结果类型: {type(result)}, 错误: {str(e)}")
+
+
                 if task_execution:
                     task_execution.status = 'failed'
                     task_execution.end_time = datetime.now()
