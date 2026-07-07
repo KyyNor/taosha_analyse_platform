@@ -25,7 +25,7 @@ from .version_manager import WideTableVersionManager
 from utils.logger import logger
 from utils.config import settings
 from utils.analyze_db_utils import AnalyzeDBConnector, AnalyzeDBPartitionManager
-from domain.wide_table.version_delta import WideTableComparator
+from domain.wide_table.version_delta import VersionDelta, WideTableComparator
 from services.fraudhunter.wide_table_service.numeric_type_utils import WideTableNumericTypeHelper
 
 # 宽表名称到对象类型的反向映射
@@ -123,35 +123,32 @@ class WideTableSyncService:
             if old_meta:
                 effective_curr_md = old_meta
 
-            changed, new_cols, static_cols = self._diff_indicators(
-                effective_curr_md, indicator_metadata
+            delta = self._build_sync_delta(effective_curr_md, indicator_metadata)
+            changed, new_cols, static_cols = (
+                delta.changed_cols,
+                delta.new_cols,
+                delta.static_cols,
             )
-            inc_codes = changed + new_cols
+            inc_codes = delta.deferred_cols
             pg_table_name = f"{wide_table_name}_{version_hash[:8]}"
 
-            if 1==2 and old_pg_table and inc_codes:
-                # ===== 增量同步路径（真实实现）=====
-                # ① 建主表（含全量列）和分区（表名恒新，不需要 DROP）
-                AnalyzeDBPartitionManager.create_wide_table(pg_table_name, indicator_metadata)
-                AnalyzeDBPartitionManager.ensure_partition(pg_table_name, etl_date)
-
-                row_count, column_count = self._copy_static_and_merge_incr(
+            if old_pg_table and delta.has_any_change:
+                logger.info(
+                    f"[增量] 走delta insert-select路径: {pg_table_name}, "
+                    f"changed={len(changed)}, new={len(new_cols)}, "
+                    f"removed={len(delta.removed_cols)}, static={len(static_cols)}"
+                )
+                row_count, column_count = self._execute_delta_insert_select_sync(
                     wide_table_name=wide_table_name,
                     target_metadata=indicator_metadata,
                     etl_date=etl_date,
                     pg_table_name=pg_table_name,
+                    old_pg_table=old_pg_table,
                     static_cols=static_cols,
                     inc_cols=inc_codes,
-                    old_pg_table=old_pg_table,
-                )
-                logger.info(
-                    f"[增量] 同步完成（真实路径）: {pg_table_name}, "
-                    f"PIVOT列数={len(inc_codes)}, static列数={len(static_cols)}, "
-                    f"总行数约={row_count}"
                 )
             else:
-                # 全量路径（与改造前完全一致）
-                logger.info("[骨架] 走全量同步路径（全量/无可用旧表/零变动）")
+                logger.info("[全量] 走全量同步路径（无可用旧表或版本无变化）")
                 row_count, column_count = self._execute_data_sync(
                     wide_table_name, indicator_metadata, etl_date, pg_table_name
                 )
@@ -300,6 +297,53 @@ class WideTableSyncService:
         return self._execute_spark_query_and_write_pg(
             sql, pg_table_name, etl_date, refresh_sql=refresh_sql
         )
+
+    def _execute_delta_insert_select_sync(
+        self,
+        wide_table_name: str,
+        target_metadata: dict,
+        etl_date: date,
+        pg_table_name: str,
+        old_pg_table: str,
+        static_cols: list,
+        inc_cols: list,
+    ) -> Tuple[int, int]:
+        etl_date_str = etl_date.strftime('%Y-%m-%d')
+        etl_date_suffix = etl_date.strftime('%Y%m%d')
+        delta_table = None
+
+        AnalyzeDBPartitionManager.create_wide_table(pg_table_name, target_metadata)
+        AnalyzeDBPartitionManager.ensure_partition(pg_table_name, etl_date)
+
+        try:
+            if inc_cols:
+                delta_table = f"_delta_{pg_table_name}_{etl_date_suffix}"
+                inc_metadata = self._metadata_for_codes(target_metadata, inc_cols)
+                AnalyzeDBPartitionManager.create_heap_table(delta_table, inc_metadata)
+
+                pivot_sql = self._build_pivot_sql_inc(
+                    wide_table_name, target_metadata, etl_date, inc_cols
+                )
+                refresh_sql = f"refresh table {self.source_table}"
+                if self._use_pyspark:
+                    self._execute_with_pyspark_to_pg(pivot_sql, delta_table, refresh_sql)
+                else:
+                    self._execute_with_jdbc_to_pg(pivot_sql, delta_table, etl_date, refresh_sql)
+
+            row_count = AnalyzeDBPartitionManager.insert_select_from_base_delta(
+                dest_table=pg_table_name,
+                base_table=old_pg_table,
+                delta_table=delta_table,
+                target_metadata=target_metadata,
+                static_cols=static_cols,
+                inc_cols=inc_cols,
+                etl_date=etl_date_str,
+            )
+            column_count = len(list(target_metadata.keys())) + 2
+            return row_count, column_count
+        finally:
+            if delta_table:
+                AnalyzeDBPartitionManager.drop_table(delta_table)
 
     def _copy_static_and_merge_incr(
         self,
@@ -498,6 +542,9 @@ class WideTableSyncService:
             f"指标差异分析: changed={len(delta.changed_cols)}, new={len(delta.new_cols)}, static={len(delta.static_cols)}"
         )
         return delta.changed_cols, delta.new_cols, delta.static_cols
+
+    def _build_sync_delta(self, current_metadata: dict, target_metadata: dict) -> VersionDelta:
+        return WideTableComparator.diff(current_metadata, target_metadata)
 
     def _find_copy_source(
         self,

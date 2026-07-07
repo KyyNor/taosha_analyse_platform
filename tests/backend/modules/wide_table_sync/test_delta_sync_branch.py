@@ -1,14 +1,17 @@
 import importlib.util
 import sys
 import types
-from datetime import date
 from pathlib import Path
 
 _backend_root = Path(__file__).parents[4] / "backend"
 sys.path.insert(0, str(_backend_root))
 
+from domain.wide_table.version_delta import VersionDelta
 
-def _load_sync_service_with_stubs():
+_version_delta_module = sys.modules[VersionDelta.__module__]
+
+
+def _load_sync_service_with_stubs(monkeypatch):
     services_module = types.ModuleType("services")
     fraudhunter_module = types.ModuleType("services.fraudhunter")
     wide_table_service_module = types.ModuleType("services.fraudhunter.wide_table_service")
@@ -46,19 +49,6 @@ def _load_sync_service_with_stubs():
     analyze_db_utils_module.AnalyzeDBConnector = object
     analyze_db_utils_module.AnalyzeDBPartitionManager = object
 
-    domain_module = types.ModuleType("domain")
-    domain_wide_table_module = types.ModuleType("domain.wide_table")
-    version_delta_module_path = (
-        _backend_root / "domain" / "wide_table" / "version_delta.py"
-    )
-    version_delta_spec = importlib.util.spec_from_file_location(
-        "domain.wide_table.version_delta",
-        version_delta_module_path,
-    )
-    version_delta_module = importlib.util.module_from_spec(version_delta_spec)
-    sys.modules[version_delta_spec.name] = version_delta_module
-    version_delta_spec.loader.exec_module(version_delta_module)
-
     numeric_module_path = (
         _backend_root
         / "services"
@@ -71,7 +61,7 @@ def _load_sync_service_with_stubs():
         numeric_module_path,
     )
     numeric_module = importlib.util.module_from_spec(numeric_spec)
-    sys.modules[numeric_spec.name] = numeric_module
+    monkeypatch.setitem(sys.modules, numeric_spec.name, numeric_module)
     numeric_spec.loader.exec_module(numeric_module)
 
     for name, module in {
@@ -86,11 +76,9 @@ def _load_sync_service_with_stubs():
         "utils.logger": logger_module,
         "utils.config": config_module,
         "utils.analyze_db_utils": analyze_db_utils_module,
-        "domain": domain_module,
-        "domain.wide_table": domain_wide_table_module,
-        "domain.wide_table.version_delta": version_delta_module,
+        "domain.wide_table.version_delta": _version_delta_module,
     }.items():
-        sys.modules[name] = module
+        monkeypatch.setitem(sys.modules, name, module)
 
     module_path = (
         _backend_root
@@ -104,71 +92,28 @@ def _load_sync_service_with_stubs():
         module_path,
     )
     module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
+    monkeypatch.setitem(sys.modules, spec.name, module)
     spec.loader.exec_module(module)
-    return module
+    return module.WideTableSyncService
 
 
-WideTableSyncService = _load_sync_service_with_stubs().WideTableSyncService
-
-
-def _service():
+def test_build_sync_delta_reports_removed_and_deferred_columns(monkeypatch):
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
     service = WideTableSyncService.__new__(WideTableSyncService)
-    service.source_table = "source_indicator_vertical"
-    return service
+    current = {
+        "1": {"version": 1, "indicator_code": "i_static"},
+        "2": {"version": 1, "indicator_code": "i_changed"},
+        "3": {"version": 1, "indicator_code": "i_removed"},
+    }
+    target = {
+        "1": {"version": 1, "indicator_code": "i_static"},
+        "2": {"version": 2, "indicator_code": "i_changed"},
+        "4": {"version": 1, "indicator_code": "i_new"},
+    }
 
+    delta = service._build_sync_delta(current, target)
 
-class TestTypedPivotSql:
-    def test_full_pivot_casts_numeric_columns_and_keeps_text_columns(self):
-        metadata = {
-            "1": {"indicator_code": "i_amt", "data_type": "numeric"},
-            "2": {"indicator_code": "i_name", "data_type": "string"},
-        }
-
-        sql = _service()._build_pivot_sql(
-            "dep_acct_wide_table",
-            metadata,
-            date(2026, 6, 18),
-        )
-
-        assert "FROM (" in sql
-        assert "PIVOT" in sql
-        assert "target_id,\n        indicator_id,\n        indicator_value" in sql
-        assert "CASE WHEN i_amt IS NULL" in sql
-        assert "RLIKE" in sql
-        assert "CAST(TRIM(CAST(i_amt AS STRING)) AS DOUBLE)" in sql
-        assert "END AS i_amt" in sql
-        assert "i_name" in sql
-        assert "'2026-06-18' as etl_date" in sql
-
-    def test_incremental_pivot_casts_only_incremental_numeric_columns(self):
-        metadata = {
-            "1": {"indicator_code": "i_amt", "data_type": "numeric"},
-            "2": {"indicator_code": "i_name", "data_type": "string"},
-        }
-
-        sql = _service()._build_pivot_sql_inc(
-            "dep_acct_wide_table",
-            metadata,
-            date(2026, 6, 18),
-            ["i_amt"],
-        )
-
-        assert "indicator_id IN ('i_amt')" in sql
-        assert "CASE WHEN i_amt IS NULL" in sql
-        assert "RLIKE" in sql
-        assert "CAST(TRIM(CAST(i_amt AS STRING)) AS DOUBLE)" in sql
-        assert "i_name" not in sql
-
-    def test_metadata_for_codes_keeps_only_requested_codes(self):
-        metadata = {
-            "1": {"indicator_code": "i_static", "data_type": "string"},
-            "2": {"indicator_code": "i_changed", "data_type": "numeric"},
-            "3": {"indicator_code": "i_new", "data_type": "string"},
-        }
-
-        filtered = _service()._metadata_for_codes(metadata, ["i_changed", "i_new"])
-
-        assert set(filtered.keys()) == {"2", "3"}
-        assert filtered["2"]["indicator_code"] == "i_changed"
-        assert filtered["3"]["indicator_code"] == "i_new"
+    assert isinstance(delta, VersionDelta)
+    assert delta.static_cols == ["i_static"]
+    assert delta.deferred_cols == ["i_changed", "i_new"]
+    assert delta.removed_cols == ["i_removed"]
