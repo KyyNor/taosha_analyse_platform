@@ -19,7 +19,6 @@ from models.fraudhunter.wide_table import (
     FraudHunterIndicatorRunProgress
 )
 from utils.logger import logger
-from utils.analyze_db_utils import AnalyzeDBPartitionManager
 
 # object_type到wide_table_name的映射
 OBJECT_TYPE_TO_TABLE_NAME = {
@@ -92,6 +91,14 @@ class WideTableVersionManager:
             indicator_task = self.db.query(FraudHunterIndicatorTask).filter(
                 FraudHunterIndicatorTask.id == indicator.indicator_task_id
             ).first()
+
+            # DEBUG: 打出原始属性
+            logger.info(
+                f"[generate_version_hash] indicator={indicator.indicator_code}, "
+                f"db_data_type={repr(indicator.data_type)}, "
+                f"type={type(indicator.data_type).__name__}"
+            )
+
             parts.append(f"{indicator.id}_{indicator.current_version}")
             indicator_metadata[indicator.id] = {
                 "version": indicator_task.current_version,
@@ -102,6 +109,13 @@ class WideTableVersionManager:
                 "object_type": indicator.object_type,
                 "indicator_task_id": indicator.indicator_task_id
             }
+
+            # DEBUG: 打出存入后的值
+            stored_meta = indicator_metadata[indicator.id]
+            logger.info(
+                f"[generate_version_hash] stored meta[{indicator.id}]: "
+                f"data_type={repr(stored_meta.get('data_type'))}"
+            )
 
         version_string = "#".join(parts)
         version_hash = hashlib.sha256(version_string.encode('utf-8')).hexdigest()[:HASH_SHORT_LENGTH]
@@ -261,6 +275,7 @@ class WideTableVersionManager:
         version_hash: str,
         indicator_metadata: Dict
     ) -> None:
+        from utils.analyze_db_utils import AnalyzeDBPartitionManager
         """为版本创建PG表"""
         pg_table_name = f"{wide_table_name}_{version_hash[:HASH_SHORT_LENGTH]}"
         try:
@@ -313,9 +328,11 @@ class WideTableVersionManager:
         indicator_metadata: Dict,
         etl_date: date
     ) -> List[Dict]:
-        """检查指标的运行进度"""
+        """检查指标的运行进度（批量查询优化）"""
         missing_tasks = []
 
+        # 先收集有 indicator_task_id 的指标，无 task_id 的直接记录缺失
+        pending_items = {}  # (indicator_task_id, indicator_version) -> (indicator_id, metadata)
         for indicator_id, metadata in indicator_metadata.items():
             indicator_task_id = metadata.get('indicator_task_id')
 
@@ -327,23 +344,38 @@ class WideTableVersionManager:
                 })
                 continue
 
-            progress = self.db.query(FraudHunterIndicatorRunProgress).filter(
-                and_(
-                    FraudHunterIndicatorRunProgress.indicator_task_id == indicator_task_id,
-                    FraudHunterIndicatorRunProgress.etl_date == etl_date,
-                    FraudHunterIndicatorRunProgress.indicator_version == metadata['version']
-                )
-            ).first()
+            pending_items[(indicator_task_id, metadata['version'])] = (indicator_id, metadata)
 
-            if not progress:
-                missing_tasks.append({
-                    "indicator_id": indicator_id,
-                    "indicator_code": metadata.get('indicator_code'),
-                    "indicator_task_id": indicator_task_id,
-                    "etl_date": str(etl_date),
-                    "version": metadata['version'],
-                    "reason": "未找到运行进度记录"
-                })
+        # 批量查询所有需要的运行进度记录
+        if pending_items:
+            task_ids = [key[0] for key in pending_items.keys()]
+            versions = [key[1] for key in pending_items.keys()]
+
+            progress_records = self.db.query(
+                FraudHunterIndicatorRunProgress.indicator_task_id,
+                FraudHunterIndicatorRunProgress.indicator_version,
+            ).filter(
+                and_(
+                    FraudHunterIndicatorRunProgress.indicator_task_id.in_(task_ids),
+                    FraudHunterIndicatorRunProgress.etl_date == etl_date,
+                    FraudHunterIndicatorRunProgress.indicator_version.in_(versions),
+                )
+            ).all()
+
+            # 构建已完成的集合，用于快速查找
+            completed_set = {(r.indicator_task_id, r.indicator_version) for r in progress_records}
+
+            # 对比找出未完成的
+            for (indicator_task_id, version), (indicator_id, metadata) in pending_items.items():
+                if (indicator_task_id, version) not in completed_set:
+                    missing_tasks.append({
+                        "indicator_id": indicator_id,
+                        "indicator_code": metadata.get('indicator_code'),
+                        "indicator_task_id": indicator_task_id,
+                        "etl_date": str(etl_date),
+                        "version": version,
+                        "reason": "未找到运行进度记录"
+                    })
 
         return missing_tasks
 
@@ -473,6 +505,7 @@ class WideTableVersionManager:
 
         # 删除PG表
         try:
+            from utils.analyze_db_utils import AnalyzeDBPartitionManager
             AnalyzeDBPartitionManager.drop_table(pg_table_name)
             logger.info(f"删除历史版本PG表: {pg_table_name}")
         except Exception as e:

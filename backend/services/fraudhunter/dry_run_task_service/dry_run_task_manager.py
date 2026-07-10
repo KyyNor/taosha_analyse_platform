@@ -111,6 +111,7 @@ class DryRunTaskManager:
                 task_execution.status = 'success'
                 task_execution.end_time = datetime.now()
                 task_execution.result_summary = result
+                logger.info(result)
                 db.commit()
 
                 logger.info(f"任务执行成功: {execution_id}")

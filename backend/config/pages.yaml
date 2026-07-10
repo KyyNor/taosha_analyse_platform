@@ -192,6 +192,12 @@ pages:
         description: "省市卡BIN维表管理页面"
         level: 1
         sort_order: 9
+      
+      - path: "/fraudhunter/system-config/victim-entry"
+        name: "受害人录入"
+        description: "受害人信息录入"
+        level: 1
+        sort_order: 10
 
   # ===== 元数据管理模块 =====
   - path: "/metadata"

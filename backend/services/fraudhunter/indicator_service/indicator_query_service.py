@@ -315,7 +315,7 @@ class IndicatorQueryService:
         if data_type == 'numeric':
             return f"COALESCE({field}::DOUBLE PRECISION, 0)"
         elif data_type == 'date':
-            return f"CAST({field} AS DATE)"
+            return f"CAST(NULLIF({field}, '') AS DATE)"
         else:
             return f"CAST({field} AS VARCHAR)"
 
@@ -408,7 +408,7 @@ LIMIT {page_size} OFFSET {offset}'''
                 except (ValueError, TypeError):
                     return f"CAST({field} AS VARCHAR) {operator} '{value}'"
             elif data_type == 'date':
-                return f"{field} {operator} '{value}'"
+                return f"NULLIF({field}, '') {operator} '{value}'"
             else:
                 return f"CAST({field} AS VARCHAR) {operator} '{value}'"
 

@@ -4,6 +4,7 @@ from datetime import date, timedelta, datetime
 from contextlib import contextmanager
 from typing import Optional, Any, List, Tuple, Dict
 
+import numpy as np
 import pandas as pd
 from loguru import logger
 from sqlalchemy import create_engine, text
@@ -83,7 +84,8 @@ class AnalyzeDBConnector:
         engine = cls.get_engine()
         try:
             if fetch_df:
-                return pd.read_sql_query(text(sql), engine, params=params)
+                df = pd.read_sql_query(text(sql), engine, params=params)
+                return df
             with engine.connect() as conn:
                 conn.execute(text(sql), params or {})
                 conn.commit()

@@ -239,3 +239,65 @@ export async function updateProvinceCardBin(
       : await api.put(`/fraudhunter/system-config/province-card-bins/${encoded}`, data);
   return res.data;
 }
+
+// -------------------------------------------------------------------------
+// 受害人录入维表
+// -------------------------------------------------------------------------
+
+export interface VictimEntryRecord {
+  account_no?: string;
+  account_name?: string;
+}
+
+export async function getVictimEntries(params?: {
+  page?: number;
+  page_size?: number;
+  search?: string;
+}) {
+  const res = await api.get("/fraudhunter/system-config/victim-entries", { params });
+  return res.data; // { items[], total, page, page_size }
+}
+
+export async function updateVictimEntry(
+  data: VictimEntryRecord,
+  method: "POST" | "PUT" | "DELETE",
+  accountNo?: string, // 用于 PUT/DELETE 的路径参数
+) {
+  const encoded = accountNo ? encodeURIComponent(accountNo) : "";
+  if (method === "DELETE") {
+    const res = await api.delete(`/fraudhunter/system-config/victim-entries/${encoded}`);
+    return res.data;
+  }
+  const res =
+    method === "POST"
+      ? await api.post("/fraudhunter/system-config/victim-entries", data)
+      : await api.put(`/fraudhunter/system-config/victim-entries/${encoded}`, data);
+  return res.data;
+}
+
+export interface ImportResult {
+  success: boolean;
+  message: string;
+  total_rows: number;
+  success_count: number;
+  fail_count: number;
+  errors?: string[];
+  detail?: string; // 后端错误时可能返回此字段
+}
+
+export async function importVictimEntries(file: File): Promise<ImportResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await api.post<ImportResult>(
+    "/fraudhunter/system-config/victim-entries/import",
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+
+  return res.data;
+}

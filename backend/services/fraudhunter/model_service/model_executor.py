@@ -11,6 +11,7 @@
 
 import asyncio
 import json
+import math
 from dataclasses import dataclass
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
@@ -59,7 +60,7 @@ def build_model_whitelist_dict(
         except (TypeError, ValueError):
             continue  # 配置项格式错误（如空字典 / 非数字值），静默跳过
         if model_id and account_id:
-            result.setdefault(model_id, []).append(account_id)
+            result.setdefault(model_id, []).append(str(account_id))
     return result
 from utils.logger import logger
 from utils.analyze_db_utils import AnalyzeDBConnector
@@ -509,6 +510,18 @@ LIMIT 10000
                 # 收集命中记录到结果集
                 if execute_result is not None and len(execute_result) > 0:
                     records = execute_result.to_dict('records')
+                    
+                    records = [
+                        {
+                            k: None if (
+                                v is None 
+                                or (isinstance(v, float) and (math.isnan(v) or math.isinf(v)))
+                            ) else v
+                            for k, v in r.items()
+                        }
+                        for r in records
+                    ]
+
                     # 为每条记录添加白名单标记并过滤模型白名单
                     filtered_records = []
                     for record in records:
