@@ -67,6 +67,36 @@ class IndicatorTaskListResponse(BaseModel):
     items: List[IndicatorTaskResponse]
 
 
+class IndicatorTaskVersionHistory(BaseModel):
+    """指标任务版本历史响应模型"""
+    id: int
+    task_id: int
+    version: int
+    task_code: Optional[str] = None
+    task_name: Optional[str] = None
+    description: Optional[str] = None
+    logic_type: Optional[str] = None
+    logic_content: Optional[str] = None
+    realtime_logic_content: Optional[str] = None
+    source_tables: Optional[str] = None
+    object_type: Optional[str] = None
+    change_type: Optional[str] = None
+    change_description: Optional[str] = None
+    created_by: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class IndicatorTaskVersionHistoryListResponse(BaseModel):
+    """指标任务版本历史列表响应模型"""
+    total: int
+    page: int
+    page_size: int
+    items: List[IndicatorTaskVersionHistory]
+
+
 # ==================== 指标定义相关 ====================
 
 class IndicatorBase(BaseModel):

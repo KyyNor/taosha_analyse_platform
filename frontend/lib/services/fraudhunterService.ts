@@ -34,6 +34,31 @@ export interface IndicatorTaskCreate {
   object_type: string;
 }
 
+export interface IndicatorTaskVersionHistory {
+  id: number;
+  task_id: number;
+  version: number;
+  task_code?: string;
+  task_name?: string;
+  description?: string;
+  logic_type?: string;
+  logic_content?: string;
+  realtime_logic_content?: string;
+  source_tables?: string;
+  object_type?: string;
+  change_type?: string;
+  change_description?: string;
+  created_by?: string;
+  created_at: string;
+}
+
+export interface IndicatorTaskVersionHistoryListResponse {
+  total: number;
+  page: number;
+  page_size: number;
+  items: IndicatorTaskVersionHistory[];
+}
+
 export interface IndicatorTaskUpdate {
   task_name?: string;
   description?: string;
@@ -265,6 +290,14 @@ export const indicatorTaskService = {
   // 获取指标任务详情
   async get(id: number): Promise<IndicatorTask> {
     const response = await api.get(`${BASE_PATH}/indicator-tasks/${id}`);
+    return response.data;
+  },
+
+  // 获取指标任务版本历史（用于版本对比/diff）
+  async getVersionHistory(id: number): Promise<IndicatorTaskVersionHistoryListResponse> {
+    const response = await api.get(`${BASE_PATH}/indicator-tasks/${id}/versions`, {
+      params: { page: 1, page_size: 50 },
+    });
     return response.data;
   },
 

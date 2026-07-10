@@ -10,6 +10,7 @@ Domain 层：宽表版本之间指标的差异计算
 - static_cols  ：版本号未变，可直接 COPY（速度最快，利用 PG INSERT...SELECT）
 - changed_cols ：版本号已升，需 Spark PIVOT + UPDATE 重建
 - new_cols     ：新版中独有的指标，等同 changed_cols 的待遇
+- removed_cols ：旧版中独有的指标，新版目标表不再包含
 
 使用约束
 --------
@@ -27,19 +28,20 @@ class VersionDelta:
     static_cols: List[str] = field(default_factory=list)
     changed_cols: List[str] = field(default_factory=list)
     new_cols: List[str] = field(default_factory=list)
+    removed_cols: List[str] = field(default_factory=list)
 
     @property
     def is_unchanged(self) -> bool:
-        """返回 True 时，增量同步应跳过（status: skipped）。"""
-        return not (self.changed_cols or self.new_cols)
+        """返回 True 时，增量同步应跳过。"""
+        return not (self.changed_cols or self.new_cols or self.removed_cols)
 
     @property
     def has_any_change(self) -> bool:
-        return bool(self.changed_cols or self.new_cols)
+        return bool(self.changed_cols or self.new_cols or self.removed_cols)
 
     @property
     def deferred_cols(self) -> List[str]:
-        """static 以外的其余列，都需要 PIVOT 重建（changed + new）。"""
+        """需要 PIVOT 重建的列：changed + new。removed 不参与新表字段。"""
         return self.changed_cols + self.new_cols
 
 
@@ -77,11 +79,12 @@ class WideTableComparator:
 
         返回值
         ------
-        VersionDelta(static_cols=[], changed_cols=[], new_cols=[])
+        VersionDelta(static_cols=[], changed_cols=[], new_cols=[], removed_cols=[])
 
         分类规则
         --------
         new     — 该 indicator_id 在 target 中存在、在 current 中不存在
+        removed — 该 indicator_id 在 current 中存在、在 target 中不存在
         changed — 两版均存在，但 version 值不相同（即发生了版本升级）
         static  — 两版均存在，且 version 值完全一致（可复用，无需重建）
 
@@ -103,16 +106,22 @@ class WideTableComparator:
         changed: List[str] = []
         new: List[str] = []
         static: List[str] = []
+        removed: List[str] = []
 
         all_keys = set(current_metadata.keys()) | set(target_metadata.keys())
-        for k in all_keys:
+        for k in sorted(all_keys):
             cur_meta = current_metadata.get(k, {})
             tgt_meta = target_metadata.get(k, {})
             cur_ver = cur_meta.get("version")
             tgt_ver = tgt_meta.get("version")
             code = (tgt_meta or cur_meta).get("indicator_code")
 
-            if k not in current_metadata:
+            if not code:
+                continue
+
+            if k not in target_metadata:
+                removed.append(code)
+            elif k not in current_metadata:
                 # target 有但 current 无 → 新增指标
                 new.append(code)
             elif cur_ver is None or tgt_ver is None:
@@ -130,4 +139,5 @@ class WideTableComparator:
             static_cols=static,
             changed_cols=changed,
             new_cols=new,
+            removed_cols=removed,
         )

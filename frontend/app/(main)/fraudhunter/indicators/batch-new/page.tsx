@@ -15,6 +15,7 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CodeBlock } from "@/components/ui/code-block";
 import { indicatorService } from "@/lib/services/fraudhunterService";
 import type {
   IndicatorCreate,
@@ -693,9 +694,7 @@ export default function BatchNewIndicatorPage() {
                     <div>
                       <h4 className="font-medium mb-2">处理后的SQL：</h4>
                       <div className="bg-gray-50 p-3 rounded-md">
-                        <pre className="text-xs overflow-x-auto whitespace-pre-wrap">
-                          {validationResult.validation_details.processed_sql}
-                        </pre>
+                        <CodeBlock code={validationResult.validation_details.processed_sql} language="sql" />
                       </div>
                     </div>
                   )}

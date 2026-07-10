@@ -48,8 +48,16 @@ def _load_sync_service_with_stubs():
 
     domain_module = types.ModuleType("domain")
     domain_wide_table_module = types.ModuleType("domain.wide_table")
-    version_delta_module = types.ModuleType("domain.wide_table.version_delta")
-    version_delta_module.WideTableComparator = object
+    version_delta_module_path = (
+        _backend_root / "domain" / "wide_table" / "version_delta.py"
+    )
+    version_delta_spec = importlib.util.spec_from_file_location(
+        "domain.wide_table.version_delta",
+        version_delta_module_path,
+    )
+    version_delta_module = importlib.util.module_from_spec(version_delta_spec)
+    sys.modules[version_delta_spec.name] = version_delta_module
+    version_delta_spec.loader.exec_module(version_delta_module)
 
     numeric_module_path = (
         _backend_root
@@ -151,3 +159,16 @@ class TestTypedPivotSql:
         assert "RLIKE" in sql
         assert "CAST(TRIM(CAST(i_amt AS STRING)) AS DOUBLE)" in sql
         assert "i_name" not in sql
+
+    def test_metadata_for_codes_keeps_only_requested_codes(self):
+        metadata = {
+            "1": {"indicator_code": "i_static", "data_type": "string"},
+            "2": {"indicator_code": "i_changed", "data_type": "numeric"},
+            "3": {"indicator_code": "i_new", "data_type": "string"},
+        }
+
+        filtered = _service()._metadata_for_codes(metadata, ["i_changed", "i_new"])
+
+        assert set(filtered.keys()) == {"2", "3"}
+        assert filtered["2"]["indicator_code"] == "i_changed"
+        assert filtered["3"]["indicator_code"] == "i_new"

@@ -17,6 +17,7 @@ from schemas.fraudhunter.indicator import (
     IndicatorTaskListResponse,
     IndicatorTaskResponse,
     IndicatorTaskUpdate,
+    IndicatorTaskVersionHistoryListResponse,
     PublishToDSRequest,
     PublishToDSResponse,
     RerunRequest,
@@ -158,6 +159,43 @@ async def get_indicator_task(
     except Exception as e:
         logger.error(f"获取指标任务详情失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取指标任务详情失败: {str(e)}")
+
+
+@router.get(
+    "/{task_id}/versions",
+    response_model=IndicatorTaskVersionHistoryListResponse,
+    summary="获取指标任务版本历史",
+)
+async def get_indicator_task_versions(
+    task_id: int,
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(50, ge=1, le=200, description="每页数量"),
+    db: Session = Depends(get_db),
+) -> IndicatorTaskVersionHistoryListResponse:
+    """获取指定指标任务的版本历史记录（用于版本对比/diff）
+
+    参数:
+        task_id: 指标任务ID
+        page: 页码
+        page_size: 每页数量（默认50，便于一次性拉取全部历史做diff）
+
+    返回:
+        版本历史列表，按版本时间倒序排列
+    """
+    try:
+        manager = IndicatorTaskManager(db)
+        items, total = manager.get_version_history(task_id, page=page, page_size=page_size)
+
+        return IndicatorTaskVersionHistoryListResponse(
+            total=total,
+            page=page,
+            page_size=page_size,
+            items=items,
+        )
+
+    except Exception as e:
+        logger.error(f"获取指标任务版本历史失败: task_id={task_id}, error={e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取版本历史失败: {str(e)}")
 
 
 @router.put("/{task_id}", summary="更新指标任务")
