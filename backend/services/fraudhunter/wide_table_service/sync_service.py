@@ -26,7 +26,6 @@ from models.db_base import get_db_session
 from .version_manager import WideTableVersionManager
 from utils.logger import logger
 from utils.config import settings
-from utils.analyze_db_utils import AnalyzeDBConnector, AnalyzeDBPartitionManager
 from domain.wide_table.version_delta import VersionDelta, WideTableComparator
 from services.fraudhunter.wide_table_service.numeric_type_utils import WideTableNumericTypeHelper
 
@@ -386,6 +385,7 @@ class WideTableSyncService:
         etl_date_str = etl_date.strftime('%Y-%m-%d')
         etl_date_suffix = etl_date.strftime('%Y%m%d')
         delta_table = None
+        from utils.analyze_db_utils import AnalyzeDBPartitionManager
 
         AnalyzeDBPartitionManager.create_wide_table(pg_table_name, target_metadata)
         AnalyzeDBPartitionManager.ensure_partition(pg_table_name, etl_date)
