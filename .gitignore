@@ -184,3 +184,7 @@ backend/.worker_registry/.worktrees/
 
 # Git worktrees
 .worktrees/
+
+# ZCode internal files
+.zcode/
+**/.DS_Store
