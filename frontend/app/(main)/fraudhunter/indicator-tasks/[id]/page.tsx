@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, GitCompare } from "lucide-react";
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CodeBlock } from "@/components/ui/code-block";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,7 @@ import {
 import { indicatorTaskService } from "@/lib/services/fraudhunterService";
 import type { IndicatorTask, IndicatorTaskUpdate } from "@/lib/services/fraudhunterService";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { VersionDiffDialog } from "@/components/fraudhunter/indicator/VersionDiffDialog";
 
 export default function IndicatorTaskDetailPage() {
   const router = useRouter();
@@ -38,6 +40,8 @@ export default function IndicatorTaskDetailPage() {
 
   // 试运行对话框状态
   const [dryRunDialogOpen, setDryRunDialogOpen] = useState(false);
+  // 版本对比对话框状态
+  const [versionDiffOpen, setVersionDiffOpen] = useState(false);
   const [dryRunData, setDryRunData] = useState({
     etl_date: new Date().toISOString().split("T")[0],
     sample_size: 100,
@@ -301,7 +305,21 @@ export default function IndicatorTaskDetailPage() {
       {/* SQL逻辑 */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>SQL加工逻辑</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>SQL加工逻辑</CardTitle>
+            {!isEditMode && data && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setVersionDiffOpen(true)}
+                disabled={data.latest_version <= 1}
+                title={data.latest_version <= 1 ? "仅有一个版本，无法对比" : "对比当前版本与历史版本"}
+              >
+                <GitCompare className="h-4 w-4 mr-1" />
+                版本对比
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -317,9 +335,7 @@ export default function IndicatorTaskDetailPage() {
                 />
               </>
             ) : (
-              <div className="mt-1 p-3 bg-muted rounded font-mono text-sm whitespace-pre-wrap">
-                {data.logic_content}
-              </div>
+              <CodeBlock code={data.logic_content} language="sql" />
             )}
           </div>
 
@@ -336,9 +352,13 @@ export default function IndicatorTaskDetailPage() {
                 />
               </>
             ) : (
-              <div className="mt-1 p-3 bg-muted rounded font-mono text-sm whitespace-pre-wrap">
-                {data.realtime_logic_content || "未配置"}
-              </div>
+              data.realtime_logic_content ? (
+                <CodeBlock code={data.realtime_logic_content} language="sql" />
+              ) : (
+                <div className="mt-1 p-3 bg-muted rounded font-mono text-sm">
+                  未配置
+                </div>
+              )
             )}
           </div>
 
@@ -431,6 +451,16 @@ export default function IndicatorTaskDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 版本对比对话框 */}
+      {data && (
+        <VersionDiffDialog
+          open={versionDiffOpen}
+          onOpenChange={setVersionDiffOpen}
+          taskId={taskId}
+          latestVersion={data.latest_version}
+        />
+      )}
     </div>
     </>
   );

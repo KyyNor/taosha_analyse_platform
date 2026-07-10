@@ -18,6 +18,7 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CodeBlock } from "@/components/ui/code-block";
 import {
   Dialog,
   DialogContent,
@@ -470,9 +471,7 @@ export default function RiskControlModelDetailPage() {
           </CardHeader>
           <CardContent>
             {sqlPreview ? (
-              <pre className="bg-muted p-4 rounded-md overflow-x-auto text-sm">
-                {sqlPreview}
-              </pre>
+              <CodeBlock code={sqlPreview} language="sql" />
             ) : (
               <div className="text-center text-muted-foreground py-8">
                 <AlertCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />

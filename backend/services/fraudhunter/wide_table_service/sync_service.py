@@ -11,6 +11,8 @@
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from datetime import date, datetime, timedelta
+import time
+from contextlib import contextmanager
 
 from sqlalchemy import text
 
@@ -34,6 +36,24 @@ WIDE_TABLE_TO_OBJECT_TYPE = {
     'cust_wide_table': 'cust_no',
     'loan_acct_wide_table': 'loan_acct_no',
 }
+
+
+@contextmanager
+def _stage_timer(stage_name: str, wide_table_name: str, etl_date):
+    """同步阶段计时上下文，记录每个阶段的耗时到日志（不落库）。
+
+    日志格式: [阶段耗时] {stage_name} | wide_table=... etl_date=... | 耗时=Xs
+    运维可在 backend/logs/ 按 "[阶段耗时]" 关键字检索各阶段耗时。
+    """
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        elapsed = time.perf_counter() - start
+        logger.info(
+            f"[阶段耗时] {stage_name} | wide_table={wide_table_name} "
+            f"etl_date={etl_date} | 耗时={elapsed:.3f}s"
+        )
 
 
 class WideTableSyncService:
@@ -76,6 +96,7 @@ class WideTableSyncService:
             失败: None
         """
         snapshot_id = None
+        _total_start = time.perf_counter()
 
         try:
             # 0. 防御性守卫：version_hash 为 None 时直接跳过（避免后续三处 slice/write 先行炸掉）
@@ -83,6 +104,10 @@ class WideTableSyncService:
                 logger.warning(
                     f"sync_wide_table 跳过（version_hash 为空，请排查 _get_sync_version_info "
                     f"是否成功获取了有效版本） wide_table={wide_table_name}"
+                )
+                logger.info(
+                    f"[阶段耗时] sync_wide_table 跳过(skip_reason=version_hash_missing) | "
+                    f"wide_table={wide_table_name} etl_date={etl_date}"
                 )
                 return {
                     "status": "skipped",
@@ -92,7 +117,13 @@ class WideTableSyncService:
                 }
 
             # 1. 检查版本是否就绪
-            if not self._check_version_ready(target_version_id, etl_date, version_hash):
+            with _stage_timer("01_版本就绪检查", wide_table_name, etl_date):
+                version_ready = self._check_version_ready(target_version_id, etl_date, version_hash)
+            if not version_ready:
+                logger.info(
+                    f"[阶段耗时] sync_wide_table 跳过(skip_reason=version_not_ready) | "
+                    f"wide_table={wide_table_name} etl_date={etl_date}"
+                )
                 return {
                     "status": "skipped",
                     "skip_reason": "version_not_ready",
@@ -101,10 +132,15 @@ class WideTableSyncService:
                 }
 
             # 2. 检查是否已存在ready状态的快照
-            existing_result = self._get_existing_snapshot(
-                wide_table_name, etl_date, version_hash
-            )
+            with _stage_timer("02_已存在快照检查", wide_table_name, etl_date):
+                existing_result = self._get_existing_snapshot(
+                    wide_table_name, etl_date, version_hash
+                )
             if existing_result:
+                logger.info(
+                    f"[阶段耗时] sync_wide_table 跳过(skip_reason=snapshot_exists) | "
+                    f"wide_table={wide_table_name} etl_date={etl_date}"
+                )
                 return existing_result
 
             # 3. 计算指标差异，确定同步路径
@@ -112,13 +148,14 @@ class WideTableSyncService:
             effective_curr_md: dict = {}
             effective_candidates = copy_candidates or []
 
-            old_pg_table, old_meta = self._find_copy_source(
-                wide_table_name, etl_date, effective_candidates
-            )
-            if old_meta:
-                effective_curr_md = old_meta
+            with _stage_timer("03_差异计算与复制源查找", wide_table_name, etl_date):
+                old_pg_table, old_meta = self._find_copy_source(
+                    wide_table_name, etl_date, effective_candidates
+                )
+                if old_meta:
+                    effective_curr_md = old_meta
 
-            delta = self._build_sync_delta(effective_curr_md, indicator_metadata)
+                delta = self._build_sync_delta(effective_curr_md, indicator_metadata)
             changed, new_cols, static_cols = (
                 delta.changed_cols,
                 delta.new_cols,
@@ -132,6 +169,10 @@ class WideTableSyncService:
                     f"[跳过] 版本无变化且存在可复用旧表: {pg_table_name}, "
                     f"reusable_base={old_pg_table}"
                 )
+                logger.info(
+                    f"[阶段耗时] sync_wide_table 跳过(skip_reason=version_unchanged_with_reusable_base) | "
+                    f"wide_table={wide_table_name} etl_date={etl_date}"
+                )
                 return {
                     "status": "skipped",
                     "skip_reason": "version_unchanged_with_reusable_base",
@@ -142,37 +183,47 @@ class WideTableSyncService:
                 }
 
             # 4. 创建或更新Snapshot记录为generating状态（仅真正执行同步时记录状态）
-            snapshot_id = self._create_generating_snapshot(
-                wide_table_name, etl_date, version_hash
-            )
-
-            if old_pg_table and delta.has_any_change:
-                logger.info(
-                    f"[增量] 走delta insert-select路径: {pg_table_name}, "
-                    f"changed={len(changed)}, new={len(new_cols)}, "
-                    f"removed={len(delta.removed_cols)}, static={len(static_cols)}"
-                )
-                row_count, column_count = self._execute_delta_insert_select_sync(
-                    wide_table_name=wide_table_name,
-                    target_metadata=indicator_metadata,
-                    etl_date=etl_date,
-                    pg_table_name=pg_table_name,
-                    old_pg_table=old_pg_table,
-                    static_cols=static_cols,
-                    inc_cols=inc_codes,
-                )
-            else:
-                logger.info("[全量] 走全量同步路径（无可用旧表）")
-                row_count, column_count = self._execute_data_sync(
-                    wide_table_name, indicator_metadata, etl_date, pg_table_name
+            with _stage_timer("04_创建generating快照", wide_table_name, etl_date):
+                snapshot_id = self._create_generating_snapshot(
+                    wide_table_name, etl_date, version_hash
                 )
 
-            # 5. 更新Snapshot为ready状态
-            self._update_snapshot_ready(
-                snapshot_id, pg_table_name, row_count, column_count
-            )
+            # 5. 数据同步（增量或全量）
+            with _stage_timer("05_数据同步", wide_table_name, etl_date):
+                if old_pg_table and delta.has_any_change:
+                    logger.info(
+                        f"[增量] 走delta insert-select路径: {pg_table_name}, "
+                        f"changed={len(changed)}, new={len(new_cols)}, "
+                        f"removed={len(delta.removed_cols)}, static={len(static_cols)}"
+                    )
+                    row_count, column_count = self._execute_delta_insert_select_sync(
+                        wide_table_name=wide_table_name,
+                        target_metadata=indicator_metadata,
+                        etl_date=etl_date,
+                        pg_table_name=pg_table_name,
+                        old_pg_table=old_pg_table,
+                        static_cols=static_cols,
+                        inc_cols=inc_codes,
+                    )
+                else:
+                    logger.info("[全量] 走全量同步路径（无可用旧表）")
+                    row_count, column_count = self._execute_data_sync(
+                        wide_table_name, indicator_metadata, etl_date, pg_table_name
+                    )
+
+            # 6. 更新Snapshot为ready状态
+            with _stage_timer("06_更新ready状态", wide_table_name, etl_date):
+                self._update_snapshot_ready(
+                    snapshot_id, pg_table_name, row_count, column_count
+                )
 
             logger.info(f"宽表同步成功: {pg_table_name}, {row_count}行, {column_count}列")
+
+            _total_elapsed = time.perf_counter() - _total_start
+            logger.info(
+                f"[阶段耗时] sync_wide_table 完成 | wide_table={wide_table_name} "
+                f"etl_date={etl_date} table={pg_table_name} rows={row_count} | 总耗时={_total_elapsed:.3f}s"
+            )
 
             return {
                 "id": snapshot_id,
@@ -184,7 +235,12 @@ class WideTableSyncService:
             }
 
         except Exception as e:
+            _total_elapsed = time.perf_counter() - _total_start
             logger.error(f"宽表同步失败: {wide_table_name}, etl_date={etl_date}, error={e}", exc_info=True)
+            logger.error(
+                f"[阶段耗时] sync_wide_table 失败 | wide_table={wide_table_name} "
+                f"etl_date={etl_date} | 总耗时={_total_elapsed:.3f}s"
+            )
             self._update_snapshot_failed(snapshot_id, str(e))
             return None
 

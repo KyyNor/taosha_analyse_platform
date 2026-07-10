@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { CodeBlock } from '@/components/ui/code-block'
 import { Trash2, Plus, Code, CheckCircle2, AlertCircle, Info, Layers } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -696,9 +697,7 @@ export function RuleBuilder({ indicators, initialRule, onChange, readOnly = fals
             <div className="space-y-3">
               <div>
                 <h4 className="text-sm font-medium mb-1">SQL表达式:</h4>
-                <pre className="bg-muted p-3 rounded text-xs overflow-x-auto">
-                  {sqlPreview.sql_expression}
-                </pre>
+                <CodeBlock code={sqlPreview.sql_expression} language="sql" />
               </div>
               <div>
                 <h4 className="text-sm font-medium mb-1">规则摘要:</h4>
