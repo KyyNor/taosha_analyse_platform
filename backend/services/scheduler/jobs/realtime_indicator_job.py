@@ -296,8 +296,6 @@ def _process_single_object_type(
             db.rollback()
             return ObjectTypeProcessResult(object_type=object_type, success=False, error_msg=str(e))
 
-    return ObjectTypeProcessResult(object_type=object_type, success=False, error_msg="未知错误")
-
 
 @timing_it
 def step1_generate_realtime_indicators(db, today, today_str, now_str):
@@ -516,9 +514,6 @@ def step2_online_model_executor(db, offline_tables, generated_realtime_tables):
 
     try:
         matched_df = AnalyzeDBConnector.execute_sql(model_sql, fetch_df=True)
-        if matched_df is None or matched_df.empty:
-            matched_df = pd.DataFrame()
-        logger.info(f"实时模型匹配完成, 命中 {len(matched_df)} 条记录")
     except Exception as e:
         logger.error(f"执行模型匹配SQL失败: {e}", exc_info=True)
         execution_record.execution_end_time = datetime.now()
@@ -527,13 +522,14 @@ def step2_online_model_executor(db, offline_tables, generated_realtime_tables):
         db.commit()
         return None, None
 
-    if len(matched_df) == 0:
+    if matched_df is None or matched_df.empty:
         logger.info("没有命中任何模型的记录")
         execution_record.execution_end_time = datetime.now()
         execution_record.status = 'success'
         db.commit()
         return None, None
-    
+
+    logger.info(f"实时模型匹配完成, 命中 {len(matched_df)} 条记录")
     return matched_df, execution_record
 
 
@@ -659,34 +655,39 @@ async def generate_realtime_wide_table_job():
     today_str = today.strftime('%Y-%m-%d')
     now_str = datetime.now().strftime('%Y%m%d%H%M')
 
-    
-    try:
-        hit_time = datetime.now()
-        logger.debug(f"开始生成实时指标宽表并执行模型匹配 hit_time: {hit_time}")
+    hit_time = datetime.now()
+    logger.debug(f"开始生成实时指标宽表并执行模型匹配 hit_time: {hit_time}")
 
-        with get_db_session() as db:
-            offline_tables, generated_realtime_tables = step1_generate_realtime_indicators(db, today, today_str, now_str)
-            if offline_tables is None:
-                return
+    # 步骤1: 实时指标加工（独立 session，正常退出时自动 commit）
+    with get_db_session() as db:
+        offline_tables, generated_realtime_tables = step1_generate_realtime_indicators(db, today, today_str, now_str)
+        if offline_tables is None:
+            return
 
-        with get_db_session() as db:
-            matched_df, execution_record = step2_online_model_executor(db, offline_tables, generated_realtime_tables)
-
+    # 步骤2 + 步骤3: 模型匹配 + 记录命中（共用同一 session，因 execution_record 跨这两步）
+    with get_db_session() as db:
+        try:
+            matched_df, execution_record = step2_online_model_executor(
+                db, offline_tables, generated_realtime_tables
+            )
             if matched_df is None:
                 return
 
             step3_hit_record(db, today, matched_df, execution_record, hit_time)
-
             logger.debug("实时指标宽表生成及模型匹配完成")
-
-    except Exception as e:
+        except Exception as e:
+            # session 仍然存活：将执行记录标记为失败并提交，避免状态丢失。
+            # 注意：必须在 with 块内部处理，此时 session 未关闭；
+            # 由 get_db_session 在正常退出时自动 commit。
             logger.error(f"生成实时指标宽表失败: {e}", exc_info=True)
-            if 'execution_record' in locals() and execution_record:
-                execution_record.execution_end_time = datetime.now()
-                execution_record.status = 'failed'
-                execution_record.error_message = str(e)
-                db.commit()
-            db.rollback()
+            if 'execution_record' in locals() and execution_record is not None:
+                try:
+                    execution_record.execution_end_time = datetime.now()
+                    execution_record.status = 'failed'
+                    execution_record.error_message = str(e)
+                    db.commit()
+                except Exception:
+                    db.rollback()
             raise
 
 
