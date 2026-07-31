@@ -180,8 +180,11 @@ class ModelHitAlertManager:
                 # 重复管控
                 alert_control_record.control_status = 'duplicate'
             else:
+                # 判断命中的模型是否含"受害人"，决定resAbs值
+                has_victim_model = any("受害人" in name for name in hit_record.hit_model_names)
+                res_abs = "武汉分行监测系统(分行受害人保护)" if has_victim_model else "武汉分行监测系统"
                 # 首次管控，调用管控接口
-                control_resp = self._call_control_api(hit_record.account_id, account_type=cust_type)
+                control_resp = self._call_control_api(hit_record.account_id, account_type=cust_type, res_abs=res_abs)
 
                 if control_resp:
                     # 管控接口调用成功，从响应中提取流水号
@@ -477,12 +480,13 @@ class ModelHitAlertManager:
         logger.debug(f"找到理财经理通知目标: cust_no={cust_no}, targets={targets}")
         return targets
 
-    def _call_control_api(self, account_id: str, account_type: str = "01") -> Optional[Dict[str, Any]]:
+    def _call_control_api(self, account_id: str, account_type: str = "01", res_abs: str = "武汉分行监测系统") -> Optional[Dict[str, Any]]:
         """调用管控接口
 
         Args:
             account_id: 账号ID
             account_type: 账号类型，默认为"1"
+            res_abs: 监管摘要标识，根据模型类型动态设置
 
         Returns:
             管控接口响应，如果失败返回None
@@ -500,7 +504,7 @@ class ModelHitAlertManager:
                         "body": {
                             "acctNo": full_account_id,
                             "acctType": account_type,
-                            "resAbs": "武汉分行监测系统"
+                            "resAbs": res_abs
                         }
                     }
                 }
