@@ -207,7 +207,19 @@ class WideTableSyncService:
                         inc_cols=inc_codes,
                     )
                 else:
-                    logger.info("[全量] 走全量同步路径（无可用旧表）")
+                    fallback_reason = (
+                        "no_copy_candidates"
+                        if not effective_candidates
+                        else "no_usable_old_partition"
+                    )
+                    logger.warning(
+                        f"[全量回退] 走全量同步路径: wide_table={wide_table_name}, "
+                        f"etl_date={etl_date}, target_version={version_hash[:8]}, "
+                        f"reason={fallback_reason}, "
+                        f"copy_candidates={len(effective_candidates)}, "
+                        f"target_indicators={len(indicator_metadata)}；"
+                        f"详细候选淘汰原因见此前的[全量回退诊断]日志"
+                    )
                     row_count, column_count = self._execute_data_sync(
                         wide_table_name, indicator_metadata, etl_date, pg_table_name
                     )
@@ -644,22 +656,85 @@ class WideTableSyncService:
 
         etl_date_str = etl_date.strftime('%Y%m%d')
 
-        for cand in copy_candidates:
-            pg_partition = f"{wide_table_name}_{cand['version_hash'][:8]}_{etl_date_str}"
-            if not AnalyzeDBPartitionManager.table_exists(pg_partition):
-                continue
-            row_count = AnalyzeDBPartitionManager.count_partition_rows(pg_partition)
-            if row_count <= 0:
-                logger.debug(
-                    f"旧表 {pg_partition} 存在但无数据（row_count={row_count}），跳过"
+        if not copy_candidates:
+            logger.warning(
+                f"[全量回退诊断] 未配置可复用的历史版本候选: "
+                f"wide_table={wide_table_name}, etl_date={etl_date}, "
+                f"reason=no_copy_candidates；通常表示首次同步，或该宽表尚无current/history版本"
+            )
+            return None, None
+
+        logger.info(
+            f"[增量诊断] 开始查找可复用旧分区: wide_table={wide_table_name}, "
+            f"etl_date={etl_date}, candidates={len(copy_candidates)}"
+        )
+
+        rejected = {
+            "missing_version_hash": [],
+            "table_missing_or_check_failed": [],
+            "row_count_failed": [],
+            "empty_partition": [],
+        }
+
+        for index, cand in enumerate(copy_candidates, start=1):
+            version_hash = cand.get('version_hash')
+            status = cand.get('status', 'unknown')
+            if not version_hash:
+                candidate_name = f"candidate#{index}(status={status})"
+                rejected["missing_version_hash"].append(candidate_name)
+                logger.info(
+                    f"[增量诊断] 淘汰候选: {candidate_name}, "
+                    f"reason=missing_version_hash"
                 )
                 continue
-            logger.info(
-                f"找到可复用旧表: {pg_partition}（行数={row_count}，来源版本状态={cand['status']}）"
-            )
-            return pg_partition, cand['indicator_metadata']
 
-        logger.debug(f"未找到任何可用的旧表（行数>0），copy_candidates共{len(copy_candidates)}个")
+            pg_partition = f"{wide_table_name}_{version_hash[:8]}_{etl_date_str}"
+            if not AnalyzeDBPartitionManager.table_exists(pg_partition):
+                rejected["table_missing_or_check_failed"].append(pg_partition)
+                logger.info(
+                    f"[增量诊断] 淘汰候选: status={status}, "
+                    f"version={version_hash[:8]}, table={pg_partition}, "
+                    f"reason=table_missing_or_check_failed"
+                )
+                continue
+            row_count = AnalyzeDBPartitionManager.count_partition_rows(pg_partition)
+            if row_count < 0:
+                rejected["row_count_failed"].append(pg_partition)
+                logger.info(
+                    f"[增量诊断] 淘汰候选: status={status}, "
+                    f"version={version_hash[:8]}, table={pg_partition}, "
+                    f"reason=row_count_failed"
+                )
+                continue
+            if row_count == 0:
+                rejected["empty_partition"].append(pg_partition)
+                logger.info(
+                    f"[增量诊断] 淘汰候选: status={status}, "
+                    f"version={version_hash[:8]}, table={pg_partition}, "
+                    f"reason=empty_partition"
+                )
+                continue
+
+            metadata = cand.get('indicator_metadata') or {}
+            logger.info(
+                f"[增量诊断] 选中可复用旧分区: status={status}, "
+                f"version={version_hash[:8]}, table={pg_partition}, "
+                f"row_count={row_count}, indicators={len(metadata)}"
+            )
+            return pg_partition, metadata
+
+        rejected_summary = "; ".join(
+            f"{reason}={len(tables)}"
+            + (f"[{', '.join(tables[:3])}]" if tables else "")
+            for reason, tables in rejected.items()
+            if tables
+        )
+        logger.warning(
+            f"[全量回退诊断] 所有历史版本候选均不可复用: "
+            f"wide_table={wide_table_name}, etl_date={etl_date}, "
+            f"reason=no_usable_old_partition, checked={len(copy_candidates)}；"
+            f"{rejected_summary or '未记录到明确淘汰原因，请检查候选数据结构'}"
+        )
         return None, None
 
     @staticmethod
@@ -784,6 +859,21 @@ PIVOT (
 
             # 优先使用 target 版本，否则降级用 current 版本
             version = target_version or current_version
+
+            selected_source = 'target' if target_version else 'current'
+            selected_hash = version.version_hash[:8] if version.version_hash else 'missing'
+            candidate_summary = [
+                f"{candidate.get('status', 'unknown')}:"
+                f"{(candidate.get('version_hash') or 'missing')[:8]}:"
+                f"indicators={len(candidate.get('indicator_metadata') or {})}"
+                for candidate in copy_candidates
+            ]
+            logger.info(
+                f"[增量诊断] 版本候选收集完成: wide_table={wide_table_name}, "
+                f"selected_source={selected_source}, selected_version={selected_hash}, "
+                f"copy_candidates={len(copy_candidates)}, "
+                f"candidate_details={candidate_summary or ['none']}"
+            )
 
             return {
                 'target_version_id': version.id,

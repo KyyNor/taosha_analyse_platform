@@ -175,3 +175,111 @@ def test_sync_wide_table_skips_unchanged_metadata_with_reusable_base(monkeypatch
         "delta_sync": 0,
         "mark_ready": 0,
     }
+
+
+def test_find_copy_source_logs_when_no_candidates(monkeypatch):
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
+    service = WideTableSyncService.__new__(WideTableSyncService)
+    module = sys.modules[WideTableSyncService.__module__]
+    warnings = []
+    module.logger.warning = warnings.append
+
+    result = service._find_copy_source(
+        "dep_acct_wide_table",
+        date(2026, 8, 11),
+        [],
+    )
+
+    assert result == (None, None)
+    assert any("reason=no_copy_candidates" in message for message in warnings)
+    assert any("首次同步" in message for message in warnings)
+
+
+def test_find_copy_source_logs_each_rejection_reason(monkeypatch):
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
+    service = WideTableSyncService.__new__(WideTableSyncService)
+    module = sys.modules[WideTableSyncService.__module__]
+    info_logs = []
+    warning_logs = []
+    module.logger.info = info_logs.append
+    module.logger.warning = warning_logs.append
+
+    class FakePartitionManager:
+        @staticmethod
+        def table_exists(table_name):
+            return "missing1" not in table_name
+
+        @staticmethod
+        def count_partition_rows(table_name):
+            if "empty222" in table_name:
+                return 0
+            return -1
+
+    sys.modules[
+        "utils.analyze_db_utils"
+    ].AnalyzeDBPartitionManager = FakePartitionManager
+
+    result = service._find_copy_source(
+        "cust_wide_table",
+        date(2026, 8, 11),
+        [
+            {"version_hash": None, "status": "history"},
+            {"version_hash": "missing1abcdef", "status": "history"},
+            {"version_hash": "empty222abcdef", "status": "history"},
+            {"version_hash": "failed33abcdef", "status": "current"},
+        ],
+    )
+
+    assert result == (None, None)
+    combined_info = "\n".join(info_logs)
+    combined_warning = "\n".join(warning_logs)
+    assert "reason=missing_version_hash" in combined_info
+    assert "reason=table_missing_or_check_failed" in combined_info
+    assert "reason=empty_partition" in combined_info
+    assert "reason=row_count_failed" in combined_info
+    assert "reason=no_usable_old_partition" in combined_warning
+    assert "checked=4" in combined_warning
+    assert "missing_version_hash=1" in combined_warning
+    assert "table_missing_or_check_failed=1" in combined_warning
+    assert "empty_partition=1" in combined_warning
+    assert "row_count_failed=1" in combined_warning
+
+
+def test_find_copy_source_logs_selected_partition(monkeypatch):
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
+    service = WideTableSyncService.__new__(WideTableSyncService)
+    module = sys.modules[WideTableSyncService.__module__]
+    info_logs = []
+    module.logger.info = info_logs.append
+
+    class FakePartitionManager:
+        @staticmethod
+        def table_exists(table_name):
+            return True
+
+        @staticmethod
+        def count_partition_rows(table_name):
+            return 42
+
+    sys.modules[
+        "utils.analyze_db_utils"
+    ].AnalyzeDBPartitionManager = FakePartitionManager
+    metadata = {"1": {"version": 1, "indicator_code": "i_balance"}}
+
+    result = service._find_copy_source(
+        "loan_acct_wide_table",
+        date(2026, 8, 11),
+        [
+            {
+                "version_hash": "usable12abcdef",
+                "status": "current",
+                "indicator_metadata": metadata,
+            }
+        ],
+    )
+
+    assert result == ("loan_acct_wide_table_usable12_20260811", metadata)
+    selected_log = "\n".join(info_logs)
+    assert "选中可复用旧分区" in selected_log
+    assert "row_count=42" in selected_log
+    assert "indicators=1" in selected_log
