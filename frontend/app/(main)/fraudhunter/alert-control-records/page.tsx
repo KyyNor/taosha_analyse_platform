@@ -29,6 +29,13 @@ import { useAuth } from "@/hooks/useAuth";
 // 允许查看详情的部门编号
 const DETAIL_VIEW_DEPARTMENTS = ["110026", "110004"];
 
+const formatDateForInput = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export default function AlertControlRecordsPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -186,14 +193,39 @@ export default function AlertControlRecordsPage() {
 
   // 获取今天的日期字符串
   const getTodayString = () => {
-    return new Date().toISOString().split('T')[0];
+    return formatDateForInput(new Date());
   };
 
   // 获取一周前的日期字符串
   const getWeekAgoString = () => {
     const date = new Date();
     date.setDate(date.getDate() - 7);
-    return date.toISOString().split('T')[0];
+    return formatDateForInput(date);
+  };
+
+  // 允许从任一端调整日期范围；若发生倒序，自动同步另一端。
+  const handleStartDateChange = (value: string) => {
+    const startDate = value || undefined;
+    setFilters((prev) => ({
+      ...prev,
+      start_date: startDate,
+      end_date:
+        startDate && prev.end_date && prev.end_date < startDate
+          ? startDate
+          : prev.end_date,
+    }));
+  };
+
+  const handleEndDateChange = (value: string) => {
+    const endDate = value || undefined;
+    setFilters((prev) => ({
+      ...prev,
+      start_date:
+        endDate && prev.start_date && prev.start_date > endDate
+          ? endDate
+          : prev.start_date,
+      end_date: endDate,
+    }));
   };
 
   return (
@@ -220,7 +252,7 @@ export default function AlertControlRecordsPage() {
                 id="start_date"
                 type="date"
                 value={filters.start_date || ""}
-                onChange={(e) => setFilters(prev => ({ ...prev, start_date: e.target.value || undefined }))}
+                onChange={(e) => handleStartDateChange(e.target.value)}
                 max={getTodayString()}
               />
             </div>
@@ -231,9 +263,8 @@ export default function AlertControlRecordsPage() {
                 id="end_date"
                 type="date"
                 value={filters.end_date || ""}
-                onChange={(e) => setFilters(prev => ({ ...prev, end_date: e.target.value || undefined }))}
+                onChange={(e) => handleEndDateChange(e.target.value)}
                 max={getTodayString()}
-                min={filters.start_date || ""}
               />
             </div>
 
