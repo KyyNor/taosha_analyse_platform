@@ -53,6 +53,7 @@ async def list_alert_control_records(
     - start_date: 开始日期，格式 YYYY-MM-DD
     - end_date: 结束日期，格式 YYYY-MM-DD
     - account_id: 精确匹配账号ID
+    - branch_no: 精确匹配机构号
     - model_ids: 模型ID列表（多选，精确匹配）
     - model_name: 模糊匹配模型名称
     - alert_status: 告警状态筛选
@@ -113,6 +114,7 @@ async def list_alert_control_records(
             start_date=body.start_date,
             end_date=body.end_date,
             account_id=body.account_id,
+            branch_no=body.branch_no,
             model_ids=body.model_ids,
             model_name=body.model_name,
             alert_status=body.alert_status,
@@ -216,7 +218,7 @@ async def export_alert_control_records(
     - Excel文件下载响应
 
     导出内容包含:
-    - ID、账号、记录日期、模型信息
+    - ID、账号、机构号、记录日期、模型信息
     - 告警状态、告警消息、告警人、告警时间
     - 管控状态、管控时间、管控流水号
     - 创建时间、更新时间
@@ -265,6 +267,7 @@ async def export_alert_control_records(
             start_date=body.start_date,
             end_date=body.end_date,
             account_id=body.account_id,
+            branch_no=body.branch_no,
             model_ids=body.model_ids,
             model_name=body.model_name,
             alert_status=body.alert_status,

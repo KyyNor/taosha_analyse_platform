@@ -862,6 +862,7 @@ class ModelHitAlertManager:
             export_data.append({
                 'ID': record.id,
                 '账号': record.account_id,
+                '机构号': record.branch_no or '',
                 '记录日期': record.record_date.strftime('%Y-%m-%d'),
                 '模型ID': model_ids_str,
                 '模型名称': model_names_str,
@@ -913,6 +914,10 @@ class ModelHitAlertManager:
         # 账号筛选
         if filters.account_id:
             query = query.filter(FraudHunterModelAlertControlRecord.account_id == filters.account_id)
+
+        # 机构号筛选（精确匹配）
+        if filters.branch_no:
+            query = query.filter(FraudHunterModelAlertControlRecord.branch_no == filters.branch_no)
         
         # 模型筛选（JSON数组包含检查）
         if filters.model_ids:

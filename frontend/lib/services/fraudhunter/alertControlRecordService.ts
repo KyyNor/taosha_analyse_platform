@@ -9,6 +9,7 @@ export interface AlertControlRecord {
   id: number;
   hit_record_id: number;
   account_id: string;
+  branch_no?: string | null;
   record_date: string;
   hit_model_ids: number[];
   hit_model_names: string[];
@@ -32,6 +33,7 @@ export interface AlertControlRecord {
 export interface HitRecord {
   id: number;
   account_id: string;
+  branch_no?: string | null;
   hit_time: string;
   hit_model_ids: number[];
   hit_model_names: string[];
@@ -49,6 +51,7 @@ export interface AlertControlFilters {
   start_date?: string;
   end_date?: string;
   account_id?: string;
+  branch_no?: string;
   model_ids?: number[];
   model_name?: string;
   alert_status?: string;

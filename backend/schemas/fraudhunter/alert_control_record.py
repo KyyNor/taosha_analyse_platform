@@ -16,6 +16,9 @@ class AlertControlFilters(BaseModel):
     
     # 账号筛选
     account_id: Optional[str] = Field(None, description="账号ID")
+
+    # 机构筛选
+    branch_no: Optional[str] = Field(None, description="机构号（精确匹配）")
     
     # 模型筛选
     model_ids: Optional[List[int]] = Field(None, description="模型ID列表（多选）")
@@ -146,6 +149,7 @@ class AlertControlListRequest(BaseModel):
     start_date: Optional[str] = Field(None, description="开始日期 (YYYY-MM-DD)")
     end_date: Optional[str] = Field(None, description="结束日期 (YYYY-MM-DD)")
     account_id: Optional[str] = Field(None, description="账号ID")
+    branch_no: Optional[str] = Field(None, description="机构号（精确匹配）")
     model_ids: Optional[List[int]] = Field(None, description="模型ID列表（多选）")
     model_name: Optional[str] = Field(None, description="模型名称（模糊匹配）")
     alert_status: Optional[str] = Field(None, description="告警状态：not_configured/sent/duplicate")
@@ -160,6 +164,7 @@ class AlertControlExportRequest(BaseModel):
     start_date: Optional[str] = Field(None, description="开始日期 (YYYY-MM-DD)")
     end_date: Optional[str] = Field(None, description="结束日期 (YYYY-MM-DD)")
     account_id: Optional[str] = Field(None, description="账号ID")
+    branch_no: Optional[str] = Field(None, description="机构号（精确匹配）")
     model_ids: Optional[List[int]] = Field(None, description="模型ID列表（多选）")
     model_name: Optional[str] = Field(None, description="模型名称（模糊匹配）")
     alert_status: Optional[str] = Field(None, description="告警状态：not_configured/sent/duplicate")

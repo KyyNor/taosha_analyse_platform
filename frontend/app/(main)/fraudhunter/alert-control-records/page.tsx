@@ -152,6 +152,7 @@ export default function AlertControlRecordsPage() {
   // 表格列配置
   const columns = [
     { key: "account_id", label: "账号", type: "text" as const, width: "160px" },
+    { key: "branch_no", label: "机构号", type: "text" as const, width: "110px" },
     { key: "record_date", label: "日期", type: "text" as const, width: "115px" },
     {
       key: "hit_model_names",
@@ -244,7 +245,7 @@ export default function AlertControlRecordsPage() {
       {/* 筛选器 */}
       <Card className="mb-6">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
             {/* 日期范围 */}
             <div className="space-y-2">
               <Label htmlFor="start_date">开始日期</Label>
@@ -265,6 +266,20 @@ export default function AlertControlRecordsPage() {
                 value={filters.end_date || ""}
                 onChange={(e) => handleEndDateChange(e.target.value)}
                 max={getTodayString()}
+              />
+            </div>
+
+            {/* 机构号筛选 */}
+            <div className="space-y-2">
+              <Label htmlFor="branch_no">机构号</Label>
+              <Input
+                id="branch_no"
+                value={filters.branch_no || ""}
+                onChange={(e) => setFilters(prev => ({
+                  ...prev,
+                  branch_no: e.target.value || undefined
+                }))}
+                placeholder="输入机构号"
               />
             </div>
 
