@@ -43,14 +43,23 @@ cd frontend && npm install
 ### 其他常用命令
 
 ```bash
+# 后端测试
+uv run pytest tests/backend -q
+
+# 离线宽表同步模块测试
+uv run pytest tests/backend/modules/wide_table_sync -q
+
 # 前端构建
-npm run build
+(cd frontend && npm run build)
 
 # 前端代码检查
-npm run lint
+(cd frontend && npm run lint)
+
+# 前端 TypeScript 检查（不生成增量缓存）
+(cd frontend && npx tsc --noEmit --incremental false)
 
 # 图表组件打包
-npm run build:charts
+(cd frontend && npm run build:charts)
 
 # 生成测试Token
 python scripts/generate_token.py --user-id "test001" --user-name "测试用户" --branch-no "DEPT001" --branch-name "技术部" --role-id-list "淘沙管理员" --expire-hours 24
@@ -148,6 +157,9 @@ backend/
 │   ├── vector_store/       # Qdrant向量存储
 │   ├── tracking_service/   # 可观测性服务 (Langfuse)
 │   └── token_service.py    # JWT Token服务
+├── domain/                 # 纯领域逻辑（不依赖数据库和外部服务）
+│   └── wide_table/
+│       └── version_delta.py     # 离线宽表指标版本差异计算
 ├── models/                 # SQLAlchemy ORM模型
 │   ├── db_base.py               # 数据库连接和会话管理
 │   ├── agent_chat_models.py     # Agent聊天历史
@@ -165,7 +177,8 @@ backend/
 ├── schemas/                # Pydantic验证模型
 ├── utils/                  # 工具类
 │   ├── config.py                # YAML配置管理
-│   └── logger.py                # Loguru日志
+│   ├── logger.py                # Loguru日志
+│   └── analyze_db_utils.py      # PostgreSQL/AnalyzeDB宽表DDL、分区和增量合并
 └── config/                 # 配置文件
     ├── config.yaml              # 主配置文件
     └── pages.yaml               # 页面配置
@@ -183,8 +196,10 @@ backend/
    - 指标任务：SQL生成、版本管理、上线发布、数据预览
 
 2. **宽表层** (`wide_table_service/`)
-   - **双版本机制**：离线宽表 (T+1 Parquet) + 实时宽表 (Kafka增量)
+   - **双版本机制**：离线宽表（Spark/Hive → PostgreSQL/AnalyzeDB分区表）+ 实时宽表（Kafka增量）
    - 版本管理：版本号、版本哈希、快照追踪
+   - 离线宽表支持指标列级增量：复用未变化指标，仅重算新增或版本变化的指标
+   - 无可复用历史分区时自动回退到全量同步，并输出候选淘汰诊断日志
    - 智能降级：实时宽表异常时自动降级到离线宽表
 
 3. **模型层** (`model_service/`)
@@ -198,6 +213,7 @@ backend/
 
 4. **告警层** (`alert_control_record_routes.py`)
    - 命中记录生成、告警管控追踪、Excel导出
+   - 告警记录列表展示机构号，支持按机构号精确筛选；相同筛选条件同步作用于Excel导出
 
 **实时处理链路：**
 ```
@@ -297,7 +313,7 @@ frontend/
 - LLM: `openai.*`, `qwen.*`, `localai.*`
 - 向量存储: `qdrant.*`
 - 调度: `scheduler.*`
-- FraudHunter: `fraudhunter_realtime_data_enabled`, `fraudhunter_wide_table.*`
+- FraudHunter: `fraudhunter_realtime_data_enabled`, `fraudhunter_wide_table.*`, `fraudhunter_wide_table_sync_lookback_days`
 - Kafka: `kafka.*`
 
 **前端环境变量** (`.env.local`):
@@ -334,6 +350,43 @@ async def endpoint_handler(
 with get_db_session() as db:
     pass  # 自动提交/回滚
 ```
+
+### 离线宽表同步与增量策略
+
+核心实现位于 `backend/services/fraudhunter/wide_table_service/sync_service.py`，版本差异计算位于 `backend/domain/wide_table/version_delta.py`。
+
+同步流程：
+
+1. 优先选择 `target` 版本，否则使用 `current` 版本。
+2. 按配置的 `fraudhunter_wide_table_sync_lookback_days` 计算需要处理的ETL日期。
+3. 同一宽表、日期和版本哈希已有 `ready` 快照时直接跳过。
+4. 从最近10个 `current/history` 版本中查找可复用物理分区，表名格式为 `{wide_table_name}_{version_hash前8位}_{YYYYMMDD}`；分区必须存在且行数大于0。
+5. 使用 `WideTableComparator.diff()` 将指标分为：
+   - `static_cols`：指标版本未变化，直接从旧分区复制。
+   - `changed_cols`：指标版本发生变化，重新执行 Spark PIVOT。
+   - `new_cols`：新增指标，重新执行 Spark PIVOT。
+   - `removed_cols`：目标版本已删除，不写入新表。
+6. 有可复用分区且指标发生变化时，使用 PostgreSQL `INSERT ... SELECT` 合并静态列和增量辅助表；无可复用分区时执行全量同步。
+7. 指标完全未变化且存在可复用分区时跳过新快照生成。
+
+这里的“增量”是**指标列级/版本级增量**，不是按源数据新增、修改行进行CDC增量更新。源数据变化但版本哈希不变时，已有 `ready` 快照不会自动刷新。
+
+全量回退排查可检索以下日志前缀：
+
+- `[增量诊断] 版本候选收集完成`：查看选中版本和全部复制候选。
+- `[增量诊断] 淘汰候选`：查看候选分区及淘汰原因。
+- `[增量诊断] 选中可复用旧分区`：查看最终复用的分区、行数和指标数。
+- `[全量回退诊断]`：汇总无候选、分区不存在、空分区或行数查询失败等原因。
+- `[全量回退]`：记录最终进入全量同步时的宽表、日期、目标版本和原因。
+
+### 告警管控记录查询
+
+页面位于 `frontend/app/(main)/fraudhunter/alert-control-records/page.tsx`，后端接口位于 `backend/api/fraudhunter/alert_control_record_routes.py`。
+
+- 日期范围允许从开始或结束任一端切换；若范围倒序，页面会自动同步另一端。
+- “今天”和“最近一周”只是快捷赋值，不会锁定后续日期选择。
+- `branch_no` 已存储并建立索引，列表展示机构号并支持精确筛选。
+- 列表与Excel导出共用 `AlertControlFilters` 和 `_apply_filters()`，新增筛选条件时必须同时检查列表、导出请求Schema和前端类型。
 
 ### 规则引擎SQL生成
 
@@ -373,6 +426,14 @@ with get_db_session() as db:
 - **日志**: 使用 Loguru 结构化日志，日志文件位于 `backend/logs/`
 - **追踪**: 集成 Langfuse 进行LLM调用追踪
 - **API文档**: FastAPI自动生成Swagger UI `http://localhost:50020/docs`
+- **离线宽表回退**: 在日志中检索 `[全量回退诊断]`，再用同一 `wide_table` 和 `etl_date` 追踪此前的 `[增量诊断]`
+
+### 循环引用注意事项
+
+- `backend/services/__init__.py`、`model_service/__init__.py` 和 `wide_table_service/__init__.py` 会集中导出子模块，新增顶层导入前必须检查反向依赖。
+- `sync_service.py` 不要在模块顶层导入 `utils.analyze_db_utils`；后者会反向导入宽表数值类型工具和 `SystemConfigManager`，可能经包初始化重新进入 `sync_service.py`。当前使用方法内延迟导入规避初始化循环。
+- 工厂类为选择具体实现而进行的方法内导入是允许的，例如 `QueryEngineFactory.create_service()`。
+- 排查时应区分“顶层初始化循环”和“方法运行时延迟导入”；前者可能触发 `partially initialized module`，后者通常用于主动拆环。
 
 ### 前端调试
 
