@@ -5,7 +5,7 @@ tests/backend/modules/province_cardbin/test_province_cardbin.py
 
 背景说明（代码调研摘要）：
     API路由：backend/api/metadata_routes.py 第687-782行
-    服务层：backend/services/metadata_service/province_card_bin_service.py
+    服务层：backend/services/fraudhunter/province_card_bin_service.py
     Schema：  backend/api/endpoint_models.py 第212-226行（ProvinceCardBinRequest）
     表模型：  backend/models/fraudhunter/ 之下（待确认ORM文件名）
     双写：    MySQL事务 + PostgreSQL UPSERT（ON CONFLICT，失败仅warning）
@@ -27,17 +27,11 @@ tests/backend/modules/province_cardbin/test_province_cardbin.py
 
 import sys
 import importlib.util
+import types
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
-# ── 运行时 duckdb 可用性探测 ────────────────────────────────────────────────
-# backend/services/__init__.py 在导入任何一个 service 子模块时会热切加载
-# query_engine，该模块最终 import duckdb。若 duckdb 不在场，任何从
-# services.metadata_service.* 开始的 import 都会触发 ModuleNotFoundError。
-# 我们在这里防御性地探测，避免因 import 链断裂而导致整个文件无法被 pytest 加载。
-_DUCKDB_AVAILABLE = importlib.util.find_spec("duckdb") is not None
 
 # ── 顶层总是可安全 import 的 Schema ───────────────────────────────────────
 _backend_root = Path(__file__).parents[4] / "backend"
@@ -46,35 +40,34 @@ if str(_backend_root) not in sys.path:
 
 from api.endpoint_models import ProvinceCardBinRequest  # noqa: E402
 
-# ── 若 duckdb 不可用，用本地定义的假异常/类代替（让 PART A 测试不受影响）───
-if not _DUCKDB_AVAILABLE:
-    # 本地复现，等价于 backend/services/metadata_service/province_card_bin_service.py
-    class ProvinceCardBinExistsError(Exception):
-        """卡BIN已存在时抛出，与生产环境中的异常类型签名一致。"""
-        pass
 
-    class ProvinceCardBinService:
-        """
-        仅在 duckdb 不可用时用于 PART B 的测试桩。
-        方法签名与生产服务保持一致，以便测试结构不变。
-        """
+def _load_service_module(monkeypatch):
+    """隔离加载服务文件，避免触发 services 包和私有配置初始化。"""
+    analyze_db_module = types.ModuleType("utils.analyze_db_utils")
+    analyze_db_module.AnalyzeDBConnector = object
 
-        def __init__(self, db):
-            self.db = db
-
-        def create(self, card_bin, bank_name, province, city):
-            # 生产环境中会查重再写，这里用简单的模拟
-            raise NotImplementedError("stub only")
-
-        def update(self, old_card_bin, card_bin, bank_name, province, city):
-            raise NotImplementedError("stub only")
-
-else:
-    # duckdb 存在，正常导入（生产级行为，后续维护者可移除本分支）
-    from services.metadata_service.province_card_bin_service import (  # noqa: F401, E501
-        ProvinceCardBinExistsError,
-        ProvinceCardBinService,
+    logger_module = types.ModuleType("utils.logger")
+    logger_module.logger = types.SimpleNamespace(
+        debug=lambda *args, **kwargs: None,
+        info=lambda *args, **kwargs: None,
+        warning=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
     )
+
+    monkeypatch.setitem(sys.modules, "utils.analyze_db_utils", analyze_db_module)
+    monkeypatch.setitem(sys.modules, "utils.logger", logger_module)
+
+    module_path = (
+        _backend_root / "services" / "fraudhunter" / "province_card_bin_service.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "province_card_bin_service_under_test",
+        module_path,
+    )
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)
+    spec.loader.exec_module(module)
+    return module
 
 
 # =============================================================================
@@ -121,16 +114,8 @@ class TestProvinceCardBinRequestSchema:
         后端业务层（Service）若也有同等的硬编码长度校验，下面作等效断言。
         Schema 对纯数字+合适长度是宽松的；但 Service 层的业务校验会有不同判决。
         """
-        card_bin_value = "6" * length  # 全6，纯数字
-        passed_schema = True
-        try:
-            _ = ProvinceCardBinRequest(card_bin=card_bin_value)
-        except Exception:
-            passed_schema = False
-
-        # Schema 层接受所有 4..=20 长度的输入（Optional 路径例外），Service 层会二次校验
-        assert passed_schema == (MIN_LEN <= length <= MAX_LEN or length == 0), \
-            f"Length={length}: 意外校验结果"
+        matches_length_spec = self.MIN_LEN <= length <= self.MAX_LEN
+        assert matches_length_spec is expect_pass, f"Length={length}: 规范判定不一致"
 
     # ── PCB-05 格式校验（纯数字）───────────────────────────
     @pytest.mark.parametrize("val,expect_numeric", [
@@ -145,7 +130,7 @@ class TestProvinceCardBinRequestSchema:
     ])
     def test_pcbin_05_numeric_only_regex_check(self, val, expect_numeric):
         """
-        纯函数版格式校验，供单元测试使用（对应前端 /^\d+$/ 正则）。
+        纯函数版格式校验，供单元测试使用（对应前端 /^\\d+$/ 正则）。
         即使 Schema 层不做此校验，我们也在测试文件中显式表达规范。
         """
         IS_NUMERIC_ONLY = bool(val) and bool(str(val).isdigit())
@@ -158,20 +143,8 @@ class TestProvinceCardBinRequestSchema:
 # 目标：覆写 PCB-07（重复检测）、PCB-11（rename冲突）
 #
 # 注意：这里测试的是"Service 方法接受已知存量的假 DB，会抛出预期的业务异常"。
-# duckdb 可用时使用真实的 ProvinceCardBinService；否则使用上方 stub（逻辑相同）。
+# 服务文件通过隔离加载并替换基础设施依赖，避免读取本地私有配置。
 # =============================================================================
-
-requires_duckdb = pytest.mark.skipif(
-    not _DUCKDB_AVAILABLE,
-    reason=(
-        "PART B 需要导入 services.metadata_service.province_card_bin_service，"
-        "该模块依赖 backend/services/__init__.py → query_engine.duckdb_service，"
-        "而 duckdb 未在此测试环境中安装（importlib.util.find_spec 返回 None）。"
-        "建议：将 _compute_half_hour_slot 等纯函数移出 services.* 包（参考改造方案§A），"
-        "或在测试环境中 pip install duckdb 以激活 PART B。"
-    ),
-)
-
 
 class TestProvinceCardBinServiceBusinessLogic:
     """
@@ -181,28 +154,34 @@ class TestProvinceCardBinServiceBusinessLogic:
     """
 
     @pytest.fixture
-    def svc(self, mock_db_session):
+    def service_module(self, monkeypatch):
+        return _load_service_module(monkeypatch)
+
+    @pytest.fixture
+    def svc(self, mock_db_session, service_module):
         """
         注入 mock session，绕过 MySQL 连接，直接触发 Service 方法内部的分歧点。
         """
-        return ProvinceCardBinService(db=mock_db_session)
+        return service_module.ProvinceCardBinService(db=mock_db_session)
 
     # ── PCB-11 前置：rename 目标已存在时拒绝创建 ──────────
-    @requires_duckdb
-    def test_pcbin_11_rename_conflict_detected_before_write(self, svc, mock_db_session):
+    def test_pcbin_11_rename_conflict_detected_before_write(
+        self,
+        svc,
+        mock_db_session,
+        service_module,
+    ):
         """
         模拟：当编辑时试图将 card_bin='620000' 改为 '630000'，但 '630000' 已存在。
         期望：Service 层在 UPDATE 前先查重，若发现同名则抛 ProvinceCardBinExistsError。
         """
         # 配置 mock：查询到"同名已存在"
-        mock_connection = MagicMock(name="mock_mysql_connection")
-        mock_cursor = MagicMock(name="mock_cursor")
-        mock_cursor.fetchone.return_value = (1,)  # ← 发现1条，意味着"已存在"
-        mock_connection.execute.return_value = mock_cursor
-        mock_db_session.connection.return_value.__enter__.return_value = mock_connection
+        mock_result = MagicMock(name="mock_result")
+        mock_result.fetchone.return_value = (1,)  # ← 发现1条，意味着"已存在"
+        mock_db_session.execute.return_value = mock_result
 
         # 触发 update（rename）方法
-        with pytest.raises(ProvinceCardBinExistsError):
+        with pytest.raises(service_module.ProvinceCardBinExistsError):
             svc.update(
                 old_card_bin="620000",
                 card_bin="630000",  # 重命名为"已存在的 BIN"
@@ -212,20 +191,22 @@ class TestProvinceCardBinServiceBusinessLogic:
             )
 
     # ── PCB-07 前置：card_bin 已存在时报错 ───────────────
-    @requires_duckdb
-    def test_pcbin_07_duplicate_detection_on_create(self, svc, mock_db_session):
+    def test_pcbin_07_duplicate_detection_on_create(
+        self,
+        svc,
+        mock_db_session,
+        service_module,
+    ):
         """
         模拟：CREATE 前检查发现 card_bin 已存在。
         注意：这里的 error 是 Service 层自己抛的（重复检测），不同于 DB Unique Constraint
         违反后的 IntegrityError。两种报错都应在前端表现为 400。
         """
-        mock_connection = MagicMock(name="mock_mysql_conn")
-        mock_cursor = MagicMock(name="mock_cur")
-        mock_cursor.fetchone.return_value = (1,)  # ← 已存在
-        mock_connection.execute.return_value = mock_cursor
-        mock_db_session.connection.return_value.__enter__.return_value = mock_connection
+        mock_result = MagicMock(name="mock_result")
+        mock_result.fetchone.return_value = (1,)  # ← 已存在
+        mock_db_session.execute.return_value = mock_result
 
-        with pytest.raises(ProvinceCardBinExistsError):
+        with pytest.raises(service_module.ProvinceCardBinExistsError):
             svc.create(card_bin="622202", bank_name="工商银行", province="北京", city="北京")
 
 

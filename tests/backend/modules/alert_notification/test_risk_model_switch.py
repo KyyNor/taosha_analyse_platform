@@ -37,8 +37,6 @@ _backend_root = Path(__file__).parents[4] / "backend"
 sys.path.insert(0, str(_backend_root))
 
 from schemas.fraudhunter.risk_control_model import (
-    RiskControlModelBase,
-    RiskControlModelCreate,
     RiskControlModelUpdate,
     RiskControlModelResponse,
 )
@@ -51,27 +49,36 @@ from schemas.fraudhunter.risk_control_model import (
 class TestRiskControlModelSchemas_MODEL01_to_05:
     """验证 Schema 中双开关字段的名称、类型、默认值、描述。"""
 
-    def test_model_01_default_flags_are_false(self):
+    def test_model_01_default_flags_are_false(
+        self,
+        sample_risk_control_model_create_factory,
+    ):
         """
         MODEL-01：新建模型时，两个告警开关均默认 FALSE。
         前端表现：「发送告警」默认关闭，「向理财经理发送告警」应 disabled。
         """
-        base = RiskControlModelBase()
+        base = sample_risk_control_model_create_factory()
         assert base.is_send_alert_message is False
         assert base.is_send_financial_manager_alert is False
 
-    def test_model_01_description_field_present(self):
+    def test_model_01_description_field_present(
+        self,
+        sample_risk_control_model_create_factory,
+    ):
         """确认 Schema 有 description 字段（前端的 Tooltip 文案依赖）。"""
-        base = RiskControlModelBase(description="测试模型")
-        assert hasattr(base, "description")
+        base = sample_risk_control_model_create_factory(description="测试模型")
+        assert base.description == "测试模型"
 
-    def test_model_02_create_schema_has_both_boolean_fields(self):
+    def test_model_02_create_schema_has_both_boolean_fields(
+        self,
+        sample_risk_control_model_create_factory,
+    ):
         """
         MODEL-02 测试基础：Create Schema 必须同时具有两个布尔开关字段，
         因为前端在勾选"发送告警"后需要可编辑"理财经理"开关——
         这要求后端 API 接受这两者的任意组合。
         """
-        create_req = RiskControlModelCreate(
+        create_req = sample_risk_control_model_create_factory(
             is_send_alert_message=True,
             is_send_financial_manager_alert=True,
             description="Test Model",
@@ -89,33 +96,38 @@ class TestRiskControlModelSchemas_MODEL01_to_05:
         assert upd.is_send_alert_message is None  # 未传，取默认值 None
         assert upd.is_send_financial_manager_alert is False
 
-    def test_model_04_bool_coercion_correct(self):
+    def test_model_04_bool_coercion_correct(
+        self,
+        sample_risk_control_model_create_factory,
+    ):
         """
         MODEL-04 相关：创建时传入字符串/数字应被 coerce 成 bool（或抛错）。
         Pydantic V2 的 coerce 行为取决于 model_config，这里确认预期的 coercion。
         """
-        import warnings
-
         # is_send_alert_message=True / "true" / 1 均应通过
         for truthy_val in [True, 1, "True"]:
-            req = RiskControlModelCreate(is_send_alert_message=truthy_val)
+            req = sample_risk_control_model_create_factory(
+                is_send_alert_message=truthy_val
+            )
             assert req.is_send_alert_message is True
 
         for falsy_val in [False, 0, "False"]:
-            req = RiskControlModelCreate(is_send_alert_message=falsy_val)
+            req = sample_risk_control_model_create_factory(
+                is_send_alert_message=falsy_val
+            )
             assert req.is_send_alert_message is False
 
-    def test_model_05_response_schema_can_roundtrip(self):
+    def test_model_05_response_schema_can_roundtrip(
+        self,
+        sample_risk_control_model_response_factory,
+    ):
         """
         MODEL-05：Response Schema 反序列化后，双开关值应保持与创建时完全一致，
         不因 Round-trip 而发生变化（前后端约定一致性的基础保障）。
         """
-        resp = RiskControlModelResponse(
-            id=1,
-            name="Test",
+        resp = sample_risk_control_model_response_factory(
             is_send_alert_message=True,
             is_send_financial_manager_alert=True,
-            status="online",
             description="",
         )
         dumped = resp.model_dump()
@@ -234,7 +246,12 @@ class TestModelFlagPersistence_MODEL04_RESPONSE_ROUNDTRIP:
         (False, False),
         (False, True),  # 这种组合在后端实际存在（因为 Service 没有强制级联清零）
     ])
-    def test_created_model_roundtrip_preserves_flags(self, alert_val, fin_val):
+    def test_created_model_roundtrip_preserves_flags(
+        self,
+        alert_val,
+        fin_val,
+        sample_risk_control_model_response_factory,
+    ):
         """
         端到端创建流程后，从 Response Schema 读到值应与入参相等。
         若 Service 加了 Fin 复位逻辑（BASE=FALSE → FIN=False），则在 CASE 4 下
@@ -248,11 +265,11 @@ class TestModelFlagPersistence_MODEL04_RESPONSE_ROUNDTRIP:
             # maybe_fixed_fin_val = False
             pass
 
-        response = RiskControlModelResponse(
-            id=1, name="TestModel",
+        response = sample_risk_control_model_response_factory(
+            model_name="TestModel",
             is_send_alert_message=alert_val,
             is_send_financial_manager_alert=maybe_fixed_fin_val,
-            status="online", description="",
+            description="",
         )
         # round-trip via json
         payload = response.model_dump(mode="json")
@@ -260,13 +277,16 @@ class TestModelFlagPersistence_MODEL04_RESPONSE_ROUNDTRIP:
         assert recreated.is_send_alert_message is alert_val
         assert recreated.is_send_financial_manager_alert is maybe_fixed_fin_val
 
-    def test_fin_field_absent_in_create_json_when_false(self):
+    def test_fin_field_absent_in_create_json_when_false(
+        self,
+        sample_risk_control_model_create_factory,
+    ):
         """
         Pydantic V2 的 exclude_none 行为：当字段为 False 时，
         在 JSON 序列化时不会缺省（False≠None），应正确出现。
         这是 API 合约的隐性保证。
         """
-        payload = RiskControlModelCreate(
+        payload = sample_risk_control_model_create_factory(
             is_send_alert_message=False,
             is_send_financial_manager_alert=False,
         ).model_dump(mode="json")

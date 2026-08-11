@@ -18,35 +18,15 @@ tests/backend/modules/realtime_indicator/test_compute_half_hour_slot.py
 """
 
 import re
-from datetime import datetime
+import sys
+from pathlib import Path
 
 import pytest
 
+_backend_root = Path(__file__).parents[4] / "backend"
+sys.path.insert(0, str(_backend_root))
 
-# ── 被测函数的本地镜像（零外部依赖，等价于生产代码）────────────────────────
-# 之所以不复用 services.scheduler.jobs.realtime_indicator_job._compute_half_hour_slot
-# 而采用此本地复本，是因为后者驻留在 services.* 包下——一旦对该包作任意 import
-#（from services.scheduler.jobs ... / import services.*），便会触发
-# backend/services/__init__.py 的热切导入链，进而加载
-# query_engine.duckdb_service，导致 ModuleNotFoundError: No module named 'duckdb'。
-# 此问题会在后端部署完整环境后自然消解，届时可将本函数替换为标准 import。
-def _compute_half_hour_slot(full_ts: str) -> str:
-    """将精确到分钟的时间戳归整到上一个半小时间隔。
-
-    例如: "202604220944" -> "202604220930"
-          "202604220955" -> "202604220930"
-          "202604220015" -> "202604220000"（跨小时进位）
-
-    Args:
-        full_ts: 格式为 YYYYMMDDHHMM 的时间戳字符串
-
-    Returns:
-        半小时间隔的字符串，格式同样为 YYYYMMDDHHMM
-    """
-    base_dt = datetime.strptime(full_ts[:8] + full_ts[8:12], "%Y%m%d%H%M")
-    floored_minute = (base_dt.minute // 30) * 30
-    floored = base_dt.replace(minute=floored_minute, second=0, microsecond=0)
-    return floored.strftime("%Y%m%d%H%M")
+from domain.time_slot import compute_half_hour_slot as _compute_half_hour_slot
 
 
 class TestComputeHalfHourSlot:

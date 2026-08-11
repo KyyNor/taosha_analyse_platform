@@ -31,6 +31,14 @@ from schemas.fraudhunter.alert_control_record import (
     TrendPoint,
     TrendResponse,
 )
+from domain.alert_notification import (
+    merge_notification_targets as merge_notification_targets_domain,
+    normalize_customer_no as normalize_customer_no_domain,
+    resolve_control_res_abs as resolve_control_res_abs_domain,
+)
+from domain.history_trend import (
+    validate_history_trend_period as validate_history_trend_period_domain,
+)
 from services.fraudhunter.system_config_service import SystemConfigManager
 from utils.logger import logger
 from utils.excel_exporter import create_excel_exporter
@@ -180,9 +188,8 @@ class ModelHitAlertManager:
                 # 重复管控
                 alert_control_record.control_status = 'duplicate'
             else:
-                # 判断命中的模型是否含"受害人"，决定resAbs值
-                has_victim_model = any("受害人" in name for name in hit_record.hit_model_names)
-                res_abs = "武汉分行监测系统(分行受害人保护)" if has_victim_model else "武汉分行监测系统"
+                # 根据命中模型类型生成监管摘要标识
+                res_abs = self.resolve_control_res_abs(hit_record.hit_model_names)
                 # 首次管控，调用管控接口
                 control_resp = self._call_control_api(hit_record.account_id, account_type=cust_type, res_abs=res_abs)
 
@@ -257,9 +264,11 @@ class ModelHitAlertManager:
                     and getattr(model_configs[mid], 'is_send_financial_manager_alert', False)
                 ]
                 if fin_mngr_models:
-                    customer_no = hit_record.indicator_data.get('i_dep_acct_no_offline_00001')
-                    if customer_no and str(customer_no).strip():
-                        fin_targets = self._lookup_cust_owner_notice_nos(str(customer_no))
+                    customer_no = self.normalize_customer_no(
+                        hit_record.indicator_data.get('i_dep_acct_no_offline_00001')
+                    )
+                    if customer_no:
+                        fin_targets = self._lookup_cust_owner_notice_nos(customer_no)
 
                 # 3. 合并去重：调用领域层的纯合路去重函数
                 combined_notice_no = self.merge_notification_targets(
@@ -413,20 +422,21 @@ class ModelHitAlertManager:
 
         本方法为纯函数，无 IO，请勿在其中引入 DB/Settings/全局变量等隐式依赖。
         """
-        all_sources = (
-            ([branch_notice_no] if branch_notice_no else [])
-            + list(cm_targets)
-            + list(fin_targets)
+        return merge_notification_targets_domain(
+            branch_notice_no,
+            cm_targets,
+            fin_targets,
         )
-        flat = [
-            item.strip()
-            for source in all_sources
-            for item in str(source).split(",")
-            if item.strip()
-        ]
-        # Python 3.7+: dict 保证 insertion-order，正是"去重保序"的语义需求
-        unique_ordered = list(dict.fromkeys(flat))
-        return ",".join(unique_ordered)
+
+    @staticmethod
+    def normalize_customer_no(value: Any) -> Optional[str]:
+        """标准化指标中的客户号，并过滤常见的伪空值。"""
+        return normalize_customer_no_domain(value)
+
+    @staticmethod
+    def resolve_control_res_abs(hit_model_names: Optional[List[str]]) -> str:
+        """根据命中模型名称生成管控接口的监管摘要标识。"""
+        return resolve_control_res_abs_domain(hit_model_names)
 
     def _lookup_acct_assign_notice_nos(self, acct_no: str) -> List[str]:
         """查询账号对应的客户经理通知号列表
@@ -956,6 +966,11 @@ class ModelHitAlertManager:
 
         return query
 
+    @staticmethod
+    def validate_history_trend_period(req: TrendRequest) -> tuple[date, date, int]:
+        """解析并校验历史趋势日期范围，不访问数据库。"""
+        return validate_history_trend_period_domain(req.start_date, req.end_date)
+
     def get_history_trend(
         self,
         req: TrendRequest,
@@ -977,17 +992,7 @@ class ModelHitAlertManager:
         Returns:
             TrendResponse，含 series（时间刻度 × 模型 的去重账户数列表）
         """
-        try:
-            req_start = datetime.strptime(req.start_date, "%Y-%m-%d").date()
-            req_end = datetime.strptime(req.end_date, "%Y-%m-%d").date()
-        except ValueError as e:
-            raise ValueError(f"日期格式无效，应为 YYYY-MM-DD，当前值不合法: {e}")
-
-        span_days = (req_end - req_start).days
-        if span_days < 0:
-            raise ValueError("开始日期不能晚于结束日期")
-        if span_days > 180:
-            raise ValueError("时间跨度不能超过180天")
+        req_start, req_end, span_days = self.validate_history_trend_period(req)
 
         # ---- 加载在线模型映射 --------------------------------------------
         model_query = self.db.query(

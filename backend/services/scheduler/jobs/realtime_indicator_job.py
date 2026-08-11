@@ -19,6 +19,7 @@ from services.fraudhunter.model_service.model_hit_alert_manager import ModelHitA
 from services.fraudhunter.system_config_service import SystemConfigManager
 from services.fraudhunter.model_service.model_executor import build_model_whitelist_dict
 from services.fraudhunter.wide_table_service.numeric_type_utils import WideTableNumericTypeHelper
+from domain.time_slot import compute_half_hour_slot
 from utils.logger import logger
 from utils.config import settings
 from utils.analyze_db_utils import AnalyzeDBConnector, AnalyzeDBPartitionManager
@@ -70,10 +71,7 @@ def _compute_half_hour_slot(full_ts: str) -> str:
     Returns:
         半小时间隔的字符串，格式同样为 YYYYMMDDHHMM
     """
-    base_dt = datetime.strptime(full_ts[:8] + full_ts[8:12], '%Y%m%d%H%M')
-    floored_minute = (base_dt.minute // 30) * 30
-    floored = base_dt.replace(minute=floored_minute, second=0, microsecond=0)
-    return floored.strftime('%Y%m%d%H%M')
+    return compute_half_hour_slot(full_ts)
 
 
 def _update_realtime_snapshot(

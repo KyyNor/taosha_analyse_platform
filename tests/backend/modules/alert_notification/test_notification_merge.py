@@ -8,19 +8,10 @@ tests/backend/modules/alert_notification/test_notification_merge.py
     文件：services/fraudhunter/model_service/model_hit_alert_manager.py
           第262-270行（核心去重合并）
 
-现状评估：
-    核心去重算法目前嵌入在 ~200行大函数中，
-    直接对该方法写UT需要大量 Mock（DB、requests、ConfigManager），
-    导致测试脆弱、覆盖率不均匀。
-
-改造建议（见 TEST_REFACTORING_HINT 段落）：
-    将合并去重逻辑抽取为独立的公开方法或顶层纯函数，只需一次小规模重构，
-    即可在完全不依赖 DB/API 的前提下，以参数化方式覆盖所有去重边缘场景。
-
-本文件当前策略：
-    1. 对可以 Mock 的独立方法（_lookup_acct_assign_notice_nos 等）写 UT
-    2. 对核心合并算法的测试暂存于 refactored_helper_tests，待重构后激活
-    3. 提供完整的"代码改造清单"，供审批后实施
+测试策略：
+    1. 直接测试 domain.alert_notification 中的纯函数
+    2. 对 DB/API 边界保留 Mock 或 E2E 占位
+    3. 参数化覆盖空值、去重、顺序和批量场景
 
 文档用例编号覆盖：
     ALERT-01 ~ ALERT-10（含回归用例 ALERT-R01）
@@ -29,54 +20,18 @@ tests/backend/modules/alert_notification/test_notification_merge.py
 import sys
 from pathlib import Path
 from typing import List, Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 _backend_root = Path(__file__).parents[4] / "backend"
 sys.path.insert(0, str(_backend_root))
 
-
-# =============================================================================
-# PART 0 — 辅助纯函数：提取自原始代码的合并去重逻辑
-# 这些函数对应原始代码 262-270 行，未来将从 Manager 中抽出为独立函数
-# =============================================================================
-
-def merge_notification_targets_refimpl(
-    branch_notice_no: Optional[str],
-    cm_targets: List[str],
-    fin_targets: List[str],
-) -> str:
-    """
-    【未来提取目标】
-    在 ModelHitAlertManager 中新增：
-        @staticmethod
-        def merge_notification_targets(branch_notice_no, cm_targets, fin_targets) -> str
-
-    对应原始代码第 262-270 行：
-        all_sources = (
-            ([alert_notice_no] if alert_notice_no else [])
-            + cm_targets
-            + fin_targets
-        )
-        flat = [t.strip() for s in all_sources for t in str(s).split(',') if t.strip()]
-        unique_targets = list(dict.fromkeys(t for t in flat if t))
-        combined_notice_no = ','.join(unique_targets)
-    """
-    all_sources = (
-        ([branch_notice_no] if branch_notice_no else [])
-        + list(cm_targets)
-        + list(fin_targets)
-    )
-    flat = [
-        item.strip()
-        for source in all_sources
-        for item in str(source).split(',')
-        if item.strip()
-    ]
-    # dict.fromkeys 保留插入顺序（Python 3.7+），天然去重且维持原序
-    unique_ordered = list(dict.fromkeys(flat))
-    return ','.join(unique_ordered)
+from domain.alert_notification import (
+    merge_notification_targets,
+    normalize_customer_no,
+    resolve_control_res_abs,
+)
 
 
 # =============================================================================
@@ -100,7 +55,7 @@ class TestNotificationMergeDedupLogic:
         场景：分支行返回 A，客户经理返回 B，理财经理返回 C
         期望：合并结果 A,B,C，send_alert_message 调用1次
         """
-        combined = merge_notification_targets_refimpl(
+        combined = merge_notification_targets(
             branch_notice_no="admin_user",   # 分支行通知号
             cm_targets=["customer_mgr_a"],   # 客户经理
             fin_targets=["fin_mgr_c"],       # 理财经理
@@ -118,7 +73,7 @@ class TestNotificationMergeDedupLogic:
         场景：B 同时在客户经理和理财经理中出现，C 同时在分支行和客户经理
         期望：每人只出现一次，顺序保持第一次出现的顺序
         """
-        combined = merge_notification_targets_refimpl(
+        combined = merge_notification_targets(
             branch_notice_no="user_x,shared_c",
             cm_targets=["shared_b,user_y,shared_c"],
             fin_targets=["user_z,shared_b"],
@@ -134,7 +89,7 @@ class TestNotificationMergeDedupLogic:
         """
         去重时保留第一次出现的相对次序（dict.fromkeys 保证）
         """
-        combined = merge_notification_targets_refimpl(
+        combined = merge_notification_targets(
             branch_notice_no="a",
             cm_targets=["b,a"],    # a 重复
             fin_targets=["c,b,a"], # a、b 又出现
@@ -150,7 +105,7 @@ class TestNotificationMergeDedupLogic:
         场景：只有客户经理有号码（分支行为None/空字符串）
         期望：合并结果仅为客户经理号码，send_alert_message 仍被调用
         """
-        combined = merge_notification_targets_refimpl(
+        combined = merge_notification_targets(
             branch_notice_no=None,
             cm_targets=["customer_mgr_1"],
             fin_targets=[],
@@ -169,7 +124,7 @@ class TestNotificationMergeDedupLogic:
             ([], ["cm"], ["fin"]),          # 客户+理财
         ]
         for bc, cm, fin in combinations:
-            combined = merge_notification_targets_refimpl(
+            combined = merge_notification_targets(
                 branch_notice_no=(bc[0] if bc else None),
                 cm_targets=list(cm),
                 fin_targets=list(fin),
@@ -183,20 +138,17 @@ class TestNotificationMergeDedupLogic:
         """
         空字串不参与合并，不产生多余逗号
         """
-        combined = merge_notification_targets_refimpl(
+        combined = merge_notification_targets(
             branch_notice_no="",  # 空字符串（而非None）
             cm_targets=[],
             fin_targets=["fin_mngr"],
         )
-        parts = combined.split(',')
-        assert '' in parts  # '' 作为列表分割的自然结果是''，但要去掉
-        filtered_parts = [p for p in parts if p.strip()]
-        assert '' not in filtered_parts
-        assert "fin_mngr" in filtered_parts
+        assert combined == "fin_mngr"
+        assert "" not in combined.split(",")
 
     def test_alert_04_whitespace_only_stripped(self):
         """输入含空格的前后空白应被 strip 掉。"""
-        combined = merge_notification_targets_refimpl(
+        combined = merge_notification_targets(
             branch_notice_no="  space_user  ",
             cm_targets=["  cm_space  ,  another"],
             fin_targets=[" fin_clean "],
@@ -210,13 +162,13 @@ class TestNotificationMergeDedupLogic:
         """
         三路均无数据时，应返回空字符串，send_alert_message 调用者据此判断跳过
         """
-        combined = merge_notification_targets_refimpl(None, [], [])
+        combined = merge_notification_targets(None, [], [])
         assert combined == ""
 
     def test_alert_05_none_vs_empty_consistency(self):
         """None 和 [] 在语义上一致（均表示"无数据"），应产生相等的空结果。"""
-        r1 = merge_notification_targets_refimpl(None, [], [])
-        r2 = merge_notification_targets_refimpl("", [], [])
+        r1 = merge_notification_targets(None, [], [])
+        r2 = merge_notification_targets("", [], [])
         assert r1 == r2 == ""
 
     # ── ALERT-R01 ───────────────────────────────────────────
@@ -229,7 +181,7 @@ class TestNotificationMergeDedupLogic:
         行为完全相同。
         """
         old_style_result = "legacy_single_target"
-        new_result = merge_notification_targets_refimpl(
+        new_result = merge_notification_targets(
             branch_notice_no=old_style_result,
             cm_targets=[],
             fin_targets=[],
@@ -250,8 +202,8 @@ class TestNotificationMergeDedupLogic:
         参数化全组合测试（不爆炸：4×4×4=64种），
         确保合并逻辑在全空间内的确定性。
         """
-        r1 = merge_notification_targets_refimpl(branch, cm, fin)
-        r2 = merge_notification_targets_refimpl(branch, list(cm), list(fin))
+        r1 = merge_notification_targets(branch, cm, fin)
+        r2 = merge_notification_targets(branch, list(cm), list(fin))
         assert r1 == r2, "相同输入两次调用结果不一致!"
 
 
@@ -367,35 +319,13 @@ class TestCustomerNoEmptyFallback_ALERT07:
     验证：不抛异常，不触发 Fin 查询。
     """
 
-    def simulate_indicator_data_getter(self, indicator_data: dict, key: str) -> List[str]:
-        """
-        模拟原始代码的防御性取值和安全空查逻辑。
-        返回 _lookup_cust_owner_notice_nos 的调用信号（元组第二项）和实际客户号。
-        """
-        customer_no = indicator_data.get(key)  # None / "" / 有值
-
-        # === 原代码的安全判断 ===
-        if customer_no and str(customer_no).strip():
-            # 走真实的 Fin 查找（此时会触发 DB 查询，但我们只关心是否被调用）
-            called = True
-            normalized_cust_no = str(customer_no)
-        else:
-            called = False
-            normalized_cust_no = None
-
-        return (called, normalized_cust_no)
-
     @pytest.mark.parametrize("bad_value", [None, "", "   ", "None", "null"])
     def test_alert_07_bad_values_do_not_trigger_fin_lookup(self, bad_value):
         """
         ALERT-07: 这些"坏值"都不应触发 Fin 路径的查询
         """
-        called, cust_no = self.simulate_indicator_data_getter(
-            {'i_dep_acct_no_offline_00001': bad_value},
-            key='i_dep_acct_no_offline_00001'
-        )
-        assert called is False, f"空值'{bad_value}'不应触发Fin查询!"
-        assert cust_no is None
+        customer_no = normalize_customer_no(bad_value)
+        assert customer_no is None, f"空值'{bad_value}'不应触发Fin查询!"
 
     @pytest.mark.parametrize("good_value", [
         "CUST001", "010293841", "999888777666555",
@@ -405,12 +335,24 @@ class TestCustomerNoEmptyFallback_ALERT07:
         """
         合法的客户号应该触发 Fin 查询，并且空格会被 stripped。
         """
-        called, cust_no = self.simulate_indicator_data_getter(
-            {'i_dep_acct_no_offline_00001': good_value},
-            key='i_dep_acct_no_offline_00001'
-        )
-        assert called is True, f"合法客户号'{good_value}'应触发Fin查询!"
-        assert cust_no == str(good_value).strip()
+        customer_no = normalize_customer_no(good_value)
+        assert customer_no == str(good_value).strip()
+
+
+class TestControlResAbsSelection:
+    """覆盖普通模型与受害人模型的管控摘要选择。"""
+
+    @pytest.mark.parametrize(
+        "model_names,expected",
+        [
+            ([], "武汉分行监测系统"),
+            (None, "武汉分行监测系统"),
+            (["普通风控模型"], "武汉分行监测系统"),
+            (["普通模型", "疑似受害人保护模型"], "武汉分行监测系统(分行受害人保护)"),
+        ],
+    )
+    def test_res_abs_matches_hit_model_type(self, model_names, expected):
+        assert resolve_control_res_abs(model_names) == expected
 
 
 # =============================================================================
@@ -463,7 +405,7 @@ class TestBulkHitScenario_ALERT10:
         large_list = [f"target_{i:03d}" for i in range(100)]
 
         start = time.perf_counter()
-        result = merge_notification_targets_refimpl(None, large_list, ["extra_target"])
+        result = merge_notification_targets(None, large_list, ["extra_target"])
         elapsed = time.perf_counter() - start
 
         targets = result.split(',')
@@ -496,75 +438,3 @@ class TestCannotUnitTestSkipped:
     ))
     def test_alert_r01_original_single_route_behavior_intact(self):
         pass
-
-
-# =============================================================================
-# ⚙️ TEST_REFACTORING_HINT — 代码改造清单（供审阅）
-# =============================================================================
-
-TEST_REFACTORING_HINT = """
-╔══════════════════════════════════════════════════════════════╗
-║           通知合并模块 · 代码改造清单（供 CLAUDE.MD 审阅）     ║
-╠══════════════════════════════════════════════════════════════╣
-║                                                              ║
-║ 改造目标：将 ModelHitAlertManager.hit_record_processor()    ║
-║           内部的合并去重逻辑抽取为可独立测试的纯函数           ║
-║                                                              ║
-║ ┌──────────────────────────────────────────────────────────┐  ║
-║ │ 改动位置                                                  │  ║
-║ │  文件：services/fraudhunter/model_service/               │  ║
-║ │         model_hit_alert_manager.py                       │  ║
-║ └──────────────────────────────────────────────────────────┘  ║
-║                                                              ║
-║ 改动 1：在 ModelHitAlertManager 类中新增类方法                 ║
-║ ─────────────────────────────────────────────────────────── ║
-║  class ModelHitAlertManager:                                 ║
-║                                                              ║
-║      @staticmethod                                           ║
-║      def merge_notification_targets(                         ║
-║          branch_notice_no: Optional[str],                   ║
-║          cm_targets: List[str],                             ║
-║          fin_targets: List[str],                             ║
-║      ) -> str:                                               ║
-║          '''                                                 ║
-║          合并三类通知人，去重保序，返回逗号分隔字符串。        ║
-║          此方法是纯函数，可在不依赖任何外部系统的情况下测试。  ║
-║          '''                                                 ║
-║          ...existing dedup logic from lines 262-270...        ║
-║          return ','.join(unique_targets)                     ║
-║                                                              ║
-║ 改动 2：在 hit_record_processor() 中调用上述方法（替代内联逻辑） ║
-║ ─────────────────────────────────────────────────────────── ║
-║  # 旧：                                                      ║
-║  all_sources = (...)  # ~10行内联代码                         ║
-║  flat = [...]                                                ║
-║  unique_targets = list(dict.fromkeys(...))                   ║
-║  combined_notice_no = ','.join(unique_targets)              ║
-║                                                              ║
-║  # 新：                                                      ║
-║  combined_notice_no = self.merge_notification_targets(       ║
-║      alert_notice_no, cm_targets, fin_targets                ║
-║  )                                                          ║
-║                                                              ║
-║ 改动 3（可选，利于 ALERT-07 测试）：新增第二个提取方法         ║
-║ ─────────────────────────────────────────────────────────── ║
-║  @staticmethod                                               ║
-║  def extract_customer_no_or_none(indicator_data: dict) -> Optional[str]:  ║
-║      '''                                                     ║
-║      安全地从指标数据字典取出 i_dep_acct_no_offline_00001，   ║
-║      处理 None/空字符串/空白，返回标准化值。                  ║
-║      '''                                                    ║
-║      val = indicator_data.get('i_dep_acct_no_offline_00001')║
-║      if val and str(val).strip():                            ║
-║          return str(val).strip()                             ║
-║      return None                                             ║
-║                                                              ║
-║ 测试收益估算：                                                ║
-║  - 改造完成后，上方 test_notification_merge.py 可直接测     ║
-║  - 无需 Mock DB / requests，测试运行时间 ~5ms（纯算术）      ║
-║  - 缺陷回归成本：从 ~30分钟人工回归 → 30秒自动化回归         ║
-╚══════════════════════════════════════════════════════════════╝
-"""
-
-if __name__ == "__main__":
-    print(TEST_REFACTORING_HINT)

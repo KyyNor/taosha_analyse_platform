@@ -15,7 +15,8 @@ tests/backend/modules/history_trend/test_model_history_trend.py
     # TrendRequest、TrendResponse、TrendPoint 定义
 
 测试策略：
-    ✅ TrendRequest 入参校验（日期格式、超时跨度、粒度合法性）→ 纯 Pydantic
+    ✅ 日期格式、跨度和顺序校验 → 领域层纯校验函数（无 DB）
+    ✅ TrendRequest 粒度合法性 → 纯 Pydantic
     ✅ get_history_trend() 中的 SQL 层聚合逻辑可 mock db 绕过 DB
     ✅ 纯 Python 的日期差计算、边界条件均可直接测
 
@@ -26,7 +27,6 @@ tests/backend/modules/history_trend/test_model_history_trend.py
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 from datetime import date
 
 import pytest
@@ -39,26 +39,24 @@ from schemas.fraudhunter.alert_control_record import (
     TrendResponse,
     TrendPoint,
 )
+from domain.history_trend import validate_history_trend_period
 
 
 # =============================================================================
-# PART A — TrendRequest 入参校验（纯 Pydantic，直接测）
+# PART A — TrendRequest 入参和日期范围校验
 # 对应用例：HIST-07（日期顺序）、HIST-08（180天限制）、HIST-09（非法日期格式）
 # =============================================================================
 
 class TestTrendRequestValidation:
-    """TrendRequest 构造阶段的一切校验，均可在 Schema 层直接覆盖。"""
+    """测试 Schema 粒度约束和领域层的纯日期校验函数。"""
 
     # ── HIST-07：开始日期不得晚于结束日期 ───────────────────
     def test_hist_07_start_after_end_raises_validation_error(self):
-        """开始日期 > 结束日期 应被 Pydantic 拒绝（通过构造时校验）。"""
-        # 目前后端在 get_history_trend() 中做运行时检查，这里模拟预期行为
-        # 当重构到 TrendRequest.model_validate() 时，下面的断言即为实际 UT
-        with pytest.raises(Exception) as exc_info:
-            TrendRequest(start_date="2024-01-08", end_date="2024-01-01")
-        # 期望抛出 ValueError 或 ValidationError，内容提及日期顺序
-        assert any(keyword in str(exc_info.value).lower()
-                   for keyword in ["date", "start", "end", "validation"])
+        """开始日期晚于结束日期时，领域校验应拒绝请求。"""
+        request = TrendRequest(start_date="2024-01-08", end_date="2024-01-01")
+
+        with pytest.raises(ValueError, match="开始日期不能晚于结束日期"):
+            validate_history_trend_period(request.start_date, request.end_date)
 
     # ── HIST-08：时间跨度超180天报错 ────────────────────────
     @pytest.mark.parametrize("span_days,expect_ok", [
@@ -76,24 +74,17 @@ class TestTrendRequestValidation:
         req_start = start.isoformat()
         req_end = end.isoformat()
 
-        # 模拟 manager 内部的跨度校验逻辑
-        try:
-            req_start_dt = date.fromisoformat(req_start)
-            req_end_dt   = date.fromisoformat(req_end)
-        except ValueError:
-            if expect_ok:
-                pytest.fail("合法日期不应抛出 ValueError")
-            return  # 不合法日期，正确抛异常
-
-        span = (req_end_dt - req_start_dt).days
-        if span > 180:
-            exceeds_limit = True
+        request = TrendRequest(start_date=req_start, end_date=req_end)
+        if expect_ok:
+            actual_start, actual_end, actual_span = (
+                validate_history_trend_period(request.start_date, request.end_date)
+            )
+            assert actual_start == start
+            assert actual_end == end
+            assert actual_span == span_days
         else:
-            exceeds_limit = False
-
-        assert exceeds_limit == (not expect_ok), (
-            f"跨度={span}天，expect_ok={expect_ok}，不一致"
-        )
+            with pytest.raises(ValueError, match="时间跨度不能超过180天"):
+                validate_history_trend_period(request.start_date, request.end_date)
 
     # ── HIST-09：非法日期格式报错 ────────────────────────────
     @pytest.mark.parametrize("invalid_date", [
@@ -105,8 +96,10 @@ class TestTrendRequestValidation:
         "01-01-2024",   # DD-MM-YYYY
     ])
     def test_hist_09_invalid_date_format_rejected(self, invalid_date):
-        with pytest.raises(Exception):
-            req = TrendRequest(start_date=invalid_date, end_date="2024-01-07")
+        request = TrendRequest(start_date=invalid_date, end_date="2024-01-07")
+
+        with pytest.raises(ValueError, match="日期格式无效"):
+            validate_history_trend_period(request.start_date, request.end_date)
 
     # ── HIST-09：粒度合法性 ─────────────────────────────────
     @pytest.mark.parametrize("valid_granularity", ["day", "week", "month"])

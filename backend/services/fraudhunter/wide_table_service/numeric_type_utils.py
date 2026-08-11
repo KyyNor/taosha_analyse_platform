@@ -29,7 +29,6 @@ class WideTableNumericTypeHelper:
     @staticmethod
     def pg_type_for_indicator(meta: Dict[str, Any], long_text_indicator_list: Iterable[str]) -> str:
         indicator_code = meta.get("indicator_code")
-        data_type_raw = meta.get("data_type")
         is_numeric = WideTableNumericTypeHelper.is_numeric_meta(meta)
 
         result_type: str
@@ -39,14 +38,6 @@ class WideTableNumericTypeHelper:
             result_type = "text"
         else:
             result_type = "varchar(1000)"
-
-        from utils.logger import logger
-        logger.debug(
-            f"[pg_type_for_indicator] indicator_code={indicator_code}, "
-            f"raw_data_type={repr(data_type_raw)}, "
-            f"is_numeric={is_numeric}, "
-            f"final_type={result_type}"
-        )
 
         return result_type
 

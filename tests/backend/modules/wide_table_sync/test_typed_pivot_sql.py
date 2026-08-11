@@ -4,11 +4,17 @@ import types
 from datetime import date
 from pathlib import Path
 
+import pytest
+
 _backend_root = Path(__file__).parents[4] / "backend"
 sys.path.insert(0, str(_backend_root))
 
+from domain.wide_table.version_delta import VersionDelta
 
-def _load_sync_service_with_stubs():
+_version_delta_module = sys.modules[VersionDelta.__module__]
+
+
+def _load_sync_service_with_stubs(monkeypatch):
     services_module = types.ModuleType("services")
     fraudhunter_module = types.ModuleType("services.fraudhunter")
     wide_table_service_module = types.ModuleType("services.fraudhunter.wide_table_service")
@@ -46,19 +52,6 @@ def _load_sync_service_with_stubs():
     analyze_db_utils_module.AnalyzeDBConnector = object
     analyze_db_utils_module.AnalyzeDBPartitionManager = object
 
-    domain_module = types.ModuleType("domain")
-    domain_wide_table_module = types.ModuleType("domain.wide_table")
-    version_delta_module_path = (
-        _backend_root / "domain" / "wide_table" / "version_delta.py"
-    )
-    version_delta_spec = importlib.util.spec_from_file_location(
-        "domain.wide_table.version_delta",
-        version_delta_module_path,
-    )
-    version_delta_module = importlib.util.module_from_spec(version_delta_spec)
-    sys.modules[version_delta_spec.name] = version_delta_module
-    version_delta_spec.loader.exec_module(version_delta_module)
-
     numeric_module_path = (
         _backend_root
         / "services"
@@ -71,7 +64,7 @@ def _load_sync_service_with_stubs():
         numeric_module_path,
     )
     numeric_module = importlib.util.module_from_spec(numeric_spec)
-    sys.modules[numeric_spec.name] = numeric_module
+    monkeypatch.setitem(sys.modules, numeric_spec.name, numeric_module)
     numeric_spec.loader.exec_module(numeric_module)
 
     for name, module in {
@@ -86,11 +79,9 @@ def _load_sync_service_with_stubs():
         "utils.logger": logger_module,
         "utils.config": config_module,
         "utils.analyze_db_utils": analyze_db_utils_module,
-        "domain": domain_module,
-        "domain.wide_table": domain_wide_table_module,
-        "domain.wide_table.version_delta": version_delta_module,
+        "domain.wide_table.version_delta": _version_delta_module,
     }.items():
-        sys.modules[name] = module
+        monkeypatch.setitem(sys.modules, name, module)
 
     module_path = (
         _backend_root
@@ -104,28 +95,33 @@ def _load_sync_service_with_stubs():
         module_path,
     )
     module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
+    monkeypatch.setitem(sys.modules, spec.name, module)
     spec.loader.exec_module(module)
     return module
 
 
-WideTableSyncService = _load_sync_service_with_stubs().WideTableSyncService
+@pytest.fixture
+def wide_table_sync_service_class(monkeypatch):
+    return _load_sync_service_with_stubs(monkeypatch).WideTableSyncService
 
 
-def _service():
-    service = WideTableSyncService.__new__(WideTableSyncService)
+def _service(wide_table_sync_service_class):
+    service = wide_table_sync_service_class.__new__(wide_table_sync_service_class)
     service.source_table = "source_indicator_vertical"
     return service
 
 
 class TestTypedPivotSql:
-    def test_full_pivot_casts_numeric_columns_and_keeps_text_columns(self):
+    def test_full_pivot_casts_numeric_columns_and_keeps_text_columns(
+        self,
+        wide_table_sync_service_class,
+    ):
         metadata = {
             "1": {"indicator_code": "i_amt", "data_type": "numeric"},
             "2": {"indicator_code": "i_name", "data_type": "string"},
         }
 
-        sql = _service()._build_pivot_sql(
+        sql = _service(wide_table_sync_service_class)._build_pivot_sql(
             "dep_acct_wide_table",
             metadata,
             date(2026, 6, 18),
@@ -141,13 +137,16 @@ class TestTypedPivotSql:
         assert "i_name" in sql
         assert "'2026-06-18' as etl_date" in sql
 
-    def test_incremental_pivot_casts_only_incremental_numeric_columns(self):
+    def test_incremental_pivot_casts_only_incremental_numeric_columns(
+        self,
+        wide_table_sync_service_class,
+    ):
         metadata = {
             "1": {"indicator_code": "i_amt", "data_type": "numeric"},
             "2": {"indicator_code": "i_name", "data_type": "string"},
         }
 
-        sql = _service()._build_pivot_sql_inc(
+        sql = _service(wide_table_sync_service_class)._build_pivot_sql_inc(
             "dep_acct_wide_table",
             metadata,
             date(2026, 6, 18),
@@ -160,14 +159,20 @@ class TestTypedPivotSql:
         assert "CAST(TRIM(CAST(i_amt AS STRING)) AS DOUBLE)" in sql
         assert "i_name" not in sql
 
-    def test_metadata_for_codes_keeps_only_requested_codes(self):
+    def test_metadata_for_codes_keeps_only_requested_codes(
+        self,
+        wide_table_sync_service_class,
+    ):
         metadata = {
             "1": {"indicator_code": "i_static", "data_type": "string"},
             "2": {"indicator_code": "i_changed", "data_type": "numeric"},
             "3": {"indicator_code": "i_new", "data_type": "string"},
         }
 
-        filtered = _service()._metadata_for_codes(metadata, ["i_changed", "i_new"])
+        filtered = _service(wide_table_sync_service_class)._metadata_for_codes(
+            metadata,
+            ["i_changed", "i_new"],
+        )
 
         assert set(filtered.keys()) == {"2", "3"}
         assert filtered["2"]["indicator_code"] == "i_changed"

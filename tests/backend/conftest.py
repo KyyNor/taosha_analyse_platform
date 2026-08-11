@@ -127,16 +127,58 @@ def sample_risk_control_model_create_factory():
     """提供合法的 RiskControlModelCreate 实例。"""
     from schemas.fraudhunter.risk_control_model import RiskControlModelCreate
 
-    def make(
-        is_send_alert_message: bool = True,
-        is_send_financial_manager_alert: bool = False,
-        **kwargs,
-    ):
-        return RiskControlModelCreate(
-            is_send_alert_message=is_send_alert_message,
-            is_send_financial_manager_alert=is_send_financial_manager_alert,
-            **kwargs,
-        )
+    def make(**kwargs):
+        payload = {
+            "model_name": "测试风控模型",
+            "rule_config": {
+                "logic": "AND",
+                "rules": [
+                    {
+                        "type": "condition",
+                        "indicator": "i_test_indicator",
+                        "operator": ">",
+                        "value": 0,
+                    }
+                ],
+            },
+        }
+        payload.update(kwargs)
+        return RiskControlModelCreate(**payload)
+
+    return make
+
+
+@pytest.fixture
+def sample_risk_control_model_response_factory():
+    """提供字段完整的 RiskControlModelResponse 实例。"""
+    from datetime import datetime
+
+    from schemas.fraudhunter.risk_control_model import RiskControlModelResponse
+
+    def make(**kwargs):
+        now = datetime(2024, 1, 1, 12, 0, 0)
+        payload = {
+            "id": 1,
+            "model_name": "测试风控模型",
+            "rule_config": {
+                "logic": "AND",
+                "rules": [
+                    {
+                        "type": "condition",
+                        "indicator": "i_test_indicator",
+                        "operator": ">",
+                        "value": 0,
+                    }
+                ],
+            },
+            "current_version": 1,
+            "latest_version": 1,
+            "status": "online",
+            "created_at": now,
+            "updated_at": now,
+        }
+        payload.update(kwargs)
+        return RiskControlModelResponse(**payload)
 
     return make
 

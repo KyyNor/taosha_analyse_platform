@@ -37,6 +37,43 @@ from schemas.fraudhunter.alert_control_record import (
 )
 
 
+def _record_payload(**overrides):
+    """构造字段完整的 AlertControlRecordResponse 负载。"""
+    timestamp = datetime(2024, 3, 15, 12, 0, 0)
+    payload = {
+        "id": 1,
+        "hit_record_id": 1,
+        "account_id": "ACC-TEST",
+        "record_date": date(2024, 3, 15),
+        "hit_model_ids": [],
+        "hit_model_names": [],
+        "alert_status": "pending",
+        "control_status": "none",
+        "control_serial_number": None,
+        "created_at": timestamp,
+        "updated_at": timestamp,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _hit_record_payload(**overrides):
+    """构造字段完整的 HitRecordResponse 负载。"""
+    timestamp = datetime(2024, 3, 15, 12, 0, 0)
+    payload = {
+        "id": 1,
+        "account_id": "ACC-TEST",
+        "hit_time": timestamp,
+        "hit_model_ids": [],
+        "hit_model_names": [],
+        "indicator_data": {},
+        "created_at": timestamp,
+        "updated_at": timestamp,
+    }
+    payload.update(overrides)
+    return payload
+
+
 # =============================================================================
 # PART A — control_serial_number 透传验证（ACR-04、ACR-05）
 # 后端确认：Schema 已正确定义，前端 TS 也已接入此字段，透传链路无虞
@@ -51,9 +88,9 @@ class TestControlSerialNumberExposure_ACR04_ACR05:
     @pytest.fixture
     def sample_record_payload(self):
         """构建完整的 AlertControlRecordResponse 示例负载。"""
-        return {
+        return _record_payload(**{
             "id": 1,
-            "hit_record_id": "HR-2024-001",
+            "hit_record_id": 2024001,
             "account_id": "ACC-12345",
             "record_date": date(2024, 3, 15),
             "hit_model_ids": [1, 2, 3],        # ← ACM-01/02/03 展示多个tag
@@ -67,7 +104,7 @@ class TestControlSerialNumberExposure_ACR04_ACR05:
             "control_serial_number": "SN-20240315-0001",  # ← ACR-04/05 核心关注
             "created_at": datetime(2024, 3, 15, 0, 0, 0),
             "updated_at": datetime(2024, 3, 15, 14, 30, 0),
-        }
+        })
 
     def test_acr_04_control_serial_number_in_schema(self, sample_record_payload):
         """
@@ -82,17 +119,10 @@ class TestControlSerialNumberExposure_ACR04_ACR05:
 
     def test_acr_04_none_handling_graceful(self):
         """控制流水号为空时，不应崩溃（字段为 Optional）。"""
-        minimal_payload = {
-            "id": 1,
-            "hit_record_id": "HR-001",
-            "account_id": "ACC-001",
-            "record_date": date.today(),
-            "hit_model_ids": [],
-            "hit_model_names": [],
-            "alert_status": "pending",
-            "control_status": "none",
-            "control_serial_number": None,
-        }
+        minimal_payload = _record_payload(
+            hit_record_id=1,
+            account_id="ACC-001",
+        )
         record = AlertControlRecordResponse(**minimal_payload)
         assert record.control_serial_number is None
         # 不应对序列化造成干扰
@@ -104,21 +134,22 @@ class TestControlSerialNumberExposure_ACR04_ACR05:
         实际为同一 AlertControlRecordResponse（通用），此测试验证 DetailView 不遗漏。
         """
         detail_payload = {
-            "record": {
-                "id": 2,
-                "hit_record_id": "HR-002",
-                "account_id": "ACC-002",
-                "record_date": date.today(),
-                "hit_model_ids": [5],
-                "hit_model_names": ["模型X"],
-                "alert_status": "sent",
-                "control_status": "controlled",
-                "control_serial_number": "SN-XYZ-001",
-            },
-            "hit_record": {
-                "record_id": "HR-002",
-                "indicator_data": {},
-            },
+            "record": _record_payload(
+                id=2,
+                hit_record_id=2,
+                account_id="ACC-002",
+                hit_model_ids=[5],
+                hit_model_names=["模型X"],
+                alert_status="sent",
+                control_status="controlled",
+                control_serial_number="SN-XYZ-001",
+            ),
+            "hit_record": _hit_record_payload(
+                id=2,
+                account_id="ACC-002",
+                hit_model_ids=[5],
+                hit_model_names=["模型X"],
+            ),
         }
         detail = AlertControlRecordDetailResponse(**detail_payload)
         assert detail.record.control_serial_number == "SN-XYZ-001"
@@ -129,9 +160,9 @@ class TestControlSerialNumberExposure_ACR04_ACR05:
         """
         序列化→反序列化 round-trip，确保 API 通信链路上不丢精度。
         """
-        original = AlertControlRecordResponse(
+        original = AlertControlRecordResponse(**_record_payload(
             id=99,
-            hit_record_id="HR-99",
+            hit_record_id=99,
             account_id="ACC-99",
             record_date=date(2024, 12, 31),
             hit_model_ids=[1],
@@ -139,7 +170,7 @@ class TestControlSerialNumberExposure_ACR04_ACR05:
             alert_status="sent",
             control_status="controlled",
             control_serial_number="SN-LONG-STRING-VALUE-20241231001",
-        )
+        ))
         wire_data = original.model_dump(mode="json")
         rebuilt   = AlertControlRecordResponse(**wire_data)
         assert rebuilt.control_serial_number == original.control_serial_number
@@ -171,17 +202,10 @@ class TestModelIdsFieldForTagsRendering_ACR01_ACR02_ACR03:
         后端 Schema 必须能接受整数数组（前端才能遍历生成对应数量的 Tag）。
         此测试覆盖单标签、多标签、空标签（含降级兜底）场景。
         """
-        payload = {
-            "id": 1,
-            "hit_record_id": "HR-TEST",
-            "account_id": "ACC-TEST",
-            "record_date": date.today(),
-            "hit_model_ids": model_ids,
-            "hit_model_names": model_names,
-            "alert_status": "pending",
-            "control_status": "none",
-            "control_serial_number": None,
-        }
+        payload = _record_payload(
+            hit_model_ids=model_ids,
+            hit_model_names=model_names,
+        )
         record = AlertControlRecordResponse(**payload)
         assert record.hit_model_ids == model_ids
         assert len(record.hit_model_ids) == expected_tags
@@ -194,17 +218,11 @@ class TestModelIdsFieldForTagsRendering_ACR01_ACR02_ACR03:
         后端不直接控制前端展示，但通过确保空数组时不抛异常来间接保证此行为。
         （若后端在空数组时抛 MissingAttribute Error，那前端才真正崩溃。）
         """
-        payload = {
-            "id": 1,
-            "hit_record_id": "HR-ZERO-MODELS",
-            "account_id": "ACC-TEST",
-            "record_date": date.today(),
-            "hit_model_ids": [],
-            "hit_model_names": [],
-            "alert_status": "none",
-            "control_status": "none",
-            "control_serial_number": None,
-        }
+        payload = _record_payload(
+            hit_model_ids=[],
+            hit_model_names=[],
+            alert_status="none",
+        )
         # 空数组不抛异常，是后端对前端的最低保障合约
         record = AlertControlRecordResponse(**payload)
         assert record.hit_model_ids == []
@@ -225,17 +243,14 @@ class TestExcelExportContract_ACR08:
         模拟 Exporter 读取 schema 的所有 key 生成 Excel 列头。
         control_serial_number 必须在字段列表中，这是后端对Exporter的最低合约。
         """
-        record = AlertControlRecordResponse(
-            id=1,
-            hit_record_id="HR-E2E",
+        record = AlertControlRecordResponse(**_record_payload(
             account_id="ACC-E2E",
-            record_date=date.today(),
             hit_model_ids=[1],
             hit_model_names=["TestModel"],
             alert_status="sent",
             control_status="controlled",
             control_serial_number="SN-FULL-STACK-EXPORT-TEST",
-        )
+        ))
         exported_dict = record.model_dump()
         keys = list(exported_dict.keys())
         assert "control_serial_number" in keys, \
