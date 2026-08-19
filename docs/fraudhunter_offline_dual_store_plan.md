@@ -1,7 +1,25 @@
 # FraudHunter 离线宽表双存储开发计划
 
-> 状态：待评审
+> 状态：代码实施完成（2026-08-19），待内网环境 E2E 验收与灰度切换
 > 前置文档：`docs/fraudhunter_pg_migration.md`（DuckDB/Parquet → PostgreSQL 迁移）、`docs/polished-jumping-gosling.md`（已废弃的 HDFS 中转方案）
+>
+> 实施提交索引：
+> | 阶段 | 提交 | 内容 |
+> |---|---|---|
+> | 1 | dd95869 | storage_backend 元数据/迁移SQL/配置项 |
+> | 2 | 1119633 | WideTableStore 存储抽象层（纯重构） |
+> | 3 | 742c27e | DuckdbParquetStore staging 中转全量路径 |
+> | 4 | 38778a0 | 查询路由 + SQL 方言（预览/回测/实时任务） |
+> | 5 | 8cbb94d | PG↔Parquet 互转工具（CLI + API） |
+> | 6 | 4ead7e3 | DuckDB 增量列改写 + Parquet 引用计数清理 |
+> | 7 | 2e4f823 | 双写对账任务 + 前端存储标记 |
+>
+> 上线前置动作（按序）：
+> 1. 开发库执行 `backend/migrations/add_snapshot_storage_backend.sql` 与 `update_snapshot_unique_with_backend.sql`；
+> 2. 配置保持 `offline_store: postgresql` 上线（行为零变化），观察一个同步周期；
+> 3. 切 `both` 灰度双写 ≥1 周期（含版本变化），`[双写对账]` 日志 0 失败；
+> 4. 用 `scripts/wide_table_transfer.py` 按需迁移存量日期，再切 `duckdb`；
+> 5. PG 旧表退役走现有 `get_old_version_tables` 清理（保留30天回退窗口）。
 
 ## 一、背景与目标
 
