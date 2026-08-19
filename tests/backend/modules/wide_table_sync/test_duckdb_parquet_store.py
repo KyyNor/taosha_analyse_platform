@@ -129,12 +129,13 @@ class TestEnsureTable:
 
         assert (tmp_path / "root").is_dir()
 
-    def test_delta_merge_not_implemented(self, monkeypatch, tmp_path):
+    def test_delta_merge_requires_existing_base_dir(self, monkeypatch, tmp_path):
+        """增量合并的基准目录必须存在（阶段6增量路径前置校验）"""
         module, _ = _load_duckdb_store(monkeypatch, storage_path=str(tmp_path))
         store = module.DuckdbParquetStore()
-        with pytest.raises(NotImplementedError, match="阶段6"):
+        with pytest.raises(RuntimeError, match="基准目录不存在"):
             store.merge_delta_insert_select(
-                "t_new", "t_old", None, {}, [], [], "2026-08-19"
+                "t_new", str(tmp_path / "missing_base"), None, {}, [], [], "2026-08-19"
             )
 
 

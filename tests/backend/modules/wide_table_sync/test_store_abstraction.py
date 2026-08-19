@@ -106,12 +106,12 @@ class TestGetStoreFactory:
         assert isinstance(store, modules["pg_store"].PgWideTableStore)
 
     def test_duckdb_backend_returns_duckdb_store(self, monkeypatch):
-        """阶段3起 duckdb 后端可用（staging 中转全量路径）"""
+        """阶段3起 duckdb 后端可用（阶段6起支持增量列改写）"""
         modules = _load_store_modules(monkeypatch, offline_store="duckdb")
         store = modules["factory"].get_store()
         assert isinstance(store, modules["duckdb_store"].DuckdbParquetStore)
         assert store.name == "duckdb"
-        assert store.supports_delta_insert_select is False
+        assert store.supports_delta_insert_select is True
 
     def test_resolve_stores_both_returns_pg_first(self, monkeypatch):
         """both 模式：PG先、Parquet后（串行双写顺序）"""

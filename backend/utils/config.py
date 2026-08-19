@@ -246,6 +246,7 @@ class ConfigManager:
             fraudhunter_wide_table_duckdb_storage_path: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('storage_path', '/data/taosha/indicator_data/wide_tables_parquet')
             fraudhunter_wide_table_duckdb_compression: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('compression', 'zstd')
             fraudhunter_wide_table_duckdb_staging_ttl_hours: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('staging_ttl_hours', 24)
+            fraudhunter_wide_table_duckdb_parquet_cleanup_grace_hours: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('parquet_cleanup_grace_hours', 48)
 
             # GLM-OCR配置（本地服务）
             glm_ocr_api_key: Optional[str] = os.getenv("GLM_OCR_API_KEY") or self._config_data.get('glm_ocr', {}).get('api_key', 'test-key')
@@ -278,6 +279,7 @@ class ConfigManager:
             scheduler_vector_training_max_docs_per_type: int = self._config_data.get('scheduler', {}).get('vector_training_max_docs_per_type', 5)
             scheduler_postgres_data_cleanup_cron: str = self._config_data.get('scheduler', {}).get('postgres_data_cleanup_cron', '0 3 * * *')
             scheduler_mysql_data_cleanup_cron: str = self._config_data.get('scheduler', {}).get('mysql_data_cleanup_cron', '0 3 * * *')
+            scheduler_parquet_cleanup_cron: str = self._config_data.get('scheduler', {}).get('parquet_cleanup_cron', '0 4 * * *')
 
             class Config:
                 env_prefix = self._config_data.get('env_prefix', 'TAOSHA_')

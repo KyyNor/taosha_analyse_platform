@@ -35,10 +35,10 @@ PARQUET_FILE_PATTERN = "part-*.parquet"
 
 
 class DuckdbParquetStore(WideTableStore):
-    """DuckDB Parquet 离线宽表存储（staging 中转全量路径）"""
+    """DuckDB Parquet 离线宽表存储（staging 中转全量 + 本地增量列改写）"""
 
     name = 'duckdb'
-    supports_delta_insert_select = False  # 阶段6实现增量列改写
+    supports_delta_insert_select = True
 
     def __init__(self) -> None:
         self._storage_path = Path(settings.fraudhunter_wide_table_duckdb_storage_path)
@@ -113,9 +113,7 @@ class DuckdbParquetStore(WideTableStore):
         )
 
         # 2. DuckDB COPY staging → Parquet（临时目录）
-        tmp_dir.parent.mkdir(parents=True, exist_ok=True)
-        if tmp_dir.exists():
-            shutil.rmtree(tmp_dir)
+        tmp_dir.mkdir(parents=True, exist_ok=True)
 
         conn = self._attach_pg()
         try:
@@ -140,6 +138,16 @@ class DuckdbParquetStore(WideTableStore):
 
         return (spark_rows, column_count)
 
+    def write_pivot_to_pg(
+        self,
+        sql: str,
+        table_name: str,
+        etl_date: date,
+        refresh_sql: str | None = None,
+    ) -> Tuple[int, int]:
+        """增量路径：PIVOT 结果直接写 PG delta 辅助表（不经 Parquet 中转）"""
+        return self._pg_writer.write_pivot(sql, table_name, etl_date, refresh_sql=refresh_sql)
+
     def merge_delta_insert_select(
         self,
         dest_table: str,
@@ -150,9 +158,78 @@ class DuckdbParquetStore(WideTableStore):
         inc_cols: list,
         etl_date: str,
     ) -> int:
-        raise NotImplementedError(
-            "DuckDB 路径增量同步在开发计划阶段6实现，当前版本变化走全量路径"
+        """增量列改写：旧版本 Parquet 的 static 列 + staging delta 新列 → 新版本目录
+
+        与 PG 的 insert_select_from_base_delta 语义对齐（LEFT JOIN 保留全部对象行，
+        无 delta 匹配的新列取 NULL）；removed 列不 SELECT 即消失。
+
+        Args:
+            dest_table: 新版本目录名（{wide_table}_{vh8}）
+            base_table: 旧版本 Parquet 目录绝对路径
+            delta_table: PG staging delta 表名（None 表示仅删除列变化，纯列裁剪）
+            etl_date: 'YYYY-MM-DD'
+
+        Returns:
+            新版本行数（= 旧版本行数，对账保证）
+        """
+        etl = date.fromisoformat(etl_date)
+        new_dir = self.date_dir(dest_table, etl)
+        old_glob = (
+            (Path(base_table) / f"etl_date={etl_date}" / PARQUET_FILE_PATTERN).as_posix()
         )
+        if not Path(base_table).is_dir():
+            raise RuntimeError(f"[duckdb] 增量基准目录不存在: {base_table}")
+
+        old_relation = f"read_parquet('{old_glob}', hive_partitioning=false)"
+        tmp_dir = new_dir.with_name(new_dir.name + ".tmp")
+        if tmp_dir.exists():
+            shutil.rmtree(tmp_dir)
+        tmp_dir.mkdir(parents=True)
+
+        select_cols = (
+            ["s.target_id"]
+            + [f"s.{c}" for c in static_cols]
+            + [f"d.{c}" for c in inc_cols]
+            + ["s.etl_date"]
+        )
+        join_clause = (
+            f"LEFT JOIN pg_src.public.{delta_table} d "
+            f"ON s.target_id = d.target_id AND s.etl_date = d.etl_date"
+            if delta_table else ""
+        )
+        copy_sql = (
+            f"COPY (SELECT {', '.join(select_cols)} "
+            f"FROM {old_relation} s {join_clause}) "
+            f"TO '{(tmp_dir / 'part-00000.parquet').as_posix()}' "
+            f"(FORMAT PARQUET, COMPRESSION {self._compression})"
+        )
+
+        conn = self._attach_pg()
+        try:
+            logger.debug(f"[duckdb] 增量COPY SQL: {copy_sql}")
+            conn.execute(copy_sql)
+
+            # 对账：行数守恒（LEFT JOIN 不丢行；重复target_id会被对账暴露）
+            new_relation = self._parquet_relation(tmp_dir)
+            old_rows = conn.execute(f"SELECT count(*) FROM {old_relation}").fetchone()[0]
+            new_rows = conn.execute(f"SELECT count(*) FROM {new_relation}").fetchone()[0]
+            if new_rows != old_rows:
+                raise RuntimeError(
+                    f"[duckdb] 增量对账失败: 新版本行数({new_rows}) != 旧版本行数({old_rows})"
+                )
+        finally:
+            try:
+                conn.execute("DETACH pg_src")
+            except Exception:
+                pass
+            conn.close()
+
+        self._atomic_landing(tmp_dir, new_dir)
+        logger.info(
+            f"[duckdb] 增量落盘完成: {new_dir}, {new_rows}行, "
+            f"static={len(static_cols)}, inc={len(inc_cols)}"
+        )
+        return int(new_rows)
 
     def snapshot_ref(self, table_name: str, etl_date: date) -> str:
         """快照引用为版本 Parquet 目录绝对路径"""
@@ -293,9 +370,9 @@ class DuckdbParquetStore(WideTableStore):
             (row_count, column_count, file_size_bytes)
         """
         tmp_dir = dest_dir.with_name(dest_dir.name + ".tmp")
-        dest_dir.parent.mkdir(parents=True, exist_ok=True)
         if tmp_dir.exists():
             shutil.rmtree(tmp_dir)
+        tmp_dir.mkdir(parents=True)
 
         conn = self._attach_pg()
         try:

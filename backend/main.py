@@ -79,7 +79,8 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
             fine_report_sync_job,
             vector_training_job,
             mysql_data_cleanup_job,
-            postgres_data_cleanup_job
+            postgres_data_cleanup_job,
+            parquet_cleanup_job
         )
 
         # 定义默认任务组（二维数组）
@@ -88,7 +89,7 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
             # ['offline_wide_table_sync'],                            # 组1：离线宽表同步
             [], #  离线宽表同步 改到ds执行
             ['fine_report_sync', 'metadata_sync'],                  # 组2：FineReport同步
-            ['postgres_data_cleanup', 'mysql_data_cleanup']            # 组3：向量训练 + 数据清理
+            ['postgres_data_cleanup', 'mysql_data_cleanup', 'parquet_cleanup']  # 组3：数据清理
         ]
 
         # 获取当前worker分配的任务（轮询算法）
@@ -117,6 +118,8 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
              settings.scheduler_postgres_data_cleanup_cron, 'PostgreSQL数据清理', 'cron'),
             ('mysql_data_cleanup', mysql_data_cleanup_job,
              settings.scheduler_mysql_data_cleanup_cron, 'MysqlSQL数据清理', 'cron'),
+            ('parquet_cleanup', parquet_cleanup_job,
+             settings.scheduler_parquet_cleanup_cron, 'Parquet目录清理', 'cron'),
         ]
 
         registered_count = 0

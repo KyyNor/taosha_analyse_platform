@@ -300,6 +300,7 @@ fraudhunter:
       storage_path: "/data/taosha/indicator_data/wide_tables_parquet"  # Parquet根目录，按 {宽表名}_{版本hash前8位}/etl_date=日期 分区
       compression: "zstd"  # Parquet压缩算法
       staging_ttl_hours: 24  # staging中转表(_staging_前缀)兜底清理阈值(小时)
+      parquet_cleanup_grace_hours: 48  # 无引用版本目录清理宽限期(小时)，防止误删同步中目录
 
   # 实时数据服务配置
   realtime_data:
@@ -342,3 +343,4 @@ scheduler:
   vector_training_interval: 28800  # 秒，向量数据库训练间隔（8小时）
   vector_training_max_docs_per_type: 5  # 每种资源类型每次训练的最大文档数（超出的将在下次训练）
   postgres_data_cleanup_cron: "0 3 * * *"   # cron表达式，Pg文件清理（每日凌晨3点）
+  parquet_cleanup_cron: "0 4 * * *"       # cron表达式，Parquet版本目录引用计数清理（每日凌晨4点）

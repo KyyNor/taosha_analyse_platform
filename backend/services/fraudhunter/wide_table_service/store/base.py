@@ -55,11 +55,25 @@ class WideTableStore(ABC):
         etl_date: date,
         refresh_sql: str | None = None,
     ) -> Tuple[int, int]:
-        """执行 Spark PIVOT 查询并写入存储目标
+        """执行 Spark PIVOT 查询并写入存储目标（全量路径）
 
         Returns:
             (row_count, column_count)
         """
+
+    def write_pivot_to_pg(
+        self,
+        sql: str,
+        table_name: str,
+        etl_date: date,
+        refresh_sql: str | None = None,
+    ) -> Tuple[int, int]:
+        """增量路径：把 PIVOT 结果写入 PG 侧 delta 辅助表
+
+        PG 后端默认等价 write_pivot；duckdb 后端委托内部 PG writer
+        （delta 辅助表本就是 PG 传输管道，无需落 Parquet）。
+        """
+        return self.write_pivot(sql, table_name, etl_date, refresh_sql=refresh_sql)
 
     @abstractmethod
     def merge_delta_insert_select(

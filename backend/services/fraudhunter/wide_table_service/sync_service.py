@@ -176,6 +176,79 @@ class WideTableSyncService:
             )
             return None
 
+    def _find_duckdb_copy_source(
+        self,
+        wide_table_name: str,
+        etl_date: date,
+        copy_candidates: list,
+    ) -> Tuple[Optional[str], Optional[dict]]:
+        """从历史版本候选中找旧 duckdb 快照的 Parquet 版本目录（增量基准/零拷贝复用）
+
+        与 _find_copy_source（PG分区探测）平行：按候选顺序查该日期的 ready duckdb
+        快照，校验 Parquet 日期目录存在且有数据（DuckDB元数据计数，行数>0）。
+
+        Returns:
+            (旧版本Parquet目录绝对路径, 旧版本指标元数据) 或 (None, None)
+        """
+        from sqlalchemy import and_
+
+        if not copy_candidates:
+            return None, None
+
+        etl_date_str = etl_date.strftime('%Y-%m-%d')
+        date_dir_name = f"etl_date={etl_date_str}"
+
+        with get_db_session() as db:
+            for index, cand in enumerate(copy_candidates, start=1):
+                version_hash = cand.get('version_hash')
+                if not version_hash:
+                    continue
+
+                snapshot = db.query(FraudHunterWideTableSnapshot).filter(and_(
+                    FraudHunterWideTableSnapshot.wide_table_name == wide_table_name,
+                    FraudHunterWideTableSnapshot.version_hash == version_hash,
+                    FraudHunterWideTableSnapshot.etl_date == etl_date,
+                    FraudHunterWideTableSnapshot.storage_backend == 'duckdb',
+                    FraudHunterWideTableSnapshot.status == 'ready',
+                )).first()
+
+                if not snapshot or not snapshot.parquet_file_path:
+                    continue
+
+                version_dir = Path(snapshot.parquet_file_path)
+                date_glob = version_dir / date_dir_name / "*.parquet"
+                if not any(date_glob.parent.glob("*.parquet")):
+                    logger.info(
+                        f"[duckdb增量诊断] 候选无数据文件: version={version_hash[:8]}, "
+                        f"dir={date_glob.parent}"
+                    )
+                    continue
+
+                # 行数校验（parquet元数据计数，代价低）
+                try:
+                    import duckdb
+
+                    with duckdb.connect() as conn:
+                        rows = conn.execute(
+                            f"SELECT count(*) FROM read_parquet('{date_glob.as_posix()}', "
+                            f"hive_partitioning=false)"
+                        ).fetchone()[0]
+                except Exception as e:
+                    logger.warning(f"[duckdb增量诊断] 计数失败: {version_hash[:8]}, {e}")
+                    continue
+
+                if rows <= 0:
+                    continue
+
+                metadata = cand.get('indicator_metadata') or {}
+                logger.info(
+                    f"[duckdb增量诊断] 选中可复用旧Parquet目录: version={version_hash[:8]}, "
+                    f"dir={version_dir}, rows={rows}"
+                )
+                return str(version_dir), metadata
+
+        return None, None
+
     def _sync_date_for_store(
         self,
         store,
@@ -203,11 +276,25 @@ class WideTableSyncService:
                 )
                 return existing_result
 
-            # 版本无变化 + 可复用旧表 + 后端支持增量语义 → 零同步跳过
-            if old_pg_table and delta.is_unchanged and store.supports_delta_insert_select:
+            # 各后端独立解析增量基准与差异（duckdb 基准为旧 Parquet 目录）
+            if store.name == 'duckdb':
+                base_ref, base_meta = self._find_duckdb_copy_source(
+                    wide_table_name, etl_date, effective_candidates
+                )
+                store_delta = self._build_sync_delta(base_meta or {}, indicator_metadata)
+            else:
+                base_ref, store_delta = old_pg_table, delta
+
+            # 版本无变化 + 可复用旧表 → PG零同步跳过；duckdb新快照零拷贝指向旧目录
+            if base_ref and store_delta.is_unchanged and store.supports_delta_insert_select:
+                if store.name == 'duckdb':
+                    return self._zero_copy_snapshot(
+                        store, wide_table_name, etl_date, version_hash,
+                        pg_table_name, base_ref, effective_candidates
+                    )
                 logger.info(
                     f"[跳过] 版本无变化且存在可复用旧表: backend={store.name}, "
-                    f"table={pg_table_name}, reusable_base={old_pg_table}"
+                    f"table={pg_table_name}, reusable_base={base_ref}"
                 )
                 logger.info(
                     f"[阶段耗时] sync_wide_table 跳过(skip_reason=version_unchanged_with_reusable_base, "
@@ -218,7 +305,7 @@ class WideTableSyncService:
                     "skip_reason": "version_unchanged_with_reusable_base",
                     "wide_table_name": wide_table_name,
                     "etl_date": str(etl_date),
-                    "reusable_base_table": old_pg_table,
+                    "reusable_base_table": base_ref,
                     "storage_backend": store.name,
                     "is_new_sync": False,
                 }
@@ -229,14 +316,14 @@ class WideTableSyncService:
                     wide_table_name, etl_date, version_hash, store.name
                 )
 
-            # 数据同步（增量或全量；duckdb 后端在阶段6前不支持增量，一律全量）
+            # 数据同步（增量或全量）
             with _stage_timer(f"05_数据同步[{store.name}]", wide_table_name, etl_date):
-                if old_pg_table and delta.has_any_change and store.supports_delta_insert_select:
+                if base_ref and store_delta.has_any_change and store.supports_delta_insert_select:
                     logger.info(
                         f"[增量] 走delta insert-select路径: backend={store.name}, "
                         f"table={pg_table_name}, "
-                        f"changed={len(delta.changed_cols)}, new={len(delta.new_cols)}, "
-                        f"removed={len(delta.removed_cols)}, static={len(delta.static_cols)}"
+                        f"changed={len(store_delta.changed_cols)}, new={len(store_delta.new_cols)}, "
+                        f"removed={len(store_delta.removed_cols)}, static={len(store_delta.static_cols)}"
                     )
                     row_count, column_count = self._execute_delta_insert_select_sync(
                         store,
@@ -244,14 +331,14 @@ class WideTableSyncService:
                         target_metadata=indicator_metadata,
                         etl_date=etl_date,
                         pg_table_name=pg_table_name,
-                        old_pg_table=old_pg_table,
-                        static_cols=delta.static_cols,
-                        inc_cols=delta.deferred_cols,
+                        base_ref=base_ref,
+                        static_cols=store_delta.static_cols,
+                        inc_cols=store_delta.deferred_cols,
                     )
                 else:
                     fallback_reason = (
                         "no_copy_candidates" if not effective_candidates
-                        else "no_usable_old_partition" if not old_pg_table
+                        else "no_usable_old_partition" if not base_ref
                         else "store_delta_unsupported"
                     )
                     logger.warning(
@@ -298,6 +385,66 @@ class WideTableSyncService:
             )
             self._update_snapshot_failed(snapshot_id, str(e))
             return None
+
+    @staticmethod
+    def _zero_copy_snapshot(
+        self,
+        store,
+        wide_table_name: str,
+        etl_date: date,
+        version_hash: str,
+        pg_table_name: str,
+        base_ref: str,
+        effective_candidates: list,
+    ) -> Dict:
+        """duckdb 版本无变化零拷贝：新快照直接指向旧 Parquet 目录（Parquet不可变，绝对安全）"""
+        from sqlalchemy import and_
+
+        snapshot_id = self._create_generating_snapshot(
+            wide_table_name, etl_date, version_hash, store.name
+        )
+        try:
+            row_count, column_count = None, None
+            with get_db_session() as db:
+                old_snapshot = None
+                for cand in effective_candidates:
+                    old_hash = cand.get('version_hash')
+                    if not old_hash:
+                        continue
+                    old_snapshot = db.query(FraudHunterWideTableSnapshot).filter(and_(
+                        FraudHunterWideTableSnapshot.wide_table_name == wide_table_name,
+                        FraudHunterWideTableSnapshot.version_hash == old_hash,
+                        FraudHunterWideTableSnapshot.etl_date == etl_date,
+                        FraudHunterWideTableSnapshot.storage_backend == 'duckdb',
+                        FraudHunterWideTableSnapshot.status == 'ready',
+                    )).first()
+                    if old_snapshot:
+                        break
+                if old_snapshot:
+                    row_count = old_snapshot.row_count
+                    column_count = old_snapshot.column_count
+
+            self._update_snapshot_ready(
+                snapshot_id, base_ref,
+                row_count or 0, column_count or 0
+            )
+            # 引用计数由 parquet 清理任务按快照引用判断，零拷贝目录不会被误删
+            logger.info(
+                f"[零拷贝] 版本无变化，新快照指向旧Parquet目录: backend=duckdb, "
+                f"table={pg_table_name}, dir={base_ref}, rows={row_count}"
+            )
+            return {
+                "id": snapshot_id,
+                "status": "ready",
+                "row_count": row_count or 0,
+                "column_count": column_count or 0,
+                "file_size": 0,
+                "storage_backend": store.name,
+                "is_new_sync": True
+            }
+        except Exception as e:
+            self._update_snapshot_failed(snapshot_id, str(e))
+            raise
 
     @staticmethod
     def _merge_store_results(results: list) -> Optional[Dict]:
@@ -453,15 +600,21 @@ class WideTableSyncService:
         target_metadata: dict,
         etl_date: date,
         pg_table_name: str,
-        old_pg_table: str,
+        base_ref: str,
         static_cols: list,
         inc_cols: list,
     ) -> Tuple[int, int]:
+        """增量路径：PIVOT 变化列写 delta 辅助表 + 存储侧合并
+
+        base_ref 语义随存储后端：PG 为旧分区表名；duckdb 为旧版本 Parquet 目录。
+        """
         etl_date_str = etl_date.strftime('%Y-%m-%d')
         etl_date_suffix = etl_date.strftime('%Y%m%d')
         delta_table = None
 
-        store.ensure_table(pg_table_name, target_metadata, etl_date)
+        # PG 需预先建目标宽表+分区（INSERT目标）；duckdb 由 merge 直接落新版本目录
+        if store.name == 'postgresql':
+            store.ensure_table(pg_table_name, target_metadata, etl_date)
 
         try:
             if inc_cols:
@@ -473,11 +626,11 @@ class WideTableSyncService:
                     wide_table_name, target_metadata, etl_date, inc_cols
                 )
                 refresh_sql = f"refresh table {self.source_table}"
-                store.write_pivot(pivot_sql, delta_table, etl_date, refresh_sql=refresh_sql)
+                store.write_pivot_to_pg(pivot_sql, delta_table, etl_date, refresh_sql=refresh_sql)
 
             row_count = store.merge_delta_insert_select(
                 dest_table=pg_table_name,
-                base_table=old_pg_table,
+                base_table=base_ref,
                 delta_table=delta_table,
                 target_metadata=target_metadata,
                 static_cols=static_cols,
