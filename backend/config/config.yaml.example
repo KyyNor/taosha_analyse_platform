@@ -292,6 +292,15 @@ fraudhunter:
     sync_scheduler_interval: 600  # 离线同步调度间隔(秒) - 10分钟
     source_table: "hxb_dh_data_dwm.dwm_taosha_indicator_details"
 
+    # 离线宽表存储后端: postgresql | duckdb | both（both=灰度双写）
+    offline_store: "postgresql"
+
+    # DuckDB Parquet存储配置（offline_store 含 duckdb 时生效）
+    duckdb:
+      storage_path: "/data/taosha/indicator_data/wide_tables_parquet"  # Parquet根目录，按 {宽表名}_{版本hash前8位}/etl_date=日期 分区
+      compression: "zstd"  # Parquet压缩算法
+      staging_ttl_hours: 24  # staging中转表(_staging_前缀)兜底清理阈值(小时)
+
   # 实时数据服务配置
   realtime_data:
     enabled: false  # 是否启用实时数据服务（默认关闭）

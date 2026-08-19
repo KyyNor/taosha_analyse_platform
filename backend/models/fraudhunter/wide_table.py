@@ -180,12 +180,22 @@ class FraudHunterWideTableSnapshot(Base):
     )
 
     # 文件信息
+    # parquet_file_path 语义由 storage_backend 决定：
+    #   postgresql → PG正式表名；duckdb → Parquet目录绝对路径
     parquet_file_path: Mapped[str] = mapped_column(
         String(512),
         nullable=False,
         comment='Parquet文件路径'
     )
     file_size_bytes: Mapped[Optional[int]] = mapped_column(BigInteger, comment='文件大小(字节)')
+
+    # 存储后端
+    storage_backend: Mapped[str] = mapped_column(
+        String(16),
+        default='postgresql',
+        nullable=False,
+        comment='存储后端: postgresql/duckdb'
+    )
 
     # 数据统计
     row_count: Mapped[Optional[int]] = mapped_column(Integer, comment='行数')

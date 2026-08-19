@@ -240,6 +240,12 @@ class ConfigManager:
             fraudhunter_wide_table_sync_lookback_days: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('sync_lookback_days', 30)
             fraudhunter_wide_table_sync_scheduler_interval: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('sync_scheduler_interval', 600)
             fraudhunter_wide_table_source_table: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('source_table', 'hxb_dh_data_dwm.dwm_taosha_indicator_details')
+            # 离线宽表存储后端: postgresql | duckdb | both（灰度双写）
+            fraudhunter_wide_table_offline_store: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('offline_store', 'postgresql')
+            # DuckDB Parquet存储配置（offline_store 含 duckdb 时生效）
+            fraudhunter_wide_table_duckdb_storage_path: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('storage_path', '/data/taosha/indicator_data/wide_tables_parquet')
+            fraudhunter_wide_table_duckdb_compression: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('compression', 'zstd')
+            fraudhunter_wide_table_duckdb_staging_ttl_hours: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('staging_ttl_hours', 24)
 
             # GLM-OCR配置（本地服务）
             glm_ocr_api_key: Optional[str] = os.getenv("GLM_OCR_API_KEY") or self._config_data.get('glm_ocr', {}).get('api_key', 'test-key')
