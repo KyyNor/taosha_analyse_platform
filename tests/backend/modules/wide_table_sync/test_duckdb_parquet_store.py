@@ -261,6 +261,29 @@ class TestReconciliation:
 
 
 class TestAtomicLanding:
+    def test_prepare_tmp_dir_creates_nested_parents(self, monkeypatch, tmp_path):
+        """DuckDB COPY 不自动建父目录——_prepare_tmp_dir 统一自动创建多层目录"""
+        module, _ = _load_duckdb_store(monkeypatch, storage_path=str(tmp_path))
+        final_dir = tmp_path / "cust_wide_table_abcd1234" / "etl_date=2026-08-19"
+
+        tmp_dir = module.DuckdbParquetStore._prepare_tmp_dir(final_dir)
+
+        assert tmp_dir == final_dir.with_name("etl_date=2026-08-19.tmp")
+        assert tmp_dir.is_dir()
+
+    def test_prepare_tmp_dir_clears_stale_content(self, monkeypatch, tmp_path):
+        """幂等：上次失败残留的 tmp 目录被清空重建，旧 part 文件不混入"""
+        module, _ = _load_duckdb_store(monkeypatch, storage_path=str(tmp_path))
+        final_dir = tmp_path / "etl_date=2026-08-19"
+        stale = final_dir.with_name("etl_date=2026-08-19.tmp")
+        stale.mkdir()
+        (stale / "part-stale.parquet").write_bytes(b"stale")
+
+        tmp_dir = module.DuckdbParquetStore._prepare_tmp_dir(final_dir)
+
+        assert tmp_dir.is_dir()
+        assert list(tmp_dir.iterdir()) == []
+
     def test_lands_tmp_to_final(self, monkeypatch, tmp_path):
         module, _ = _load_duckdb_store(monkeypatch, storage_path=str(tmp_path))
         tmp_dir = tmp_path / "etl_date=2026-08-19.tmp"

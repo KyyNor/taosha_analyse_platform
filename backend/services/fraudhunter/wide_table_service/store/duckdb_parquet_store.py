@@ -102,7 +102,6 @@ class DuckdbParquetStore(WideTableStore):
         """
         staging = self.staging_table_name(table_name, etl_date)
         final_dir = self.date_dir(table_name, etl_date)
-        tmp_dir = final_dir.with_name(final_dir.name + ".tmp")
 
         # 1. executor 并行 JDBC 写 staging（数据不过应用服务器）
         spark_rows, column_count = self._pg_writer.write_pivot(
@@ -112,8 +111,8 @@ class DuckdbParquetStore(WideTableStore):
             f"[duckdb] staging写入完成: {staging}, {spark_rows}行, 开始DuckDB列式拉取"
         )
 
-        # 2. DuckDB COPY staging → Parquet（临时目录）
-        tmp_dir.mkdir(parents=True, exist_ok=True)
+        # 2. DuckDB COPY staging → Parquet（临时目录，自动新建）
+        tmp_dir = self._prepare_tmp_dir(final_dir)
 
         conn = self._attach_pg()
         try:
@@ -181,10 +180,7 @@ class DuckdbParquetStore(WideTableStore):
             raise RuntimeError(f"[duckdb] 增量基准目录不存在: {base_table}")
 
         old_relation = f"read_parquet('{old_glob}', hive_partitioning=false)"
-        tmp_dir = new_dir.with_name(new_dir.name + ".tmp")
-        if tmp_dir.exists():
-            shutil.rmtree(tmp_dir)
-        tmp_dir.mkdir(parents=True)
+        tmp_dir = self._prepare_tmp_dir(new_dir)
 
         select_cols = (
             ["s.target_id"]
@@ -330,6 +326,19 @@ class DuckdbParquetStore(WideTableStore):
         return f"read_parquet('{glob}')"
 
     @staticmethod
+    def _prepare_tmp_dir(final_dir: Path) -> Path:
+        """准备 COPY 落盘的临时目录（DuckDB COPY 不会自动建父目录）
+
+        统一入口：自动创建多层父目录；幂等——清掉上次失败残留的 tmp 目录后重建，
+        避免旧 part 文件混入本次对账。所有 COPY TO 场景（全量/增量/互转）经此准备。
+        """
+        tmp_dir = final_dir.with_name(final_dir.name + ".tmp")
+        if tmp_dir.exists():
+            shutil.rmtree(tmp_dir)
+        tmp_dir.mkdir(parents=True)
+        return tmp_dir
+
+    @staticmethod
     def _atomic_landing(tmp_dir: Path, final_dir: Path) -> None:
         """临时目录原子落盘：tmp → final（若 final 已存在先挪走再删）"""
         if not tmp_dir.exists():
@@ -369,10 +378,7 @@ class DuckdbParquetStore(WideTableStore):
         Returns:
             (row_count, column_count, file_size_bytes)
         """
-        tmp_dir = dest_dir.with_name(dest_dir.name + ".tmp")
-        if tmp_dir.exists():
-            shutil.rmtree(tmp_dir)
-        tmp_dir.mkdir(parents=True)
+        tmp_dir = self._prepare_tmp_dir(dest_dir)
 
         conn = self._attach_pg()
         try:
