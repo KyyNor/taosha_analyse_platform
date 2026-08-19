@@ -204,7 +204,8 @@ class DuckdbParquetStore(WideTableStore):
             spark_rows=spark_rows,
         )
 
-    def _reconcile_relations(self, conn, staging_relation: str, parquet_relation: str, spark_rows: int) -> None:
+    def _reconcile_relations(self, conn, staging_relation: str, parquet_relation: str,
+                             spark_rows: int | None) -> None:
         parquet_cols = [
             row[0] for row in conn.execute(
                 f"DESCRIBE SELECT * FROM {parquet_relation}"
@@ -228,7 +229,8 @@ class DuckdbParquetStore(WideTableStore):
             self._build_checksum_sql(staging_relation, parquet_cols)
         ).fetchone()
 
-        if spark_rows != staging_n:
+        # spark_rows 仅同步链路有（互转场景为 None，跳过该侧核对）
+        if spark_rows is not None and spark_rows != staging_n:
             raise RuntimeError(
                 f"[duckdb] 对账失败: Spark行数({spark_rows}) != staging行数({staging_n})"
             )
@@ -272,3 +274,123 @@ class DuckdbParquetStore(WideTableStore):
             raise
         if trash.exists():
             shutil.rmtree(trash)
+
+    # ------------------------------------------------------------------
+    # 互转原语（阶段5：PG离线表 ↔ Parquet 按日期互转，与同步路径同源）
+    # ------------------------------------------------------------------
+
+    def pull_pg_partition_to_parquet(
+        self,
+        pg_table: str,
+        etl_date: date,
+        dest_dir: Path,
+    ) -> Tuple[int, int, int]:
+        """PG 正式宽表指定日期分区 → Parquet 目录（pg2duckdb 核心）
+
+        与 staging 全量路径同源：COPY 列式直转 → 对账 → 原子落盘。
+
+        Returns:
+            (row_count, column_count, file_size_bytes)
+        """
+        tmp_dir = dest_dir.with_name(dest_dir.name + ".tmp")
+        dest_dir.parent.mkdir(parents=True, exist_ok=True)
+        if tmp_dir.exists():
+            shutil.rmtree(tmp_dir)
+
+        conn = self._attach_pg()
+        try:
+            conn.execute(self._build_partition_copy_sql(pg_table, etl_date, tmp_dir))
+
+            # 对账：PG分区行数+内容 vs parquet行数+内容（同一DuckDB会话内完成）
+            date_str = etl_date.strftime('%Y-%m-%d')
+            source_relation = (
+                f"(SELECT * EXCLUDE (created_at) FROM pg_src.public.{pg_table} "
+                f"WHERE etl_date = DATE '{date_str}')"
+            )
+            source_rows = conn.execute(
+                f"SELECT count(*) FROM {source_relation}"
+            ).fetchone()[0]
+            self._reconcile_relations(
+                conn, source_relation, self._parquet_relation(tmp_dir), source_rows
+            )
+            parquet_cols = [
+                row[0] for row in conn.execute(
+                    f"DESCRIBE SELECT * FROM {self._parquet_relation(tmp_dir)}"
+                ).fetchall()
+            ]
+        finally:
+            try:
+                conn.execute("DETACH pg_src")
+            except Exception:
+                pass
+            conn.close()
+
+        self._atomic_landing(tmp_dir, dest_dir)
+        size_bytes = sum(f.stat().st_size for f in dest_dir.glob(PARQUET_FILE_PATTERN))
+        return (int(source_rows), len(parquet_cols), size_bytes)
+
+    def push_parquet_to_pg(
+        self,
+        version_dir: Path,
+        etl_date: date,
+        pg_table: str,
+        indicator_metadata: dict,
+    ) -> int:
+        """Parquet 指定日期目录 → PG 正式宽表分区（duckdb2pg 应急回退通道）
+
+        先经 PgStore.ensure_table 建表+分区，再经 DuckDB 读写 ATTACH 流式写入，
+        写后对账（行数+checksum）。created_at 审计列不搬运（PG 默认值生成）。
+
+        Returns:
+            写入行数
+        """
+        self._pg_writer.ensure_table(pg_table, indicator_metadata, etl_date)
+
+        date_str = etl_date.strftime('%Y-%m-%d')
+        parquet_relation = (
+            f"read_parquet('{(version_dir / f'etl_date={date_str}' / PARQUET_FILE_PATTERN).as_posix()}', "
+            f"hive_partitioning=false)"
+        )
+
+        import duckdb
+
+        pg = settings.fraudhunter_analyze_db['postgresql']
+        conn_string = (
+            f"dbname={pg['database']} host={pg['host']} port={pg['port']} "
+            f"user={pg['user']} password={pg['password']}"
+        )
+        escaped = conn_string.replace("\\", "\\\\").replace("'", "\\'")
+
+        conn = duckdb.connect()
+        try:
+            conn.execute("LOAD postgres;")
+            conn.execute(f"ATTACH '{escaped}' AS pg_rw (TYPE POSTGRES);")
+            conn.execute(
+                f"INSERT INTO pg_rw.public.{pg_table} "
+                f"SELECT * FROM {parquet_relation}"
+            )
+
+            # 对账：写入后 PG 分区 vs parquet
+            pg_relation = (
+                f"(SELECT * EXCLUDE (created_at) FROM pg_rw.public.{pg_table} "
+                f"WHERE etl_date = DATE '{date_str}')"
+            )
+            self._reconcile_relations(conn, pg_relation, parquet_relation, None)
+            row_count = conn.execute(f"SELECT count(*) FROM {pg_relation}").fetchone()[0]
+        finally:
+            try:
+                conn.execute("DETACH pg_rw")
+            except Exception:
+                pass
+            conn.close()
+
+        return int(row_count)
+
+    def _build_partition_copy_sql(self, pg_table: str, etl_date: date, tmp_dir: Path) -> str:
+        """PG 正式表按日期过滤 COPY → Parquet（分区裁剪下推到PG）"""
+        target = (tmp_dir / "part-00000.parquet").as_posix()
+        return (
+            f"COPY (SELECT * EXCLUDE (created_at) FROM pg_src.public.{pg_table} "
+            f"WHERE etl_date = DATE '{etl_date.strftime('%Y-%m-%d')}') "
+            f"TO '{target}' (FORMAT PARQUET, COMPRESSION {self._compression})"
+        )

@@ -455,3 +455,60 @@ async def list_snapshots(
     ).offset(skip).limit(limit).all()
 
     return snapshots
+
+@router.post(
+    "/transfer",
+    summary="离线宽表存储互转（单表单日粒度）"
+)
+async def transfer_wide_table(
+    wide_table_name: str,
+    version_hash: str,
+    etl_date: str,
+    direction: str,
+    overwrite: bool = False,
+    keep_source: bool = True,
+    db: Session = Depends(get_db)
+):
+    """PG离线表 ↔ DuckDB Parquet 按日期互转
+
+    用途：存量迁移（pg2duckdb，切换存储无需从源头重同步）与应急回退（duckdb2pg）。
+    对账通过后才改写快照元数据；默认幂等（目标已存在跳过，overwrite=True重转）。
+
+    Args:
+        wide_table_name: 宽表名称，如 cust_wide_table
+        version_hash: 完整64位版本hash
+        etl_date: 日期（YYYY-MM-DD）
+        direction: pg2duckdb | duckdb2pg
+        overwrite: 目标已存在时重转（默认False幂等跳过）
+        keep_source: 保留源侧数据（默认True）
+
+    Returns:
+        互转结果
+    """
+    from datetime import datetime as _dt
+
+    if direction not in ('pg2duckdb', 'duckdb2pg'):
+        raise HTTPException(status_code=400, detail="direction 仅支持 pg2duckdb / duckdb2pg")
+
+    try:
+        etl_date_obj = _dt.strptime(etl_date, '%Y-%m-%d').date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="etl_date格式必须是YYYY-MM-DD")
+
+    from services.fraudhunter.wide_table_service.transfer_service import WideTableTransferService
+
+    service = WideTableTransferService()
+    results = service.transfer(
+        wide_table_name=wide_table_name,
+        version_hash=version_hash,
+        etl_dates=[etl_date_obj],
+        direction=direction,
+        keep_source=keep_source,
+        overwrite=overwrite,
+    )
+    result = results[0] if results else {"status": "failed", "detail": "无结果"}
+
+    if result.get('status') == 'failed':
+        raise HTTPException(status_code=500, detail=result.get('detail', '互转失败'))
+
+    return result
