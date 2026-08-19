@@ -29,6 +29,9 @@ from models.fraudhunter.dry_run_task import FraudHunterDryRunExecution
 from schemas.fraudhunter.rule import RuleConfig
 from services.fraudhunter.model_service.rule_engine import RuleEngine
 from services.fraudhunter.system_config_service import SystemConfigManager
+from services.fraudhunter.wide_table_service.store import query_router
+from services.fraudhunter.wide_table_service.store.query_router import DuckQuerySession
+from utils.config import settings
 
 
 # =============================================================================
@@ -81,6 +84,7 @@ class VersionSelectionResult:
     etl_date: date
     parquet_path: Optional[str]
     message: str = ""
+    storage_backend: str = 'postgresql'
 
     @property
     def pg_table_name(self) -> Optional[str]:
@@ -158,8 +162,8 @@ class ModelExecutor:
         Returns:
             VersionSelectionResult: 版本选择结果
         """
-        # 查找该日期所有 ready 状态的快照
-        latest_snapshot = db.query(FraudHunterWideTableSnapshot).join(
+        # 查找该日期所有 ready 状态的快照（both 双写下同版本可能有 postgresql/duckdb 两条）
+        ready_snapshots = db.query(FraudHunterWideTableSnapshot).join(
             FraudHunterWideTableVersion,
             FraudHunterWideTableSnapshot.version_hash == FraudHunterWideTableVersion.version_hash
         ).filter(
@@ -170,9 +174,9 @@ class ModelExecutor:
             )
         ).order_by(
             desc(FraudHunterWideTableVersion.created_at)
-        ).first()
+        ).all()
 
-        if not latest_snapshot:
+        if not ready_snapshots:
             return VersionSelectionResult(
                 version_hash='',
                 wide_table_name=wide_table_name,
@@ -181,12 +185,28 @@ class ModelExecutor:
                 message=f"未找到 {wide_table_name} 在 {etl_date} 的可用快照"
             )
 
+        # 按配置的存储后端优先选择快照（duckdb/both 优先 duckdb，否则 postgresql）
+        preferred_backend = (
+            'duckdb'
+            if settings.fraudhunter_wide_table_offline_store in ('duckdb', 'both')
+            else 'postgresql'
+        )
+        latest_snapshot = next(
+            (
+                s for s in ready_snapshots
+                if (getattr(s, 'storage_backend', None) or 'postgresql') == preferred_backend
+            ),
+            ready_snapshots[0]
+        )
+
         # 使用最新版本
         version_hash = latest_snapshot.version_hash or ''
+        storage_backend = getattr(latest_snapshot, 'storage_backend', None) or 'postgresql'
 
         logger.info(
             f"选择最新版本: {wide_table_name}, 日期={etl_date}, "
-            f"版本={version_hash[:8]}..., 创建时间={latest_snapshot.generation_time}"
+            f"版本={version_hash[:8]}..., backend={storage_backend}, "
+            f"创建时间={latest_snapshot.generation_time}"
         )
 
         return VersionSelectionResult(
@@ -194,7 +214,8 @@ class ModelExecutor:
             wide_table_name=latest_snapshot.wide_table_name,
             etl_date=latest_snapshot.etl_date,
             parquet_path=latest_snapshot.parquet_file_path,
-            message=f"使用版本 {version_hash[:8]}"
+            message=f"使用版本 {version_hash[:8]}",
+            storage_backend=storage_backend
         )
 
     @staticmethod
@@ -222,6 +243,7 @@ class ModelExecutor:
         cust_offline_table_name: str,
         etl_date: date,
         cust_realtime_table_name: Optional[str] = None,
+        dialect: str = 'postgresql',
     ) -> str:
         """生成历史回测SQL
 
@@ -234,10 +256,12 @@ class ModelExecutor:
         Args:
             db: 数据库会话
             model: 模型定义
-            dep_acct_realtime_table_name: 实时（当天）存款宽表PG表名
-            dep_acct_offline_table_name: 离线（前一天）存款宽表PG表名
-            cust_offline_table_name: 离线（前一天）客户宽表PG表名
+            dep_acct_realtime_table_name: 实时（当天）存款宽表引用（PG表名或duckdb引用）
+            dep_acct_offline_table_name: 离线（前一天）存款宽表引用
+            cust_offline_table_name: 离线（前一天）客户宽表引用
             etl_date: 执行日期
+            cust_realtime_table_name: 当天客户宽表引用（可选）
+            dialect: SQL方言（postgresql=PG执行；duckdb=DuckDB执行）
 
         Returns:
             回测SQL语句
@@ -269,11 +293,12 @@ class ModelExecutor:
 
         select_clause = ",\n    ".join(select_fields)
 
-        # 生成WHERE子句，使用 RuleEngine
+        # 生成WHERE子句，使用 RuleEngine（方言随执行引擎）
         where_clause = rule_engine.generate_sql_expression(
             rule_config,
             indicator_alias_mapping,
-            numeric_columns_are_typed=True
+            numeric_columns_are_typed=True,
+            dialect=dialect
         )
 
         # 构建 FROM/JOIN 子句（含可选的客户实时 JOIN）
@@ -440,6 +465,13 @@ LIMIT 10000
                 cust_offline_table = cust_offline_result.pg_table_name
                 cust_realtime_table = cust_realtime_result.pg_table_name
 
+                # 按快照存储后端路由：任一离线快照为 duckdb → DuckDB 执行，
+                # PG 侧表（实时表/PG离线表）经 ATTACH 别名 pg_rt 引用
+                duckdb_mode = query_router.requires_duckdb(
+                    dep_acct_offline_result, cust_offline_result
+                )
+                sql_dialect = 'duckdb' if duckdb_mode else 'postgresql'
+
                 if not dep_acct_realtime_table:
                     warning_msg = f"日期 {current_date} 的宽表不存在，跳过"
                     logger.warning(warning_msg)
@@ -480,15 +512,33 @@ LIMIT 10000
                     current_date += timedelta(days=1)
                     continue
 
+                # 表引用转换（duckdb 模式：duckdb 快照 → read_parquet，PG 侧表 → pg_rt 前缀）
+                dep_acct_realtime_ref = query_router.offline_table_ref(
+                    dep_acct_realtime_result, current_date, duckdb_mode
+                )
+                dep_acct_offline_ref = query_router.offline_table_ref(
+                    dep_acct_offline_result, previous_date, duckdb_mode
+                )
+                cust_offline_ref = query_router.offline_table_ref(
+                    cust_offline_result, previous_date, duckdb_mode
+                )
+                cust_realtime_ref = (
+                    query_router.offline_table_ref(
+                        cust_realtime_result, current_date, duckdb_mode
+                    )
+                    if uses_cust_realtime else None
+                )
+
                 # 生成SQL（仅当模型引用客户实时指标时才传入当天客户宽表，避免无谓 JOIN）
                 sql = self._generate_backtest_sql(
                     db,
                     model,
-                    dep_acct_realtime_table,
-                    dep_acct_offline_table,
-                    cust_offline_table,
+                    dep_acct_realtime_ref,
+                    dep_acct_offline_ref,
+                    cust_offline_ref,
                     current_date,
-                    cust_realtime_table if uses_cust_realtime else None,
+                    cust_realtime_ref,
+                    dialect=sql_dialect,
                 )
 
                 logger.info(f"模型sql已生成：{sql[:200]} ..................................... {sql[-200:]}")
@@ -498,8 +548,12 @@ LIMIT 10000
                     'sql': sql
                 })
 
-                # 执行SQL（使用PG执行）
-                execute_result_df = AnalyzeDBConnector.execute_sql(sql, fetch_df=True)
+                # 执行SQL（按快照后端选择执行引擎）
+                if duckdb_mode:
+                    with DuckQuerySession(attach_pg=True) as duck_session:
+                        execute_result_df = duck_session.execute_df(sql)
+                else:
+                    execute_result_df = AnalyzeDBConnector.execute_sql(sql, fetch_df=True)
                 execute_result = execute_result_df if execute_result_df is not None else None
 
                 day_result['status'] = 'success'

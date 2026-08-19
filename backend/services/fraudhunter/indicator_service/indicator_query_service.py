@@ -169,6 +169,7 @@ class IndicatorQueryService:
             "version_status": version_status,
             "file_path": snapshot.parquet_file_path,
             "file_name": snapshot.parquet_file_path or '',
+            "storage_backend": getattr(snapshot, 'storage_backend', 'postgresql'),
             "display_label": display_label,
             "status": snapshot.status,
             "generation_time": snapshot.generation_time,
@@ -259,7 +260,7 @@ class IndicatorQueryService:
         }
 
     def query_data(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """查询宽表数据
+        """查询宽表数据（按快照存储后端路由执行引擎）
 
         Args:
             request: 查询请求
@@ -275,28 +276,48 @@ class IndicatorQueryService:
             if snapshot.status != 'ready':
                 raise ValueError(f"快照状态不是ready，当前状态: {snapshot.status}")
 
-            pg_table_name = snapshot.parquet_file_path
-            if not pg_table_name:
-                raise ValueError(f"快照未关联PG表: snapshot_id={request['snapshot_id']}")
+            storage_path = snapshot.parquet_file_path
+            if not storage_path:
+                raise ValueError(f"快照未关联存储位置: snapshot_id={request['snapshot_id']}")
 
             indicators = self.get_indicators_by_wide_table(snapshot.id)
             indicator_map = {ind['indicator_code']: ind for ind in indicators}
 
-            sql_query = self._build_query_sql(request, pg_table_name, snapshot.etl_date, indicator_map)
-            count_sql = self._build_count_sql(request, pg_table_name, snapshot.etl_date)
+            # 表引用：duckdb 快照 → read_parquet glob；postgresql 快照 → PG表名（现状）
+            from services.fraudhunter.wide_table_service.store import query_router
 
-            logger.info(f"执行查询SQL: {sql_query[:500]}...")
+            duckdb_mode = query_router.requires_duckdb(snapshot)
+            table_ref = query_router.offline_table_ref(snapshot, snapshot.etl_date)
 
-            # 获取总数
-            total_df = AnalyzeDBConnector.execute_sql(count_sql, fetch_df=True)
-            total_count = int(total_df.iloc[0]['count']) if total_df is not None and not total_df.empty else 0
+            sql_query = self._build_query_sql(request, table_ref, snapshot.etl_date, indicator_map)
+            count_sql = self._build_count_sql(request, table_ref, snapshot.etl_date)
 
-            # 执行分页查询
-            if total_count > 0:
-                result_df = AnalyzeDBConnector.execute_sql(sql_query, fetch_df=True)
-                items = self._convert_numpy_types(result_df.to_dict('records')) if result_df is not None else []
+            logger.info(f"执行查询SQL(backend={query_router.snapshot_backend(snapshot)}): {sql_query[:500]}...")
+
+            if duckdb_mode:
+                # 纯本地 Parquet 查询，无需 ATTACH PG
+                with query_router.DuckQuerySession(attach_pg=False) as duck_session:
+                    total_df = duck_session.execute_df(count_sql)
+                    total_count = (
+                        int(total_df.iloc[0]['count'])
+                        if total_df is not None and not total_df.empty else 0
+                    )
+                    if total_count > 0:
+                        result_df = duck_session.execute_df(sql_query)
+                    else:
+                        result_df = None
             else:
-                items = []
+                # 获取总数
+                total_df = AnalyzeDBConnector.execute_sql(count_sql, fetch_df=True)
+                total_count = int(total_df.iloc[0]['count']) if total_df is not None and not total_df.empty else 0
+
+                # 执行分页查询
+                if total_count > 0:
+                    result_df = AnalyzeDBConnector.execute_sql(sql_query, fetch_df=True)
+                else:
+                    result_df = None
+
+            items = self._convert_numpy_types(result_df.to_dict('records')) if result_df is not None else []
 
             return {
                 "items": items,

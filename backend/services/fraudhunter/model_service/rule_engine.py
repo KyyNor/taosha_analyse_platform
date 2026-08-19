@@ -912,7 +912,8 @@ class RuleEngine:
         self,
         indicator_code: str,
         indicator_alias_mapping: Optional[Dict[str, str]] = None,
-        numeric_columns_are_typed: bool = False
+        numeric_columns_are_typed: bool = False,
+        dialect: str = 'postgresql'
     ) -> str:
         """
         获取指标的SQL表达式，数值型指标自动添加CAST转换
@@ -921,6 +922,7 @@ class RuleEngine:
             indicator_code: 指标编码
             indicator_alias_mapping: 指标别名映射
             numeric_columns_are_typed: 数值指标列是否已是 DOUBLE PRECISION 物理类型
+            dialect: 目标SQL方言（postgresql/duckdb）
 
         Returns:
             str: SQL表达式，数值型指标会包含CAST转换
@@ -938,11 +940,11 @@ class RuleEngine:
             # 数值类型增加 COALESCE 默认值 0，避免 NULL 比较问题
             if numeric_columns_are_typed:
                 return f"COALESCE({base_sql}, 0)"
-            return f"COALESCE({base_sql}::DOUBLE PRECISION, 0)"
+            return f"COALESCE({self._get_dialect(dialect).cast_double(base_sql)}, 0)"
 
         if indicator and indicator.data_type == 'date':
             # 使用 NULLIF 容错处理空字符串，避免 "invalid input syntax for type date: """ 错误
-            return f"NULLIF({base_sql}, '')::DATE"
+            return self._get_dialect(dialect).cast_date(base_sql)
 
         return base_sql
 
@@ -951,7 +953,8 @@ class RuleEngine:
         value_expr: ValueExpression,
         indicator_alias_mapping: Optional[Dict[str, str]] = None,
         use_display_name: bool = False,
-        numeric_columns_are_typed: bool = False
+        numeric_columns_are_typed: bool = False,
+        dialect: str = 'postgresql'
     ) -> str:
         """
         将值表达式转换为 Spark SQL
@@ -977,7 +980,8 @@ class RuleEngine:
             return self._get_indicator_sql_with_cast(
                 indicator,
                 indicator_alias_mapping,
-                numeric_columns_are_typed=numeric_columns_are_typed
+                numeric_columns_are_typed=numeric_columns_are_typed,
+                dialect=dialect
             )
 
         # 时间函数
@@ -1082,12 +1086,31 @@ class RuleEngine:
         else:
             return str(value)
 
+    # ==================== SQL方言 ====================
+
+    @staticmethod
+    def _get_dialect(name: str = 'postgresql'):
+        """获取SQL方言实例
+
+        sql_dialect.py 为零依赖纯模块，按文件路径加载：
+        避免经 services 包链导入（单测环境直接 exec 本文件时包链不可用）。
+        """
+        import importlib.util
+        from pathlib import Path as _Path
+
+        path = _Path(__file__).resolve().parent / "sql_dialect.py"
+        spec = importlib.util.spec_from_file_location("fraudhunter_sql_dialect", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.get_dialect(name)
+
     def generate_sql_expression(
         self,
         rule_config: RuleConfig,
         indicator_alias_mapping: Optional[Dict[str, str]] = None,
         use_display_name: bool = False,
-        numeric_columns_are_typed: bool = False
+        numeric_columns_are_typed: bool = False,
+        dialect: str = 'postgresql'
     ) -> str:
         """
         将规则配置转换为SQL WHERE子句表达式（支持所有操作符和值表达式）
@@ -1108,6 +1131,7 @@ class RuleEngine:
             str: SQL表达式，如 "(登录次数 > 10 AND ([实时]设备变更次数 >= 3 OR 用户状态 IN ('suspended', 'banned')))"
                  或带别名 "(dep_acct_realtime_indicator.i_xxx > 10 AND cust_offline_indicator.cust_yyy = 'A')"
         """
+        sql_dialect = self._get_dialect(dialect)
 
         def condition_to_sql(condition: ConditionRule) -> str:
             """将条件转换为SQL（支持值表达式和左元素函数）"""
@@ -1122,7 +1146,8 @@ class RuleEngine:
                 left_sql = self._get_indicator_sql_with_cast(
                     indicator,
                     indicator_alias_mapping,
-                    numeric_columns_are_typed=numeric_columns_are_typed
+                    numeric_columns_are_typed=numeric_columns_are_typed,
+                    dialect=dialect
                 )
 
             # 处理左元素函数
@@ -1135,7 +1160,8 @@ class RuleEngine:
                     value_expr,
                     indicator_alias_mapping,
                     use_display_name,
-                    numeric_columns_are_typed=numeric_columns_are_typed
+                    numeric_columns_are_typed=numeric_columns_are_typed,
+                    dialect=dialect
                 )
                 return f"{left_sql} {operator} {right_sql}"
 
@@ -1171,9 +1197,9 @@ class RuleEngine:
                     pattern = str(value_expr.value).replace("'", "''")
 
                 if operator == 'regexp':
-                    return f"{left_sql} ~* '{pattern}'"
+                    return sql_dialect.regex_match(left_sql, pattern)
                 else:
-                    return f"not {left_sql} ~* '{pattern}'"
+                    return sql_dialect.regex_match(left_sql, pattern, negate=True)
 
             return "1=1"
 
@@ -1197,7 +1223,8 @@ class RuleEngine:
                         ref_rule_config,
                         indicator_alias_mapping=indicator_alias_mapping,
                         use_display_name=use_display_name,
-                        numeric_columns_are_typed=numeric_columns_are_typed
+                        numeric_columns_are_typed=numeric_columns_are_typed,
+                        dialect=dialect
                     )
                     sub_expressions.append(f"({ref_sql})")
 
