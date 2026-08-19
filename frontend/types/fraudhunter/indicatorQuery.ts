@@ -22,6 +22,7 @@ export interface WideTableFile {
   file_path: string;
   file_name: string;  // 文件名
   display_label: string;  // 显示标签: 数据日期(版本号[状态])
+  storage_backend: string;  // 存储后端: postgresql / duckdb
   status: string;
   generation_time: string;
   row_count?: number;

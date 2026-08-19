@@ -344,3 +344,4 @@ scheduler:
   vector_training_max_docs_per_type: 5  # 每种资源类型每次训练的最大文档数（超出的将在下次训练）
   postgres_data_cleanup_cron: "0 3 * * *"   # cron表达式，Pg文件清理（每日凌晨3点）
   parquet_cleanup_cron: "0 4 * * *"       # cron表达式，Parquet版本目录引用计数清理（每日凌晨4点）
+  dual_store_reconcile_cron: "30 6 * * *"  # cron表达式，双写存储对账（both灰度期间，每日6:30）

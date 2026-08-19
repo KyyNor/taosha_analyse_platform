@@ -280,6 +280,7 @@ class ConfigManager:
             scheduler_postgres_data_cleanup_cron: str = self._config_data.get('scheduler', {}).get('postgres_data_cleanup_cron', '0 3 * * *')
             scheduler_mysql_data_cleanup_cron: str = self._config_data.get('scheduler', {}).get('mysql_data_cleanup_cron', '0 3 * * *')
             scheduler_parquet_cleanup_cron: str = self._config_data.get('scheduler', {}).get('parquet_cleanup_cron', '0 4 * * *')
+            scheduler_dual_store_reconcile_cron: str = self._config_data.get('scheduler', {}).get('dual_store_reconcile_cron', '30 6 * * *')
 
             class Config:
                 env_prefix = self._config_data.get('env_prefix', 'TAOSHA_')
