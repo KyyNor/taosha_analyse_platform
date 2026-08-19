@@ -16,14 +16,13 @@ from contextlib import contextmanager
 
 from sqlalchemy import text
 
-import pandas as pd
-
 from models.fraudhunter.wide_table import (
     FraudHunterWideTableVersion,
     FraudHunterWideTableSnapshot,
 )
 from models.db_base import get_db_session
 from .version_manager import WideTableVersionManager
+from .store import get_store
 from utils.logger import logger
 from utils.config import settings
 from domain.wide_table.version_delta import VersionDelta, WideTableComparator
@@ -65,11 +64,7 @@ class WideTableSyncService:
     def __init__(self) -> None:
         """初始化同步服务"""
         self.source_table = settings.fraudhunter_wide_table_source_table
-        self._use_pyspark = settings.pyspark_enabled
-        self._batch_size = settings.fraudhunter_realtime_writer_batch_insert_size
-
-        mode = "PySpark" if self._use_pyspark else "JDBC"
-        logger.info(f"宽表同步服务使用{mode}模式")
+        self._store = get_store()
 
     def sync_wide_table(
         self,
@@ -98,8 +93,6 @@ class WideTableSyncService:
         _total_start = time.perf_counter()
 
         try:
-            from utils.analyze_db_utils import AnalyzeDBPartitionManager
-
             # 0. 防御性守卫：version_hash 为 None 时直接跳过（避免后续三处 slice/write 先行炸掉）
             if not version_hash:
                 logger.warning(
@@ -227,7 +220,10 @@ class WideTableSyncService:
             # 6. 更新Snapshot为ready状态
             with _stage_timer("06_更新ready状态", wide_table_name, etl_date):
                 self._update_snapshot_ready(
-                    snapshot_id, pg_table_name, row_count, column_count
+                    snapshot_id,
+                    self._store.snapshot_ref(pg_table_name, etl_date),
+                    row_count,
+                    column_count
                 )
 
             logger.info(f"宽表同步成功: {pg_table_name}, {row_count}行, {column_count}列")
@@ -359,30 +355,25 @@ class WideTableSyncService:
         pg_table_name: str,
         create_table: bool = True,
     ) -> Tuple[int, int]:
-        """执行数据同步
+        """执行数据同步（全量路径）
 
         Args:
-            create_table: 是否在此方法内部创建 PG 表和分区。
+            create_table: 是否在此方法内部创建存储目标。
                           增量路径将此置为 False（表已由调用方创建）。
         Returns:
             (row_count, column_count)
         """
 
-        from utils.analyze_db_utils import AnalyzeDBPartitionManager
-
-        # 1. 保证 PG 表和分区存在
+        # 1. 保证存储目标存在
         if create_table:
-            AnalyzeDBPartitionManager.create_wide_table(pg_table_name, indicator_metadata)
-            AnalyzeDBPartitionManager.ensure_partition(pg_table_name, etl_date)
+            self._store.ensure_table(pg_table_name, indicator_metadata, etl_date)
 
         # 2. 构建 Spark SQL PIVOT 查询（全量）
         sql = self._build_pivot_sql(wide_table_name, indicator_metadata, etl_date)
 
-        # 3. 执行 Spark 查询并写入 PG
+        # 3. 执行 Spark 查询并写入存储
         refresh_sql = f"refresh table {self.source_table}"
-        return self._execute_spark_query_and_write_pg(
-            sql, pg_table_name, etl_date, refresh_sql=refresh_sql
-        )
+        return self._store.write_pivot(sql, pg_table_name, etl_date, refresh_sql=refresh_sql)
 
     def _execute_delta_insert_select_sync(
         self,
@@ -397,27 +388,22 @@ class WideTableSyncService:
         etl_date_str = etl_date.strftime('%Y-%m-%d')
         etl_date_suffix = etl_date.strftime('%Y%m%d')
         delta_table = None
-        from utils.analyze_db_utils import AnalyzeDBPartitionManager
 
-        AnalyzeDBPartitionManager.create_wide_table(pg_table_name, target_metadata)
-        AnalyzeDBPartitionManager.ensure_partition(pg_table_name, etl_date)
+        self._store.ensure_table(pg_table_name, target_metadata, etl_date)
 
         try:
             if inc_cols:
                 delta_table = f"_delta_{pg_table_name}_{etl_date_suffix}"
                 inc_metadata = self._metadata_for_codes(target_metadata, inc_cols)
-                AnalyzeDBPartitionManager.create_heap_table(delta_table, inc_metadata)
+                self._store.create_heap_table(delta_table, inc_metadata)
 
                 pivot_sql = self._build_pivot_sql_inc(
                     wide_table_name, target_metadata, etl_date, inc_cols
                 )
                 refresh_sql = f"refresh table {self.source_table}"
-                if self._use_pyspark:
-                    self._execute_with_pyspark_to_pg(pivot_sql, delta_table, refresh_sql)
-                else:
-                    self._execute_with_jdbc_to_pg(pivot_sql, delta_table, etl_date, refresh_sql)
+                self._store.write_pivot(pivot_sql, delta_table, etl_date, refresh_sql=refresh_sql)
 
-            row_count = AnalyzeDBPartitionManager.insert_select_from_base_delta(
+            row_count = self._store.merge_delta_insert_select(
                 dest_table=pg_table_name,
                 base_table=old_pg_table,
                 delta_table=delta_table,
@@ -430,91 +416,8 @@ class WideTableSyncService:
             return row_count, column_count
         finally:
             if delta_table:
-                AnalyzeDBPartitionManager.drop_table(delta_table)
+                self._store.drop_table(delta_table)
 
-    def _copy_static_and_merge_incr(
-        self,
-        wide_table_name: str,
-        target_metadata: dict,
-        etl_date: date,
-        pg_table_name: str,
-        static_cols: list,
-        inc_cols: list,
-        old_pg_table: str,
-    ) -> Tuple[int, int]:
-        """COPY static 列 + 通过辅助表合并增量 PIVOT 数据
-
-        五步：
-          A. 创建主表（含全量列，此处在调用方已创建）
-          B. 从 old_pg_table COPY static 列
-          C. 创建辅助表（仅 inc_cols + target_id + etl_date）
-          D. Spark PIVOT inc_cols → JDBC append 入辅助表
-          E. PG 侧 UPDATE ... FROM 合并到主表
-          F. 删除辅助表
-        """
-
-        from utils.analyze_db_utils import AnalyzeDBPartitionManager
-
-        etl_date_str = etl_date.strftime('%Y-%m-%d')
-        aux_table = f"_incr_{pg_table_name}_{etl_date_str.replace('-', '')}"
-        column_count = len(list(target_metadata.keys())) + 2  # +2 = target_id + etl_date
-
-        # === 步骤 B：COPY static 列 ===
-        copied = 0
-        if static_cols and AnalyzeDBPartitionManager.table_exists(old_pg_table):
-            copied = AnalyzeDBPartitionManager.copy_static_columns(
-                dest_table=pg_table_name,
-                src_table=old_pg_table,
-                static_cols=static_cols,
-                etl_date=etl_date_str,
-            )
-            logger.info(
-                f"[增量] COPY static列完成: {pg_table_name}, "
-                f"来源={old_pg_table}, 复制{copied}行"
-            )
-        else:
-            logger.info(f"[增量] 无static列可COPY或旧表不存在，跳过 (static={bool(static_cols)})")
-
-        # === 步骤 C：创建辅助表（仅 inc_cols + target_id + etl_date，无分区，轻量）===
-        AnalyzeDBPartitionManager.create_heap_table(aux_table, target_metadata)
-        logger.debug(f"[增量] 辅助表已创建: {aux_table}，含 {len(target_metadata)} 个指标列")
-
-        try:
-            # === 步骤 D：Spark PIVOT inc_cols → JDBC append 到辅助表 ===
-            pivot_sql = self._build_pivot_sql_inc(
-                wide_table_name, target_metadata, etl_date, inc_cols
-            )
-            refresh_sql = f"refresh table {self.source_table}"
-            if self._use_pyspark:
-                # 返回值 (cnt, _) 丢弃，目标表行数由 static 列行数（copied）代表
-                self._execute_with_pyspark_to_pg(pivot_sql, aux_table, refresh_sql)
-            else:
-                self._execute_with_jdbc_to_pg(pivot_sql, aux_table, etl_date, refresh_sql)
-
-            # === 步骤 E：PG 侧合并（最核心的一条 UPDATE） ===
-            if inc_cols:
-                merged = AnalyzeDBPartitionManager.merge_aux_into_main(
-                    main_table=pg_table_name,
-                    aux_table=aux_table,
-                    inc_cols=inc_cols,
-                )
-                if merged == 0:
-                    logger.warning(f"[增量] 合并影响0行，请检查辅助表 {aux_table} 与主表是否有匹配的 target_id")
-                else:
-                    logger.info(f"[增量] 合并完成: {merged} 行受影响")
-
-            # === 步骤 F：删除辅助表 ===
-            AnalyzeDBPartitionManager.drop_table(aux_table)
-
-            # row_count 以 static 列复制量为下限，不必事后 COUNT(*)（大表上昂贵）
-            return (copied, column_count)
-
-        except Exception:
-            # 辅助表清理（尽力而为，失败不向上冒泡）
-            AnalyzeDBPartitionManager.drop_table(aux_table)
-            raise
-
-    
     def _update_snapshot_ready(
         self,
         snapshot_id: int,
@@ -1079,120 +982,3 @@ PIVOT (
 
         logger.debug(f"生成PIVOT SQL ({len(indicator_codes)}个指标):\n{sql}")
         return sql
-
-    def _execute_spark_query_and_write_pg(
-        self,
-        sql: str,
-        pg_table_name: str,
-        etl_date: date,
-        refresh_sql: str
-    ) -> Tuple[int, int]:
-        """执行Spark SQL并写入PostgreSQL
-
-        支持两种模式：
-        1. PySpark模式：直接提交Spark任务，通过JDBC写入PG
-        2. JDBC模式：通过JDBC连接fetch数据，批量写入PG
-
-        Returns:
-            (row_count, column_count)
-        """
-        if self._use_pyspark:
-            return self._execute_with_pyspark_to_pg(sql, pg_table_name, refresh_sql)
-        else:
-            return self._execute_with_jdbc_to_pg(sql, pg_table_name, etl_date, refresh_sql)
-
-    def _execute_with_pyspark_to_pg(
-        self,
-        sql: str,
-        pg_table_name: str,
-        refresh_sql: str | None = None,
-    ) -> Tuple[int, int]:
-        """使用PySpark执行查询并写入PG
-
-        通用写入方法，同时服务于全量路径和增量路径（写辅助表），
-        由调用方通过 pg_table_name 区分写入目标。
-
-        Returns:
-            (row_count, column_count)
-        """
-        from utils.spark_utils import PySparkService
-
-        logger.info(f"使用PySpark执行查询并写入PG表: {pg_table_name}")
-
-        pyspark_service = PySparkService()
-        try:
-            if not pyspark_service.is_initialized():
-                pyspark_service.initialize()
-
-            # refresh_sql 使源分区为最新内容（全量和增量路径均需要）
-            if refresh_sql:
-                pyspark_service.spark.sql(refresh_sql)
-
-            df = pyspark_service.spark.sql(sql)
-            column_count = len(df.columns)
-            row_count = df.count()
-
-            pg_config = settings.fraudhunter_analyze_db['postgresql']
-            jdbc_url = (
-                f"jdbc:postgresql://{pg_config['host']}:"
-                f"{pg_config['port']}/{pg_config['database']}"
-            )
-
-            logger.info(f"开始写入PG表: {pg_table_name}, 预计{row_count}行")
-            df.write.mode("append").option("driver", "org.postgresql.Driver").jdbc(
-                url=jdbc_url,
-                table=pg_table_name,
-                properties={
-                    "user": pg_config['user'],
-                    "password": pg_config['password']
-                }
-            )
-
-            return (row_count, column_count)
-        finally:
-            pyspark_service.shutdown()
-
-    def _execute_with_jdbc_to_pg(
-        self,
-        sql: str,
-        pg_table_name: str,
-        etl_date: date,
-        refresh_sql: str | None = None,
-    ) -> Tuple[int, int]:
-        """使用JDBC执行查询并批量写入PG
-
-        通用写入方法，同时服务于全量路径和增量路径（写辅助表），
-        由调用方通过 pg_table_name 区分写入目标。
-
-        Returns:
-            (row_count, column_count)
-        """
-
-        from utils.analyze_db_utils import AnalyzeDBConnector
-        from utils.spark_utils import spark_utils
-
-        logger.info(f"使用JDBC执行Spark查询并写入PG表: {pg_table_name}")
-
-        # refresh_sql 使源分区为最新内容（全量和增量路径均需要）
-        if refresh_sql:
-            spark_utils.query_sql(refresh_sql, return_type=None)
-
-        results = spark_utils.query_sql(sql, return_type='dict')
-
-        if not results:
-            logger.warning(f"Spark查询返回空结果: {pg_table_name}")
-            return (0, 0)
-
-        df = pd.DataFrame(results)
-
-        if 'etl_date' not in df.columns:
-            df['etl_date'] = etl_date
-
-        row_count = AnalyzeDBConnector.batch_insert(
-            pg_table_name, df, chunksize=self._batch_size, if_exists='append'
-        )
-        column_count = len(df.columns)
-
-        logger.info(f"数据已写入PG: {pg_table_name}, {row_count}行, {column_count}列")
-
-        return (row_count, column_count)

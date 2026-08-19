@@ -33,6 +33,9 @@ def _load_sync_service_with_stubs(monkeypatch):
     )
     version_manager_module.WideTableVersionManager = object
 
+    store_module = types.ModuleType("services.fraudhunter.wide_table_service.store")
+    store_module.get_store = lambda *args, **kwargs: None
+
     logger_module = types.ModuleType("utils.logger")
     logger_module.logger = types.SimpleNamespace(
         debug=lambda *args, **kwargs: None,
@@ -76,6 +79,7 @@ def _load_sync_service_with_stubs(monkeypatch):
         "models.fraudhunter.wide_table": wide_table_module,
         "models.db_base": db_base_module,
         "services.fraudhunter.wide_table_service.version_manager": version_manager_module,
+        "services.fraudhunter.wide_table_service.store": store_module,
         "utils.logger": logger_module,
         "utils.config": config_module,
         "utils.analyze_db_utils": analyze_db_utils_module,
