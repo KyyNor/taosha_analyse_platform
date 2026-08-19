@@ -35,6 +35,7 @@ def _load_sync_service_with_stubs(monkeypatch):
 
     store_module = types.ModuleType("services.fraudhunter.wide_table_service.store")
     store_module.get_store = lambda *args, **kwargs: None
+    store_module.resolve_stores = lambda *args, **kwargs: []
 
     logger_module = types.ModuleType("utils.logger")
     logger_module.logger = types.SimpleNamespace(

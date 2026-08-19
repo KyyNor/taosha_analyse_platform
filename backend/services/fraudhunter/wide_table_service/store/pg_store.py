@@ -19,6 +19,7 @@ class PgWideTableStore(WideTableStore):
     """PostgreSQL 离线宽表存储（现状路径的收编）"""
 
     name = 'postgresql'
+    supports_delta_insert_select = True
 
     def __init__(self) -> None:
         self._use_pyspark = settings.pyspark_enabled

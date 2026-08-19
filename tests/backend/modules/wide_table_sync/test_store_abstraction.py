@@ -23,7 +23,8 @@ sys.path.insert(0, str(_backend_root))
 _store_pkg_root = _backend_root / "services" / "fraudhunter" / "wide_table_service" / "store"
 
 
-def _load_store_modules(monkeypatch, offline_store="postgresql", pyspark_enabled=False):
+def _load_store_modules(monkeypatch, offline_store="postgresql", pyspark_enabled=False,
+                        storage_path="/tmp/test_wide_tables_parquet"):
     """加载 store 包（stub 掉 config/logger/analyze_db_utils）"""
     services_module = types.ModuleType("services")
     fraudhunter_module = types.ModuleType("services.fraudhunter")
@@ -34,6 +35,12 @@ def _load_store_modules(monkeypatch, offline_store="postgresql", pyspark_enabled
         pyspark_enabled=pyspark_enabled,
         fraudhunter_realtime_writer_batch_insert_size=500,
         fraudhunter_wide_table_offline_store=offline_store,
+        fraudhunter_wide_table_duckdb_storage_path=storage_path,
+        fraudhunter_wide_table_duckdb_compression="zstd",
+        fraudhunter_analyze_db={"postgresql": {
+            "host": "127.0.0.1", "port": 5432, "database": "taosha_fraudhunter",
+            "user": "taosha", "password": "secret'",
+        }},
     )
 
     logger_module = types.ModuleType("utils.logger")
@@ -70,11 +77,16 @@ def _load_store_modules(monkeypatch, offline_store="postgresql", pyspark_enabled
 
     base_module = _exec("base.py", "services.fraudhunter.wide_table_service.store.base")
     pg_module = _exec("pg_store.py", "services.fraudhunter.wide_table_service.store.pg_store")
+    duckdb_module = _exec(
+        "duckdb_parquet_store.py",
+        "services.fraudhunter.wide_table_service.store.duckdb_parquet_store",
+    )
     init_module = _exec("__init__.py", "services.fraudhunter.wide_table_service.store")
 
     return {
         "base": base_module,
         "pg_store": pg_module,
+        "duckdb_store": duckdb_module,
         "factory": init_module,
         "analyze_db_utils": analyze_db_utils_module,
         "config": config_module,
@@ -93,10 +105,29 @@ class TestGetStoreFactory:
         store = modules["factory"].get_store("postgresql")
         assert isinstance(store, modules["pg_store"].PgWideTableStore)
 
-    def test_duckdb_not_implemented_yet(self, monkeypatch):
-        """阶段2仅收敛抽象；duckdb 实现在阶段3落地"""
+    def test_duckdb_backend_returns_duckdb_store(self, monkeypatch):
+        """阶段3起 duckdb 后端可用（staging 中转全量路径）"""
         modules = _load_store_modules(monkeypatch, offline_store="duckdb")
-        with pytest.raises(NotImplementedError):
+        store = modules["factory"].get_store()
+        assert isinstance(store, modules["duckdb_store"].DuckdbParquetStore)
+        assert store.name == "duckdb"
+        assert store.supports_delta_insert_select is False
+
+    def test_resolve_stores_both_returns_pg_first(self, monkeypatch):
+        """both 模式：PG先、Parquet后（串行双写顺序）"""
+        modules = _load_store_modules(monkeypatch, offline_store="both")
+        stores = modules["factory"].resolve_stores()
+        assert [s.name for s in stores] == ["postgresql", "duckdb"]
+
+    def test_resolve_stores_single_backend(self, monkeypatch):
+        modules = _load_store_modules(monkeypatch, offline_store="duckdb")
+        stores = modules["factory"].resolve_stores()
+        assert [s.name for s in stores] == ["duckdb"]
+
+    def test_get_store_rejects_both(self, monkeypatch):
+        """both 不作为单store返回（由 resolve_stores 拆分）"""
+        modules = _load_store_modules(monkeypatch, offline_store="both")
+        with pytest.raises(ValueError):
             modules["factory"].get_store()
 
     def test_unknown_backend_raises(self, monkeypatch):
@@ -223,11 +254,15 @@ class TestSyncServiceWritePathAcceptance:
         import re
 
         source = self._sync_service_source()
-        # 每个写路径调用点的前缀必须是 self._store.（经存储抽象层路由）
+        # 每个写路径调用点的前缀必须是 store. / self._store.（经存储抽象层路由）
+        allowed_prefixes = ("store.", "self._store.")
         for call in self._WRITE_PATH_CALLS:
             for match in re.finditer(re.escape(call) + r"\s*\(", source):
-                prefix = source[max(0, match.start() - len("self._store.")):match.start()]
-                assert prefix == "self._store.", (
+                matched = any(
+                    source[max(0, match.start() - len(p)):match.start()] == p
+                    for p in allowed_prefixes
+                )
+                assert matched, (
                     f"sync_service.py 仍直接调用存储写路径: {call}（应经 WideTableStore）"
                 )
 

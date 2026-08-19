@@ -33,6 +33,7 @@ def _load_sync_service_with_stubs(monkeypatch):
 
     store_module = types.ModuleType("services.fraudhunter.wide_table_service.store")
     store_module.get_store = lambda *args, **kwargs: None
+    store_module.resolve_stores = lambda *args, **kwargs: []
 
     logger_module = types.ModuleType("utils.logger")
     logger_module.logger = types.SimpleNamespace(
@@ -124,9 +125,50 @@ def test_build_sync_delta_reports_removed_and_deferred_columns(monkeypatch):
     assert delta.removed_cols == ["i_removed"]
 
 
+def test_merge_store_results_prefers_ready(monkeypatch):
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
+
+    merged = WideTableSyncService._merge_store_results([
+        {"status": "ready", "id": 1, "row_count": 10, "is_new_sync": False},
+        {"status": "skipped", "skip_reason": "snapshot_exists"},
+    ])
+    assert merged["status"] == "ready"
+    assert merged["is_new_sync"] is False  # 任一 ready 且无新同步 → False
+
+
+def test_merge_store_results_marks_new_sync_if_any(monkeypatch):
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
+
+    merged = WideTableSyncService._merge_store_results([
+        {"status": "ready", "id": 1, "row_count": 10, "is_new_sync": True},
+        None,  # 另一后端失败
+    ])
+    assert merged["status"] == "ready"
+    assert merged["is_new_sync"] is True
+
+
+def test_merge_store_results_all_skipped_returns_first(monkeypatch):
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
+
+    merged = WideTableSyncService._merge_store_results([
+        {"status": "skipped", "skip_reason": "version_not_ready"},
+        {"status": "skipped", "skip_reason": "snapshot_exists"},
+    ])
+    assert merged["skip_reason"] == "version_not_ready"
+
+
+def test_merge_store_results_all_failed_returns_none(monkeypatch):
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
+    assert WideTableSyncService._merge_store_results([None, None]) is None
+
+
 def test_sync_wide_table_skips_unchanged_metadata_with_reusable_base(monkeypatch):
     WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
     service = WideTableSyncService.__new__(WideTableSyncService)
+
+    service._stores = [types.SimpleNamespace(
+        name="postgresql", supports_delta_insert_select=True
+    )]
 
     target_metadata = {
         "1": {"version": 1, "indicator_code": "i_same"},
@@ -138,13 +180,13 @@ def test_sync_wide_table_skips_unchanged_metadata_with_reusable_base(monkeypatch
     }
 
     monkeypatch.setattr(service, "_check_version_ready", lambda *args: True)
-    monkeypatch.setattr(service, "_get_existing_snapshot", lambda *args: None)
+    monkeypatch.setattr(service, "_get_existing_snapshot", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         service,
         "_find_copy_source",
         lambda *args: ("dep_acct_wide_table_base_20260102", target_metadata),
     )
-    monkeypatch.setattr(service, "_create_generating_snapshot", lambda *args: 123)
+    monkeypatch.setattr(service, "_create_generating_snapshot", lambda *args, **kwargs: 123)
 
     def record_full_sync(*args, **kwargs):
         calls["full_sync"] += 1

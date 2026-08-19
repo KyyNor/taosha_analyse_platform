@@ -21,6 +21,10 @@ class WideTableStore(ABC):
 
     name: ClassVar[str]
 
+    # 是否支持增量 insert-select 语义（从旧版本表复用 static 列）。
+    # PG: True；DuckDB: 阶段6前为 False（版本变化走全量）。
+    supports_delta_insert_select: ClassVar[bool] = False
+
     @abstractmethod
     def ensure_table(
         self,
