@@ -199,6 +199,12 @@ pages:
         level: 1
         sort_order: 10
 
+      - path: "/fraudhunter/general-config"
+        name: "通用配置"
+        description: "各功能模块的展示参数配置页面"
+        level: 1
+        sort_order: 11
+
   # ===== 元数据管理模块 =====
   - path: "/metadata"
     name: "元数据管理"

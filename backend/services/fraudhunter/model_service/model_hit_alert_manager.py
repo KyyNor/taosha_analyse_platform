@@ -16,6 +16,7 @@ from models.fraudhunter.model_execution_tracking import (
     FraudHunterModelAlertControlRecord
 )
 from models.fraudhunter.risk_control_model import FraudHunterModelDefinition
+from models.fraudhunter.indicator import FraudHunterIndicatorDefinition
 from models.fraudhunter.alert_notify_targets import (
     FraudHunterAlertAcctAssign,
     FraudHunterAlertCustOwner,
@@ -39,10 +40,24 @@ from domain.alert_notification import (
 from domain.history_trend import (
     validate_history_trend_period as validate_history_trend_period_domain,
 )
+from domain.indicator_tag_display import (
+    dedupe_preserve_order,
+    find_unknown_codes,
+    project_indicator_values,
+)
 from services.fraudhunter.system_config_service import SystemConfigManager
+from schemas.fraudhunter.system_config import SystemConfigCreate
 from utils.logger import logger
 from utils.excel_exporter import create_excel_exporter
 from utils.config import settings
+
+
+# 命中记录列表指标值展示配置：存储于 fraudhunter_system_config 的固定配置键，
+# config_value 形如 {"value": ["<indicator_code>", ...]}，顺序即展示顺序
+HIT_RECORD_INDICATOR_TAG_CONFIG_KEY = 'hit_record_indicator_tags'
+HIT_RECORD_INDICATOR_TAG_CONFIG_DESC = '命中记录列表指标值展示配置（指标编码有序列表）'
+# 批量取值时单条 IN 查询的分片大小
+INDICATOR_VALUE_QUERY_CHUNK_SIZE = 500
 
 
 @dataclass
@@ -831,6 +846,102 @@ class ModelHitAlertManager:
             hit_record=HitRecordResponse.from_orm(hit_record)
         )
 
+    def resolve_indicator_codes(self, codes: List[str]) -> List[Dict[str, str]]:
+        """校验指标编码并返回指标元数据列表
+
+        去重保序；编码不存在的静默跳过（用于读取配置时容忍已删除的指标）。
+
+        Args:
+            codes: 指标编码列表
+
+        Returns:
+            [{'indicator_code', 'indicator_name', 'indicator_type'}, ...]
+        """
+        ordered = dedupe_preserve_order(codes)
+        if not ordered:
+            return []
+
+        definitions = self.db.query(FraudHunterIndicatorDefinition).filter(
+            FraudHunterIndicatorDefinition.indicator_code.in_(ordered)
+        ).all()
+        by_code = {d.indicator_code: d for d in definitions}
+
+        result = []
+        for code in ordered:
+            definition = by_code.get(code)
+            if definition:
+                result.append({
+                    'indicator_code': definition.indicator_code,
+                    'indicator_name': definition.indicator_name,
+                    'indicator_type': definition.indicator_type,
+                })
+        return result
+
+    def get_hit_indicator_tag_config(self) -> List[Dict[str, str]]:
+        """读取命中记录指标展示配置，解析为仍存在的指标元数据（未配置返回空列表）"""
+        codes = self.config_manager.get_config_value(HIT_RECORD_INDICATOR_TAG_CONFIG_KEY, [])
+        if not isinstance(codes, list):
+            codes = []
+        return self.resolve_indicator_codes(codes)
+
+    def update_hit_indicator_tag_config(self, codes: List[str]) -> List[Dict[str, str]]:
+        """保存命中记录指标展示配置
+
+        Args:
+            codes: 指标编码有序列表，空列表表示清空配置
+
+        Returns:
+            解析后的指标元数据列表
+
+        Raises:
+            ValueError: 存在未知指标编码时
+        """
+        resolved = self.resolve_indicator_codes(codes)
+        unknown = find_unknown_codes(codes, [m['indicator_code'] for m in resolved])
+        if unknown:
+            raise ValueError(f"指标编码不存在: {', '.join(unknown)}")
+
+        self.config_manager.upsert_config(SystemConfigCreate(
+            config_category='system_param',
+            config_key=HIT_RECORD_INDICATOR_TAG_CONFIG_KEY,
+            config_desc=HIT_RECORD_INDICATOR_TAG_CONFIG_DESC,
+            config_type='list',
+            config_value={'value': [m['indicator_code'] for m in resolved]},
+            sql_in_convert=False,
+            sort_order=0,
+        ))
+        return resolved
+
+    def get_hit_indicator_values(
+        self,
+        hit_record_ids: List[int],
+        indicator_codes: List[str],
+    ) -> Dict[int, Dict[str, Any]]:
+        """批量获取命中记录的指定指标值
+
+        Args:
+            hit_record_ids: 命中记录ID列表
+            indicator_codes: 指标编码列表
+
+        Returns:
+            {hit_record_id: {indicator_code: 值}}；记录不存在或指标缺失时值为 None
+        """
+        indicators = self.resolve_indicator_codes(indicator_codes)
+        values: Dict[int, Dict[str, Any]] = {record_id: {} for record_id in hit_record_ids}
+        if not indicators or not hit_record_ids:
+            return values
+
+        unique_ids = list(dict.fromkeys(hit_record_ids))
+        for start in range(0, len(unique_ids), INDICATOR_VALUE_QUERY_CHUNK_SIZE):
+            chunk = unique_ids[start:start + INDICATOR_VALUE_QUERY_CHUNK_SIZE]
+            rows = self.db.query(
+                FraudHunterModelHitRecord.id,
+                FraudHunterModelHitRecord.indicator_data,
+            ).filter(FraudHunterModelHitRecord.id.in_(chunk)).all()
+            for record_id, indicator_data in rows:
+                values[record_id] = project_indicator_values(indicator_data, indicators)
+        return values
+
     def export_alert_control_records(
         self,
         filters: AlertControlFilters,
@@ -876,6 +987,19 @@ class ModelHitAlertManager:
                 '创建时间': record.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                 '更新时间': record.updated_at.strftime('%Y-%m-%d %H:%M:%S')
             })
+
+        # 追加配置的指标值列（与列表页指标值 tag 同源同投影）
+        tag_indicators = self.get_hit_indicator_tag_config()
+        if tag_indicators and records:
+            values_map = self.get_hit_indicator_values(
+                [record.hit_record_id for record in records],
+                [meta['indicator_code'] for meta in tag_indicators],
+            )
+            for row, record in zip(export_data, records):
+                record_values = values_map.get(record.hit_record_id, {})
+                for meta in tag_indicators:
+                    value = record_values.get(meta['indicator_code'])
+                    row[meta['indicator_name']] = '—' if value is None else str(value)
 
         # 转换为DataFrame
         df = pd.DataFrame(export_data) if export_data else pd.DataFrame()

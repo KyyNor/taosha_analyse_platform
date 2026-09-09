@@ -25,6 +25,10 @@ from schemas.fraudhunter.alert_control_record import (
     TrendResponse,
     AlertControlListRequest,
     AlertControlExportRequest,
+    IndicatorTagConfigResponse,
+    IndicatorTagConfigUpdateRequest,
+    IndicatorValuesRequest,
+    IndicatorValuesResponse,
 )
 from services.fraudhunter.model_service.model_hit_alert_manager import ModelHitAlertManager
 from utils.logger import logger
@@ -146,6 +150,103 @@ async def list_alert_control_records(
         raise HTTPException(
             status_code=500,
             detail=f"获取告警管控记录列表失败: {str(e)}"
+        )
+
+
+@router.get(
+    "/indicator-tag-config",
+    response_model=IndicatorTagConfigResponse,
+    summary="获取命中记录指标展示配置"
+)
+async def get_indicator_tag_config(
+    db: Session = Depends(get_db)
+):
+    """
+    获取命中记录列表的指标值展示配置
+
+    返回:
+    - indicators: 有序指标列表（编码/名称/类型），未配置或配置为空时为空列表
+    """
+    try:
+        manager = ModelHitAlertManager(db)
+        indicators = manager.get_hit_indicator_tag_config()
+        return IndicatorTagConfigResponse(indicators=indicators)
+    except Exception as e:
+        logger.error(f"获取命中记录指标展示配置失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取命中记录指标展示配置失败: {str(e)}"
+        )
+
+
+@router.put(
+    "/indicator-tag-config",
+    response_model=IndicatorTagConfigResponse,
+    summary="更新命中记录指标展示配置"
+)
+async def update_indicator_tag_config(
+    body: IndicatorTagConfigUpdateRequest,
+
+    current_user: UserInfo = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    更新命中记录列表的指标值展示配置
+
+    参数:
+    - indicator_codes: 指标编码有序列表（顺序即展示顺序），空列表表示清空配置
+
+    存在未知指标编码时返回 400
+    """
+    try:
+        manager = ModelHitAlertManager(db)
+        indicators = manager.update_hit_indicator_tag_config(body.indicator_codes)
+
+        logger.info(
+            f"更新命中记录指标展示配置: user={current_user.user_id}, "
+            f"codes={body.indicator_codes}"
+        )
+        return IndicatorTagConfigResponse(indicators=indicators)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"更新命中记录指标展示配置失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"更新命中记录指标展示配置失败: {str(e)}"
+        )
+
+
+@router.post(
+    "/indicator-values",
+    response_model=IndicatorValuesResponse,
+    summary="批量获取命中记录指标值"
+)
+async def get_indicator_values(
+    body: IndicatorValuesRequest,
+
+    db: Session = Depends(get_db)
+):
+    """
+    按命中记录ID批量获取指定指标的值（供列表页异步加载）
+
+    参数:
+    - hit_record_ids: 命中记录ID列表，单次最多500条
+    - indicator_codes: 指标编码列表
+
+    返回:
+    - values: {hit_record_id: {indicator_code: 值}}（JSON序列化后键为字符串），
+      指标缺失（未写入该记录或已改名）时值为 null
+    """
+    try:
+        manager = ModelHitAlertManager(db)
+        values = manager.get_hit_indicator_values(body.hit_record_ids, body.indicator_codes)
+        return IndicatorValuesResponse(values=values)
+    except Exception as e:
+        logger.error(f"批量获取命中记录指标值失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"批量获取命中记录指标值失败: {str(e)}"
         )
 
 

@@ -20,7 +20,9 @@ import { ModelMultiSelect } from "@/components/fraudhunter/alert/ModelMultiSelec
 import { alertControlRecordService } from "@/lib/services/fraudhunter/alertControlRecordService";
 import type {
   AlertControlRecord,
-  AlertControlFilters
+  AlertControlFilters,
+  IndicatorTagItem,
+  IndicatorValuesMap
 } from "@/lib/services/fraudhunter/alertControlRecordService";
 import { alertStatusBadgeConfig, controlStatusBadgeConfig } from "@/lib/utils/badgeConfigs";
 import { downloadFromResponse, generateTimestampedFilename } from "@/lib/utils/downloadUtils";
@@ -54,6 +56,11 @@ export default function AlertControlRecordsPage() {
   const [filters, setFilters] = useState<AlertControlFilters>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [hideInactive, setHideInactive] = useState(true);
+
+  // 指标值展示配置与批量取值结果（来自通用配置页面）
+  const [tagIndicators, setTagIndicators] = useState<IndicatorTagItem[]>([]);
+  const [indicatorValues, setIndicatorValues] = useState<IndicatorValuesMap>({});
+  const [valuesLoading, setValuesLoading] = useState(false);
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -110,6 +117,45 @@ export default function AlertControlRecordsPage() {
     loadRecords();
   }, [filters, searchQuery, currentPage, hideInactive]);
 
+  // 加载指标展示配置（未配置或空配置时不展示「指标值」列）
+  useEffect(() => {
+    const loadTagConfig = async () => {
+      try {
+        const config = await alertControlRecordService.getIndicatorTagConfig();
+        setTagIndicators(config.indicators || []);
+      } catch (error) {
+        console.error("加载指标展示配置失败:", error);
+      }
+    };
+    loadTagConfig();
+  }, []);
+
+  // 列表数据到达后，按本页命中记录批量拉取配置指标的值（单次请求）
+  useEffect(() => {
+    if (tagIndicators.length === 0 || data.length === 0) {
+      setIndicatorValues({});
+      return;
+    }
+    let cancelled = false;
+    const loadValues = async () => {
+      setValuesLoading(true);
+      try {
+        const values = await alertControlRecordService.fetchIndicatorValues(
+          data.map(record => record.hit_record_id),
+          tagIndicators.map(indicator => indicator.indicator_code)
+        );
+        if (!cancelled) setIndicatorValues(values);
+      } catch (error) {
+        console.error("批量加载指标值失败:", error);
+        if (!cancelled) setIndicatorValues({});
+      } finally {
+        if (!cancelled) setValuesLoading(false);
+      }
+    };
+    loadValues();
+    return () => { cancelled = true; };
+  }, [data, tagIndicators]);
+
   // 筛选条件或搜索变化时重置到第一页
   useEffect(() => {
     setCurrentPage(1);
@@ -149,8 +195,37 @@ export default function AlertControlRecordsPage() {
 
 
 
-  // 表格列配置
-  const columns = [
+  // 表格列配置（配置了展示指标时在「模型」后插入「指标值」列）
+  const indicatorValueColumn = {
+    key: "indicator_values",
+    label: "指标值",
+    type: "custom" as const,
+    render: (_: unknown, row: AlertControlRecord) => {
+      if (valuesLoading && Object.keys(indicatorValues).length === 0) {
+        return <span className="text-xs text-muted-foreground">加载中…</span>;
+      }
+      const recordValues = indicatorValues[String(row.hit_record_id)];
+      return (
+        <div className="flex flex-wrap gap-1">
+          {tagIndicators.map(indicator => {
+            const value = recordValues?.[indicator.indicator_code];
+            const display = value === null || value === undefined ? "—" : String(value);
+            return (
+              <span
+                key={indicator.indicator_code}
+                title={`${indicator.indicator_name}: ${display}`}
+                className="inline-block max-w-[200px] truncate px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700"
+              >
+                {indicator.indicator_name}:{display}
+              </span>
+            );
+          })}
+        </div>
+      );
+    }
+  };
+
+  const baseColumns = [
     { key: "account_id", label: "账号", type: "text" as const, width: "160px" },
     { key: "branch_no", label: "机构号", type: "text" as const, width: "110px" },
     { key: "record_date", label: "日期", type: "text" as const, width: "115px" },
@@ -191,6 +266,11 @@ export default function AlertControlRecordsPage() {
     { key: "control_serial_number", label: "管控流水号", type: "text" as const },
     { key: "created_at", label: "创建时间", type: "datetime" as const }
   ];
+
+  // 「指标值」列插在「模型」列之后
+  const columns = tagIndicators.length > 0
+    ? [...baseColumns.slice(0, 4), indicatorValueColumn, ...baseColumns.slice(4)]
+    : baseColumns;
 
   // 获取今天的日期字符串
   const getTodayString = () => {
