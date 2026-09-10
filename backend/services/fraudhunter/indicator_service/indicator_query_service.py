@@ -296,7 +296,7 @@ class IndicatorQueryService:
 
             if duckdb_mode:
                 # 纯本地 Parquet 查询，无需 ATTACH PG
-                with query_router.DuckQuerySession(attach_pg=False) as duck_session:
+                with query_router.get_query_session(attach_pg=False) as duck_session:
                     total_df = duck_session.execute_df(count_sql)
                     total_count = (
                         int(total_df.iloc[0]['count'])

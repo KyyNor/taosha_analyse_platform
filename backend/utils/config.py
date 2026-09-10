@@ -247,6 +247,14 @@ class ConfigManager:
             fraudhunter_wide_table_duckdb_compression: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('compression', 'zstd')
             fraudhunter_wide_table_duckdb_staging_ttl_hours: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('staging_ttl_hours', 24)
             fraudhunter_wide_table_duckdb_parquet_cleanup_grace_hours: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('parquet_cleanup_grace_hours', 48)
+            # DuckDB 计算模式（docs/duckdb_remote_compute_plan.md）:
+            # local=进程内 import duckdb（现状，要求机器 glibc>=2.27）
+            # remote=经 HTTP 网关调用 duckdb 容器（后端零 duckdb 依赖，老机器可用）
+            fraudhunter_duck_compute_mode: str = self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('mode', 'local')
+            fraudhunter_duck_compute_endpoint: str = self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('endpoint', 'http://127.0.0.1:9495')
+            fraudhunter_duck_compute_token: str = self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('token', '')
+            fraudhunter_duck_compute_path_map: dict = self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('path_map', {})
+            fraudhunter_duck_compute_timeout_seconds: float = float(self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('timeout_seconds', 300))
 
             # GLM-OCR配置（本地服务）
             glm_ocr_api_key: Optional[str] = os.getenv("GLM_OCR_API_KEY") or self._config_data.get('glm_ocr', {}).get('api_key', 'test-key')

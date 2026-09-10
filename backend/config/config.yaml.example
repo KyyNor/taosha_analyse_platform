@@ -302,6 +302,19 @@ fraudhunter:
       staging_ttl_hours: 24  # staging中转表(_staging_前缀)兜底清理阈值(小时)
       parquet_cleanup_grace_hours: 48  # 无引用版本目录清理宽限期(小时)，防止误删同步中目录
 
+    # DuckDB 计算模式（docs/duckdb_remote_compute_plan.md）
+    # local: 进程内 import duckdb（要求后端机器 glibc >= 2.27）
+    # remote: 经 HTTP 网关调用 duckdb 容器（build_scripts/duckdb，后端零 duckdb 依赖）
+    duck_compute:
+      mode: "local"                          # local | remote
+      endpoint: "http://127.0.0.1:9495"      # remote 模式: 网关地址（同机容器=127.0.0.1）
+      token: ""                              # remote 模式: 网关 Bearer token
+      timeout_seconds: 300                   # 单条 SQL 超时（秒）
+      # 后端路径前缀 → 容器内路径前缀（同机容器挂载相同路径时无需配置）
+      path_map: {}
+      # path_map:
+      #   "/data/taosha": "/data/taosha"
+
   # 实时数据服务配置
   realtime_data:
     enabled: false  # 是否启用实时数据服务（默认关闭）

@@ -1,0 +1,64 @@
+# DuckDB 2.0 alpha (Quack 协议) 单容器: 服务端 + HTTP 网关
+#
+#   docker compose up -d --build          # 构建并启动
+#   docker compose run --rm quack-client  # 跑一次容器间远程查询测试 (duckdb 客户端)
+#   docker compose logs -f duckdb-quack   # 看日志
+#   docker compose down -v                # 停止并清空数据卷
+#
+# 客户端按机器 glibc 版本二选一:
+#   1) glibc >= 2.27, 直连 quack 端口 (9494):
+#      ATTACH 'quack:<host>:9494' AS remote (TYPE quack, TOKEN '<QUACK_TOKEN>', DISABLE_SSL true);
+#   2) glibc < 2.27 (如 CentOS 7), 走网关 (9495), 只需 curl:
+#      curl -H "Authorization: Bearer <GATEWAY_TOKEN>" -d '{"sql":"SELECT 42"}' http://<host>:9495/query
+services:
+  duckdb-quack:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: duckdb-quack:2.0-alpha
+    container_name: duckdb-quack
+    init: true
+    ports:
+      - "9494:9494"   # quack 协议 (duckdb 客户端直连)
+      - "9495:9495"   # HTTP 网关 (curl / JSON)
+    environment:
+      QUACK_TOKEN: ${QUACK_TOKEN:-dev-token-please-change}
+      # 留空则网关自动复用 QUACK_TOKEN (见 gateway.py)
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN:-}
+      # 可选: PG 只读 ATTACH (libpq 连接串), SQL 中以 pg_rt.public.* 引用; 留空不挂
+      # 例: DUCKDB_PG_ATTACH_DSN="dbname=xx host=1.2.3.4 port=5432 user=xx password=xx"
+      PG_ATTACH_DSN: ${DUCKDB_PG_ATTACH_DSN:-}
+      # 网关: 客户端连接池大小 / 单条SQL返回行数上限 / 默认超时秒(0=不限)
+      POOL_SIZE: ${DUCKDB_POOL_SIZE:-4}
+      MAX_ROWS: ${DUCKDB_MAX_ROWS:-100000}
+    volumes:
+      - duckdb_data:/data
+      # 同机部署形态 (docs/duckdb_remote_compute_plan.md §一): 后端宽表 Parquet 根目录
+      # 以相同路径挂入容器, path_map 重写为空操作。取消注释并改路径:
+      # - /data/taosha/indicator_data/wide_tables_parquet:/data/taosha/indicator_data/wide_tables_parquet
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9494/ >/dev/null && curl -fsS http://127.0.0.1:9495/health >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  # 一次性测试容器: 与服务端容器间通信, 验证跨容器/跨主机远程查询
+  # 默认不启动, 需要 `docker compose run --rm quack-client`
+  quack-client:
+    image: python:3.12-slim
+    profiles: ["tools"]
+    environment:
+      QUACK_URI: quack:duckdb-quack:9494
+      QUACK_TOKEN: ${QUACK_TOKEN:-dev-token-please-change}
+    volumes:
+      - ./test:/tests:ro
+    command: >
+      bash -c "pip install -q --pre duckdb && python /tests/test_remote_query.py"
+    depends_on:
+      duckdb-quack:
+        condition: service_healthy
+
+volumes:
+  duckdb_data:

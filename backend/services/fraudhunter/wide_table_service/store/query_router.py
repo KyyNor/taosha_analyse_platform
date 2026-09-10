@@ -86,6 +86,22 @@ def attach_postgres(conn) -> None:
     )
 
 
+def get_query_session(attach_pg: bool = True):
+    """查询会话工厂：按 duck_compute.mode 返回本地/远程会话（同构接口）
+
+    - local（默认）: DuckQuerySession，进程内 import duckdb（现状，行为不变）
+    - remote: RemoteDuckSession，经 HTTP 网关调用 duckdb 容器
+      （后端机器 glibc < 2.27 装不了 duckdb 时使用，见 docs/duckdb_remote_compute_plan.md）
+    """
+    mode = getattr(settings, 'fraudhunter_duck_compute_mode', 'local')
+    if mode == 'remote':
+        from services.fraudhunter.wide_table_service.store.remote_session import (
+            RemoteDuckSession,
+        )
+        return RemoteDuckSession(attach_pg=attach_pg)
+    return DuckQuerySession(attach_pg=attach_pg)
+
+
 class DuckQuerySession:
     """DuckDB 查询会话（上下文管理器）
 

@@ -225,14 +225,16 @@ class WideTableSyncService:
                     continue
 
                 # 行数校验（parquet元数据计数，代价低）
+                # 经会话工厂执行：local=进程内 duckdb（现状），remote=duckdb 容器网关
                 try:
-                    import duckdb
+                    from services.fraudhunter.wide_table_service.store import query_router
 
-                    with duckdb.connect() as conn:
-                        rows = conn.execute(
-                            f"SELECT count(*) FROM read_parquet('{date_glob.as_posix()}', "
+                    with query_router.get_query_session(attach_pg=False) as duck_session:
+                        count_df = duck_session.execute_df(
+                            f"SELECT count(*) AS cnt FROM read_parquet('{date_glob.as_posix()}', "
                             f"hive_partitioning=false)"
-                        ).fetchone()[0]
+                        )
+                        rows = int(count_df.iloc[0]['cnt'])
                 except Exception as e:
                     logger.warning(f"[duckdb增量诊断] 计数失败: {version_hash[:8]}, {e}")
                     continue

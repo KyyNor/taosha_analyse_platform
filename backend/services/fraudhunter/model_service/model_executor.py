@@ -30,7 +30,7 @@ from schemas.fraudhunter.rule import RuleConfig
 from services.fraudhunter.model_service.rule_engine import RuleEngine
 from services.fraudhunter.system_config_service import SystemConfigManager
 from services.fraudhunter.wide_table_service.store import query_router
-from services.fraudhunter.wide_table_service.store.query_router import DuckQuerySession
+from services.fraudhunter.wide_table_service.store.query_router import get_query_session
 from utils.config import settings
 
 
@@ -550,7 +550,7 @@ LIMIT 10000
 
                 # 执行SQL（按快照后端选择执行引擎）
                 if duckdb_mode:
-                    with DuckQuerySession(attach_pg=True) as duck_session:
+                    with get_query_session(attach_pg=True) as duck_session:
                         execute_result_df = duck_session.execute_df(sql)
                 else:
                     execute_result_df = AnalyzeDBConnector.execute_sql(sql, fetch_df=True)
