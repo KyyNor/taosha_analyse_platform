@@ -241,6 +241,10 @@ class ConfigManager:
             fraudhunter_wide_table_sync_scheduler_interval: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('sync_scheduler_interval', 600)
             fraudhunter_wide_table_source_table: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('source_table', 'hxb_dh_data_dwm.dwm_taosha_indicator_details')
 
+            # PG 分区导出 Parquet 工具（python -m scripts.pg_partition_export）
+            fraudhunter_pg_partition_export_output_dir: str = self._config_data.get('fraudhunter', {}).get('pg_partition_export', {}).get('output_dir', '/data/taosha/indicator_data/pg_partition_export')
+            fraudhunter_pg_partition_export_compression: str = self._config_data.get('fraudhunter', {}).get('pg_partition_export', {}).get('compression', 'zstd')
+
             # GLM-OCR配置（本地服务）
             glm_ocr_api_key: Optional[str] = os.getenv("GLM_OCR_API_KEY") or self._config_data.get('glm_ocr', {}).get('api_key', 'test-key')
             glm_ocr_base_url: Optional[str] = os.getenv("GLM_OCR_BASE_URL") or self._config_data.get('glm_ocr', {}).get('base_url', 'http://localhost:8000')
