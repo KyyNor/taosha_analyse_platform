@@ -3,6 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import date, datetime
+from types import SimpleNamespace
 import time
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -426,10 +427,26 @@ def step1_generate_realtime_indicators(today, today_str, now_str):
                     logger.warning(f"没有找到 {wide_table_name} 的current版本，跳过")
                     continue
 
+                # 在会话内把线程稍后要用的字段读成普通值（SimpleNamespace），
+                # 彻底与 ORM 会话解耦：会话关闭/commit 后线程访问的是纯 Python 值，
+                # 不再触发懒加载，也无需 expunge。下游仍按属性访问，无需改动。
+                plain_tasks = [
+                    SimpleNamespace(
+                        realtime_logic_content=t.realtime_logic_content,
+                        task_code=t.task_code,
+                        task_name=t.task_name,
+                    )
+                    for t in tasks
+                ]
+                plain_version = SimpleNamespace(
+                    version_hash=current_version.version_hash,
+                    indicator_metadata=current_version.indicator_metadata,
+                )
+
                 future = executor.submit(
                     _process_single_object_type,
-                    object_type, tasks, wide_table_name, offline_table,
-                    current_version, user_variable_config,
+                    object_type, plain_tasks, wide_table_name, offline_table,
+                    plain_version, user_variable_config,
                     today, today_str, half_hour_slot, offline_tables
                 )
                 futures[future] = object_type
