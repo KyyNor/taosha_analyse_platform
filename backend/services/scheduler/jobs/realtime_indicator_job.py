@@ -29,8 +29,15 @@ def _get_latest_offline_snapshot(
     db: Session,
     wide_table_name: str
 ) -> Optional[FraudHunterWideTableSnapshot]:
-    """获取最新的离线宽表快照记录"""
-    return db.query(FraudHunterWideTableSnapshot).filter(
+    """获取最新的离线宽表快照记录
+
+    按 offline_store 配置偏好存储后端选择（Issue #9，与 ModelExecutor 同策略）：
+    postgresql → 优先 PG 快照（切回 PG 后实时任务完全走原 PG 链路）；
+    duckdb/both → 优先 DuckDB 快照。偏好后端无快照时回退最新一条并告警。
+    """
+    from services.fraudhunter.wide_table_service.store import query_router
+
+    snapshots = db.query(FraudHunterWideTableSnapshot).filter(
         and_(
             FraudHunterWideTableSnapshot.wide_table_name == wide_table_name,
             FraudHunterWideTableSnapshot.status == 'ready'
@@ -38,7 +45,8 @@ def _get_latest_offline_snapshot(
     ).order_by(
         desc(FraudHunterWideTableSnapshot.etl_date),
         desc(FraudHunterWideTableSnapshot.generation_time)
-    ).first()
+    ).all()
+    return query_router.select_snapshot_by_preferred_backend(snapshots)
 
 
 def _get_latest_offline_table_name(
@@ -160,7 +168,7 @@ def _execute_single_task(
 
     try:
         if duckdb_mode:
-            from services.fraudhunter.wide_table_service.store.query_router import DuckQuerySession
+            from services.fraudhunter.wide_table_service.store.query_router import get_query_session
 
             # 实时流水表固定在PG，duckdb模式下补 ATTACH 前缀
             sql = _re.sub(
@@ -168,7 +176,8 @@ def _execute_single_task(
                 'pg_rt.public.realtime_oss_inct_new',
                 sql,
             )
-            with DuckQuerySession(attach_pg=True) as duck_session:
+            # 统一经工厂取会话（Issue #8）：remote 模式下后端零 duckdb 依赖
+            with get_query_session(attach_pg=True) as duck_session:
                 result_df = duck_session.execute_df(sql)
         else:
             result_df = AnalyzeDBConnector.execute_sql(sql, fetch_df=True)
@@ -571,9 +580,10 @@ def step2_online_model_executor(db, offline_tables, generated_realtime_tables):
 
     try:
         if offline_duckdb_mode:
-            from services.fraudhunter.wide_table_service.store.query_router import DuckQuerySession
+            from services.fraudhunter.wide_table_service.store.query_router import get_query_session
 
-            with DuckQuerySession(attach_pg=True) as duck_session:
+            # 统一经工厂取会话（Issue #8）：remote 模式下后端零 duckdb 依赖
+            with get_query_session(attach_pg=True) as duck_session:
                 matched_df = duck_session.execute_df(model_sql)
         else:
             matched_df = AnalyzeDBConnector.execute_sql(model_sql, fetch_df=True)

@@ -14,9 +14,16 @@ DuckQuerySession 的同构替身:
   SQL 中 pg_rt.public.* 引用方式与本地模式完全一致
 - 响应为列式 JSON (format=columns), 按 types 还原 dtype;
   与本地 fetchdf 的已知差异: DATE/TIMESTAMP 以 ISO 字符串返回 (上层 JSON 序列化本就要转字符串)
+- 类型恢复策略 (Issue #5):
+  * 整数列含 NULL → pandas nullable Int64 (无 NULL 保持 int64, 与本地非空行为一致);
+    HUGEINT 可能超 int64 → 直接对象列
+  * 布尔列含 NULL → pandas nullable boolean (无 NULL 保持 bool)
+  * DECIMAL → decimal.Decimal 对象列 (网关以字符串传输完整精度, 不静默降 float)
+  * DATE/TIMESTAMP → ISO 字符串对象列 (上层序列化本就要转字符串)
 - DDL/DML 返回空 DataFrame (本地路径 DDL 不返回 DataFrame, 调用方不用于读)
 """
 
+import decimal
 from typing import Optional
 
 import pandas as pd
@@ -87,24 +94,48 @@ class RemoteDuckSession:
         return self._to_dataframe(resp.json())
 
     @staticmethod
-    def _to_dataframe(payload: dict) -> pd.DataFrame:
+    def _column_series(col: str, values: list, typ: str) -> 'pd.Series':
+        """按服务端返回的 DuckDB 类型恢复单列（含 NULL 安全处理，Issue #5）"""
+        t = typ.upper()
+        has_null = any(v is None for v in values)
+
+        if t.startswith('DECIMAL'):
+            # 高精度 Decimal 保留为对象列（网关传字符串原值），不静默降 float
+            return pd.Series(
+                [None if v is None else decimal.Decimal(str(v)) for v in values],
+                dtype=object,
+            )
+        if t.startswith('BOOLEAN'):
+            if has_null:
+                return pd.Series(
+                    [None if v is None else v for v in values], dtype='boolean',
+                )
+            return pd.Series(values, dtype='bool')
+        if t.startswith('HUGEINT'):
+            # HUGEINT 可能超出 int64 表达范围，保持对象列
+            return pd.Series(values, dtype=object)
+        if t.startswith(('BIGINT', 'INTEGER', 'SMALLINT', 'TINYINT', 'INT')):
+            if has_null:
+                return pd.Series(
+                    [None if v is None else v for v in values], dtype='Int64',
+                )
+            return pd.Series(values, dtype='int64')
+        # DOUBLE/FLOAT: None 由 float64 的 NaN 表达（与本地 fetchdf 行为一致）
+        # VARCHAR/DATE/TIMESTAMP/LIST/STRUCT ...: 保持对象
+        return pd.Series(values, dtype='float64' if t.startswith(('DOUBLE', 'FLOAT'))
+                         else object)
+
+    @classmethod
+    def _to_dataframe(cls, payload: dict) -> pd.DataFrame:
         columns = payload.get('columns') or []
         data = payload.get('data') or {}
         if not columns or payload.get('row_count', 0) == 0:
             return pd.DataFrame(columns=columns)
         types = payload.get('types') or [''] * len(columns)
-        series = {}
-        for col, typ in zip(columns, types):
-            values = data.get(col, [])
-            t = typ.upper()
-            if t.startswith(('BIGINT', 'INTEGER', 'SMALLINT', 'TINYINT', 'HUGEINT', 'INT')):
-                series[col] = pd.Series(values, dtype='int64')
-            elif t.startswith(('DOUBLE', 'FLOAT', 'DECIMAL')):
-                series[col] = pd.Series(values, dtype='float64')
-            elif t.startswith('BOOLEAN'):
-                series[col] = pd.Series(values, dtype='bool')
-            else:  # VARCHAR / DATE / TIMESTAMP / LIST / STRUCT ...: 保持对象
-                series[col] = pd.Series(values, dtype=object)
+        series = {
+            col: cls._column_series(col, data.get(col, []), typ)
+            for col, typ in zip(columns, types)
+        }
         df = pd.DataFrame(series, columns=columns)
         if payload.get('truncated'):
             logger.warning(

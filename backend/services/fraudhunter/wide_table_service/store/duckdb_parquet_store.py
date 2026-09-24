@@ -34,6 +34,24 @@ from .pg_store import PgWideTableStore
 PARQUET_FILE_PATTERN = "part-*.parquet"
 
 
+class ReconcileError(RuntimeError):
+    """对账失败（行数/列集/内容校验和不一致）
+
+    remote 写路径区分失败语义（Issue #6）：本类异常保留 tmp/staging 现场
+    便于人工复核（路径已落日志），由 Parquet 清理任务的 TTL 兜底删除；
+    SQL/COPY 执行失败等其他异常才立即清理不完整的 tmp。
+    """
+
+
+class TargetUniverseChangedError(RuntimeError):
+    """增量列改写的前置不变量被破坏：delta 中出现旧版本 Parquet 不存在的 target_id
+
+    DuckDB 增量以旧版本 Parquet 为 LEFT JOIN 左表，隐含前提是同一 etl_date
+    下不同指标版本之间 target_id universe 不变（Issue #7）。旧快照生成后源数据
+    补入新对象时该前提失效，继续合并会静默丢行——抛本异常，由调用方回退全量路径。
+    """
+
+
 class DuckdbParquetStore(WideTableStore):
     """DuckDB Parquet 离线宽表存储（staging 中转全量 + 本地增量列改写）"""
 
@@ -184,6 +202,11 @@ class DuckdbParquetStore(WideTableStore):
         与 PG 的 insert_select_from_base_delta 语义对齐（LEFT JOIN 保留全部对象行，
         无 delta 匹配的新列取 NULL）；removed 列不 SELECT 即消失。
 
+        前置不变量（Issue #7）：同一 etl_date 下旧版本 Parquet 与本次 delta 的
+        target_id universe 必须一致（旧 ⊇ 新）。旧快照生成后源数据补入新对象时，
+        LEFT JOIN 会静默丢弃新对象——执行前先反连接计数校验，不满足抛
+        TargetUniverseChangedError，由调用方回退全量路径。
+
         Args:
             dest_table: 新版本目录名（{wide_table}_{vh8}）
             base_table: 旧版本 Parquet 目录绝对路径
@@ -209,10 +232,15 @@ class DuckdbParquetStore(WideTableStore):
         )
 
         if self._duck_compute_mode() == 'remote':
-            new_rows = self._merge_delta_remote(copy_sql, old_relation, tmp_dir, new_dir)
+            new_rows = self._merge_delta_remote(
+                copy_sql, old_relation, delta_table, tmp_dir, new_dir,
+            )
         else:
             conn = self._attach_pg()
             try:
+                self._check_target_universe_local(
+                    conn, old_relation, delta_table, tmp_dir,
+                )
                 logger.debug(f"[duckdb] 增量COPY SQL: {copy_sql}")
                 conn.execute(copy_sql)
 
@@ -221,7 +249,7 @@ class DuckdbParquetStore(WideTableStore):
                 old_rows = conn.execute(f"SELECT count(*) FROM {old_relation}").fetchone()[0]
                 new_rows = conn.execute(f"SELECT count(*) FROM {new_relation}").fetchone()[0]
                 if new_rows != old_rows:
-                    raise RuntimeError(
+                    raise ReconcileError(
                         f"[duckdb] 增量对账失败: 新版本行数({new_rows}) != 旧版本行数({old_rows})"
                     )
             finally:
@@ -297,6 +325,58 @@ class DuckdbParquetStore(WideTableStore):
             f"(FORMAT PARQUET, COMPRESSION {self._compression})"
         )
 
+    @staticmethod
+    def _build_universe_check_sql(old_relation: str, delta_table: str | None,
+                                  alias: str = 'pg_src') -> str | None:
+        """增量前置不变量校验 SQL（Issue #7）：delta 中旧版本不存在的 target_id 计数
+
+        LEFT JOIN 以旧 Parquet 为左表，新出现的 target_id 会被静默丢弃；
+        计数 > 0 即不变量破坏。纯列裁剪（delta_table=None）无新增对象风险，返回 None。
+        """
+        if not delta_table:
+            return None
+        return (
+            f"SELECT count(*) FROM {alias}.public.{delta_table} d "
+            f"WHERE NOT EXISTS ("
+            f"SELECT 1 FROM {old_relation} s "
+            f"WHERE s.target_id = d.target_id AND s.etl_date = d.etl_date)"
+        )
+
+    @classmethod
+    def _assert_universe(cls, new_targets: int, old_relation: str) -> None:
+        if new_targets:
+            raise TargetUniverseChangedError(
+                f"[duckdb] 增量前置校验失败: delta 含 {new_targets} 个旧版本 Parquet "
+                f"不存在的 target_id（{old_relation}），继续合并会静默丢行，"
+                f"请回退全量路径"
+            )
+
+    def _check_target_universe_local(self, conn, old_relation: str,
+                                     delta_table: str | None, tmp_dir: Path) -> None:
+        """local 模式增量前置校验（在 COPY 前的同一连接上执行）"""
+        check_sql = self._build_universe_check_sql(old_relation, delta_table)
+        if not check_sql:
+            return
+        logger.debug(f"[duckdb] 增量target_id universe校验 SQL: {check_sql}")
+        self._assert_universe(
+            int(conn.execute(check_sql).fetchone()[0]), old_relation,
+        )
+
+    def _check_target_universe_remote(self, old_relation: str, delta_table: str | None) -> None:
+        """remote 模式增量前置校验（只读查询，经网关在容器内执行）"""
+        check_sql = self._build_universe_check_sql(
+            old_relation, delta_table, alias=self._pg_alias(),
+        )
+        if not check_sql:
+            return
+        rs = self._remote()
+        # prepare=False/land=False: 网关仅租连接执行只读 SQL，不触碰任何目录
+        res = rs.remote_write_sqls(
+            [check_sql], '/tmp/.taosha-universe-check',
+            prepare=False, land=False,
+        )
+        self._assert_universe(int(res['results'][0]['rows'][0][0]), old_relation)
+
     def _build_checksum_sql(self, relation: str, columns: List[str]) -> str:
         """构建行数 + 顺序无关内容校验和（sum(hash(行拼接))）"""
         joined = ", ".join(f"{col}::VARCHAR" for col in columns)
@@ -341,19 +421,21 @@ class DuckdbParquetStore(WideTableStore):
         # 列集合一致（staging 允许多出 created_at 审计列）
         extra = [c for c in parquet_cols if c not in staging_cols]
         if extra:
-            raise RuntimeError(f"[duckdb] 对账失败: parquet多出staging不存在的列: {extra}")
+            raise ReconcileError(
+                f"[duckdb] 对账失败: parquet多出staging不存在的列: {extra}"
+            )
 
         # spark_rows 仅同步链路有（互转场景为 None，跳过该侧核对）
         if spark_rows is not None and spark_rows != staging_n:
-            raise RuntimeError(
+            raise ReconcileError(
                 f"[duckdb] 对账失败: Spark行数({spark_rows}) != staging行数({staging_n})"
             )
         if staging_n != parquet_n:
-            raise RuntimeError(
+            raise ReconcileError(
                 f"[duckdb] 对账失败: staging行数({staging_n}) != parquet行数({parquet_n})"
             )
         if staging_hash != parquet_hash:
-            raise RuntimeError(
+            raise ReconcileError(
                 f"[duckdb] 对账失败: 内容校验和不一致 "
                 f"(staging={staging_hash}, parquet={parquet_hash})"
             )
@@ -392,6 +474,21 @@ class DuckdbParquetStore(WideTableStore):
             staging_n, staging_hash, spark_rows,
         )
 
+    def _remote_failure_dispatch(self, tmp_dir: Path, exc: Exception) -> None:
+        """remote 写路径失败语义（Issue #6）：
+
+        - 对账失败（ReconcileError / TargetUniverseChangedError）：保留 tmp 现场
+          供人工复核，路径已落日志，由 Parquet 清理任务 TTL 兜底删除；
+        - SQL/COPY 执行失败等其他异常：立即清理不完整的 tmp。
+        """
+        if isinstance(exc, (ReconcileError, TargetUniverseChangedError)):
+            logger.error(
+                f"[duckdb-remote] 对账失败，保留 tmp 现场待排障（TTL兜底清理）: "
+                f"tmp={tmp_dir}"
+            )
+            return
+        self._remote().remote_write_cleanup(tmp_dir.as_posix())
+
     def _write_pivot_remote(self, staging: str, final_dir: Path, spark_rows: int) -> None:
         """全量落盘 remote：COPY + 三方对账 + 原子落盘（网关分段写协议）"""
         rs = self._remote()
@@ -406,15 +503,16 @@ class DuckdbParquetStore(WideTableStore):
                 tmp_dir, spark_rows,
             )
             rs.remote_write_land(tmp_dir.as_posix(), final_dir.as_posix())
-        except Exception:
-            rs.remote_write_cleanup(tmp_dir.as_posix())
+        except Exception as e:
+            self._remote_failure_dispatch(tmp_dir, e)
             raise
 
-    def _merge_delta_remote(self, copy_sql: str, old_relation: str,
+    def _merge_delta_remote(self, copy_sql: str, old_relation: str, delta_table: str | None,
                             tmp_dir: Path, new_dir: Path) -> int:
         """增量列改写 remote：COPY + 行数守恒对账 + 原子落盘，返回新版本行数"""
         rs = self._remote()
         try:
+            self._check_target_universe_remote(old_relation, delta_table)
             res = rs.remote_write_sqls(
                 [copy_sql,
                  f"SELECT count(*) FROM {old_relation}",
@@ -424,12 +522,12 @@ class DuckdbParquetStore(WideTableStore):
             old_rows = int(res['results'][1]['rows'][0][0])
             new_rows = int(res['results'][2]['rows'][0][0])
             if new_rows != old_rows:
-                raise RuntimeError(
+                raise ReconcileError(
                     f"[duckdb] 增量对账失败: 新版本行数({new_rows}) != 旧版本行数({old_rows})"
                 )
             rs.remote_write_land(tmp_dir.as_posix(), new_dir.as_posix())
-        except Exception:
-            rs.remote_write_cleanup(tmp_dir.as_posix())
+        except Exception as e:
+            self._remote_failure_dispatch(tmp_dir, e)
             raise
         return int(new_rows)
 
@@ -557,8 +655,8 @@ class DuckdbParquetStore(WideTableStore):
             )
             parquet_cols = [r[0] for r in describe['results'][0]['rows']]
             land = rs.remote_write_land(tmp_dir.as_posix(), dest_dir.as_posix())
-        except Exception:
-            rs.remote_write_cleanup(tmp_dir.as_posix())
+        except Exception as e:
+            self._remote_failure_dispatch(tmp_dir, e)
             raise
         return (source_rows, len(parquet_cols), int(land.get('size_bytes', 0)))
 

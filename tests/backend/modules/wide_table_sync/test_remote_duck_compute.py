@@ -140,6 +140,62 @@ class TestToDataFrame:
              'truncated': False})
         assert isinstance(df, pd.DataFrame) and len(df) == 0
 
+    def test_nullable_int_uses_Int64(self, monkeypatch):
+        """整数列含 NULL → pandas nullable Int64（Issue #5）"""
+        rs = _load_remote_session(monkeypatch)
+        df = rs.RemoteDuckSession._to_dataframe({
+            'columns': ['i'], 'types': ['BIGINT'],
+            'data': {'i': [1, None, 3]}, 'row_count': 3, 'truncated': False,
+        })
+        assert str(df['i'].dtype) == 'Int64'
+        assert df['i'].isna().tolist() == [False, True, False]
+        assert df['i'].dropna().tolist() == [1, 3]
+
+    def test_nullable_bool_uses_boolean(self, monkeypatch):
+        """布尔列含 NULL → pandas nullable boolean（Issue #5）"""
+        rs = _load_remote_session(monkeypatch)
+        df = rs.RemoteDuckSession._to_dataframe({
+            'columns': ['b'], 'types': ['BOOLEAN'],
+            'data': {'b': [True, None]}, 'row_count': 2, 'truncated': False,
+        })
+        assert str(df['b'].dtype) == 'boolean'
+        assert df['b'].isna().tolist() == [False, True]
+
+    def test_decimal_restored_as_decimal_object(self, monkeypatch):
+        """DECIMAL → decimal.Decimal 对象列，字符串原值往返无精度损失（Issue #5）"""
+        import decimal
+        rs = _load_remote_session(monkeypatch)
+        df = rs.RemoteDuckSession._to_dataframe({
+            'columns': ['amount'], 'types': ['DECIMAL(38,10)'],
+            'data': {'amount': ['12345678901234567890.1234567890', None]},
+            'row_count': 2, 'truncated': False,
+        })
+        assert df['amount'].dtype == object
+        assert df['amount'][0] == decimal.Decimal('12345678901234567890.1234567890')
+        assert df['amount'][1] is None
+
+    def test_hugeint_stays_object(self, monkeypatch):
+        """HUGEINT 可能超 int64 → 对象列（Issue #5）"""
+        rs = _load_remote_session(monkeypatch)
+        df = rs.RemoteDuckSession._to_dataframe({
+            'columns': ['h'], 'types': ['HUGEINT'],
+            'data': {'h': [170141183460469231731687303715884105727]},
+            'row_count': 1, 'truncated': False,
+        })
+        assert df['h'].dtype == object
+        assert df['h'][0] == 170141183460469231731687303715884105727
+
+    def test_date_timestamp_kept_as_iso_string(self, monkeypatch):
+        """DATE/TIMESTAMP 策略明确：ISO 字符串对象列（文档化行为）"""
+        rs = _load_remote_session(monkeypatch)
+        df = rs.RemoteDuckSession._to_dataframe({
+            'columns': ['d', 'ts'], 'types': ['DATE', 'TIMESTAMP'],
+            'data': {'d': ['2026-09-10'], 'ts': ['2026-09-10T12:30:00']},
+            'row_count': 1, 'truncated': False,
+        })
+        assert df['d'].tolist() == ['2026-09-10']
+        assert df['ts'].tolist() == ['2026-09-10T12:30:00']
+
 
 class TestSessionFactory:
     def test_local_default(self, monkeypatch):
@@ -213,40 +269,80 @@ class TestStoreRemote:
         remote.remote_write_land.assert_called_once()
         remote.remote_write_cleanup.assert_not_called()
 
-    def test_write_pivot_remote_reconcile_fail_cleans_tmp(self, monkeypatch):
+    def test_write_pivot_remote_reconcile_fail_preserves_tmp(self, monkeypatch):
+        """对账失败保留 tmp 现场（Issue #6），SQL 失败才清理"""
         store, store_mod, remote = self._store_with_mock_remote(monkeypatch)
         final_dir = Path('/data/wt_x/etl_date=2026-09-10')
         remote.remote_write_sqls.side_effect = [
-            {'results': [{'rows': []}]},
-            {'results': [{'rows': [('i',)]}, {'rows': [('i',)]}]},
+            {'results': [{'rows': []}]},                                # COPY
+            {'results': [{'rows': [('i',)]}, {'rows': [('i',)]}]},     # describe×2
             # 行数不一致: staging=2, parquet=1
             {'results': [{'rows': [(1, 111)]}, {'rows': [(2, 111)]}]},
         ]
         with pytest.raises(RuntimeError, match='对账失败'):
             store._write_pivot_remote('t_staging', final_dir, spark_rows=2)
+        remote.remote_write_cleanup.assert_not_called()
+
+    def test_write_pivot_remote_sql_fail_cleans_tmp(self, monkeypatch):
+        """SQL/COPY 执行失败清理不完整 tmp（Issue #6）"""
+        store, store_mod, remote = self._store_with_mock_remote(monkeypatch)
+        final_dir = Path('/data/wt_x/etl_date=2026-09-10')
+        remote.remote_write_sqls.side_effect = RuntimeError('gateway 400: IOException')
+        with pytest.raises(RuntimeError, match='IOException'):
+            store._write_pivot_remote('t_staging', final_dir, spark_rows=2)
         remote.remote_write_cleanup.assert_called_once_with(
             '/data/wt_x/etl_date=2026-09-10.tmp')
 
-    def test_merge_delta_remote_count_mismatch(self, monkeypatch):
+    def test_merge_delta_remote_count_mismatch_preserves_tmp(self, monkeypatch):
         store, store_mod, remote = self._store_with_mock_remote(monkeypatch)
-        remote.remote_write_sqls.return_value = {
-            'results': [{'rows': []}, {'rows': [(10,)]}, {'rows': [(9,)]}],
-        }
+        remote.remote_write_sqls.side_effect = [
+            {'results': [{'rows': [(0,)]}]},                          # universe 校验
+            {'results': [{'rows': []}, {'rows': [(10,)]}, {'rows': [(9,)]}]},
+        ]
         with pytest.raises(RuntimeError, match='增量对账失败'):
-            store._merge_delta_remote('COPY ...', 'read_parquet(...)',
+            store._merge_delta_remote('COPY ...', 'read_parquet(...)', 'delta_t',
                                       Path('/tmp/t'), Path('/tmp/f'))
-        remote.remote_write_cleanup.assert_called_once()
+        remote.remote_write_cleanup.assert_not_called()
 
     def test_merge_delta_remote_ok(self, monkeypatch):
         store, store_mod, remote = self._store_with_mock_remote(monkeypatch)
-        remote.remote_write_sqls.return_value = {
-            'results': [{'rows': []}, {'rows': [(10,)]}, {'rows': [(10,)]}],
-        }
+        remote.remote_write_sqls.side_effect = [
+            {'results': [{'rows': [(0,)]}]},                          # universe 校验
+            {'results': [{'rows': []}, {'rows': [(10,)]}, {'rows': [(10,)]}]},
+        ]
         remote.remote_write_land.return_value = {'files': ['f'], 'size_bytes': 5}
-        n = store._merge_delta_remote('COPY ...', 'read_parquet(...)',
+        n = store._merge_delta_remote('COPY ...', 'read_parquet(...)', 'delta_t',
                                       Path('/tmp/t'), Path('/tmp/f'))
         assert n == 10
         remote.remote_write_cleanup.assert_not_called()
+
+    def test_merge_delta_remote_new_target_id_aborts_before_copy(self, monkeypatch):
+        """universe 校验发现新 target_id：中止且不执行 COPY（Issue #7）"""
+        store, store_mod, remote = self._store_with_mock_remote(monkeypatch)
+        remote.remote_write_sqls.side_effect = [
+            {'results': [{'rows': [(3,)]}]},   # delta 含 3 个旧版本不存在的 target_id
+        ]
+        with pytest.raises(store_mod.TargetUniverseChangedError, match='target_id'):
+            store._merge_delta_remote('COPY ...', 'read_parquet(...)', 'delta_t',
+                                      Path('/tmp/t'), Path('/tmp/f'))
+        # 只调用了校验，COPY/land 均未执行，现场保留
+        assert remote.remote_write_sqls.call_count == 1
+        remote.remote_write_land.assert_not_called()
+        remote.remote_write_cleanup.assert_not_called()
+
+    def test_build_universe_check_sql(self, monkeypatch):
+        """universe 校验 SQL builder（Issue #7）：反连接计数 + 别名参数化"""
+        store_mod = _load_store(monkeypatch, 'local')
+        sql = store_mod.DuckdbParquetStore._build_universe_check_sql(
+            "read_parquet('/old/*.parquet')", 'delta_t', alias='pg_rt',
+        )
+        assert "FROM pg_rt.public.delta_t d" in sql
+        assert "NOT EXISTS" in sql
+        assert "s.target_id = d.target_id" in sql
+        assert "s.etl_date = d.etl_date" in sql
+        # 纯列裁剪（无 delta 表）返回 None
+        assert store_mod.DuckdbParquetStore._build_universe_check_sql(
+            'r', None, alias='pg_src') is None
 
     def test_pull_pg_partition_remote(self, monkeypatch):
         store, store_mod, remote = self._store_with_mock_remote(monkeypatch)

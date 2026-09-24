@@ -27,8 +27,10 @@
     QUACK_TOKEN        服务端认证 token
     GATEWAY_TOKEN      网关 Bearer token, 默认复用 QUACK_TOKEN
     MAX_ROWS           单条 SQL 返回行数上限, 默认 100000 (超出截断并标记 truncated)
-    POOL_SIZE          quack 客户端连接池大小, 默认 4
+    POOL_SIZE          quack 客户端连接池上限 (active 总数), 默认 4
+    POOL_WAIT_TIMEOUT  池满时有界等待秒数, 超时返回 503, 默认 60
     DEFAULT_TIMEOUT    单条 SQL 超时秒数, 0=不限制; 请求可用 timeout 参数覆盖
+                       (覆盖 SQL 执行 + 结果 fetch 全程, 超时经 interrupt 中断)
 """
 import datetime
 import decimal
@@ -38,25 +40,40 @@ import threading
 
 import duckdb
 from fastapi import FastAPI, HTTPException, Request
+from starlette.concurrency import run_in_threadpool
 
 QUACK_URI = os.environ.get("QUACK_URI", "quack:127.0.0.1:9494")
 QUACK_TOKEN = os.environ.get("QUACK_TOKEN", "")
 GATEWAY_TOKEN = os.environ.get("GATEWAY_TOKEN") or QUACK_TOKEN
 MAX_ROWS = int(os.environ.get("MAX_ROWS", "100000"))
 POOL_SIZE = int(os.environ.get("POOL_SIZE", "4"))
+# 池满时的有界等待秒数（Issue #3: 超过上限的请求排队等待，超时返回 503）
+POOL_WAIT_TIMEOUT = float(os.environ.get("POOL_WAIT_TIMEOUT", "60"))
 DEFAULT_TIMEOUT = float(os.environ.get("DEFAULT_TIMEOUT", "0"))
 
-app = FastAPI(title="duckdb-quack-gateway", version="2.0-alpha")
+app = FastAPI(title="duckdb-quack-gateway", version="2.1")
+
+
+class PoolExhausted(RuntimeError):
+    """连接池占满且等待超时（HTTP 层映射为 503）"""
 
 
 # ---------------------------------------------------------------------------
 # quack 客户端连接池: quack_query 无状态, 多连接并发执行
+#
+# POOL_SIZE 同时限制 active connection 上限（信号量）与 idle 保留数（Issue #3）；
+# 池满时 lease() 有界等待 POOL_WAIT_TIMEOUT 秒，超时抛 PoolExhausted。
 # ---------------------------------------------------------------------------
 class _QuackPool:
-    def __init__(self, size: int):
+    def __init__(self, size: int, wait_timeout: float):
         self._size = size
+        self._wait_timeout = wait_timeout
+        self._slots = threading.BoundedSemaphore(size)
         self._idle: queue.Queue = queue.Queue()
         self._created = 0
+        self._closed = 0
+        self._active = 0
+        self._waiting = 0
         self._lock = threading.Lock()
 
     def _new_conn(self) -> duckdb.DuckDBPyConnection:
@@ -67,17 +84,44 @@ class _QuackPool:
 
     @property
     def stats(self) -> dict:
-        return {"size": self._size, "created": self._created,
-                "idle": self._idle.qsize()}
+        with self._lock:
+            return {
+                "size": self._size,
+                "created": self._created,   # 累计创建（含异常丢弃后的重建）
+                "closed": self._closed,     # 累计关闭；created-closed = 存活(active+idle)
+                "active": self._active,
+                "waiting": self._waiting,
+                "idle": self._idle.qsize(),
+            }
+
+    def _release_slot(self) -> None:
+        self._slots.release()
 
     def _return(self, conn) -> None:
-        if self._idle.qsize() < self._size:
-            self._idle.put(conn)
-        else:
-            try:
+        try:
+            if self._idle.qsize() < self._size:
+                self._idle.put(conn)
+            else:
                 conn.close()
-            except Exception:
-                pass
+                with self._lock:
+                    self._closed += 1
+        except Exception:
+            pass
+        finally:
+            with self._lock:
+                self._active -= 1
+            self._release_slot()
+
+    def _discard(self, conn) -> None:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        finally:
+            with self._lock:
+                self._closed += 1
+                self._active -= 1
+            self._release_slot()
 
     class _Lease:
         """借出的连接: 正常归还入池; 出现任何异常则关闭 (不回池)."""
@@ -92,30 +136,47 @@ class _QuackPool:
             if exc_type is None:
                 self._pool._return(self.conn)
             else:
-                try:
-                    self.conn.close()
-                except Exception:
-                    pass
+                self._pool._discard(self.conn)
             return False
 
-    def lease(self) -> "_Lease":
+    def lease(self) -> "_QuackPool._Lease":
+        with self._lock:
+            self._waiting += 1
         try:
-            conn = self._idle.get_nowait()
-        except queue.Empty:
+            # 有界等待: 池满时排队, 超过 wait_timeout 抛 PoolExhausted (→503)
+            acquired = self._slots.acquire(timeout=self._wait_timeout)
+        finally:
             with self._lock:
-                self._created += 1
-            conn = self._new_conn()
+                self._waiting -= 1
+        if not acquired:
+            raise PoolExhausted(
+                f"连接池已满(size={self._size})且等待{self._wait_timeout}s超时"
+            )
+        try:
+            try:
+                conn = self._idle.get_nowait()
+            except queue.Empty:
+                with self._lock:
+                    self._created += 1
+                conn = self._new_conn()
+            with self._lock:
+                self._active += 1
+        except Exception:
+            self._release_slot()
+            raise
         return self._Lease(self, conn)
 
 
-_pool = _QuackPool(POOL_SIZE)
+_pool = _QuackPool(POOL_SIZE, POOL_WAIT_TIMEOUT)
 
 
 def _jsonify(value):
     if value is None or isinstance(value, (bool, int, float, str)):
         return value
     if isinstance(value, decimal.Decimal):
-        return float(value)
+        # 以字符串原样传输完整精度（JSON float 会静默丢精度）；
+        # RemoteDuckSession 侧按 types=DECIMAL 还原为 decimal.Decimal
+        return str(value)
     if isinstance(value, (datetime.date, datetime.datetime, datetime.time)):
         return value.isoformat()
     if isinstance(value, (bytes, bytearray, memoryview)):
@@ -131,19 +192,28 @@ def _pushdown_sql(sql: str) -> str:
     )
 
 
-def _exec_one(conn, sql: str, timeout: float):
-    """在给定连接上推送执行一条 SQL, 返回 (relation|None).
-
-    timeout > 0 时超时调用 conn.interrupt() 中断 (quack 客户端取消请求)。
-    """
+def _under_timeout(conn, timeout: float, fn):
+    """timeout > 0 时为 fn 挂 interrupt 定时器（覆盖 SQL 执行 + fetch 全程）"""
     if timeout and timeout > 0:
         timer = threading.Timer(timeout, conn.interrupt)
         timer.start()
         try:
-            return conn.sql(_pushdown_sql(sql))
+            return fn()
         finally:
             timer.cancel()
-    return conn.sql(_pushdown_sql(sql))
+    return fn()
+
+
+def _exec_fetch(conn, sql: str, max_rows: int, fmt: str, timeout: float) -> dict:
+    """在给定连接上执行单条 SQL 并完整 materialize 结果（Issue #4）.
+
+    relation 的 fetchall 具有惰性执行特征，必须在归还连接前完成物化；
+    timeout 同时覆盖 SQL 执行与 fetch 阶段（超时经 conn.interrupt 中断）。
+    """
+    def run():
+        result = conn.sql(_pushdown_sql(sql))
+        return _result_payload(result, max_rows, fmt)
+    return _under_timeout(conn, timeout, run)
 
 
 def _result_payload(result, max_rows: int, fmt: str) -> dict:
@@ -170,14 +240,13 @@ def _result_payload(result, max_rows: int, fmt: str) -> dict:
 
 
 def _run_sql(sql: str, max_rows: int, fmt: str, timeout: float) -> dict:
-    """从连接池取连接执行单条 SQL; 连接异常时换新连接重试一次."""
+    """从连接池取连接执行单条 SQL（租约覆盖执行+fetch 全程）; 连接异常时换新连接重试一次."""
     last_err = None
     for attempt in (0, 1):
         lease = _pool.lease()
         try:
             with lease as conn:
-                result = _exec_one(conn, sql, timeout)
-            return _result_payload(result, max_rows, fmt)
+                return _exec_fetch(conn, sql, max_rows, fmt, timeout)
         except duckdb.IOException as e:
             last_err = e
             if attempt == 0:
@@ -275,7 +344,11 @@ async def query(request: Request):
     if not sql:
         raise HTTPException(status_code=400, detail="'sql' is required")
     try:
-        return _run_sql(sql, max_rows, fmt, timeout)
+        # 阻塞执行放线程池: async 端点直接同步执行会串行化事件循环,
+        # 连接池上限/排队 (Issue #3) 与并发 fetch (Issue #4) 均无意义
+        return await run_in_threadpool(_run_sql, sql, max_rows, fmt, timeout)
+    except PoolExhausted as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
     except Exception as e:  # noqa: BLE001
         raise _bad_request(e) from e
 
@@ -288,16 +361,27 @@ async def batch(request: Request):
     sqls = body.get("sqls")
     if not isinstance(sqls, list) or not sqls:
         raise HTTPException(status_code=400, detail="'sqls' (非空数组) is required")
-    results = []
-    lease = _pool.lease()
+
+    def _run_batch() -> dict:
+        results = []
+        lease = _pool.lease()
+        try:
+            with lease as conn:
+                for sql in sqls:
+                    # 租约覆盖全部语句的执行+fetch; timeout 覆盖各自 fetch 阶段
+                    results.append(_exec_fetch(conn, sql, max_rows, fmt, timeout))
+        except Exception as e:  # noqa: BLE001
+            raise _bad_request(e) from e
+        return {"results": results, "executed": len(results)}
+
     try:
-        with lease as conn:
-            for sql in sqls:
-                result = _exec_one(conn, sql, timeout)
-                results.append(_result_payload(result, max_rows, fmt))
+        return await run_in_threadpool(_run_batch)
+    except PoolExhausted as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except HTTPException:
+        raise
     except Exception as e:  # noqa: BLE001
         raise _bad_request(e) from e
-    return {"results": results, "executed": len(results)}
 
 
 @app.post("/write")
@@ -332,29 +416,40 @@ async def write(request: Request):
         )
     if land and not final_dir:
         raise HTTPException(status_code=400, detail="land=true 需要 final_dir")
-    results = []
-    if prepare:
+
+    def _run_write() -> dict:
+        results = []
+        if prepare:
+            try:
+                _fs_prepare_tmp(tmp_dir)
+            except Exception as e:  # noqa: BLE001
+                raise _bad_request(e) from e
+        lease = _pool.lease()
         try:
-            _fs_prepare_tmp(tmp_dir)
+            with lease as conn:
+                for sql in sqls:
+                    # 租约覆盖全部语句的执行+fetch; timeout 覆盖各自 fetch 阶段
+                    results.append(_exec_fetch(conn, sql, max_rows, fmt, timeout))
+        except Exception as e:  # noqa: BLE001
+            shutil.rmtree(tmp_dir, ignore_errors=True)  # 失败清理, 不触碰 final
+            raise _bad_request(e) from e
+        if not land:
+            return {"results": results, "executed": len(results)}
+        try:
+            _fs_atomic_landing(tmp_dir, final_dir)
+            stats = _fs_dir_stats(final_dir)
         except Exception as e:  # noqa: BLE001
             raise _bad_request(e) from e
-    lease = _pool.lease()
+        return {"results": results, "executed": len(results), **stats}
+
     try:
-        with lease as conn:
-            for sql in sqls:
-                result = _exec_one(conn, sql, timeout)
-                results.append(_result_payload(result, max_rows, fmt))
-    except Exception as e:  # noqa: BLE001
-        shutil.rmtree(tmp_dir, ignore_errors=True)  # 失败清理, 不触碰 final
-        raise _bad_request(e) from e
-    if not land:
-        return {"results": results, "executed": len(results)}
-    try:
-        _fs_atomic_landing(tmp_dir, final_dir)
-        stats = _fs_dir_stats(final_dir)
+        return await run_in_threadpool(_run_write)
+    except PoolExhausted as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except HTTPException:
+        raise
     except Exception as e:  # noqa: BLE001
         raise _bad_request(e) from e
-    return {"results": results, "executed": len(results), **stats}
 
 
 @app.post("/write-land")

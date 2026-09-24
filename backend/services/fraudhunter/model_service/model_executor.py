@@ -185,18 +185,9 @@ class ModelExecutor:
                 message=f"未找到 {wide_table_name} 在 {etl_date} 的可用快照"
             )
 
-        # 按配置的存储后端优先选择快照（duckdb/both 优先 duckdb，否则 postgresql）
-        preferred_backend = (
-            'duckdb'
-            if settings.fraudhunter_wide_table_offline_store in ('duckdb', 'both')
-            else 'postgresql'
-        )
-        latest_snapshot = next(
-            (
-                s for s in ready_snapshots
-                if (getattr(s, 'storage_backend', None) or 'postgresql') == preferred_backend
-            ),
-            ready_snapshots[0]
+        # 按配置的存储后端优先选择快照（统一走 query_router 公共策略，Issue #9）
+        latest_snapshot = query_router.select_snapshot_by_preferred_backend(
+            ready_snapshots
         )
 
         # 使用最新版本

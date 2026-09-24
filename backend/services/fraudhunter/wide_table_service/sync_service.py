@@ -630,15 +630,29 @@ class WideTableSyncService:
                 refresh_sql = f"refresh table {self.source_table}"
                 store.write_pivot_to_pg(pivot_sql, delta_table, etl_date, refresh_sql=refresh_sql)
 
-            row_count = store.merge_delta_insert_select(
-                dest_table=pg_table_name,
-                base_table=base_ref,
-                delta_table=delta_table,
-                target_metadata=target_metadata,
-                static_cols=static_cols,
-                inc_cols=inc_cols,
-                etl_date=etl_date_str,
-            )
+            try:
+                row_count = store.merge_delta_insert_select(
+                    dest_table=pg_table_name,
+                    base_table=base_ref,
+                    delta_table=delta_table,
+                    target_metadata=target_metadata,
+                    static_cols=static_cols,
+                    inc_cols=inc_cols,
+                    etl_date=etl_date_str,
+                )
+            except Exception as e:
+                # 增量前置不变量破坏（delta 出现旧版本不存在的 target_id）：
+                # 静默合并会丢行，自动回退全量路径重算（Issue #7）
+                from .store.duckdb_parquet_store import TargetUniverseChangedError
+                if not isinstance(e, TargetUniverseChangedError):
+                    raise
+                logger.warning(
+                    f"[{wide_table_name}] {e}；自动回退全量路径重算"
+                )
+                return self._execute_data_sync(
+                    store, wide_table_name, target_metadata, etl_date,
+                    pg_table_name, create_table=False,
+                )
             column_count = len(list(target_metadata.keys())) + 2
             return row_count, column_count
         finally:

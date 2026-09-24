@@ -27,6 +27,47 @@ def snapshot_backend(snapshot) -> str:
     return getattr(snapshot, 'storage_backend', None) or 'postgresql'
 
 
+def preferred_snapshot_backend() -> str:
+    """当前配置偏好的快照存储后端（Issue #9，统一策略防各调用点漂移）
+
+    - offline_store=duckdb/both → 优先 duckdb
+    - offline_store=postgresql（默认）→ 优先 postgresql
+    """
+    offline_store = getattr(
+        settings, 'fraudhunter_wide_table_offline_store', 'postgresql',
+    )
+    return 'duckdb' if offline_store in ('duckdb', 'both') else 'postgresql'
+
+
+def offline_store_uses_duckdb() -> bool:
+    """离线存储配置是否含 DuckDB（DuckDB 专属维护任务的启用条件，Issue #10）"""
+    return getattr(
+        settings, 'fraudhunter_wide_table_offline_store', 'postgresql',
+    ) in ('duckdb', 'both')
+
+
+def select_snapshot_by_preferred_backend(snapshots) -> Optional[object]:
+    """按配置偏好从（已按新→旧排序的）快照列表中选择一条
+
+    优先返回 preferred_snapshot_backend() 对应的快照；配置偏好的后端
+    完全没有快照时回退最新一条并告警（例如 both 切回 postgresql 但
+    PG 侧尚未补数时，避免直接不可用）。
+    """
+    snapshots = [s for s in snapshots if s is not None]
+    if not snapshots:
+        return None
+    preferred = preferred_snapshot_backend()
+    for s in snapshots:
+        if snapshot_backend(s) == preferred:
+            return s
+    fallback = snapshots[0]
+    logger.warning(
+        f"[快照选择] 未找到偏好的 {preferred} 快照，回退使用 "
+        f"{snapshot_backend(fallback)} 快照（generation_time={getattr(fallback, 'generation_time', None)}）"
+    )
+    return fallback
+
+
 def requires_duckdb(*snapshots) -> bool:
     """判断快照集中是否含 duckdb 快照（决定执行引擎）"""
     return any(snapshot_backend(s) == 'duckdb' for s in snapshots if s is not None)

@@ -44,6 +44,18 @@ def _dir_age_hours(path: Path) -> float:
 async def parquet_cleanup_job():
     """Parquet版本目录引用计数清理任务"""
     try:
+        # 纯 PG 模式 no-op（Issue #10）：未启用 DuckDB 存储时不访问/修改
+        # Parquet 目录（防止历史测试/手工文件残留导致误清理），任务本体兜底，
+        # 调度侧（main.py）也按 offline_store 条件注册
+        offline_store = getattr(
+            settings, 'fraudhunter_wide_table_offline_store', 'postgresql',
+        )
+        if offline_store not in ('duckdb', 'both'):
+            logger.debug(
+                f"offline_store={offline_store}，Parquet清理任务 no-op（未启用DuckDB存储）"
+            )
+            return
+
         storage_path = Path(settings.fraudhunter_wide_table_duckdb_storage_path)
         grace_hours = getattr(
             settings,

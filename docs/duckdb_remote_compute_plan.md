@@ -127,6 +127,7 @@ ATTACH、COPY、行数/校验和比对、原子落盘目录操作。两种迁法
 |---|---|---|
 | 0 ✅ | duckdb 容器 + quack + HTTP 网关验证 (build_scripts/duckdb, 已提交 master) | CentOS 7 curl 查询通过 |
 | 1 ✅ | 网关增强 (§3.3): 连接池/列式JSON/batch/分段写/超时/ATTACH PG | 并发8路通过; 端点单测+集成验证通过 |
+| 1.1 ✅ | 网关加固 (2026-09-23, Issue #3/#4): POOL_SIZE 信号量硬上限+有界等待(503)、active/waiting/idle 指标、租约覆盖执行+fetch、timeout 覆盖 fetch、阻塞执行入线程池 | 单测+真容器 8 路并发实测 created≤size、慢查询排队正常 |
 | 2 ✅ | 后端 RemoteDuckSession + 配置开关 + 工厂切换 (§3.1/3.2); 读路径 3 个调用点 (#2 #3 #5) 接入 | 既有 364 测试全过(local不变); 新增 15 个 remote 单测 + 真容器集成验证 |
 | 3 ✅ | 写路径迁移 (网关分段写协议 /write+/write-land+/write-cleanup) + sync_service 诊断 | SQL builder 别名化共用, 对账断言 local/remote 同一实现; 分段协议真容器验证通过 |
 | 4 | 灰度: 单后端机器 remote 模式试运行 → 全量; 移除后端 duckdb 依赖 | 生产观测一周 (错误率/耗时/内存) |

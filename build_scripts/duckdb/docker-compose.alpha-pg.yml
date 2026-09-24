@@ -1,0 +1,77 @@
+# DuckDB 2.0 Alpha PG Connector 镜像 (duckdb-quack:2.0-alpha-pg)
+#
+#   docker compose -f docker-compose.alpha-pg.yml up -d --build     # 构建并启动
+#   docker compose -f docker-compose.alpha-pg.yml --profile verify run --rm pg-verify
+#                                                                   # 跑最小验证测试
+#   docker compose -f docker-compose.alpha-pg.yml logs -f duckdb-quack-pg
+#   docker compose -f docker-compose.alpha-pg.yml down -v
+#
+# 与生产 compose (docker-compose.yml) 的差异:
+#   - 独立镜像 tag / 容器名 / 默认宿主端口 (9496/9497), 与现有生产容器互不冲突
+#   - verify profile 附带一个 PostgreSQL 16 实例, 供扩展连接能力验证
+services:
+  duckdb-quack-pg:
+    build:
+      context: .
+      dockerfile: Dockerfile.alpha-pg
+    image: duckdb-quack:2.0-alpha-pg
+    container_name: duckdb-quack-pg
+    init: true
+    ports:
+      - "9496:9494"   # quack 协议 (duckdb 客户端直连; 宿主端口避开生产 9494)
+      - "9497:9495"   # HTTP 网关 (curl / JSON; 宿主端口避开生产 9495)
+    environment:
+      QUACK_TOKEN: ${QUACK_TOKEN:-dev-token-please-change}
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN:-}
+      # 验证环境直接 ATTACH compose 内的 PG (只读)；生产按需替换 DSN 或留空
+      PG_ATTACH_DSN: ${DUCKDB_PG_ATTACH_DSN:-dbname=pgverify host=pg-verify-db port=5432 user=pgverify password=pgverify}
+      POOL_SIZE: ${DUCKDB_POOL_SIZE:-4}
+      POOL_WAIT_TIMEOUT: ${DUCKDB_POOL_WAIT_TIMEOUT:-60}
+      MAX_ROWS: ${DUCKDB_MAX_ROWS:-100000}
+    volumes:
+      - duckdb_pg_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9494/ >/dev/null && curl -fsS http://127.0.0.1:9495/health >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  # 最小验证测试：版本固定 / 离线 LOAD postgres / PostgreSQL attach+读写连通
+  pg-verify:
+    image: duckdb-quack:2.0-alpha-pg
+    profiles: ["verify"]
+    container_name: duckdb-quack-pg-verify
+    entrypoint: ["python"]      # 覆盖镜像 ENTRYPOINT（否则会起服务端而不是跑测试）
+    environment:
+      QUACK_URI: quack:duckdb-quack-pg:9494
+      QUACK_TOKEN: ${QUACK_TOKEN:-dev-token-please-change}
+      PG_DSN: dbname=pgverify host=pg-verify-db port=5432 user=pgverify password=pgverify
+      DUCKDB_PIP_VERSION: 2.0.0.dev2609222040
+    volumes:
+      - ./test:/tests:ro
+    command: /tests/test_postgres_connector.py
+    depends_on:
+      duckdb-quack-pg:
+        condition: service_healthy
+      pg-verify-db:
+        condition: service_healthy
+
+  # 验证用 PostgreSQL（仅 verify profile，随测随起）
+  pg-verify-db:
+    image: postgres:16-alpine
+    profiles: ["verify"]
+    container_name: duckdb-quack-pg-verify-db
+    environment:
+      POSTGRES_USER: pgverify
+      POSTGRES_PASSWORD: pgverify
+      POSTGRES_DB: pgverify
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pgverify -d pgverify"]
+      interval: 3s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  duckdb_pg_data:

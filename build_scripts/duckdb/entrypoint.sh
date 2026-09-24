@@ -10,7 +10,8 @@ export GATEWAY_PORT="${GATEWAY_PORT:-9495}"
 # 网关在容器内经 loopback 连服务端
 export QUACK_URI="${QUACK_URI:-quack:127.0.0.1:${QUACK_PORT}}"
 
-if [ ${#QUACK_TOKEN:-0} -lt 4 ]; then
+QUACK_TOKEN="${QUACK_TOKEN:-}"
+if [ "${#QUACK_TOKEN}" -lt 4 ]; then
   echo "ERROR: QUACK_TOKEN 未设置或不足 4 个字符" >&2
   exit 1
 fi

@@ -130,7 +130,6 @@ class TestDeltaMergeSqlShape:
                 static_cols=[], inc_cols=["i_x"], etl_date="2026-08-19",
             )
 
-
 class TestDeltaMergeLocalEndToEnd:
     """本地 DuckDB 验证增量合并语义（双侧 read_parquet 关系模拟）"""
 
@@ -209,6 +208,86 @@ class TestDeltaMergeLocalEndToEnd:
         ]
 
 
+    def test_new_target_id_in_delta_aborts_merge(self, monkeypatch, tmp_path):
+        """Issue #7：delta 出现旧版本不存在的 target_id → 显式中止，不静默丢行"""
+        module = _load_store_module(monkeypatch, tmp_path)
+        store = module.DuckdbParquetStore()
+        old_dir = self._prepare_parquet(tmp_path)
+
+        import duckdb
+
+        # delta 含 A004（旧 Parquet 只有 A001~A003）
+        delta_rows = ("(SELECT * FROM (VALUES "
+                      "('A001', DATE '2026-08-19', 'newx'), "
+                      "('A004', DATE '2026-08-19', 'newq')) AS d(target_id, etl_date, i_changed))")
+
+        class _PgAttachConn:
+            def __init__(self, real):
+                self._real = real
+
+            def execute(self, sql):
+                return self._real.execute(
+                    sql.replace("pg_src.public._delta_t", delta_rows)
+                )
+
+            def close(self):
+                self._real.close()
+
+        fake = _PgAttachConn(duckdb.connect())
+        monkeypatch.setattr(store, "_attach_pg", lambda: fake)
+
+        with pytest.raises(module.TargetUniverseChangedError, match="target_id"):
+            store.merge_delta_insert_select(
+                dest_table="cust_wide_table_new1234",
+                base_table=str(tmp_path / "cust_wide_table_old1234"),
+                delta_table="_delta_t",
+                target_metadata={},
+                static_cols=["i_static"],
+                inc_cols=["i_changed"],
+                etl_date="2026-08-19",
+            )
+        # 中止后不产生新版本目录（tmp 已在断言前保留供排障）
+        new_dir = tmp_path / "cust_wide_table_new1234" / "etl_date=2026-08-19"
+        assert not new_dir.exists()
+
+    def test_unchanged_universe_passes_check(self, monkeypatch, tmp_path):
+        """delta 全部命中旧 target_id → 校验通过，正常合并"""
+        module = _load_store_module(monkeypatch, tmp_path)
+        store = module.DuckdbParquetStore()
+        self._prepare_parquet(tmp_path)
+
+        import duckdb
+
+        delta_rows = ("(SELECT * FROM (VALUES "
+                      "('A001', DATE '2026-08-19', 'newx')) AS d(target_id, etl_date, i_changed))")
+
+        class _PgAttachConn:
+            def __init__(self, real):
+                self._real = real
+
+            def execute(self, sql):
+                return self._real.execute(
+                    sql.replace("pg_src.public._delta_t", delta_rows)
+                )
+
+            def close(self):
+                self._real.close()
+
+        fake = _PgAttachConn(duckdb.connect())
+        monkeypatch.setattr(store, "_attach_pg", lambda: fake)
+
+        rows = store.merge_delta_insert_select(
+            dest_table="cust_wide_table_ok1234",
+            base_table=str(tmp_path / "cust_wide_table_old1234"),
+            delta_table="_delta_t",
+            target_metadata={},
+            static_cols=["i_static"],
+            inc_cols=["i_changed"],
+            etl_date="2026-08-19",
+        )
+        assert rows == 3  # 旧版本 3 行守恒
+
+
 class TestParquetCleanupJob:
     """引用计数清理逻辑（替换引用集合查询，验证目录处置）"""
 
@@ -223,6 +302,8 @@ class TestParquetCleanupJob:
         config_module.settings = types.SimpleNamespace(
             fraudhunter_wide_table_duckdb_storage_path=str(storage_path),
             fraudhunter_wide_table_duckdb_parquet_cleanup_grace_hours=0,
+            # 清理逻辑本体仅在 offline_store 含 duckdb 时执行（Issue #10 no-op 守卫）
+            fraudhunter_wide_table_offline_store='duckdb',
         )
         logger_module = types.ModuleType("utils.logger")
         logger_module.logger = types.SimpleNamespace(
@@ -271,3 +352,21 @@ class TestParquetCleanupJob:
         asyncio.run(job.parquet_cleanup_job())
 
         assert not tmp_dir.exists()
+
+    def test_noop_when_offline_store_is_postgresql(self, monkeypatch, tmp_path):
+        """Issue #10：纯 PG 模式 no-op——即使目录存在（历史残留/手工文件）也不清理"""
+        stale_dir = tmp_path / "cust_wide_table_old1234"
+        stale_dir.mkdir()
+        (stale_dir / "etl_date=2026-08-19").mkdir()
+        (stale_dir / "etl_date=2026-08-19" / "part-00000.parquet").write_bytes(b"x")
+
+        job = self._load_job(monkeypatch, tmp_path, referenced=[])
+        # job 模块持有的是 stub settings（_load_job 注入 sys.modules['utils.config']）
+        stub_settings = sys.modules['utils.config'].settings
+        stub_settings.fraudhunter_wide_table_offline_store = 'postgresql'
+        try:
+            asyncio.run(job.parquet_cleanup_job())
+        finally:
+            stub_settings.fraudhunter_wide_table_offline_store = 'duckdb'
+
+        assert stale_dir.exists()  # 纯 PG 模式不执行目录清理

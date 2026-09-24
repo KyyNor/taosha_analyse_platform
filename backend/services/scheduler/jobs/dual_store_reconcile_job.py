@@ -10,6 +10,8 @@ offline_store=both 灰度期间，对同一 (宽表, 版本, 日期) 的 PG 与 
 
 from datetime import date, datetime, timedelta
 
+import pandas as pd
+
 from models.db_base import get_db_session
 from models.fraudhunter.wide_table import FraudHunterWideTableSnapshot
 from utils.config import settings
@@ -42,8 +44,13 @@ def _find_dual_pairs(db) -> list:
 
 
 def _reconcile_pair(pg_snapshot, duck_snapshot) -> dict:
-    """单组对账：PG 分区 vs Parquet 目录（行数 + 内容校验和）"""
-    from services.fraudhunter.wide_table_service.store.query_router import DuckQuerySession
+    """单组对账：PG 分区 vs Parquet 目录（行数 + 内容校验和）
+
+    统一经 get_query_session 工厂取会话执行（Issue #2）：
+    local 模式为进程内 DuckQuerySession，remote 模式为经 HTTP 网关的
+    RemoteDuckSession——后端零 duckdb 依赖也能完成对账。
+    """
+    from services.fraudhunter.wide_table_service.store.query_router import get_query_session
 
     date_str = pg_snapshot.etl_date.strftime('%Y-%m-%d')
     parquet_glob = (
@@ -55,22 +62,19 @@ def _reconcile_pair(pg_snapshot, duck_snapshot) -> dict:
         f"WHERE etl_date = DATE '{date_str}')"
     )
 
-    with DuckQuerySession(attach_pg=True) as conn:
-        columns = [
-            row[0] for row in conn.conn.execute(
-                f"DESCRIBE SELECT * FROM {parquet_relation}"
-            ).fetchall()
-        ]
+    with get_query_session(attach_pg=True) as session:
+        describe_df = session.execute_df(
+            f"DESCRIBE SELECT * FROM {parquet_relation}"
+        )
+        columns = describe_df.iloc[:, 0].astype(str).tolist()
         joined = ", ".join(f"{c}::VARCHAR" for c in columns)
         checksum_sql = (
             f"SELECT count(*), sum(hash(concat_ws('|', {joined}))) FROM "
         )
-        parquet_count, parquet_hash = conn.conn.execute(
-            checksum_sql + parquet_relation
-        ).fetchone()
-        pg_count, pg_hash = conn.conn.execute(
-            checksum_sql + pg_relation
-        ).fetchone()
+        parquet_df = session.execute_df(checksum_sql + parquet_relation)
+        pg_df = session.execute_df(checksum_sql + pg_relation)
+        parquet_count, parquet_hash = _checksum_row(parquet_df)
+        pg_count, pg_hash = _checksum_row(pg_df)
 
     passed = (parquet_count == pg_count) and (parquet_hash == pg_hash)
     return {
@@ -82,9 +86,33 @@ def _reconcile_pair(pg_snapshot, duck_snapshot) -> dict:
     }
 
 
+def _checksum_row(df) -> tuple:
+    """从 count+checksum 单行结果 DataFrame 提取数值（空表 sum 为 NULL → None）"""
+    if df is None or df.empty:
+        return (0, None)
+    count = int(df.iloc[0, 0])
+    checksum = df.iloc[0, 1]
+    if checksum is not None and not pd.isna(checksum):
+        checksum = int(checksum)
+    else:
+        checksum = None
+    return (count, checksum)
+
+
 async def dual_store_reconcile_job():
     """双写对账任务（both 模式灰度验收）"""
     try:
+        # 仅 both 灰度双写期运行（Issue #10）：非双写模式 no-op，任务本体兜底，
+        # 调度侧（main.py）也按 offline_store 条件注册
+        offline_store = getattr(
+            settings, 'fraudhunter_wide_table_offline_store', 'postgresql',
+        )
+        if offline_store != 'both':
+            logger.debug(
+                f"offline_store={offline_store}，双写对账任务 no-op（非both灰度双写模式）"
+            )
+            return
+
         with get_db_session() as db:
             pairs = _find_dual_pairs(db)
 

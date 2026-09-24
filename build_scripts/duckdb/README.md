@@ -137,7 +137,10 @@ curl -X POST http://<host>:9495/query \
 
 鉴权: `Authorization: Bearer $GATEWAY_TOKEN` (默认复用 `QUACK_TOKEN`, 可用环境变量单独设置)。
 `format=columns` 返回列式数据 (`{"data": {列名: [值...]}}`), 供后端 RemoteDuckSession 零损重建 DataFrame。
-返回行数上限 `MAX_ROWS` (默认 100000, 超出截断并标记 `"truncated": true`); 连接池 `POOL_SIZE` (默认 4)。
+返回行数上限 `MAX_ROWS` (默认 100000, 超出截断并标记 `"truncated": true`);
+连接池 `POOL_SIZE` (默认 4, 同时限制 active 总数, 池满排队 `POOL_WAIT_TIMEOUT` 秒后 503, 默认 60;
+`/health` 的 `pool` 字段暴露 size/created/closed/active/waiting/idle 指标);
+`DEFAULT_TIMEOUT` 覆盖 SQL 执行+fetch 全程 (超时经 interrupt 中断)。
 可选 `PG_ATTACH_DSN` (libpq 连接串): 服务端启动时 ATTACH 为 `pg_rt` (只读), SQL 以 `pg_rt.public.*` 引用 PG 表。
 
 taosha 后端接入方式见 `docs/duckdb_remote_compute_plan.md` 与
@@ -247,3 +250,65 @@ export LD_LIBRARY_PATH=/path/to/portable-client-amd64
 正式版 (2026 年 10 月下旬) 发布后: 把 `Dockerfile` 里的 `duckdb==1.6.0.dev379` 改成正式版本,
 或切回 `Dockerfile` (CLI 版, 镜像更小), 并验证 linux CLI 认证 bug 是否已修复
 (`docker build -f Dockerfile .` 后跑同一套测试即可)。
+
+## 九、PG Connector 镜像 (duckdb-quack:2.0-alpha-pg, 2026-09-23)
+
+在现有生产镜像 `duckdb-quack:2.0-alpha` 之外新增的 **Alpha 实验镜像**，不替换生产镜像：
+**构建期预装 PostgreSQL Connector（postgres 扩展）**，启动后无需联网即可 `LOAD postgres`
+并 ATTACH PostgreSQL。
+
+### 为什么需要独立镜像（dev379 无法预装 postgres）
+
+2026-09-23 探测发现：pip `1.6.0.dev379`（库 v2.0.0-alpha39998）的 **postgres 扩展二进制
+已从 alpha 扩展频道下架**（`INSTALL postgres` 后为空；quack 仍在），基于 dev379 的镜像
+已无法在运行时下载/预装 postgres 扩展——`server.py` 的 `LOAD postgres`（设置
+`PG_ATTACH_DSN` 时）在新构建的旧镜像上会失败。新镜像改用当前 alpha 频道仍完整的版本：
+
+| 项 | 值（固定，不浮动） |
+|---|---|
+| pip 包 | `duckdb==2.0.0.dev2609222040` |
+| 库版本 | `v2.0.0-alpha43089` |
+| 预装扩展 | `postgres`（2.0 中注册名 `postgres_scanner`, `LOAD postgres` 为兼容别名）+ `quack` |
+
+版本固定在 `Dockerfile.alpha-pg` 的 `ARG` 与 `build-alpha-pg.sh` 两处，升级时同步修改。
+
+### 文件
+
+| 文件 | 说明 |
+|---|---|
+| `Dockerfile.alpha-pg` | 镜像定义（构建期 `INSTALL postgres/quack` 进镜像内扩展缓存，并断言离线 LOAD 成功） |
+| `docker-compose.alpha-pg.yml` | 服务编排；宿主端口 **9496/9497**（避开生产 9494/9495）；`verify` profile 附 PostgreSQL 16 验证库 |
+| `build-alpha-pg.sh` | 构建 + 版本自检；`--verify` 一键跑最小验证测试 |
+| `test/test_postgres_connector.py` | 最小验证：版本固定 / 离线 LOAD postgres / PG attach 读写往返 / quack 远程查询 + pg_rt 引用 |
+
+### 构建与验证
+
+```bash
+cd build_scripts/duckdb
+./build-alpha-pg.sh              # 仅构建
+./build-alpha-pg.sh --verify     # 构建 + 起 compose 跑最小验证测试（含独立 PostgreSQL 16）
+```
+
+### 验证结果（2026-09-23, macOS arm64 + Docker 29.4）
+
+| 检查 | 结果 |
+|---|---|
+| 版本固定（pip=2.0.0.dev2609222040 / library=v2.0.0-alpha43089） | ✅ |
+| postgres 扩展离线加载（`autoinstall_known_extensions=false` 后 `LOAD postgres`） | ✅ postgres_scanner bc6aab54de |
+| PostgreSQL attach/connect 读写往返（建表/100 行写入/聚合/过滤） | ✅ |
+| 服务端常驻 `pg_rt`（READ_ONLY）+ ATTACH 失败自动重试（`PG_ATTACH_RETRY_SECONDS`, 默认 60s） | ✅ |
+| quack 远程查询透传 + 经 pg_rt 引用 PG 表 | ✅ |
+| 网关连接池上限/排队（POOL_SIZE 语义见网关文档）、分段写协议、失败清理 | ✅ |
+
+### 已知限制
+
+- **quack 路径的服务端 DDL 会重复执行**：alpha43089 上经 `quack_query` 执行
+  `CREATE TABLE ...` 会出现"执行两次"（第一次建表成功、第二次报 already exists）。
+  生产写路径（COPY / DESCRIBE / checksum SELECT）不含服务端 DDL，不受影响；
+  临时数据请用 `COPY (SELECT ...) TO '...parquet'` 直出。正式版发布后需复验。
+- duckdb Python 连接**不可并发共享**（同连接并发执行报 Invalid Input Error），
+  网关已按"每请求独占租约"隔离并实测 8 路并发稳定。
+- alpha 版本明确不建议生产使用；`duckdb-quack:2.0-alpha`（dev379, quack only）
+  仍是当前生产镜像，两者独立 tag、互不影响。
+- 旧镜像（dev379）因 postgres 扩展下架，**新构建后无法使用 PG_ATTACH_DSN**；
+  需要 PG 连接能力请使用本镜像（alpha-pg）。

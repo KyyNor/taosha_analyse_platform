@@ -299,6 +299,20 @@ backend/services/fraudhunter/wide_table_service/store/duckdb_parquet_store.py
    - removed 列：不 SELECT 即消失；无变化 + 有可复用旧表：新快照直接指向旧 Parquet 目录（Parquet 不可变，复用零拷贝、绝对安全）；
 3. 版本目录引用计数：多个快照指向同一目录时，清理任务按引用数判断，防止误删。
 
+**target_id universe 不变量（Issue #7，硬约束）**：
+增量列改写以旧版本 Parquet 为 LEFT JOIN 左表（`old s LEFT JOIN delta d`），隐含前提是
+**同一 etl_date 下，不同指标版本之间的 target_id 集合保持不变**。旧版本快照生成后源数据
+补入新 target_id 时，该对象在 LEFT JOIN 中会被静默丢弃，且"新旧行数相等"无法发现。
+因此增量执行前先做反连接计数校验（delta 中旧版本不存在的 target_id 数量）：
+- 计数 > 0 → 抛 `TargetUniverseChangedError`，`sync_service` 捕获后**自动回退全量路径**重算；
+- 纯列裁剪（无 delta 表）无新增对象风险，跳过校验。
+
+**失败语义（Issue #6，local/remote 一致）**：
+- 对账失败（行数/列集/checksum/universe 校验）：保留 tmp 目录与 staging 现场，
+  路径落日志供人工复核，由 Parquet 清理任务 TTL 兜底删除；
+- SQL/COPY 执行失败：清理不完整 tmp（remote 模式立即清理；local 模式由下次
+  同步的 `_prepare_tmp_dir` 幂等清理），staging 保留、TTL 兜底。
+
 **测试**：
 - 单测：增量 SQL 生成（增/删/改列组合矩阵）；
 - 集成：构造 v1 → 加 2 个指标 + 删 1 个 + 改 1 个 → v2，验证：staging 只含变化列（日志断言列数）、新版本目录行数与 v1 相同、static 列值逐行一致、inc 列为新值；

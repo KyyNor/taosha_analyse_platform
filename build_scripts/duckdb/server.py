@@ -32,14 +32,24 @@ con.sql("LOAD quack")
 
 if PG_ATTACH_DSN:
     escaped = PG_ATTACH_DSN.replace("\\", "\\\\").replace("'", "\\'")
-    try:
-        con.sql("LOAD postgres;")
-        con.sql(f"ATTACH '{escaped}' AS pg_rt (TYPE POSTGRES, READ_ONLY);")
-        print("[server] ATTACH pg_rt (READ_ONLY) 成功", flush=True)
-    except Exception as e:
-        # 降级: 不阻塞服务启动, 引用 pg_rt 的查询会报错
-        print(f"[server] WARN: ATTACH pg_rt 失败 (引用 pg_rt 的查询将报错): {e}",
-              flush=True)
+    # PG 未就绪（compose 并行启动等）时有界重试；超时降级为告警，不阻塞服务启动
+    retry_seconds = float(os.environ.get("PG_ATTACH_RETRY_SECONDS", "60"))
+    deadline = time.time() + retry_seconds
+    while True:
+        try:
+            con.sql("LOAD postgres;")
+            con.sql(f"ATTACH '{escaped}' AS pg_rt (TYPE POSTGRES, READ_ONLY);")
+            print("[server] ATTACH pg_rt (READ_ONLY) 成功", flush=True)
+            break
+        except Exception as e:
+            if time.time() >= deadline:
+                # 降级: 不阻塞服务启动, 引用 pg_rt 的查询会报错
+                print(f"[server] WARN: ATTACH pg_rt 失败 "
+                      f"(重试{retry_seconds}s后放弃, 引用 pg_rt 的查询将报错): {e}",
+                      flush=True)
+                break
+            print(f"[server] PG 未就绪, 2s 后重试 ATTACH pg_rt: {e}", flush=True)
+            time.sleep(2)
 
 rows = con.sql(
     f"CALL quack_serve('quack:{QUACK_BIND}:{QUACK_PORT}', "
