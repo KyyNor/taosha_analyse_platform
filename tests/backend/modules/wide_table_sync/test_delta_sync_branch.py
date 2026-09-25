@@ -31,6 +31,10 @@ def _load_sync_service_with_stubs(monkeypatch):
     )
     version_manager_module.WideTableVersionManager = object
 
+    store_module = types.ModuleType("services.fraudhunter.wide_table_service.store")
+    store_module.get_store = lambda *args, **kwargs: None
+    store_module.resolve_stores = lambda *args, **kwargs: []
+
     logger_module = types.ModuleType("utils.logger")
     logger_module.logger = types.SimpleNamespace(
         debug=lambda *args, **kwargs: None,
@@ -74,6 +78,7 @@ def _load_sync_service_with_stubs(monkeypatch):
         "models.fraudhunter.wide_table": wide_table_module,
         "models.db_base": db_base_module,
         "services.fraudhunter.wide_table_service.version_manager": version_manager_module,
+        "services.fraudhunter.wide_table_service.store": store_module,
         "utils.logger": logger_module,
         "utils.config": config_module,
         "utils.analyze_db_utils": analyze_db_utils_module,
@@ -120,9 +125,50 @@ def test_build_sync_delta_reports_removed_and_deferred_columns(monkeypatch):
     assert delta.removed_cols == ["i_removed"]
 
 
+def test_merge_store_results_prefers_ready(monkeypatch):
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
+
+    merged = WideTableSyncService._merge_store_results([
+        {"status": "ready", "id": 1, "row_count": 10, "is_new_sync": False},
+        {"status": "skipped", "skip_reason": "snapshot_exists"},
+    ])
+    assert merged["status"] == "ready"
+    assert merged["is_new_sync"] is False  # 任一 ready 且无新同步 → False
+
+
+def test_merge_store_results_marks_new_sync_if_any(monkeypatch):
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
+
+    merged = WideTableSyncService._merge_store_results([
+        {"status": "ready", "id": 1, "row_count": 10, "is_new_sync": True},
+        None,  # 另一后端失败
+    ])
+    assert merged["status"] == "ready"
+    assert merged["is_new_sync"] is True
+
+
+def test_merge_store_results_all_skipped_returns_first(monkeypatch):
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
+
+    merged = WideTableSyncService._merge_store_results([
+        {"status": "skipped", "skip_reason": "version_not_ready"},
+        {"status": "skipped", "skip_reason": "snapshot_exists"},
+    ])
+    assert merged["skip_reason"] == "version_not_ready"
+
+
+def test_merge_store_results_all_failed_returns_none(monkeypatch):
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
+    assert WideTableSyncService._merge_store_results([None, None]) is None
+
+
 def test_sync_wide_table_skips_unchanged_metadata_with_reusable_base(monkeypatch):
     WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
     service = WideTableSyncService.__new__(WideTableSyncService)
+
+    service._stores = [types.SimpleNamespace(
+        name="postgresql", supports_delta_insert_select=True
+    )]
 
     target_metadata = {
         "1": {"version": 1, "indicator_code": "i_same"},
@@ -134,13 +180,13 @@ def test_sync_wide_table_skips_unchanged_metadata_with_reusable_base(monkeypatch
     }
 
     monkeypatch.setattr(service, "_check_version_ready", lambda *args: True)
-    monkeypatch.setattr(service, "_get_existing_snapshot", lambda *args: None)
+    monkeypatch.setattr(service, "_get_existing_snapshot", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         service,
         "_find_copy_source",
         lambda *args: ("dep_acct_wide_table_base_20260102", target_metadata),
     )
-    monkeypatch.setattr(service, "_create_generating_snapshot", lambda *args: 123)
+    monkeypatch.setattr(service, "_create_generating_snapshot", lambda *args, **kwargs: 123)
 
     def record_full_sync(*args, **kwargs):
         calls["full_sync"] += 1
@@ -283,3 +329,122 @@ def test_find_copy_source_logs_selected_partition(monkeypatch):
     assert "选中可复用旧分区" in selected_log
     assert "row_count=42" in selected_log
     assert "indicators=1" in selected_log
+
+
+def test_delta_sync_falls_back_to_full_when_target_universe_changed(monkeypatch):
+    """Issue #7：增量前置校验失败（新 target_id）→ 自动回退全量路径重算"""
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
+
+    # stub duckdb_parquet_store（异常类型经 sys.modules 命中惰性导入）
+    duck_store_module = types.ModuleType(
+        "services.fraudhunter.wide_table_service.store.duckdb_parquet_store")
+
+    class _TargetUniverseChangedError(RuntimeError):
+        pass
+
+    duck_store_module.TargetUniverseChangedError = _TargetUniverseChangedError
+    monkeypatch.setitem(
+        sys.modules, duck_store_module.__name__, duck_store_module)
+
+    service = WideTableSyncService.__new__(WideTableSyncService)
+    service.source_table = 'source_indicator_vertical'
+
+    calls = {"full": 0, "delta": 0, "drop": 0}
+
+    class _FakeStore:
+        name = "duckdb"
+
+        def create_heap_table(self, *args, **kwargs):
+            pass
+
+        def write_pivot_to_pg(self, *args, **kwargs):
+            return (5, 2)
+
+        def drop_table(self, *args):
+            calls["drop"] += 1
+
+        def merge_delta_insert_select(self, **kwargs):
+            calls["delta"] += 1
+            raise _TargetUniverseChangedError(
+                "delta 含 3 个旧版本 Parquet 不存在的 target_id")
+
+    store = _FakeStore()
+
+    def fake_full_sync(store_, wt, metadata, etl, pg_table, create_table=True):
+        calls["full"] += 1
+        assert create_table is False  # 表已由增量路径前置创建，避免重复
+        return (10, 4)
+
+    monkeypatch.setattr(service, "_execute_data_sync", fake_full_sync)
+    monkeypatch.setattr(service, "_metadata_for_codes", lambda m, c: m)
+    monkeypatch.setattr(
+        service, "_build_pivot_sql_inc", lambda *a, **k: "SELECT 1")
+
+    rows, cols = service._execute_delta_insert_select_sync(
+        store=store,
+        wide_table_name="cust_wide_table",
+        target_metadata={"i1": {"indicator_code": "i1"}},
+        etl_date=date(2026, 9, 10),
+        pg_table_name="cust_wide_table_abcdef12",
+        base_ref="/data/wt/old_dir",
+        static_cols=["i_static"],
+        inc_cols=["i_new"],
+    )
+
+    assert calls["delta"] == 1
+    assert calls["full"] == 1          # 回退全量
+    assert calls["drop"] == 1          # delta 辅助表仍被清理
+    assert (rows, cols) == (10, 4)     # 全量路径结果
+
+
+def test_delta_sync_propagates_other_merge_errors(monkeypatch):
+    """非 universe 类异常不吞掉：正常向上传播（不误回退）"""
+    WideTableSyncService = _load_sync_service_with_stubs(monkeypatch)
+
+    duck_store_module = types.ModuleType(
+        "services.fraudhunter.wide_table_service.store.duckdb_parquet_store")
+
+    class _TargetUniverseChangedError(RuntimeError):
+        pass
+
+    duck_store_module.TargetUniverseChangedError = _TargetUniverseChangedError
+    monkeypatch.setitem(
+        sys.modules, duck_store_module.__name__, duck_store_module)
+
+    service = WideTableSyncService.__new__(WideTableSyncService)
+    service.source_table = 'source_indicator_vertical'
+
+    class _FakeStore:
+        name = "duckdb"
+
+        def create_heap_table(self, *args, **kwargs):
+            pass
+
+        def write_pivot_to_pg(self, *args, **kwargs):
+            return (5, 2)
+
+        def drop_table(self, *args):
+            pass
+
+        def merge_delta_insert_select(self, **kwargs):
+            raise RuntimeError("COPY failed: disk full")
+
+    monkeypatch.setattr(service, "_execute_data_sync", lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("不应回退全量")))
+    monkeypatch.setattr(service, "_metadata_for_codes", lambda m, c: m)
+    monkeypatch.setattr(
+        service, "_build_pivot_sql_inc", lambda *a, **k: "SELECT 1")
+
+    import pytest
+
+    with pytest.raises(RuntimeError, match="disk full"):
+        service._execute_delta_insert_select_sync(
+            store=_FakeStore(),
+            wide_table_name="cust_wide_table",
+            target_metadata={"i1": {"indicator_code": "i1"}},
+            etl_date=date(2026, 9, 10),
+            pg_table_name="cust_wide_table_abcdef12",
+            base_ref="/data/wt/old_dir",
+            static_cols=["i_static"],
+            inc_cols=["i_new"],
+        )

@@ -10,6 +10,8 @@ from .fine_report_sync_job import fine_report_sync_job
 from .vector_training_job import vector_training_job
 from .postgres_data_cleanup_job import postgres_data_cleanup_job
 from .mysql_data_cleanup_job import mysql_data_cleanup_job
+from .parquet_cleanup_job import parquet_cleanup_job
+from .dual_store_reconcile_job import dual_store_reconcile_job
 
 __all__ = [
     'sync_all_wide_tables_job',
@@ -19,4 +21,6 @@ __all__ = [
     'vector_training_job',
     'postgres_data_cleanup_job',
     'mysql_data_cleanup_job',
+    'parquet_cleanup_job',
+    'dual_store_reconcile_job',
 ]

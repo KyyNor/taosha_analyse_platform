@@ -16,14 +16,13 @@ from contextlib import contextmanager
 
 from sqlalchemy import text
 
-import pandas as pd
-
 from models.fraudhunter.wide_table import (
     FraudHunterWideTableVersion,
     FraudHunterWideTableSnapshot,
 )
 from models.db_base import get_db_session
 from .version_manager import WideTableVersionManager
+from .store import resolve_stores
 from utils.logger import logger
 from utils.config import settings
 from domain.wide_table.version_delta import VersionDelta, WideTableComparator
@@ -65,11 +64,8 @@ class WideTableSyncService:
     def __init__(self) -> None:
         """初始化同步服务"""
         self.source_table = settings.fraudhunter_wide_table_source_table
-        self._use_pyspark = settings.pyspark_enabled
-        self._batch_size = settings.fraudhunter_realtime_writer_batch_insert_size
-
-        mode = "PySpark" if self._use_pyspark else "JDBC"
-        logger.info(f"宽表同步服务使用{mode}模式")
+        # offline_store 配置决定执行的后端列表（both → PG先、Parquet后 串行双写）
+        self._stores = resolve_stores()
 
     def sync_wide_table(
         self,
@@ -80,7 +76,7 @@ class WideTableSyncService:
         etl_date: date,
         copy_candidates: Optional[list] = None,
     ) -> Optional[Dict]:
-        """同步单个版本的单个日期宽表
+        """同步单个版本的单个日期宽表（按 offline_store 对各存储后端执行）
 
         Args:
             target_version_id: 目标版本ID
@@ -94,12 +90,9 @@ class WideTableSyncService:
             跳过: {"status": "skipped", "skip_reason": reason, ...}
             失败: None
         """
-        snapshot_id = None
         _total_start = time.perf_counter()
 
         try:
-            from utils.analyze_db_utils import AnalyzeDBPartitionManager
-
             # 0. 防御性守卫：version_hash 为 None 时直接跳过（避免后续三处 slice/write 先行炸掉）
             if not version_hash:
                 logger.warning(
@@ -117,7 +110,7 @@ class WideTableSyncService:
                     "etl_date": str(etl_date)
                 }
 
-            # 1. 检查版本是否就绪
+            # 1. 检查版本是否就绪（各后端共享）
             with _stage_timer("01_版本就绪检查", wide_table_name, etl_date):
                 version_ready = self._check_version_ready(target_version_id, etl_date, version_hash)
             if not version_ready:
@@ -132,24 +125,12 @@ class WideTableSyncService:
                     "etl_date": str(etl_date)
                 }
 
-            # 2. 检查是否已存在ready状态的快照
-            with _stage_timer("02_已存在快照检查", wide_table_name, etl_date):
-                existing_result = self._get_existing_snapshot(
-                    wide_table_name, etl_date, version_hash
-                )
-            if existing_result:
-                logger.info(
-                    f"[阶段耗时] sync_wide_table 跳过(skip_reason=snapshot_exists) | "
-                    f"wide_table={wide_table_name} etl_date={etl_date}"
-                )
-                return existing_result
-
-            # 3. 计算指标差异，确定同步路径
+            # 2. 计算指标差异，确定同步路径（各后端共享）
             # 先尝试寻找可复用的旧版本表（有该表的候选人，其 metadata 才是可比的前任版本）
             effective_curr_md: dict = {}
             effective_candidates = copy_candidates or []
 
-            with _stage_timer("03_差异计算与复制源查找", wide_table_name, etl_date):
+            with _stage_timer("02_差异计算与复制源查找", wide_table_name, etl_date):
                 old_pg_table, old_meta = self._find_copy_source(
                     wide_table_name, etl_date, effective_candidates
                 )
@@ -157,95 +138,34 @@ class WideTableSyncService:
                     effective_curr_md = old_meta
 
                 delta = self._build_sync_delta(effective_curr_md, indicator_metadata)
-            changed, new_cols, static_cols = (
-                delta.changed_cols,
-                delta.new_cols,
-                delta.static_cols,
-            )
-            inc_codes = delta.deferred_cols
             pg_table_name = f"{wide_table_name}_{version_hash[:8]}"
 
-            if old_pg_table and delta.is_unchanged:
-                logger.info(
-                    f"[跳过] 版本无变化且存在可复用旧表: {pg_table_name}, "
-                    f"reusable_base={old_pg_table}"
-                )
-                logger.info(
-                    f"[阶段耗时] sync_wide_table 跳过(skip_reason=version_unchanged_with_reusable_base) | "
-                    f"wide_table={wide_table_name} etl_date={etl_date}"
-                )
-                return {
-                    "status": "skipped",
-                    "skip_reason": "version_unchanged_with_reusable_base",
-                    "wide_table_name": wide_table_name,
-                    "etl_date": str(etl_date),
-                    "reusable_base_table": old_pg_table,
-                    "is_new_sync": False,
-                }
-
-            # 4. 创建或更新Snapshot记录为generating状态（仅真正执行同步时记录状态）
-            with _stage_timer("04_创建generating快照", wide_table_name, etl_date):
-                snapshot_id = self._create_generating_snapshot(
-                    wide_table_name, etl_date, version_hash
-                )
-
-            # 5. 数据同步（增量或全量）
-            with _stage_timer("05_数据同步", wide_table_name, etl_date):
-                if old_pg_table and delta.has_any_change:
-                    logger.info(
-                        f"[增量] 走delta insert-select路径: {pg_table_name}, "
-                        f"changed={len(changed)}, new={len(new_cols)}, "
-                        f"removed={len(delta.removed_cols)}, static={len(static_cols)}"
-                    )
-                    row_count, column_count = self._execute_delta_insert_select_sync(
+            # 3. 逐后端执行（快照存在性检查按 storage_backend 隔离；
+            #    both 模式下某后端失败不影响另一后端）
+            results = []
+            for store in self._stores:
+                results.append(
+                    self._sync_date_for_store(
+                        store=store,
                         wide_table_name=wide_table_name,
-                        target_metadata=indicator_metadata,
+                        version_hash=version_hash,
+                        indicator_metadata=indicator_metadata,
                         etl_date=etl_date,
                         pg_table_name=pg_table_name,
                         old_pg_table=old_pg_table,
-                        static_cols=static_cols,
-                        inc_cols=inc_codes,
+                        delta=delta,
+                        effective_candidates=effective_candidates,
                     )
-                else:
-                    fallback_reason = (
-                        "no_copy_candidates"
-                        if not effective_candidates
-                        else "no_usable_old_partition"
-                    )
-                    logger.warning(
-                        f"[全量回退] 走全量同步路径: wide_table={wide_table_name}, "
-                        f"etl_date={etl_date}, target_version={version_hash[:8]}, "
-                        f"reason={fallback_reason}, "
-                        f"copy_candidates={len(effective_candidates)}, "
-                        f"target_indicators={len(indicator_metadata)}；"
-                        f"详细候选淘汰原因见此前的[全量回退诊断]日志"
-                    )
-                    row_count, column_count = self._execute_data_sync(
-                        wide_table_name, indicator_metadata, etl_date, pg_table_name
-                    )
-
-            # 6. 更新Snapshot为ready状态
-            with _stage_timer("06_更新ready状态", wide_table_name, etl_date):
-                self._update_snapshot_ready(
-                    snapshot_id, pg_table_name, row_count, column_count
                 )
-
-            logger.info(f"宽表同步成功: {pg_table_name}, {row_count}行, {column_count}列")
 
             _total_elapsed = time.perf_counter() - _total_start
             logger.info(
                 f"[阶段耗时] sync_wide_table 完成 | wide_table={wide_table_name} "
-                f"etl_date={etl_date} table={pg_table_name} rows={row_count} | 总耗时={_total_elapsed:.3f}s"
+                f"etl_date={etl_date} table={pg_table_name} "
+                f"backends={[s.name for s in self._stores]} | 总耗时={_total_elapsed:.3f}s"
             )
 
-            return {
-                "id": snapshot_id,
-                "status": "ready",
-                "row_count": row_count,
-                "column_count": column_count,
-                "file_size": 0,
-                "is_new_sync": True
-            }
+            return self._merge_store_results(results)
 
         except Exception as e:
             _total_elapsed = time.perf_counter() - _total_start
@@ -254,8 +174,293 @@ class WideTableSyncService:
                 f"[阶段耗时] sync_wide_table 失败 | wide_table={wide_table_name} "
                 f"etl_date={etl_date} | 总耗时={_total_elapsed:.3f}s"
             )
+            return None
+
+    def _find_duckdb_copy_source(
+        self,
+        wide_table_name: str,
+        etl_date: date,
+        copy_candidates: list,
+    ) -> Tuple[Optional[str], Optional[dict]]:
+        """从历史版本候选中找旧 duckdb 快照的 Parquet 版本目录（增量基准/零拷贝复用）
+
+        与 _find_copy_source（PG分区探测）平行：按候选顺序查该日期的 ready duckdb
+        快照，校验 Parquet 日期目录存在且有数据（DuckDB元数据计数，行数>0）。
+
+        Returns:
+            (旧版本Parquet目录绝对路径, 旧版本指标元数据) 或 (None, None)
+        """
+        from sqlalchemy import and_
+
+        if not copy_candidates:
+            return None, None
+
+        etl_date_str = etl_date.strftime('%Y-%m-%d')
+        date_dir_name = f"etl_date={etl_date_str}"
+
+        with get_db_session() as db:
+            for index, cand in enumerate(copy_candidates, start=1):
+                version_hash = cand.get('version_hash')
+                if not version_hash:
+                    continue
+
+                snapshot = db.query(FraudHunterWideTableSnapshot).filter(and_(
+                    FraudHunterWideTableSnapshot.wide_table_name == wide_table_name,
+                    FraudHunterWideTableSnapshot.version_hash == version_hash,
+                    FraudHunterWideTableSnapshot.etl_date == etl_date,
+                    FraudHunterWideTableSnapshot.storage_backend == 'duckdb',
+                    FraudHunterWideTableSnapshot.status == 'ready',
+                )).first()
+
+                if not snapshot or not snapshot.parquet_file_path:
+                    continue
+
+                version_dir = Path(snapshot.parquet_file_path)
+                date_glob = version_dir / date_dir_name / "*.parquet"
+                if not any(date_glob.parent.glob("*.parquet")):
+                    logger.info(
+                        f"[duckdb增量诊断] 候选无数据文件: version={version_hash[:8]}, "
+                        f"dir={date_glob.parent}"
+                    )
+                    continue
+
+                # 行数校验（parquet元数据计数，代价低）
+                # 经会话工厂执行：local=进程内 duckdb（现状），remote=duckdb 容器网关
+                try:
+                    from services.fraudhunter.wide_table_service.store import query_router
+
+                    with query_router.get_query_session(attach_pg=False) as duck_session:
+                        count_df = duck_session.execute_df(
+                            f"SELECT count(*) AS cnt FROM read_parquet('{date_glob.as_posix()}', "
+                            f"hive_partitioning=false)"
+                        )
+                        rows = int(count_df.iloc[0]['cnt'])
+                except Exception as e:
+                    logger.warning(f"[duckdb增量诊断] 计数失败: {version_hash[:8]}, {e}")
+                    continue
+
+                if rows <= 0:
+                    continue
+
+                metadata = cand.get('indicator_metadata') or {}
+                logger.info(
+                    f"[duckdb增量诊断] 选中可复用旧Parquet目录: version={version_hash[:8]}, "
+                    f"dir={version_dir}, rows={rows}"
+                )
+                return str(version_dir), metadata
+
+        return None, None
+
+    def _sync_date_for_store(
+        self,
+        store,
+        wide_table_name: str,
+        version_hash: str,
+        indicator_metadata: dict,
+        etl_date: date,
+        pg_table_name: str,
+        old_pg_table: Optional[str],
+        delta: VersionDelta,
+        effective_candidates: list,
+    ) -> Optional[Dict]:
+        """对单个存储后端执行单日期同步（失败返回 None，不中断其他后端）"""
+        snapshot_id = None
+        try:
+            # 已存在该后端 ready 快照 → 跳过
+            with _stage_timer(f"03_已存在快照检查[{store.name}]", wide_table_name, etl_date):
+                existing_result = self._get_existing_snapshot(
+                    wide_table_name, etl_date, version_hash, store.name
+                )
+            if existing_result:
+                logger.info(
+                    f"[阶段耗时] sync_wide_table 跳过(skip_reason=snapshot_exists, "
+                    f"backend={store.name}) | wide_table={wide_table_name} etl_date={etl_date}"
+                )
+                return existing_result
+
+            # 各后端独立解析增量基准与差异（duckdb 基准为旧 Parquet 目录）
+            if store.name == 'duckdb':
+                base_ref, base_meta = self._find_duckdb_copy_source(
+                    wide_table_name, etl_date, effective_candidates
+                )
+                store_delta = self._build_sync_delta(base_meta or {}, indicator_metadata)
+            else:
+                base_ref, store_delta = old_pg_table, delta
+
+            # 版本无变化 + 可复用旧表 → PG零同步跳过；duckdb新快照零拷贝指向旧目录
+            if base_ref and store_delta.is_unchanged and store.supports_delta_insert_select:
+                if store.name == 'duckdb':
+                    return self._zero_copy_snapshot(
+                        store, wide_table_name, etl_date, version_hash,
+                        pg_table_name, base_ref, effective_candidates
+                    )
+                logger.info(
+                    f"[跳过] 版本无变化且存在可复用旧表: backend={store.name}, "
+                    f"table={pg_table_name}, reusable_base={base_ref}"
+                )
+                logger.info(
+                    f"[阶段耗时] sync_wide_table 跳过(skip_reason=version_unchanged_with_reusable_base, "
+                    f"backend={store.name}) | wide_table={wide_table_name} etl_date={etl_date}"
+                )
+                return {
+                    "status": "skipped",
+                    "skip_reason": "version_unchanged_with_reusable_base",
+                    "wide_table_name": wide_table_name,
+                    "etl_date": str(etl_date),
+                    "reusable_base_table": base_ref,
+                    "storage_backend": store.name,
+                    "is_new_sync": False,
+                }
+
+            # 创建或更新Snapshot记录为generating状态（仅真正执行同步时记录状态）
+            with _stage_timer(f"04_创建generating快照[{store.name}]", wide_table_name, etl_date):
+                snapshot_id = self._create_generating_snapshot(
+                    wide_table_name, etl_date, version_hash, store.name
+                )
+
+            # 数据同步（增量或全量）
+            with _stage_timer(f"05_数据同步[{store.name}]", wide_table_name, etl_date):
+                if base_ref and store_delta.has_any_change and store.supports_delta_insert_select:
+                    logger.info(
+                        f"[增量] 走delta insert-select路径: backend={store.name}, "
+                        f"table={pg_table_name}, "
+                        f"changed={len(store_delta.changed_cols)}, new={len(store_delta.new_cols)}, "
+                        f"removed={len(store_delta.removed_cols)}, static={len(store_delta.static_cols)}"
+                    )
+                    row_count, column_count = self._execute_delta_insert_select_sync(
+                        store,
+                        wide_table_name=wide_table_name,
+                        target_metadata=indicator_metadata,
+                        etl_date=etl_date,
+                        pg_table_name=pg_table_name,
+                        base_ref=base_ref,
+                        static_cols=store_delta.static_cols,
+                        inc_cols=store_delta.deferred_cols,
+                    )
+                else:
+                    fallback_reason = (
+                        "no_copy_candidates" if not effective_candidates
+                        else "no_usable_old_partition" if not base_ref
+                        else "store_delta_unsupported"
+                    )
+                    logger.warning(
+                        f"[全量回退] 走全量同步路径: backend={store.name}, "
+                        f"wide_table={wide_table_name}, "
+                        f"etl_date={etl_date}, target_version={version_hash[:8]}, "
+                        f"reason={fallback_reason}, "
+                        f"copy_candidates={len(effective_candidates)}, "
+                        f"target_indicators={len(indicator_metadata)}；"
+                        f"详细候选淘汰原因见此前的[全量回退诊断]日志"
+                    )
+                    row_count, column_count = self._execute_data_sync(
+                        store, wide_table_name, indicator_metadata, etl_date, pg_table_name
+                    )
+
+            # 更新Snapshot为ready状态（快照引用由后端决定：PG表名 / Parquet目录）
+            with _stage_timer(f"06_更新ready状态[{store.name}]", wide_table_name, etl_date):
+                self._update_snapshot_ready(
+                    snapshot_id,
+                    store.snapshot_ref(pg_table_name, etl_date),
+                    row_count,
+                    column_count
+                )
+
+            logger.info(
+                f"宽表同步成功: backend={store.name}, {pg_table_name}, "
+                f"{row_count}行, {column_count}列"
+            )
+            return {
+                "id": snapshot_id,
+                "status": "ready",
+                "row_count": row_count,
+                "column_count": column_count,
+                "file_size": 0,
+                "storage_backend": store.name,
+                "is_new_sync": True
+            }
+
+        except Exception as e:
+            logger.error(
+                f"宽表同步失败: backend={store.name}, wide_table={wide_table_name}, "
+                f"etl_date={etl_date}, error={e}",
+                exc_info=True
+            )
             self._update_snapshot_failed(snapshot_id, str(e))
             return None
+
+    @staticmethod
+    def _zero_copy_snapshot(
+        self,
+        store,
+        wide_table_name: str,
+        etl_date: date,
+        version_hash: str,
+        pg_table_name: str,
+        base_ref: str,
+        effective_candidates: list,
+    ) -> Dict:
+        """duckdb 版本无变化零拷贝：新快照直接指向旧 Parquet 目录（Parquet不可变，绝对安全）"""
+        from sqlalchemy import and_
+
+        snapshot_id = self._create_generating_snapshot(
+            wide_table_name, etl_date, version_hash, store.name
+        )
+        try:
+            row_count, column_count = None, None
+            with get_db_session() as db:
+                old_snapshot = None
+                for cand in effective_candidates:
+                    old_hash = cand.get('version_hash')
+                    if not old_hash:
+                        continue
+                    old_snapshot = db.query(FraudHunterWideTableSnapshot).filter(and_(
+                        FraudHunterWideTableSnapshot.wide_table_name == wide_table_name,
+                        FraudHunterWideTableSnapshot.version_hash == old_hash,
+                        FraudHunterWideTableSnapshot.etl_date == etl_date,
+                        FraudHunterWideTableSnapshot.storage_backend == 'duckdb',
+                        FraudHunterWideTableSnapshot.status == 'ready',
+                    )).first()
+                    if old_snapshot:
+                        break
+                if old_snapshot:
+                    row_count = old_snapshot.row_count
+                    column_count = old_snapshot.column_count
+
+            self._update_snapshot_ready(
+                snapshot_id, base_ref,
+                row_count or 0, column_count or 0
+            )
+            # 引用计数由 parquet 清理任务按快照引用判断，零拷贝目录不会被误删
+            logger.info(
+                f"[零拷贝] 版本无变化，新快照指向旧Parquet目录: backend=duckdb, "
+                f"table={pg_table_name}, dir={base_ref}, rows={row_count}"
+            )
+            return {
+                "id": snapshot_id,
+                "status": "ready",
+                "row_count": row_count or 0,
+                "column_count": column_count or 0,
+                "file_size": 0,
+                "storage_backend": store.name,
+                "is_new_sync": True
+            }
+        except Exception as e:
+            self._update_snapshot_failed(snapshot_id, str(e))
+            raise
+
+    @staticmethod
+    def _merge_store_results(results: list) -> Optional[Dict]:
+        """合并各后端同步结果：任一 ready 即成功；全部跳过取首个跳过；全部失败返回 None"""
+        ready_results = [r for r in results if r and r.get("status") == "ready"]
+        if ready_results:
+            merged = dict(ready_results[0])
+            merged["is_new_sync"] = any(r.get("is_new_sync") for r in ready_results)
+            return merged
+
+        skipped_results = [r for r in results if r]
+        if skipped_results:
+            return skipped_results[0]
+        return None
 
     def _check_version_ready(
         self,
@@ -289,9 +494,10 @@ class WideTableSyncService:
         self,
         wide_table_name: str,
         etl_date: date,
-        version_hash: str
+        version_hash: str,
+        storage_backend: str = 'postgresql'
     ) -> Optional[Dict]:
-        """检查是否已存在ready状态的快照"""
+        """检查是否已存在ready状态的快照（按存储后端隔离）"""
         from sqlalchemy import and_
 
         with get_db_session() as db:
@@ -300,16 +506,21 @@ class WideTableSyncService:
                     FraudHunterWideTableSnapshot.wide_table_name == wide_table_name,
                     FraudHunterWideTableSnapshot.etl_date == etl_date,
                     FraudHunterWideTableSnapshot.version_hash == version_hash,
+                    FraudHunterWideTableSnapshot.storage_backend == storage_backend,
                     FraudHunterWideTableSnapshot.status == 'ready'
                 )
             ).first()
 
             if existing_snapshot:
-                logger.debug(f"该日期 {etl_date} 的宽表已存在且状态为ready，跳过同步")
+                logger.debug(
+                    f"该日期 {etl_date} 的宽表已存在且状态为ready"
+                    f"（backend={storage_backend}），跳过同步"
+                )
                 return {
                     "id": existing_snapshot.id,
                     "status": "ready",
                     "row_count": existing_snapshot.row_count,
+                    "storage_backend": storage_backend,
                     "is_new_sync": False
                 }
 
@@ -319,7 +530,8 @@ class WideTableSyncService:
         self,
         wide_table_name: str,
         etl_date: date,
-        version_hash: str
+        version_hash: str,
+        storage_backend: str = 'postgresql'
     ) -> int:
         """创建或更新Snapshot记录为generating状态，返回snapshot_id"""
         from sqlalchemy import and_
@@ -329,7 +541,8 @@ class WideTableSyncService:
                 and_(
                     FraudHunterWideTableSnapshot.wide_table_name == wide_table_name,
                     FraudHunterWideTableSnapshot.etl_date == etl_date,
-                    FraudHunterWideTableSnapshot.version_hash == version_hash
+                    FraudHunterWideTableSnapshot.version_hash == version_hash,
+                    FraudHunterWideTableSnapshot.storage_backend == storage_backend
                 )
             ).first()
 
@@ -344,6 +557,7 @@ class WideTableSyncService:
                     etl_date=etl_date,
                     version_hash=version_hash,
                     parquet_file_path="",
+                    storage_backend=storage_backend,
                     status='generating'
                 )
                 db.add(new_snapshot)
@@ -353,168 +567,98 @@ class WideTableSyncService:
 
     def _execute_data_sync(
         self,
+        store,
         wide_table_name: str,
         indicator_metadata: dict,
         etl_date: date,
         pg_table_name: str,
         create_table: bool = True,
     ) -> Tuple[int, int]:
-        """执行数据同步
+        """执行数据同步（全量路径）
 
         Args:
-            create_table: 是否在此方法内部创建 PG 表和分区。
+            store: 存储后端实例
+            create_table: 是否在此方法内部创建存储目标。
                           增量路径将此置为 False（表已由调用方创建）。
         Returns:
             (row_count, column_count)
         """
 
-        from utils.analyze_db_utils import AnalyzeDBPartitionManager
-
-        # 1. 保证 PG 表和分区存在
+        # 1. 保证存储目标存在
         if create_table:
-            AnalyzeDBPartitionManager.create_wide_table(pg_table_name, indicator_metadata)
-            AnalyzeDBPartitionManager.ensure_partition(pg_table_name, etl_date)
+            store.ensure_table(pg_table_name, indicator_metadata, etl_date)
 
         # 2. 构建 Spark SQL PIVOT 查询（全量）
         sql = self._build_pivot_sql(wide_table_name, indicator_metadata, etl_date)
 
-        # 3. 执行 Spark 查询并写入 PG
+        # 3. 执行 Spark 查询并写入存储
         refresh_sql = f"refresh table {self.source_table}"
-        return self._execute_spark_query_and_write_pg(
-            sql, pg_table_name, etl_date, refresh_sql=refresh_sql
-        )
+        return store.write_pivot(sql, pg_table_name, etl_date, refresh_sql=refresh_sql)
 
     def _execute_delta_insert_select_sync(
         self,
+        store,
         wide_table_name: str,
         target_metadata: dict,
         etl_date: date,
         pg_table_name: str,
-        old_pg_table: str,
+        base_ref: str,
         static_cols: list,
         inc_cols: list,
     ) -> Tuple[int, int]:
+        """增量路径：PIVOT 变化列写 delta 辅助表 + 存储侧合并
+
+        base_ref 语义随存储后端：PG 为旧分区表名；duckdb 为旧版本 Parquet 目录。
+        """
         etl_date_str = etl_date.strftime('%Y-%m-%d')
         etl_date_suffix = etl_date.strftime('%Y%m%d')
         delta_table = None
-        from utils.analyze_db_utils import AnalyzeDBPartitionManager
 
-        AnalyzeDBPartitionManager.create_wide_table(pg_table_name, target_metadata)
-        AnalyzeDBPartitionManager.ensure_partition(pg_table_name, etl_date)
+        # PG 需预先建目标宽表+分区（INSERT目标）；duckdb 由 merge 直接落新版本目录
+        if store.name == 'postgresql':
+            store.ensure_table(pg_table_name, target_metadata, etl_date)
 
         try:
             if inc_cols:
                 delta_table = f"_delta_{pg_table_name}_{etl_date_suffix}"
                 inc_metadata = self._metadata_for_codes(target_metadata, inc_cols)
-                AnalyzeDBPartitionManager.create_heap_table(delta_table, inc_metadata)
+                store.create_heap_table(delta_table, inc_metadata)
 
                 pivot_sql = self._build_pivot_sql_inc(
                     wide_table_name, target_metadata, etl_date, inc_cols
                 )
                 refresh_sql = f"refresh table {self.source_table}"
-                if self._use_pyspark:
-                    self._execute_with_pyspark_to_pg(pivot_sql, delta_table, refresh_sql)
-                else:
-                    self._execute_with_jdbc_to_pg(pivot_sql, delta_table, etl_date, refresh_sql)
+                store.write_pivot_to_pg(pivot_sql, delta_table, etl_date, refresh_sql=refresh_sql)
 
-            row_count = AnalyzeDBPartitionManager.insert_select_from_base_delta(
-                dest_table=pg_table_name,
-                base_table=old_pg_table,
-                delta_table=delta_table,
-                target_metadata=target_metadata,
-                static_cols=static_cols,
-                inc_cols=inc_cols,
-                etl_date=etl_date_str,
-            )
+            try:
+                row_count = store.merge_delta_insert_select(
+                    dest_table=pg_table_name,
+                    base_table=base_ref,
+                    delta_table=delta_table,
+                    target_metadata=target_metadata,
+                    static_cols=static_cols,
+                    inc_cols=inc_cols,
+                    etl_date=etl_date_str,
+                )
+            except Exception as e:
+                # 增量前置不变量破坏（delta 出现旧版本不存在的 target_id）：
+                # 静默合并会丢行，自动回退全量路径重算（Issue #7）
+                from .store.duckdb_parquet_store import TargetUniverseChangedError
+                if not isinstance(e, TargetUniverseChangedError):
+                    raise
+                logger.warning(
+                    f"[{wide_table_name}] {e}；自动回退全量路径重算"
+                )
+                return self._execute_data_sync(
+                    store, wide_table_name, target_metadata, etl_date,
+                    pg_table_name, create_table=False,
+                )
             column_count = len(list(target_metadata.keys())) + 2
             return row_count, column_count
         finally:
             if delta_table:
-                AnalyzeDBPartitionManager.drop_table(delta_table)
+                store.drop_table(delta_table)
 
-    def _copy_static_and_merge_incr(
-        self,
-        wide_table_name: str,
-        target_metadata: dict,
-        etl_date: date,
-        pg_table_name: str,
-        static_cols: list,
-        inc_cols: list,
-        old_pg_table: str,
-    ) -> Tuple[int, int]:
-        """COPY static 列 + 通过辅助表合并增量 PIVOT 数据
-
-        五步：
-          A. 创建主表（含全量列，此处在调用方已创建）
-          B. 从 old_pg_table COPY static 列
-          C. 创建辅助表（仅 inc_cols + target_id + etl_date）
-          D. Spark PIVOT inc_cols → JDBC append 入辅助表
-          E. PG 侧 UPDATE ... FROM 合并到主表
-          F. 删除辅助表
-        """
-
-        from utils.analyze_db_utils import AnalyzeDBPartitionManager
-
-        etl_date_str = etl_date.strftime('%Y-%m-%d')
-        aux_table = f"_incr_{pg_table_name}_{etl_date_str.replace('-', '')}"
-        column_count = len(list(target_metadata.keys())) + 2  # +2 = target_id + etl_date
-
-        # === 步骤 B：COPY static 列 ===
-        copied = 0
-        if static_cols and AnalyzeDBPartitionManager.table_exists(old_pg_table):
-            copied = AnalyzeDBPartitionManager.copy_static_columns(
-                dest_table=pg_table_name,
-                src_table=old_pg_table,
-                static_cols=static_cols,
-                etl_date=etl_date_str,
-            )
-            logger.info(
-                f"[增量] COPY static列完成: {pg_table_name}, "
-                f"来源={old_pg_table}, 复制{copied}行"
-            )
-        else:
-            logger.info(f"[增量] 无static列可COPY或旧表不存在，跳过 (static={bool(static_cols)})")
-
-        # === 步骤 C：创建辅助表（仅 inc_cols + target_id + etl_date，无分区，轻量）===
-        AnalyzeDBPartitionManager.create_heap_table(aux_table, target_metadata)
-        logger.debug(f"[增量] 辅助表已创建: {aux_table}，含 {len(target_metadata)} 个指标列")
-
-        try:
-            # === 步骤 D：Spark PIVOT inc_cols → JDBC append 到辅助表 ===
-            pivot_sql = self._build_pivot_sql_inc(
-                wide_table_name, target_metadata, etl_date, inc_cols
-            )
-            refresh_sql = f"refresh table {self.source_table}"
-            if self._use_pyspark:
-                # 返回值 (cnt, _) 丢弃，目标表行数由 static 列行数（copied）代表
-                self._execute_with_pyspark_to_pg(pivot_sql, aux_table, refresh_sql)
-            else:
-                self._execute_with_jdbc_to_pg(pivot_sql, aux_table, etl_date, refresh_sql)
-
-            # === 步骤 E：PG 侧合并（最核心的一条 UPDATE） ===
-            if inc_cols:
-                merged = AnalyzeDBPartitionManager.merge_aux_into_main(
-                    main_table=pg_table_name,
-                    aux_table=aux_table,
-                    inc_cols=inc_cols,
-                )
-                if merged == 0:
-                    logger.warning(f"[增量] 合并影响0行，请检查辅助表 {aux_table} 与主表是否有匹配的 target_id")
-                else:
-                    logger.info(f"[增量] 合并完成: {merged} 行受影响")
-
-            # === 步骤 F：删除辅助表 ===
-            AnalyzeDBPartitionManager.drop_table(aux_table)
-
-            # row_count 以 static 列复制量为下限，不必事后 COUNT(*)（大表上昂贵）
-            return (copied, column_count)
-
-        except Exception:
-            # 辅助表清理（尽力而为，失败不向上冒泡）
-            AnalyzeDBPartitionManager.drop_table(aux_table)
-            raise
-
-    
     def _update_snapshot_ready(
         self,
         snapshot_id: int,
@@ -1079,120 +1223,3 @@ PIVOT (
 
         logger.debug(f"生成PIVOT SQL ({len(indicator_codes)}个指标):\n{sql}")
         return sql
-
-    def _execute_spark_query_and_write_pg(
-        self,
-        sql: str,
-        pg_table_name: str,
-        etl_date: date,
-        refresh_sql: str
-    ) -> Tuple[int, int]:
-        """执行Spark SQL并写入PostgreSQL
-
-        支持两种模式：
-        1. PySpark模式：直接提交Spark任务，通过JDBC写入PG
-        2. JDBC模式：通过JDBC连接fetch数据，批量写入PG
-
-        Returns:
-            (row_count, column_count)
-        """
-        if self._use_pyspark:
-            return self._execute_with_pyspark_to_pg(sql, pg_table_name, refresh_sql)
-        else:
-            return self._execute_with_jdbc_to_pg(sql, pg_table_name, etl_date, refresh_sql)
-
-    def _execute_with_pyspark_to_pg(
-        self,
-        sql: str,
-        pg_table_name: str,
-        refresh_sql: str | None = None,
-    ) -> Tuple[int, int]:
-        """使用PySpark执行查询并写入PG
-
-        通用写入方法，同时服务于全量路径和增量路径（写辅助表），
-        由调用方通过 pg_table_name 区分写入目标。
-
-        Returns:
-            (row_count, column_count)
-        """
-        from utils.spark_utils import PySparkService
-
-        logger.info(f"使用PySpark执行查询并写入PG表: {pg_table_name}")
-
-        pyspark_service = PySparkService()
-        try:
-            if not pyspark_service.is_initialized():
-                pyspark_service.initialize()
-
-            # refresh_sql 使源分区为最新内容（全量和增量路径均需要）
-            if refresh_sql:
-                pyspark_service.spark.sql(refresh_sql)
-
-            df = pyspark_service.spark.sql(sql)
-            column_count = len(df.columns)
-            row_count = df.count()
-
-            pg_config = settings.fraudhunter_analyze_db['postgresql']
-            jdbc_url = (
-                f"jdbc:postgresql://{pg_config['host']}:"
-                f"{pg_config['port']}/{pg_config['database']}"
-            )
-
-            logger.info(f"开始写入PG表: {pg_table_name}, 预计{row_count}行")
-            df.write.mode("append").option("driver", "org.postgresql.Driver").jdbc(
-                url=jdbc_url,
-                table=pg_table_name,
-                properties={
-                    "user": pg_config['user'],
-                    "password": pg_config['password']
-                }
-            )
-
-            return (row_count, column_count)
-        finally:
-            pyspark_service.shutdown()
-
-    def _execute_with_jdbc_to_pg(
-        self,
-        sql: str,
-        pg_table_name: str,
-        etl_date: date,
-        refresh_sql: str | None = None,
-    ) -> Tuple[int, int]:
-        """使用JDBC执行查询并批量写入PG
-
-        通用写入方法，同时服务于全量路径和增量路径（写辅助表），
-        由调用方通过 pg_table_name 区分写入目标。
-
-        Returns:
-            (row_count, column_count)
-        """
-
-        from utils.analyze_db_utils import AnalyzeDBConnector
-        from utils.spark_utils import spark_utils
-
-        logger.info(f"使用JDBC执行Spark查询并写入PG表: {pg_table_name}")
-
-        # refresh_sql 使源分区为最新内容（全量和增量路径均需要）
-        if refresh_sql:
-            spark_utils.query_sql(refresh_sql, return_type=None)
-
-        results = spark_utils.query_sql(sql, return_type='dict')
-
-        if not results:
-            logger.warning(f"Spark查询返回空结果: {pg_table_name}")
-            return (0, 0)
-
-        df = pd.DataFrame(results)
-
-        if 'etl_date' not in df.columns:
-            df['etl_date'] = etl_date
-
-        row_count = AnalyzeDBConnector.batch_insert(
-            pg_table_name, df, chunksize=self._batch_size, if_exists='append'
-        )
-        column_count = len(df.columns)
-
-        logger.info(f"数据已写入PG: {pg_table_name}, {row_count}行, {column_count}列")
-
-        return (row_count, column_count)

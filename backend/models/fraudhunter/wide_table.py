@@ -180,12 +180,22 @@ class FraudHunterWideTableSnapshot(Base):
     )
 
     # 文件信息
+    # parquet_file_path 语义由 storage_backend 决定：
+    #   postgresql → PG正式表名；duckdb → Parquet目录绝对路径
     parquet_file_path: Mapped[str] = mapped_column(
         String(512),
         nullable=False,
         comment='Parquet文件路径'
     )
     file_size_bytes: Mapped[Optional[int]] = mapped_column(BigInteger, comment='文件大小(字节)')
+
+    # 存储后端
+    storage_backend: Mapped[str] = mapped_column(
+        String(16),
+        default='postgresql',
+        nullable=False,
+        comment='存储后端: postgresql/duckdb'
+    )
 
     # 数据统计
     row_count: Mapped[Optional[int]] = mapped_column(Integer, comment='行数')
@@ -222,8 +232,13 @@ class FraudHunterWideTableSnapshot(Base):
 
     # 索引
     __table_args__ = (
-        # 复合唯一索引: 同一宽表同一日期只能有一条记录
-        Index('uk_fh_ws_table_date', 'wide_table_name', 'version_hash', 'etl_date', unique=True),
+        # 复合唯一索引: 同一宽表/版本/日期/存储后端只能有一条记录
+        # （both 双写下 postgresql 与 duckdb 快照并存）
+        Index(
+            'uk_fh_ws_table_date',
+            'wide_table_name', 'version_hash', 'etl_date', 'storage_backend',
+            unique=True
+        ),
         Index('idx_fh_ws_table_name', 'wide_table_name'),
         Index('idx_fh_ws_etl_date', 'etl_date'),
         Index('idx_fh_ws_version_hash', 'version_hash'),

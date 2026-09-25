@@ -950,6 +950,11 @@ export default function IndicatorQueryPage() {
                     {selectedFile.version_status}
                   </Badge>
                 )}
+                {selectedFile.storage_backend === 'duckdb' && (
+                  <Badge variant="outline" className="text-xs">
+                    Parquet
+                  </Badge>
+                )}
                 <span className="text-muted-foreground ml-auto">
                   {formatDateTime(selectedFile.generation_time)}
                 </span>

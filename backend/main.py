@@ -79,7 +79,9 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
             fine_report_sync_job,
             vector_training_job,
             mysql_data_cleanup_job,
-            postgres_data_cleanup_job
+            postgres_data_cleanup_job,
+            parquet_cleanup_job,
+            dual_store_reconcile_job
         )
 
         # 定义默认任务组（二维数组）
@@ -88,7 +90,8 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
             # ['offline_wide_table_sync'],                            # 组1：离线宽表同步
             [], #  离线宽表同步 改到ds执行
             ['fine_report_sync', 'metadata_sync'],                  # 组2：FineReport同步
-            ['postgres_data_cleanup', 'mysql_data_cleanup']            # 组3：向量训练 + 数据清理
+            ['postgres_data_cleanup', 'mysql_data_cleanup', 'parquet_cleanup',
+             'dual_store_reconcile']                                 # 组3：数据清理 + 双写对账
         ]
 
         # 获取当前worker分配的任务（轮询算法）
@@ -100,6 +103,16 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
                 assigned_tasks.extend(group)
 
         logger.info(f"Worker {worker_index + 1}/{worker_count} (PID:{os.getpid()}) 负责运行任务: {assigned_tasks}")
+
+        # DuckDB 专属维护任务启用条件（Issue #10）：
+        # - parquet_cleanup: offline_store 含 duckdb（duckdb/both）才注册
+        # - dual_store_reconcile: 仅 both 灰度双写期注册
+        # 纯 PG 模式默认部署不注册，不会访问/修改 DuckDB Parquet 存储目录
+        offline_store = getattr(
+            settings, 'fraudhunter_wide_table_offline_store', 'postgresql',
+        )
+        duck_maintenance_enabled = offline_store in ('duckdb', 'both')
+        dual_write_enabled = offline_store == 'both'
 
         # 定义所有可注册的任务
         jobs_to_register = [
@@ -118,6 +131,26 @@ async def _start_scheduler_service(worker_index: int, worker_count: int):
             ('mysql_data_cleanup', mysql_data_cleanup_job,
              settings.scheduler_mysql_data_cleanup_cron, 'MysqlSQL数据清理', 'cron'),
         ]
+        if duck_maintenance_enabled:
+            jobs_to_register.append(
+                ('parquet_cleanup', parquet_cleanup_job,
+                 settings.scheduler_parquet_cleanup_cron, 'Parquet目录清理', 'cron'),
+            )
+        else:
+            logger.info(
+                f"offline_store={offline_store}，跳过注册 DuckDB 专属维护任务: "
+                f"parquet_cleanup（未启用 DuckDB 存储）"
+            )
+        if dual_write_enabled:
+            jobs_to_register.append(
+                ('dual_store_reconcile', dual_store_reconcile_job,
+                 settings.scheduler_dual_store_reconcile_cron, '双写存储对账', 'cron'),
+            )
+        else:
+            logger.info(
+                f"offline_store={offline_store}，跳过注册 DuckDB 专属维护任务: "
+                f"dual_store_reconcile（仅 both 灰度双写期运行）"
+            )
 
         registered_count = 0
         for job_id, job_func, trigger_info, job_name, job_type in jobs_to_register:

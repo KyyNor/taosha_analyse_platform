@@ -292,6 +292,29 @@ fraudhunter:
     sync_scheduler_interval: 600  # 离线同步调度间隔(秒) - 10分钟
     source_table: "hxb_dh_data_dwm.dwm_taosha_indicator_details"
 
+    # 离线宽表存储后端: postgresql | duckdb | both（both=灰度双写）
+    offline_store: "postgresql"
+
+    # DuckDB Parquet存储配置（offline_store 含 duckdb 时生效）
+    duckdb:
+      storage_path: "/data/taosha/indicator_data/wide_tables_parquet"  # Parquet根目录，按 {宽表名}_{版本hash前8位}/etl_date=日期 分区
+      compression: "zstd"  # Parquet压缩算法
+      staging_ttl_hours: 24  # staging中转表(_staging_前缀)兜底清理阈值(小时)
+      parquet_cleanup_grace_hours: 48  # 无引用版本目录清理宽限期(小时)，防止误删同步中目录
+
+    # DuckDB 计算模式（docs/duckdb_remote_compute_plan.md）
+    # local: 进程内 import duckdb（要求后端机器 glibc >= 2.27）
+    # remote: 经 HTTP 网关调用 duckdb 容器（build_scripts/duckdb，后端零 duckdb 依赖）
+    duck_compute:
+      mode: "local"                          # local | remote
+      endpoint: "http://127.0.0.1:9495"      # remote 模式: 网关地址（同机容器=127.0.0.1）
+      token: ""                              # remote 模式: 网关 Bearer token
+      timeout_seconds: 300                   # 单条 SQL 超时（秒）
+      # 后端路径前缀 → 容器内路径前缀（同机容器挂载相同路径时无需配置）
+      path_map: {}
+      # path_map:
+      #   "/data/taosha": "/data/taosha"
+
   # PG 分区导出 Parquet 工具配置（python -m scripts.pg_partition_export）
   pg_partition_export:
     output_dir: "/data/taosha/indicator_data/pg_partition_export"  # 默认导出根目录
@@ -338,3 +361,5 @@ scheduler:
   vector_training_interval: 28800  # 秒，向量数据库训练间隔（8小时）
   vector_training_max_docs_per_type: 5  # 每种资源类型每次训练的最大文档数（超出的将在下次训练）
   postgres_data_cleanup_cron: "0 3 * * *"   # cron表达式，Pg文件清理（每日凌晨3点）
+  parquet_cleanup_cron: "0 4 * * *"       # cron表达式，Parquet版本目录引用计数清理（每日凌晨4点）
+  dual_store_reconcile_cron: "30 6 * * *"  # cron表达式，双写存储对账（both灰度期间，每日6:30）
