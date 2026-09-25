@@ -315,6 +315,11 @@ fraudhunter:
       # path_map:
       #   "/data/taosha": "/data/taosha"
 
+  # PG 分区导出 Parquet 工具配置（python -m scripts.pg_partition_export）
+  pg_partition_export:
+    output_dir: "/data/taosha/indicator_data/pg_partition_export"  # 默认导出根目录
+    compression: "zstd"  # Parquet 压缩算法: snappy/gzip/zstd
+
   # 实时数据服务配置
   realtime_data:
     enabled: false  # 是否启用实时数据服务（默认关闭）

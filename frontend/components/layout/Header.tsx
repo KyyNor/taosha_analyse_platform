@@ -59,6 +59,7 @@ const allNavItems: NavItem[] = [
       { type: 'link', href: "/fraudhunter/system-config", label: "系统配置", requiredPath: "/fraudhunter/system-config" },
       { type: 'link', href: "/fraudhunter/system-config/province-card-bin", label: "省市卡BIN", requiredPath: "/fraudhunter/system-config/province-card-bin" },
       { type: 'link', href: "/fraudhunter/system-config/victim-entry", label: "受害人录入", requiredPath: "/fraudhunter/system-config/victim-entry" },
+      { type: 'link', href: "/fraudhunter/general-config", label: "通用配置", requiredPath: "/fraudhunter/general-config" },
       { type: 'link', href: "/fraudhunter/wide-table-versions", label: "指标宽表版本", requiredPath: "/fraudhunter/wide-table-versions" },
     ]
   },

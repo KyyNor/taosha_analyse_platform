@@ -170,6 +170,26 @@ class SystemConfigManager:
         logger.info(f"更新系统配置成功: {db_config.config_key}, ID={db_config.id}")
         return db_config
 
+    def upsert_config(self, data: SystemConfigCreate) -> FraudHunterSystemConfig:
+        """按键 upsert 配置：存在则仅更新 config_value，不存在则创建
+
+        供功能侧固定配置键使用（分类/类型/描述以首次创建为准）。
+
+        Args:
+            data: 配置数据
+
+        Returns:
+            配置对象
+        """
+        existing = self.get_config_by_key(data.config_key)
+        if existing:
+            existing.config_value = data.config_value
+            self.db.commit()
+            self.db.refresh(existing)
+            logger.info(f"按键更新系统配置: {data.config_key}, ID={existing.id}")
+            return existing
+        return self.create_config(data)
+
     def parse_excel(self, file_content: bytes) -> Dict[str, Any]:
         """解析Excel文件，返回预览数据
 

@@ -3,7 +3,7 @@
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Any, Dict
 from datetime import datetime, date
 
 
@@ -172,3 +172,40 @@ class AlertControlExportRequest(BaseModel):
     search: Optional[str] = Field(None, description="搜索关键词")
     hide_inactive: Optional[bool] = Field(None, description="隐藏无效记录")
     format: Literal["csv", "excel"] = Field("excel", description="导出格式")
+
+
+class IndicatorTagItem(BaseModel):
+    """命中记录指标展示配置项"""
+
+    indicator_code: str = Field(..., description="指标编码")
+    indicator_name: str = Field(..., description="指标名称")
+    indicator_type: str = Field(..., description="指标类型：offline/realtime")
+
+
+class IndicatorTagConfigResponse(BaseModel):
+    """命中记录指标展示配置响应"""
+
+    indicators: List[IndicatorTagItem] = Field(default_factory=list, description="有序指标列表，空列表表示未配置")
+
+
+class IndicatorTagConfigUpdateRequest(BaseModel):
+    """命中记录指标展示配置更新请求"""
+
+    indicator_codes: List[str] = Field(default_factory=list, max_length=50, description="指标编码有序列表，空列表表示清空配置")
+
+
+class IndicatorValuesRequest(BaseModel):
+    """命中记录指标值批量查询请求"""
+
+    hit_record_ids: List[int] = Field(..., min_length=1, max_length=500, description="命中记录ID列表，单次最多500条")
+    indicator_codes: List[str] = Field(..., min_length=1, max_length=50, description="指标编码列表")
+
+
+class IndicatorValuesResponse(BaseModel):
+    """命中记录指标值批量查询响应
+
+    values: {hit_record_id: {indicator_code: 值}}，JSON 序列化后键转为字符串；
+    指标缺失（未写入或已改名）时值为 null
+    """
+
+    values: Dict[int, Dict[str, Any]] = Field(default_factory=dict, description="按命中记录ID组织的指标值映射")

@@ -73,6 +73,20 @@ export interface ExportRequest {
   format: 'csv' | 'excel';
 }
 
+// ============ 命中记录指标展示配置 ============
+export interface IndicatorTagItem {
+  indicator_code: string;
+  indicator_name: string;
+  indicator_type: 'offline' | 'realtime';
+}
+
+export interface IndicatorTagConfig {
+  indicators: IndicatorTagItem[];
+}
+
+// 后端 Dict[int, ...] 经 JSON 序列化后键为字符串（hit_record_id）
+export type IndicatorValuesMap = Record<string, Record<string, string | number | boolean | null>>;
+
 // ============ 告警管控记录API ============
 export const alertControlRecordService = {
   // 获取告警管控记录列表
@@ -124,6 +138,29 @@ export const alertControlRecordService = {
       model_ids: params.model_ids?.length ? params.model_ids : undefined,
     });
     return response.data;
+  },
+
+  // 获取命中记录指标展示配置（空列表表示未配置）
+  async getIndicatorTagConfig(): Promise<IndicatorTagConfig> {
+    const response = await api.get(`${BASE_PATH}/alert-control-records/indicator-tag-config`);
+    return response.data;
+  },
+
+  // 更新命中记录指标展示配置（顺序即展示顺序，空数组表示清空）
+  async updateIndicatorTagConfig(indicatorCodes: string[]): Promise<IndicatorTagConfig> {
+    const response = await api.put(`${BASE_PATH}/alert-control-records/indicator-tag-config`, {
+      indicator_codes: indicatorCodes,
+    });
+    return response.data;
+  },
+
+  // 批量获取命中记录指标值（供列表页异步加载，单次最多500条）
+  async fetchIndicatorValues(hitRecordIds: number[], indicatorCodes: string[]): Promise<IndicatorValuesMap> {
+    const response = await api.post(`${BASE_PATH}/alert-control-records/indicator-values`, {
+      hit_record_ids: hitRecordIds,
+      indicator_codes: indicatorCodes,
+    });
+    return response.data.values;
   },
 };
 
