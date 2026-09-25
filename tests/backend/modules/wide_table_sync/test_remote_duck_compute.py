@@ -197,6 +197,58 @@ class TestToDataFrame:
         assert df['ts'].tolist() == ['2026-09-10T12:30:00']
 
 
+class TestTruncationGuard:
+    """PR#12 评论#1: truncated=true 默认报错禁止静默继续; max_rows 显式指定"""
+
+    def _session_with_response(self, monkeypatch, payload, status=200):
+        rs = _load_remote_session(monkeypatch)
+        sess = rs.RemoteDuckSession()
+        fake_http = MagicMock()
+        fake_response = MagicMock(status_code=status, json=lambda: payload)
+        fake_http.post.return_value = fake_response
+        sess._session = fake_http
+        return sess, fake_http
+
+    def test_truncated_raises_by_default(self, monkeypatch):
+        sess, _ = self._session_with_response(monkeypatch, {
+            'columns': ['i'], 'types': ['BIGINT'], 'data': {'i': [1]},
+            'row_count': 1, 'truncated': True,
+        })
+        with pytest.raises(RuntimeError, match='截断'):
+            sess.execute_df('SELECT * FROM huge_table')
+
+    def test_allow_truncated_returns_df(self, monkeypatch):
+        sess, _ = self._session_with_response(monkeypatch, {
+            'columns': ['i'], 'types': ['BIGINT'], 'data': {'i': [1]},
+            'row_count': 1, 'truncated': True,
+        })
+        df = sess.execute_df('SELECT * FROM preview', allow_truncated=True)
+        assert len(df) == 1
+
+    def test_max_rows_sent_only_when_specified(self, monkeypatch):
+        sess, http = self._session_with_response(monkeypatch, {
+            'columns': ['i'], 'types': ['BIGINT'], 'data': {'i': [1]},
+            'row_count': 1, 'truncated': False,
+        })
+        sess.execute_df('SELECT 1', max_rows=123)
+        assert http.post.call_args.kwargs['json']['max_rows'] == 123
+        # 未指定时不携带, 由服务端 MAX_ROWS 配置决定
+        sess.execute_df('SELECT 1')
+        assert 'max_rows' not in http.post.call_args.kwargs['json']
+
+    def test_to_dataframe_truncated_direct(self, monkeypatch):
+        rs = _load_remote_session(monkeypatch)
+        payload = {
+            'columns': ['i'], 'types': ['BIGINT'], 'data': {'i': [1]},
+            'row_count': 1, 'truncated': True,
+        }
+        with pytest.raises(RuntimeError, match='截断'):
+            rs.RemoteDuckSession._to_dataframe(payload)
+        # 显式容忍时正常返回
+        df = rs.RemoteDuckSession._to_dataframe(payload, allow_truncated=True)
+        assert len(df) == 1
+
+
 class TestSessionFactory:
     def test_local_default(self, monkeypatch):
         qr = _load_module(

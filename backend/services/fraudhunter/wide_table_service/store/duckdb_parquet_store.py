@@ -377,10 +377,17 @@ class DuckdbParquetStore(WideTableStore):
         )
         self._assert_universe(int(res['results'][0]['rows'][0][0]), old_relation)
 
-    def _build_checksum_sql(self, relation: str, columns: List[str]) -> str:
-        """构建行数 + 顺序无关内容校验和（sum(hash(行拼接))）"""
-        joined = ", ".join(f"{col}::VARCHAR" for col in columns)
-        return f"SELECT count(*), sum(hash(concat_ws('|', {joined}))) FROM {relation}"
+    @staticmethod
+    def _build_checksum_sql(relation: str, columns: List[str]) -> str:
+        """构建行数 + 顺序无关内容校验和 SQL（共用构造器，见 store/checksum.py）
+
+        结构化变参 hash（PR#12 评论#3）：NULL 参与哈希、字段边界天然区分，
+        消除 concat_ws 拼接的假阳性（NULL 被跳过 / 值含分隔符跨界碰撞）。
+        """
+        from services.fraudhunter.wide_table_service.store.checksum import (
+            build_checksum_sql,
+        )
+        return build_checksum_sql(relation, columns)
 
     def _reconcile(self, conn, staging_table: str, tmp_dir: Path, spark_rows: int) -> None:
         """三方对账：不一致即抛异常（不落盘、不DROP staging）"""

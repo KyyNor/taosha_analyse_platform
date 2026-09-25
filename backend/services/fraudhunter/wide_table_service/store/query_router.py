@@ -73,6 +73,32 @@ def requires_duckdb(*snapshots) -> bool:
     return any(snapshot_backend(s) == 'duckdb' for s in snapshots if s is not None)
 
 
+def resolve_offline_table_refs(snapshots: dict) -> tuple:
+    """统一解析离线快照表引用（混合后端安全，PR#12 评论#2）
+
+    流程：先按全部快照判定一次 duckdb_mode，再统一生成表引用——
+    duckdb_mode 下 postgresql 快照必须走 pg_rt.public.* 前缀，
+    避免混合快照（如 dep_acct=PG、cust=duckdb）时裸 PG 表名
+    在 DuckDB 执行引擎下找不到表。
+
+    Args:
+        snapshots: {object_type: 快照或None}（如 {'dep_acct_no': snap, 'cust_no': snap}）
+
+    Returns:
+        ({object_type: SQL表引用或None}, duckdb_mode)
+    """
+    items = dict(snapshots or {})
+    duckdb_mode = requires_duckdb(*items.values())
+    refs = {
+        key: (
+            None if snap is None
+            else offline_table_ref(snap, snap.etl_date, duckdb_mode=duckdb_mode)
+        )
+        for key, snap in items.items()
+    }
+    return refs, duckdb_mode
+
+
 def offline_table_ref(snapshot, etl_date, duckdb_mode: bool = False) -> str:
     """离线宽表快照的 SQL 表引用
 

@@ -26,7 +26,8 @@
     QUACK_URI          服务端地址, 默认 quack:127.0.0.1:9494
     QUACK_TOKEN        服务端认证 token
     GATEWAY_TOKEN      网关 Bearer token, 默认复用 QUACK_TOKEN
-    MAX_ROWS           单条 SQL 返回行数上限, 默认 100000 (超出截断并标记 truncated)
+    MAX_ROWS           单条 SQL 返回行数上限, 默认 100000 (超出截断并标记 truncated;
+                       经 fetchmany 限制物化规模, 不会先全量 fetchall 再切片)
     POOL_SIZE          quack 客户端连接池上限 (active 总数), 默认 4
     POOL_WAIT_TIMEOUT  池满时有界等待秒数, 超时返回 503, 默认 60
     DEFAULT_TIMEOUT    单条 SQL 超时秒数, 0=不限制; 请求可用 timeout 参数覆盖
@@ -222,8 +223,8 @@ def _result_payload(result, max_rows: int, fmt: str) -> dict:
                 "truncated": False}
     columns = result.columns
     types = [str(t) for t in result.types]
-    fetched = result.fetchall()
-    fetched = fetched[: max_rows + 1]
+    # fetchmany 而非 fetchall+切片: 真正限制物化规模, MAX_ROWS 之外的分片不进内存
+    fetched = result.fetchmany(max_rows + 1)
     truncated = len(fetched) > max_rows
     if truncated:
         fetched = fetched[:max_rows]

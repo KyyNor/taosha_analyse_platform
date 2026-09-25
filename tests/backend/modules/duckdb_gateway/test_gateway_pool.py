@@ -132,11 +132,11 @@ class TestQueryLeaseLifecycle:
             columns = ['v']
             types = ['INTEGER']
 
-            def fetchall(self):
+            def fetchmany(self, n):
                 events.append('fetch_start')
                 time.sleep(0.1)
                 events.append('fetch_done')
-                return [(1,)]
+                return [(1,)][:n]
 
         def fake_sql(pushdown_sql):
             events.append('sql')
@@ -175,9 +175,9 @@ class TestQueryLeaseLifecycle:
             columns = ['v']
             types = ['INTEGER']
 
-            def fetchall(self):
+            def fetchmany(self, n):
                 time.sleep(0.3)
-                return [(1,)]
+                return [(1,)][:n]
 
         original_conn = pool._new_conn
 
@@ -217,7 +217,7 @@ class TestQueryLeaseLifecycle:
                 class _R:
                     columns = ['v']
                     types = ['INTEGER']
-                    fetchall = lambda self: [(42,)]
+                    fetchmany = lambda self, n: [(42,)][:n]
                 return _R()
             conn.sql = sql
             return conn

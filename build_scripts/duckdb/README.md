@@ -289,6 +289,10 @@ cd build_scripts/duckdb
 ./build-alpha-pg.sh --verify     # 构建 + 起 compose 跑最小验证测试（含独立 PostgreSQL 16）
 ```
 
+`PG_ATTACH_DSN` 默认为空（普通启动不 ATTACH，避免指向不存在的验证库白等重试）；
+`--verify` 会显式注入 compose 内 `pg-verify-db` 的测试 DSN，脚本以 trap 保证
+verify 失败/中断也能 `down -v` 清理验证环境。
+
 ### 验证结果（2026-09-23, macOS arm64 + Docker 29.4）
 
 | 检查 | 结果 |

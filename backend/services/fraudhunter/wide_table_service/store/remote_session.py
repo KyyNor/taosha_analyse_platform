@@ -21,6 +21,10 @@ DuckQuerySession 的同构替身:
   * DECIMAL → decimal.Decimal 对象列 (网关以字符串传输完整精度, 不静默降 float)
   * DATE/TIMESTAMP → ISO 字符串对象列 (上层序列化本就要转字符串)
 - DDL/DML 返回空 DataFrame (本地路径 DDL 不返回 DataFrame, 调用方不用于读)
+- 截断保护 (PR#12 评论#1): 服务端返回 truncated=true 时默认抛 RuntimeError
+  禁止静默使用不完整结果（模型匹配/回测超限会导致业务结果缺失）;
+  确需容忍截断的调用方显式传 allow_truncated=True;
+  max_rows 可由调用方按需指定（服务端会 clamp 到其 MAX_ROWS 配置）
 """
 
 import decimal
@@ -31,9 +35,6 @@ import requests
 
 from utils.config import settings
 from utils.logger import logger
-
-# 网关单条 SQL 默认行数上限 (服务端 MAX_ROWS, 默认 100000); 超出会被截断
-_MAX_ROWS_LIMIT = 100_000_000  # 请求侧不额外设限, 以服务端配置为准
 
 
 def _cfg():
@@ -69,16 +70,27 @@ class RemoteDuckSession:
         self._session = requests.Session()
         return self
 
-    def execute_df(self, sql: str):
-        """执行查询并返回 pandas DataFrame（失败抛 RuntimeError, 与本地路径异常向上传播一致）"""
+    def execute_df(self, sql: str, *, max_rows: Optional[int] = None,
+                   allow_truncated: bool = False):
+        """执行查询并返回 pandas DataFrame（失败抛 RuntimeError, 与本地路径异常向上传播一致）
+
+        Args:
+            sql: 查询 SQL
+            max_rows: 单条 SQL 行数上限; None=不指定（以服务端 MAX_ROWS 配置为准）,
+                服务端会 clamp 到其上限后超出部分截断并标记 truncated
+            allow_truncated: 默认 False, 服务端标记 truncated=true 时抛错,
+                防止不完整 DataFrame 静默流入模型匹配/回测等业务链路
+        """
         cfg = _cfg()
         sql = rewrite_path_in_sql(sql, cfg['path_map'])
         logger.debug(f"[duckdb远程查询] {sql[:500]}")
+        payload = {'sql': sql, 'format': 'columns', 'timeout': cfg['timeout']}
+        if max_rows is not None:
+            payload['max_rows'] = int(max_rows)
         try:
             resp = self._session.post(
                 f"{cfg['endpoint']}/query",
-                json={'sql': sql, 'format': 'columns',
-                      'timeout': cfg['timeout']},
+                json=payload,
                 headers={'Authorization': f"Bearer {cfg['token']}"},
                 timeout=cfg['timeout'] + 30,
             )
@@ -91,7 +103,7 @@ class RemoteDuckSession:
             if isinstance(detail, dict):
                 detail = f"{detail.get('error_type')}: {detail.get('message')}"
             raise RuntimeError(f"[duckdb远程查询] {detail}")
-        return self._to_dataframe(resp.json())
+        return self._to_dataframe(resp.json(), allow_truncated=allow_truncated)
 
     @staticmethod
     def _column_series(col: str, values: list, typ: str) -> 'pd.Series':
@@ -126,7 +138,7 @@ class RemoteDuckSession:
                          else object)
 
     @classmethod
-    def _to_dataframe(cls, payload: dict) -> pd.DataFrame:
+    def _to_dataframe(cls, payload: dict, allow_truncated: bool = False) -> pd.DataFrame:
         columns = payload.get('columns') or []
         data = payload.get('data') or {}
         if not columns or payload.get('row_count', 0) == 0:
@@ -138,9 +150,15 @@ class RemoteDuckSession:
         }
         df = pd.DataFrame(series, columns=columns)
         if payload.get('truncated'):
+            if not allow_truncated:
+                # 静默返回不完整 DataFrame 会造成业务结果缺失, 默认直接失败
+                raise RuntimeError(
+                    f"[duckdb远程查询] 结果被服务端截断至 {len(df)} 行, 拒绝返回不完整结果: "
+                    f"收窄查询范围, 或调大网关 MAX_ROWS / 指定 max_rows "
+                    f"(确需容忍截断时显式传 allow_truncated=True)"
+                )
             logger.warning(
-                f"[duckdb远程查询] 结果被服务端截断至 {len(df)} 行 "
-                f"(调整网关 MAX_ROWS 或收窄查询)"
+                f"[duckdb远程查询] 结果被服务端截断至 {len(df)} 行 (allow_truncated=True)"
             )
         return df
 

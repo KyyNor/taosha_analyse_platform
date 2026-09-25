@@ -166,6 +166,41 @@ class TestTableRefs:
         assert qr.requires_duckdb(_make_fake_snapshot('postgresql'), _make_fake_snapshot('duckdb')) is True
         assert qr.requires_duckdb(None) is False
 
+    def test_resolve_offline_table_refs_mixed_backends(self, monkeypatch):
+        """混合后端（PR#12 评论#2）：任一快照为 duckdb → 整体切 DuckDB 执行，
+        PG 快照引用必须统一补 pg_rt 前缀（裸 PG 表名在 DuckDB 下找不到表）"""
+        qr = _load_query_router(monkeypatch)
+        refs, duckdb_mode = qr.resolve_offline_table_refs({
+            'dep_acct_no': _make_fake_snapshot('postgresql', wide_table='dep_acct_wide_table'),
+            'cust_no': _make_fake_snapshot('duckdb', parquet_path='/data/wt/cust_wide_table_abcd1234'),
+        })
+        assert duckdb_mode is True
+        assert refs['dep_acct_no'].startswith('pg_rt.public.dep_acct_wide_table_')
+        assert refs['cust_no'].startswith("read_parquet('/data/wt/cust_wide_table_abcd1234/")
+
+    def test_resolve_offline_table_refs_all_pg_keeps_bare_names(self, monkeypatch):
+        """全 PG 快照：duckdb_mode=False，引用保持裸 PG 表名（现状行为不变）"""
+        qr = _load_query_router(monkeypatch)
+        dep_snap = _make_fake_snapshot('postgresql', wide_table='dep_acct_wide_table')
+        refs, duckdb_mode = qr.resolve_offline_table_refs({
+            'dep_acct_no': dep_snap,
+            'cust_no': _make_fake_snapshot('postgresql'),
+        })
+        assert duckdb_mode is False
+        assert refs['dep_acct_no'] == f"dep_acct_wide_table_{dep_snap.version_hash}_20260819"
+        assert not refs['cust_no'].startswith('pg_rt.')
+
+    def test_resolve_offline_table_refs_missing_snapshot_returns_none(self, monkeypatch):
+        """快照缺失的项返回 None 引用（调用方自行告警/跳过）"""
+        qr = _load_query_router(monkeypatch)
+        refs, duckdb_mode = qr.resolve_offline_table_refs({
+            'dep_acct_no': _make_fake_snapshot('duckdb'),
+            'cust_no': None,
+        })
+        assert duckdb_mode is True
+        assert refs['cust_no'] is None
+        assert refs['dep_acct_no'].startswith("read_parquet('")
+
     def test_snapshot_backend_defaults_to_pg(self, monkeypatch):
         qr = _load_query_router(monkeypatch)
         assert qr.snapshot_backend(types.SimpleNamespace()) == 'postgresql'

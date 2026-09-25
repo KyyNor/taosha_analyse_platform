@@ -49,38 +49,29 @@ def _get_latest_offline_snapshot(
     return query_router.select_snapshot_by_preferred_backend(snapshots)
 
 
-def _get_latest_offline_table_name(
-    db: Session,
-    wide_table_name: str
-) -> Optional[str]:
-    """获取最新的离线宽表快照的 SQL 表引用
+def _resolve_offline_tables(db: Session, wide_table_names: Dict[str, str]) -> tuple:
+    """统一选出离线快照并解析表引用（混合后端安全，PR#12 评论#2）
 
-    按快照存储后端路由（docs/fraudhunter_offline_dual_store_plan.md 阶段4）：
-    - postgresql 快照 → PG分区表名（现状公式，行为不变）
-    - duckdb 快照 → read_parquet glob
+    先按全部快照判定一次 duckdb_mode，再统一生成 table ref：
+    duckdb_mode 下 PG 快照走 pg_rt.public.* 前缀（避免混合快照时
+    裸 PG 表名在 DuckDB 引擎下找不到表）。快照缺失项返回 None 并告警。
+
+    Args:
+        wide_table_names: {object_type: 宽表名}
 
     Returns:
-        SQL表引用；快照不存在返回None
+        ({object_type: SQL表引用或None}, duckdb_mode)
     """
     from services.fraudhunter.wide_table_service.store import query_router
 
-    snapshot = _get_latest_offline_snapshot(db, wide_table_name)
-    if not snapshot:
-        logger.warning(f"未找到 {wide_table_name} 的任何ready状态快照")
-        return None
-
-    return query_router.offline_table_ref(snapshot, snapshot.etl_date)
-
-
-def _offline_duckdb_mode(db: Session, *wide_table_names: str) -> bool:
-    """判断实时任务涉及的离线宽表是否含 duckdb 快照（决定执行引擎）"""
-    from services.fraudhunter.wide_table_service.store import query_router
-
-    for wide_table_name in wide_table_names:
-        snapshot = _get_latest_offline_snapshot(db, wide_table_name)
-        if query_router.requires_duckdb(snapshot):
-            return True
-    return False
+    snapshots = {
+        object_type: _get_latest_offline_snapshot(db, wide_table_name)
+        for object_type, wide_table_name in wide_table_names.items()
+    }
+    for object_type, snapshot in snapshots.items():
+        if snapshot is None:
+            logger.warning(f"未找到 {wide_table_names[object_type]} 的任何ready状态快照")
+    return query_router.resolve_offline_table_refs(snapshots)
 
 
 def _compute_half_hour_slot(full_ts: str) -> str:
@@ -367,7 +358,7 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
 
     if not realtime_tasks:
         logger.info("没有在线的实时指标任务，跳过生成")
-        return None, None
+        return None, False, None
     logger.debug(f"找到 {len(realtime_tasks)} 个在线的实时指标任务")
 
     # 按 object_type 分组任务
@@ -384,7 +375,7 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
 
     if not tasks_by_object_type:
         logger.info("没有有效的实时指标任务分组，跳过生成")
-        return None, None
+        return None, False, None
 
     logger.debug(f"按 object_type 分组: {list(tasks_by_object_type.keys())}")
 
@@ -394,20 +385,14 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
         'cust_no': 'cust_wide_table',
         'loan_acct_no': 'loan_acct_wide_table'
     }
-    offline_dep_acct_table_name = _get_latest_offline_table_name(db, object_type_to_wide_table['dep_acct_no'])
-    offline_cust_table_name = _get_latest_offline_table_name(db, object_type_to_wide_table['cust_no'])
-
-    # 获取所有离线宽表
-    offline_tables = {
-        'dep_acct_no': offline_dep_acct_table_name,
-        'cust_no': offline_cust_table_name,
-    }
-
-    # 离线快照含 duckdb 时，实时指标SQL在 DuckDB 上执行（离线表引用为 read_parquet）
-    offline_duckdb_mode = _offline_duckdb_mode(
+    # 统一选出各离线快照 → 判定一次 duckdb_mode → 统一生成 table ref
+    # （混合后端安全：任一快照为 duckdb 即整体切 DuckDB，PG 快照补 pg_rt 前缀）
+    offline_tables, offline_duckdb_mode = _resolve_offline_tables(
         db,
-        object_type_to_wide_table['dep_acct_no'],
-        object_type_to_wide_table['cust_no'],
+        {
+            'dep_acct_no': object_type_to_wide_table['dep_acct_no'],
+            'cust_no': object_type_to_wide_table['cust_no'],
+        },
     )
     if offline_duckdb_mode:
         logger.info("[实时指标] 离线宽表为duckdb存储，实时指标SQL切换DuckDB执行")
@@ -508,13 +493,14 @@ def step1_generate_realtime_indicators(db, today, today_str, now_str):
 
     if not generated_realtime_tables:
         logger.warning("没有任何 object_type 成功生成实时宽表")
-        return None, None
+        return None, False, None
 
-    return offline_tables, generated_realtime_tables
+    return offline_tables, offline_duckdb_mode, generated_realtime_tables
 
 
 @timing_it
-def step2_online_model_executor(db, offline_tables, generated_realtime_tables):
+def step2_online_model_executor(db, offline_tables, generated_realtime_tables,
+                                duckdb_mode: bool = False):
     logger.debug("=" * 60)
     logger.debug("步骤2: 已上线模型执行")
     logger.debug("=" * 60)
@@ -535,13 +521,9 @@ def step2_online_model_executor(db, offline_tables, generated_realtime_tables):
     dep_acct_offline_table = offline_tables.get('dep_acct_no')
     cust_offline_table = offline_tables.get('cust_no')
 
-    # 离线快照含 duckdb 时，模型匹配SQL在 DuckDB 上执行（实时表经 pg_rt 附件别名引用）
-    from services.fraudhunter.wide_table_service.store import query_router
-
-    offline_duckdb_mode = _offline_duckdb_mode(
-        db, 'dep_acct_wide_table', 'cust_wide_table'
-    )
-    sql_dialect = 'duckdb' if offline_duckdb_mode else 'postgresql'
+    # duckdb_mode 由 step1 按全部离线快照判定一次后传入（与离线表引用生成同源，
+    # 避免两步之间新快照落库导致表引用前缀与执行引擎不一致）
+    sql_dialect = 'duckdb' if duckdb_mode else 'postgresql'
 
     # 至少需要有存款账户的实时表和离线表才能执行模型
     if not dep_acct_realtime_table or not dep_acct_offline_table:
@@ -572,14 +554,14 @@ def step2_online_model_executor(db, offline_tables, generated_realtime_tables):
     model_sql = _build_model_matching_sql(
         db, online_models, dep_acct_realtime_table, cust_realtime_table,
         dep_acct_offline_table, cust_offline_table,
-        duckdb_mode=offline_duckdb_mode
+        duckdb_mode=duckdb_mode
     )
     execution_record.generated_sql = model_sql
     db.flush()
     logger.debug("模型匹配SQL已生成")
 
     try:
-        if offline_duckdb_mode:
+        if duckdb_mode:
             from services.fraudhunter.wide_table_service.store.query_router import get_query_session
 
             # 统一经工厂取会话（Issue #8）：remote 模式下后端零 duckdb 依赖
@@ -733,7 +715,9 @@ async def generate_realtime_wide_table_job():
 
     # 步骤1: 实时指标加工（独立 session，正常退出时自动 commit）
     with get_db_session() as db:
-        offline_tables, generated_realtime_tables = step1_generate_realtime_indicators(db, today, today_str, now_str)
+        offline_tables, offline_duckdb_mode, generated_realtime_tables = (
+            step1_generate_realtime_indicators(db, today, today_str, now_str)
+        )
         if offline_tables is None:
             return
 
@@ -741,7 +725,8 @@ async def generate_realtime_wide_table_job():
     with get_db_session() as db:
         try:
             matched_df, execution_record = step2_online_model_executor(
-                db, offline_tables, generated_realtime_tables
+                db, offline_tables, generated_realtime_tables,
+                duckdb_mode=offline_duckdb_mode,
             )
             if matched_df is None:
                 return

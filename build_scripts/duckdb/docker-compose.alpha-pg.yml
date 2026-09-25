@@ -23,8 +23,9 @@ services:
     environment:
       QUACK_TOKEN: ${QUACK_TOKEN:-dev-token-please-change}
       GATEWAY_TOKEN: ${GATEWAY_TOKEN:-}
-      # 验证环境直接 ATTACH compose 内的 PG (只读)；生产按需替换 DSN 或留空
-      PG_ATTACH_DSN: ${DUCKDB_PG_ATTACH_DSN:-dbname=pgverify host=pg-verify-db port=5432 user=pgverify password=pgverify}
+      # 默认不 ATTACH（普通启动下目标 DSN 不存在会白等重试后失败）；
+      # 验证场景由 build-alpha-pg.sh --verify 显式注入 pg-verify-db 的 DSN
+      PG_ATTACH_DSN: ${DUCKDB_PG_ATTACH_DSN:-}
       POOL_SIZE: ${DUCKDB_POOL_SIZE:-4}
       POOL_WAIT_TIMEOUT: ${DUCKDB_POOL_WAIT_TIMEOUT:-60}
       MAX_ROWS: ${DUCKDB_MAX_ROWS:-100000}

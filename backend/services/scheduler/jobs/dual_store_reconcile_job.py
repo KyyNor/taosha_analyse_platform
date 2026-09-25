@@ -2,7 +2,7 @@
 双写对账定时任务（双存储方案阶段7）
 
 offline_store=both 灰度期间，对同一 (宽表, 版本, 日期) 的 PG 与 duckdb 快照
-做每日对账：行数 + 内容校验和（sum(hash(行拼接))，顺序无关，双方言同构），
+做每日对账：行数 + 内容校验和（sum(hash(结构化列值))，顺序无关，见 store/checksum.py），
 结果落日志（运维按 [双写对账] 关键字检索）。
 
 切换纯 duckdb 前的验收：连续 ≥1 个完整同步周期（含版本变化）对账 0 失败。
@@ -51,6 +51,7 @@ def _reconcile_pair(pg_snapshot, duck_snapshot) -> dict:
     RemoteDuckSession——后端零 duckdb 依赖也能完成对账。
     """
     from services.fraudhunter.wide_table_service.store.query_router import get_query_session
+    from services.fraudhunter.wide_table_service.store.checksum import build_checksum_sql
 
     date_str = pg_snapshot.etl_date.strftime('%Y-%m-%d')
     parquet_glob = (
@@ -67,12 +68,9 @@ def _reconcile_pair(pg_snapshot, duck_snapshot) -> dict:
             f"DESCRIBE SELECT * FROM {parquet_relation}"
         )
         columns = describe_df.iloc[:, 0].astype(str).tolist()
-        joined = ", ".join(f"{c}::VARCHAR" for c in columns)
-        checksum_sql = (
-            f"SELECT count(*), sum(hash(concat_ws('|', {joined}))) FROM "
-        )
-        parquet_df = session.execute_df(checksum_sql + parquet_relation)
-        pg_df = session.execute_df(checksum_sql + pg_relation)
+        # 共用 checksum 构造器：结构化 hash（NULL 参与、字段边界区分，PR#12 评论#3）
+        parquet_df = session.execute_df(build_checksum_sql(parquet_relation, columns))
+        pg_df = session.execute_df(build_checksum_sql(pg_relation, columns))
         parquet_count, parquet_hash = _checksum_row(parquet_df)
         pg_count, pg_hash = _checksum_row(pg_df)
 

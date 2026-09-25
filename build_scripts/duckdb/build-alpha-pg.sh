@@ -32,12 +32,21 @@ EOF
 
 if [[ "${1:-}" == "--verify" ]]; then
   echo "==> 启动 compose（含验证用 PostgreSQL）并执行最小验证测试"
+  # compose 默认不 ATTACH PG；仅验证场景注入 pg-verify-db 的测试 DSN
+  # （服务端启动时 ATTACH pg_rt，测试 SQL 经 pg_rt.public.* 引用验证）
+  export DUCKDB_PG_ATTACH_DSN="${DUCKDB_PG_ATTACH_DSN:-dbname=pgverify host=pg-verify-db port=5432 user=pgverify password=pgverify}"
+  # trap 兜底清理：set -e 下 verify 失败/中断也会 down -v，不遗留验证环境
+  cleanup_verify() {
+    echo "==> 清理验证环境（保留镜像）"
+    docker compose -f docker-compose.alpha-pg.yml --profile verify down -v
+  }
+  trap cleanup_verify EXIT
   # 只长跑服务端与 PG（一次性 verify 容器不适合 --wait，单独 run）
   docker compose -f docker-compose.alpha-pg.yml up -d --wait duckdb-quack-pg pg-verify-db
   docker compose -f docker-compose.alpha-pg.yml run --rm pg-verify
   status=$?
-  echo "==> 清理验证环境（保留镜像）"
-  docker compose -f docker-compose.alpha-pg.yml --profile verify down -v
+  trap - EXIT
+  cleanup_verify
   exit "${status}"
 fi
 
