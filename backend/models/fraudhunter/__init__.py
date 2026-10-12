@@ -31,6 +31,7 @@ from .alert_notify_targets import (
     FraudHunterAlertAcctAssign,
     FraudHunterAlertCustOwner,
 )
+from .victim_alert_record import FraudHunterVictimAlertRecord
 
 __all__ = [
     'FraudHunterIndicatorTask',
@@ -50,4 +51,5 @@ __all__ = [
     'FraudHunterSystemConfig',
     'FraudHunterAlertAcctAssign',
     'FraudHunterAlertCustOwner',
+    'FraudHunterVictimAlertRecord',
 ]

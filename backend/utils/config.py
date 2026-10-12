@@ -292,6 +292,12 @@ class ConfigManager:
             fraudhunter_realtime_writer_batch_insert_size: int = self._config_data.get('fraudhunter', {}).get('realtime_data', {}).get('writer', {}).get('batch_insert_size', 1000)
             fraudhunter_alert_control_control_api_url: str = self._config_data.get('fraudhunter', {}).get('alert_control', {}).get('control_api_url', 'http://125.15.15.15:7799/sspd')
             fraudhunter_alert_control_message_api_url: str = self._config_data.get('fraudhunter', {}).get('alert_control', {}).get('message_api_url', 'http://125.15.15.15:7799/sendwx')
+            # 受害人预警：实时任务入库后触发 DS 任务（trigger_api_url），DS 任务调用下游服务（send_api_url）
+            fraudhunter_victim_alert_enabled: bool = self._config_data.get('fraudhunter', {}).get('victim_alert', {}).get('enabled', False)
+            fraudhunter_victim_alert_model_name_keyword: str = self._config_data.get('fraudhunter', {}).get('victim_alert', {}).get('model_name_keyword', '受害人')
+            fraudhunter_victim_alert_trigger_api_url: str = self._config_data.get('fraudhunter', {}).get('victim_alert', {}).get('trigger_api_url', '') or ''
+            fraudhunter_victim_alert_send_api_url: str = self._config_data.get('fraudhunter', {}).get('victim_alert', {}).get('send_api_url', '') or ''
+            fraudhunter_victim_alert_timeout_seconds: float = float(self._config_data.get('fraudhunter', {}).get('victim_alert', {}).get('timeout_seconds', 10))
 
             scheduler_offline_wide_table_sync: int = self._config_data.get('scheduler', {}).get('offline_wide_table_sync', 60)
             scheduler_model_runner_interval: int = self._config_data.get('scheduler', {}).get('model_runner_interval', 600)

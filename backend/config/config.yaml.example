@@ -363,6 +363,16 @@ fraudhunter:
     # 消息提醒接口URL
     message_api_url: "http://125.15.15.15:7799/sendwx"
 
+  # 受害人预警（默认关闭）：命中名称含关键字的模型、告警已发送且未管控时写入受害人预警记录
+  victim_alert:
+    enabled: false
+    model_name_keyword: "受害人"
+    # 淘沙后端调用：触发 DS 任务，POST {"alert_id": "..."}
+    trigger_api_url: ""
+    # DS 任务调用：下游服务，POST 受害人预警记录全部字段
+    send_api_url: ""
+    timeout_seconds: 10
+
 # 调度器配置
 scheduler:
   offline_wide_table_sync: 28800 # 秒，检查是否可以同步的间隔
