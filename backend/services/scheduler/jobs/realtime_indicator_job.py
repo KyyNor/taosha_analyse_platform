@@ -27,13 +27,14 @@ from utils.common_decorator import timing_it
 
 def _get_latest_offline_snapshot(
     db: Session,
-    wide_table_name: str
+    wide_table_name: str,
+    backend: Optional[str] = None,
 ) -> Optional[FraudHunterWideTableSnapshot]:
     """获取最新的离线宽表快照记录
 
-    按 offline_store 配置偏好存储后端选择（Issue #9，与 ModelExecutor 同策略）：
-    postgresql → 优先 PG 快照（切回 PG 后实时任务完全走原 PG 链路）；
-    duckdb/both → 优先 DuckDB 快照。偏好后端无快照时回退最新一条并告警。
+    backend 为空（生产路径）：按读后端配置选择（Issue #9，与 ModelExecutor 同策略），
+    读后端无快照时回退最新一条并告警。
+    backend 指定（预警试跑）：只取该后端的最新快照，没有则返回 None（不回退，避免对比失真）。
     """
     from services.fraudhunter.wide_table_service.store import query_router
 
@@ -46,6 +47,8 @@ def _get_latest_offline_snapshot(
         desc(FraudHunterWideTableSnapshot.etl_date),
         desc(FraudHunterWideTableSnapshot.generation_time)
     ).all()
+    if backend:
+        return next((s for s in snapshots if query_router.snapshot_backend(s) == backend), None)
     return query_router.select_snapshot_by_preferred_backend(snapshots)
 
 
@@ -561,14 +564,7 @@ def step2_online_model_executor(db, offline_tables, generated_realtime_tables,
     logger.debug("模型匹配SQL已生成")
 
     try:
-        if duckdb_mode:
-            from services.fraudhunter.wide_table_service.store.query_router import get_query_session
-
-            # 统一经工厂取会话（Issue #8）：remote 模式下后端零 duckdb 依赖
-            with get_query_session(attach_pg=True) as duck_session:
-                matched_df = duck_session.execute_df(model_sql)
-        else:
-            matched_df = AnalyzeDBConnector.execute_sql(model_sql, fetch_df=True)
+        matched_df = execute_model_matching_sql(model_sql, duckdb_mode)
     except Exception as e:
         logger.error(f"执行模型匹配SQL失败: {e}", exc_info=True)
         execution_record.execution_end_time = datetime.now()
@@ -586,6 +582,17 @@ def step2_online_model_executor(db, offline_tables, generated_realtime_tables,
 
     logger.info(f"实时模型匹配完成, 命中 {len(matched_df)} 条记录")
     return matched_df, execution_record
+
+
+def execute_model_matching_sql(model_sql: str, duckdb_mode: bool = False):
+    """执行模型匹配 SQL（生产 step2 与预警试跑共用）：duckdb_mode 走 DuckDB 会话，否则 PG"""
+    if duckdb_mode:
+        from services.fraudhunter.wide_table_service.store.query_router import get_query_session
+
+        # 统一经工厂取会话（Issue #8）：remote 模式下后端零 duckdb 依赖
+        with get_query_session(attach_pg=True) as duck_session:
+            return duck_session.execute_df(model_sql)
+    return AnalyzeDBConnector.execute_sql(model_sql, fetch_df=True)
 
 
 @timing_it

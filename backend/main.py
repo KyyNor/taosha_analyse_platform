@@ -37,6 +37,7 @@ from api.fraudhunter import (
     system_config_router,
     indicator_query_router,
     internal_wide_table_store_router,
+    backend_compare_router,
 )
 from services.query_engine import get_query_engine
 from models.db_base import get_db_session
@@ -445,6 +446,7 @@ app.include_router(alert_control_record_router, prefix=fraudhunter_prefix)  # �
 app.include_router(system_config_router, prefix=fraudhunter_prefix)  # 系统配置
 app.include_router(indicator_query_router, prefix=fraudhunter_prefix)  # 指标数据查询
 app.include_router(internal_wide_table_store_router, prefix=fraudhunter_prefix)  # 内部接口：DS delegate 模式的 Parquet 存储操作
+app.include_router(backend_compare_router, prefix=fraudhunter_prefix)  # 存储后端对比：实时预警试跑
 
 # API 根路径信息
 @app.get(f"{api_prefix}/", tags=["API信息"])

@@ -1,6 +1,6 @@
 # FraudHunter 离线宽表双存储开发计划
 
-> 状态：一期代码实施完成（2026-08-19）；二期（灰度可测性 + DS 部署适配）计划中，见 **第七章**（2026-10-11）
+> 状态：一期代码实施完成（2026-08-19）；二期（灰度可测性 + DS 部署适配）代码实施完成（2026-10-11），见 **第七章**，待内网联调后按 7.8 灰度
 > 前置文档：`docs/fraudhunter_pg_migration.md`（DuckDB/Parquet → PostgreSQL 迁移）、`docs/polished-jumping-gosling.md`（已废弃的 HDFS 中转方案）
 >
 > 实施提交索引：
@@ -666,6 +666,12 @@ python scripts/realtime_alert_dry_run.py --backend both --models M001 M002 --out
 **测试**：试跑过程中断言没有任何 `db.add/commit/flush`、`ModelHitAlertManager` 未被调用、消息发送桩未被调用；`both` 差异计算的单测（三类差异、浮点容差）。
 
 **可选扩展**（不在本期必做范围，约 1 天）：`--with-realtime-indicators`，用指定后端重新计算 step1 实时指标，得到 DataFrame 后与 PG 实时表同一分区对比，不写入。
+
+**实施记录（2026-10-11）**：
+- 服务层 `services/fraudhunter/model_service/realtime_dry_run.py`；CLI `backend/scripts/realtime_alert_dry_run.py`；接口 `api/fraudhunter/backend_compare_routes.py`（`POST /fraudhunter/backend-compare/realtime-match`，用户鉴权，同步 `def`，不返回全量明细，差异列表截断并附 `*_count`）；
+- 生产代码重构：`step2_online_model_executor` 的执行部分抽为 `execute_model_matching_sql()`（SQL 构建本就是独立的 `_build_model_matching_sql`）；`_get_latest_offline_snapshot` 增加可选 `backend`（指定时只取该后端、不回退）。生产行为由阶段 8 golden 守护，未变化；
+- CLI 退出码：两侧一致且无错误为 0，有差异或任一后端出错为 1，参数/前置数据问题为 2，便于脚本化每日对比；
+- 测试 `tests/backend/modules/realtime_dry_run/`（11 项），其中 PG 试跑 SQL 直接与 golden 中线上 step2 的 SQL 逐字比对。
 
 ---
 
