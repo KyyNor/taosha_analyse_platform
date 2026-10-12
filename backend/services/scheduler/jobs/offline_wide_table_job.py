@@ -219,6 +219,11 @@ async def sync_all_wide_tables_job(max_success_tables: int = 10):
 def main():
     import asyncio
     from datetime import datetime
+    from models.db_base import verify_wide_table_snapshot_schema
+    from utils.config import settings
+
+    # DS 入口不建表/不改表：结构不满足（淘沙后端尚未升级）时直接失败
+    verify_wide_table_snapshot_schema(settings.fraudhunter_wide_table_offline_store)
     logger.info(f"[{datetime.now()}] 淘沙宽表同步任务开始")
     asyncio.run(sync_all_wide_tables_job())
     logger.info(f"[{datetime.now()}] 淘沙宽表同步任务结束")

@@ -1,0 +1,257 @@
+{
+ "db": {
+  "fraudhunter_model_execution": [
+   {
+    "error_message": null,
+    "generated_sql": "-- 实时模型匹配SQL\n-- 生成时间: <NOW>\n-- 模型数量: 2\n-- 指标数量: 9\n-- 关联表: 离线账户、离线客户、实时账户、实时客户\nwith temp as (\nSELECT\n    COALESCE(dep_acct_realtime_indicator.target_id, dep_acct_offline_indicator.target_id) AS \"目标ID\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00007 AS \"客户类型\",\n    COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_offline_00002, dep_acct_offline_indicator.i_dep_acct_no_offline_00002) AS branch_no,\n    COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_offline_00001, dep_acct_offline_indicator.i_dep_acct_no_offline_00001) AS \"i_dep_acct_no_offline_00001\",\n    dep_acct_realtime_indicator.etl_date AS \"[实时]ETL日期\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00001 AS \"客户号\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00002 AS \"机构号\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00007 AS \"客户类型\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00010 AS \"近30天交易额\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00011 AS \"开户日期\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00012 AS \"渠道\",\n    dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001 AS \"[实时]当日转出笔数\",\n    cust_offline_indicator.i_cust_no_offline_00001 AS \"客户年龄\",\n    cust_realtime_indicator.i_cust_no_realtime_00001 AS \"[实时]当日登录次数\",\n    ARRAY(SELECT x FROM UNNEST(ARRAY[CASE WHEN ((COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001, 0) > 8 AND COALESCE(cust_realtime_indicator.i_cust_no_realtime_00001, 0) > 3)) THEN 101 ELSE NULL END, CASE WHEN ((dep_acct_offline_indicator.i_dep_acct_no_offline_00012 ~* 'app\\d+' OR (NULLIF(dep_acct_offline_indicator.i_dep_acct_no_offline_00011, '')::DATE < '2020-01-01' AND COALESCE(cust_offline_indicator.i_cust_no_offline_00001, 0) >= 60 AND COALESCE(dep_acct_offline_indicator.i_dep_acct_no_offline_00010, 0) > COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001, 0)))) THEN 102 ELSE NULL END]) x WHERE x IS NOT NULL) AS model_hit_array\nFROM dep_acct_wide_table_realtime_1a2b3c4d_202610101430 AS dep_acct_realtime_indicator\nLEFT JOIN dep_acct_wide_table_1a2b3c4d_20261009 AS dep_acct_offline_indicator\n  ON dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id\nLEFT JOIN cust_wide_table_realtime_9c0d1e2f_202610101430 AS cust_realtime_indicator  ON cust_realtime_indicator.target_id = dep_acct_offline_indicator.i_dep_acct_no_offline_00001\nLEFT JOIN cust_wide_table_9c0d1e2f_20261009 AS cust_offline_indicator  ON cust_offline_indicator.target_id = dep_acct_offline_indicator.i_dep_acct_no_offline_00001\n)\nselect * from temp\nWHERE array_length(model_hit_array, 1) > 0\n",
+    "new_hit_accounts": 0,
+    "offline_cust_wide_table_path": "cust_wide_table_9c0d1e2f_20261009",
+    "offline_dep_acct_wide_table_path": "dep_acct_wide_table_1a2b3c4d_20261009",
+    "online_models_info": "[{\"id\": 101, \"name\": \"\\u5927\\u989d\\u8f6c\\u51fa\", \"code\": \"M001\", \"version\": 2}, {\"id\": 102, \"name\": \"\\u8001\\u6237\\u5f02\\u5e38\", \"code\": \"M002\", \"version\": 1}]",
+    "realtime_dep_acct_wide_table_path": "dep_acct_wide_table_realtime_1a2b3c4d_202610101430",
+    "status": "success",
+    "total_hit_accounts": 0
+   }
+  ],
+  "fraudhunter_wide_table_snapshot": [
+   {
+    "column_count": 5,
+    "error_message": null,
+    "etl_date": "2026-10-09",
+    "file_size_bytes": null,
+    "parquet_file_path": "cust_wide_table_9c0d1e2f",
+    "row_count": 3,
+    "status": "ready",
+    "version_hash": "9c0d1e2f",
+    "wide_table_name": "cust_wide_table"
+   },
+   {
+    "column_count": 4,
+    "error_message": null,
+    "etl_date": "2026-10-10",
+    "file_size_bytes": null,
+    "parquet_file_path": "cust_wide_table_realtime_9c0d1e2f_202610101430",
+    "row_count": 1,
+    "status": "ready",
+    "version_hash": null,
+    "wide_table_name": "cust_wide_table_realtime"
+   },
+   {
+    "column_count": 5,
+    "error_message": null,
+    "etl_date": "2026-10-08",
+    "file_size_bytes": null,
+    "parquet_file_path": "dep_acct_wide_table_1a2b3c4d",
+    "row_count": 3,
+    "status": "ready",
+    "version_hash": "1a2b3c4d",
+    "wide_table_name": "dep_acct_wide_table"
+   },
+   {
+    "column_count": 5,
+    "error_message": null,
+    "etl_date": "2026-10-09",
+    "file_size_bytes": null,
+    "parquet_file_path": "dep_acct_wide_table_1a2b3c4d",
+    "row_count": 3,
+    "status": "ready",
+    "version_hash": "1a2b3c4d",
+    "wide_table_name": "dep_acct_wide_table"
+   },
+   {
+    "column_count": 4,
+    "error_message": null,
+    "etl_date": "2026-10-10",
+    "file_size_bytes": null,
+    "parquet_file_path": "dep_acct_wide_table_realtime_1a2b3c4d_202610101430",
+    "row_count": 3,
+    "status": "ready",
+    "version_hash": null,
+    "wide_table_name": "dep_acct_wide_table_realtime"
+   }
+  ]
+ },
+ "events": [
+  [
+   "batch_insert_copy",
+   "cust_wide_table_realtime_9c0d1e2f",
+   [
+    "target_id",
+    "i_cust_no_realtime_00001",
+    "etl_date",
+    "run_time"
+   ],
+   1,
+   [
+    {
+     "etl_date": "2026-10-10",
+     "i_cust_no_realtime_00001": "4.0",
+     "run_time": "202610101430",
+     "target_id": "C001"
+    }
+   ]
+  ],
+  [
+   "batch_insert_copy",
+   "dep_acct_wide_table_realtime_1a2b3c4d",
+   [
+    "target_id",
+    "i_dep_acct_no_realtime_00001",
+    "etl_date",
+    "run_time"
+   ],
+   3,
+   [
+    {
+     "etl_date": "2026-10-10",
+     "i_dep_acct_no_realtime_00001": "7.0",
+     "run_time": "202610101430",
+     "target_id": "A001"
+    },
+    {
+     "etl_date": "2026-10-10",
+     "i_dep_acct_no_realtime_00001": "nan",
+     "run_time": "202610101430",
+     "target_id": "A002"
+    },
+    {
+     "etl_date": "2026-10-10",
+     "i_dep_acct_no_realtime_00001": "nan",
+     "run_time": "202610101430",
+     "target_id": "A003"
+    }
+   ]
+  ],
+  [
+   "engine.execute",
+   "CREATE INDEX IF NOT EXISTS idx_dep_acct_wide_table_realtime_1a2b3c4d_etl_date ON dep_acct_wide_table_realtime_1a2b3c4d (etl_date);",
+   {}
+  ],
+  [
+   "engine.execute",
+   "CREATE INDEX IF NOT EXISTS idx_dep_acct_wide_table_realtime_1a2b3c4d_i_dep_acct_no_offline_00001 ON dep_acct_wide_table_realtime_1a2b3c4d (i_dep_acct_no_offline_00001);",
+   {}
+  ],
+  [
+   "engine.execute",
+   "CREATE INDEX IF NOT EXISTS idx_dep_acct_wide_table_realtime_1a2b3c4d_target_id ON dep_acct_wide_table_realtime_1a2b3c4d (target_id);",
+   {}
+  ],
+  [
+   "engine.execute",
+   "\n                CREATE TABLE IF NOT EXISTS cust_wide_table_realtime_9c0d1e2f_202610101430\n                PARTITION OF cust_wide_table_realtime_9c0d1e2f\n                FOR VALUES IN ('202610101430');\n            ",
+   {}
+  ],
+  [
+   "engine.execute",
+   "\n                CREATE TABLE IF NOT EXISTS dep_acct_wide_table_realtime_1a2b3c4d_202610101430\n                PARTITION OF dep_acct_wide_table_realtime_1a2b3c4d\n                FOR VALUES IN ('202610101430');\n            ",
+   {}
+  ],
+  [
+   "engine.execute",
+   "\n            CREATE TABLE IF NOT EXISTS dep_acct_wide_table_realtime_1a2b3c4d (\n                target_id varchar(100) NOT NULL,\n    etl_date varchar(30) NOT NULL,\n    run_time varchar(50) NOT NULL,\n    i_dep_acct_no_offline_00001 varchar(1000),\n    i_dep_acct_no_offline_00002 varchar(1000),\n    i_dep_acct_no_offline_00007 varchar(1000),\n    i_dep_acct_no_offline_00010 DOUBLE PRECISION,\n    i_dep_acct_no_offline_00011 varchar(1000),\n    i_dep_acct_no_offline_00012 varchar(1000),\n    i_dep_acct_no_realtime_00001 DOUBLE PRECISION,\n                created_at timestamptz DEFAULT now()\n            ) PARTITION BY LIST (run_time);\n        ",
+   {}
+  ],
+  [
+   "engine.execute",
+   "\n            SELECT EXISTS (\n                SELECT 1 FROM pg_tables\n                WHERE schemaname = 'public' AND tablename = :partition_name\n            );\n        ",
+   {
+    "partition_name": "cust_wide_table_realtime_9c0d1e2f_202610101430"
+   }
+  ],
+  [
+   "engine.execute",
+   "\n            SELECT EXISTS (\n                SELECT 1 FROM pg_tables\n                WHERE schemaname = 'public' AND tablename = :partition_name\n            );\n        ",
+   {
+    "partition_name": "cust_wide_table_realtime_9c0d1e2f_202610101430"
+   }
+  ],
+  [
+   "engine.execute",
+   "\n            SELECT EXISTS (\n                SELECT 1 FROM pg_tables\n                WHERE schemaname = 'public' AND tablename = :partition_name\n            );\n        ",
+   {
+    "partition_name": "dep_acct_wide_table_realtime_1a2b3c4d_202610101430"
+   }
+  ],
+  [
+   "engine.execute",
+   "\n            SELECT EXISTS (\n                SELECT 1 FROM pg_tables\n                WHERE schemaname = 'public' AND tablename = :partition_name\n            );\n        ",
+   {
+    "partition_name": "dep_acct_wide_table_realtime_1a2b3c4d_202610101430"
+   }
+  ],
+  [
+   "execute_sql",
+   "-- 实时模型匹配SQL\n-- 生成时间: <NOW>\n-- 模型数量: 2\n-- 指标数量: 9\n-- 关联表: 离线账户、离线客户、实时账户、实时客户\nwith temp as (\nSELECT\n    COALESCE(dep_acct_realtime_indicator.target_id, dep_acct_offline_indicator.target_id) AS \"目标ID\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00007 AS \"客户类型\",\n    COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_offline_00002, dep_acct_offline_indicator.i_dep_acct_no_offline_00002) AS branch_no,\n    COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_offline_00001, dep_acct_offline_indicator.i_dep_acct_no_offline_00001) AS \"i_dep_acct_no_offline_00001\",\n    dep_acct_realtime_indicator.etl_date AS \"[实时]ETL日期\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00001 AS \"客户号\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00002 AS \"机构号\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00007 AS \"客户类型\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00010 AS \"近30天交易额\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00011 AS \"开户日期\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00012 AS \"渠道\",\n    dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001 AS \"[实时]当日转出笔数\",\n    cust_offline_indicator.i_cust_no_offline_00001 AS \"客户年龄\",\n    cust_realtime_indicator.i_cust_no_realtime_00001 AS \"[实时]当日登录次数\",\n    ARRAY(SELECT x FROM UNNEST(ARRAY[CASE WHEN ((COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001, 0) > 8 AND COALESCE(cust_realtime_indicator.i_cust_no_realtime_00001, 0) > 3)) THEN 101 ELSE NULL END, CASE WHEN ((dep_acct_offline_indicator.i_dep_acct_no_offline_00012 ~* 'app\\d+' OR (NULLIF(dep_acct_offline_indicator.i_dep_acct_no_offline_00011, '')::DATE < '2020-01-01' AND COALESCE(cust_offline_indicator.i_cust_no_offline_00001, 0) >= 60 AND COALESCE(dep_acct_offline_indicator.i_dep_acct_no_offline_00010, 0) > COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001, 0)))) THEN 102 ELSE NULL END]) x WHERE x IS NOT NULL) AS model_hit_array\nFROM dep_acct_wide_table_realtime_1a2b3c4d_202610101430 AS dep_acct_realtime_indicator\nLEFT JOIN dep_acct_wide_table_1a2b3c4d_20261009 AS dep_acct_offline_indicator\n  ON dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id\nLEFT JOIN cust_wide_table_realtime_9c0d1e2f_202610101430 AS cust_realtime_indicator  ON cust_realtime_indicator.target_id = dep_acct_offline_indicator.i_dep_acct_no_offline_00001\nLEFT JOIN cust_wide_table_9c0d1e2f_20261009 AS cust_offline_indicator  ON cust_offline_indicator.target_id = dep_acct_offline_indicator.i_dep_acct_no_offline_00001\n)\nselect * from temp\nWHERE array_length(model_hit_array, 1) > 0\n",
+   {},
+   true
+  ],
+  [
+   "execute_sql",
+   "SELECT target_id, cnt AS i_dep_acct_no_realtime_00001, etl_date FROM realtime_oss_inct_new r JOIN dep_acct_wide_table_1a2b3c4d_20261009 o ON r.acct = o.target_id WHERE r.tran_date = '2026-10-10' AND r.chnl IN ('APP','WEB') AND o.i_dep_acct_no_offline_00002 = '0101'",
+   {},
+   true
+  ],
+  [
+   "execute_sql",
+   "SELECT target_id, n AS i_cust_no_realtime_00001 FROM realtime_oss_inct_new r JOIN cust_wide_table_9c0d1e2f_20261009 c ON r.cust = c.target_id WHERE r.tran_date = '2026-10-10'",
+   {},
+   true
+  ],
+  [
+   "execute_sql",
+   "\n                SELECT EXISTS (\n                    SELECT 1 FROM pg_tables\n                    WHERE schemaname = 'public' AND tablename = :table_name\n                )\n            ",
+   {
+    "table_name": "cust_wide_table_realtime_9c0d1e2f"
+   },
+   true
+  ],
+  [
+   "execute_sql",
+   "\n                SELECT EXISTS (\n                    SELECT 1 FROM pg_tables\n                    WHERE schemaname = 'public' AND tablename = :table_name\n                )\n            ",
+   {
+    "table_name": "dep_acct_wide_table_realtime_1a2b3c4d"
+   },
+   true
+  ],
+  [
+   "execute_sql",
+   "\n            SELECT EXISTS (\n                SELECT 1 FROM pg_tables\n                WHERE schemaname = 'public' AND tablename = :table_name\n            )\n        ",
+   {
+    "table_name": "cust_wide_table_realtime_9c0d1e2f"
+   },
+   true
+  ],
+  [
+   "execute_sql",
+   "\n            SELECT EXISTS (\n                SELECT 1 FROM pg_tables\n                WHERE schemaname = 'public' AND tablename = :table_name\n            )\n        ",
+   {
+    "table_name": "dep_acct_wide_table_realtime_1a2b3c4d"
+   },
+   true
+  ],
+  [
+   "truncate_table",
+   "cust_wide_table_realtime_9c0d1e2f_202610101430"
+  ],
+  [
+   "truncate_table",
+   "dep_acct_wide_table_realtime_1a2b3c4d_202610101430"
+  ]
+ ],
+ "extra": {
+  "generated_realtime_tables": {
+   "cust_no": "cust_wide_table_realtime_9c0d1e2f_202610101430",
+   "dep_acct_no": "dep_acct_wide_table_realtime_1a2b3c4d_202610101430"
+  },
+  "offline_tables": {
+   "cust_no": "cust_wide_table_9c0d1e2f_20261009",
+   "dep_acct_no": "dep_acct_wide_table_1a2b3c4d_20261009"
+  },
+  "step2_result": [
+   true,
+   true
+  ]
+ },
+ "storage_backends": null
+}

@@ -125,12 +125,31 @@ class WideTableSyncService:
                     "etl_date": str(etl_date)
                 }
 
-            # 2. 计算指标差异，确定同步路径（各后端共享）
+            # 2. 已存在快照检查（按 storage_backend 隔离）。先于复制源探测执行，
+            #    与 main 一致：已有 ready 快照的日期不产生任何 PG 探测查询
+            existing_results = {}
+            for store in self._stores:
+                with _stage_timer(f"02_已存在快照检查[{store.name}]", wide_table_name, etl_date):
+                    existing_result = self._get_existing_snapshot(
+                        wide_table_name, etl_date, version_hash, store.name
+                    )
+                if existing_result:
+                    logger.info(
+                        f"[阶段耗时] sync_wide_table 跳过(skip_reason=snapshot_exists, "
+                        f"backend={store.name}) | wide_table={wide_table_name} etl_date={etl_date}"
+                    )
+                    existing_results[store.name] = existing_result
+            if len(existing_results) == len(self._stores):
+                return self._merge_store_results(
+                    [existing_results[s.name] for s in self._stores]
+                )
+
+            # 3. 计算指标差异，确定同步路径（各后端共享）
             # 先尝试寻找可复用的旧版本表（有该表的候选人，其 metadata 才是可比的前任版本）
             effective_curr_md: dict = {}
             effective_candidates = copy_candidates or []
 
-            with _stage_timer("02_差异计算与复制源查找", wide_table_name, etl_date):
+            with _stage_timer("03_差异计算与复制源查找", wide_table_name, etl_date):
                 old_pg_table, old_meta = self._find_copy_source(
                     wide_table_name, etl_date, effective_candidates
                 )
@@ -140,10 +159,13 @@ class WideTableSyncService:
                 delta = self._build_sync_delta(effective_curr_md, indicator_metadata)
             pg_table_name = f"{wide_table_name}_{version_hash[:8]}"
 
-            # 3. 逐后端执行（快照存在性检查按 storage_backend 隔离；
+            # 4. 逐后端执行（已有 ready 快照的后端直接复用检查结果；
             #    both 模式下某后端失败不影响另一后端）
             results = []
             for store in self._stores:
+                if store.name in existing_results:
+                    results.append(existing_results[store.name])
+                    continue
                 results.append(
                     self._sync_date_for_store(
                         store=store,
@@ -266,18 +288,7 @@ class WideTableSyncService:
         """对单个存储后端执行单日期同步（失败返回 None，不中断其他后端）"""
         snapshot_id = None
         try:
-            # 已存在该后端 ready 快照 → 跳过
-            with _stage_timer(f"03_已存在快照检查[{store.name}]", wide_table_name, etl_date):
-                existing_result = self._get_existing_snapshot(
-                    wide_table_name, etl_date, version_hash, store.name
-                )
-            if existing_result:
-                logger.info(
-                    f"[阶段耗时] sync_wide_table 跳过(skip_reason=snapshot_exists, "
-                    f"backend={store.name}) | wide_table={wide_table_name} etl_date={etl_date}"
-                )
-                return existing_result
-
+            # 已存在快照检查已由 sync_wide_table 统一完成（先于复制源探测）
             # 各后端独立解析增量基准与差异（duckdb 基准为旧 Parquet 目录）
             if store.name == 'duckdb':
                 base_ref, base_meta = self._find_duckdb_copy_source(

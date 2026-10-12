@@ -1,0 +1,365 @@
+# 淘沙分析平台配置文件
+
+# 应用信息
+app:
+  name: "淘沙分析平台"
+  version: "0.1.0"
+  debug: false
+  workers: 2
+
+secret_key: "default_secret_key_for_development"
+
+# 查询引擎配置
+query_engine:
+  dir: "./database"
+  service_type: "empty"  # duckdb 或 spark
+  duckdb_path: "./database/taosha.duckdb"
+  spark:
+    jdbc_driver_class: 'org.apache.hive.jdbc.HiveDriver'
+    jdbc_url: 'jdbc:hive2://127.0.0.1:10000'
+    user_name: 'abc'
+    password: ''
+  jdbc_driver_jar:
+    - /data/taosha/taosha_analyse_platform/backend/jars/hadoop-common-2.3.0.jar
+    - /data/taosha/taosha_analyse_platform/backend/jars/hive-jdbc-1.2.2-standalone.jar
+    - /data/taosha/taosha_analyse_platform/backend/jars/trino-jdbc-407.jar
+
+# PySpark 配置 (用于直接提交Spark任务)
+pyspark:
+  enabled: false  # 是否启用PySpark模式（启用后宽表同步将使用PySpark而非JDBC）
+  app_name: "taosha"  # Spark Application名称
+  master: "yarn"  # Spark Master地址，spark://host:port
+  deploy_mode: "client"
+  queue: "low_priority"
+  executor_memory: "4g"  # Executor内存
+  executor_cores: 2  # 每个Executor的核心数
+  driver_memory: "2g"  # Driver内存
+  # 额外的Spark配置（可选）
+  extra_configs:
+    spark.dynamicAllocation.enabled: "true"
+    spark.dynamicAllocation.minExecutors: "5"
+    spark.dynamicAllocation.maxExecutors: "30"
+    spark.shuffle.service.enabled: "true"
+
+# 业务数据配置
+taosha_db:
+  db_type: "mysql"  # mysql
+  # MySQL配置（当db_type为mysql时使用）
+  mysql:
+    host: "127.0.0.1"
+    port: 3306
+    database: "taosha"
+    user: "test"
+    password: "123456"
+    charset: "utf8mb4"
+
+# OpenAI配置
+openai:
+  api_key: ""  # 从环境变量 OPENAI_API_KEY 读取
+  base_url: ""  # 从环境变量 OPENAI_BASE_URL 读取
+  model: "kimi-k2-0905-preview"
+  temperature: 0.1
+
+# Embedding配置 (用于向量存储)
+embedding:
+  type: "localai"  # localai 或 remote
+  api_key: ""  # LocalAI通常不需要，remote需配置环境变量 EMBEDDING_API_KEY
+  base_url: "http://localhost:8080/v1"  # LocalAI服务地址或remote需配置环境变量 EMBEDDING_BASE_URL
+  model: "qwen3-embedding-0.6b"  # LocalAI中的embedding模型名称
+  dimensions: 1024  # embedding维度（可选，系统会自动检测）
+  reranker_model: "bge-reranker-v2-m3"  # reranker模型名称
+
+# GLM-OCR 本地服务配置
+glm_ocr:
+  api_key: ""  # 从环境变量 GLM_OCR_API_KEY 读取（默认: test-key）
+  base_url: "http://localhost:8000"  # 从环境变量 GLM_OCR_BASE_URL 读取
+  timeout: 120  # 请求超时时间（秒），建议适当增加以支持PDF处理
+  images_path: "/data/taosha/glm_ocr_images"
+
+# 向量存储配置
+vector_store:
+  collection_name: "taosha_knowledge"
+
+  # Qdrant配置
+  qdrant:
+    # 远程Qdrant配置（当mode为remote时使用）
+    url: ""  # 从环境变量 QDRANT_URL 读取
+    api_key: ""  # 从环境变量 QDRANT_API_KEY 读取
+    timeout: 60  # 连接超时时间（秒）
+
+tracing:
+  tracing_type: "langfuse"  # langfuse
+  langfuse_host: "https://cloud.langfuse.com"
+  langfuse_public_key: ""  # langfuse需配置环境变量 LANGFUSE_PUBLIC_KEY
+  langfuse_secret_key: ""  # langfuse需配置环境变量 LANGFUSE_SECRET_KEY
+
+# 日志配置
+logging:
+  level: "INFO"
+  rotation: "10 MB"
+  retention: "7 days"
+  compression: "gz"
+  format: "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+  colorize: true
+  backtrace: true
+  diagnose: true
+  # 日志文件配置
+  files:
+    app:
+      path: "logs/app.log"
+      level: "INFO"
+    error:
+      path: "logs/error.log"
+      level: "ERROR"
+
+disk_cache:
+  path: ./cache
+
+# 元数据同步配置
+metadata_sync:
+  enabled: false  # 是否启用元数据同步
+
+  # 源数据库连接配置
+  source_db:
+    host: "127.0.0.1"
+    port: 3306
+    database: "m"
+    user: "m"
+    password: "m"
+    charset: "utf8mb4"
+    connection_timeout: 30  # 连接超时时间（秒）
+
+  # 同步SQL查询语句，必须返回以下列：table_name, table_comment, column_name, column_comment, column_type
+  sync_sql: |
+      SELECT
+        concat(t1.database_name,'.',t1.table_name) as table_name,
+        t2.table_name as table_comment,
+        t3.name as column_name,
+        t4.name as column_comment,
+        t3.col_type as column_type
+      FROM data_factory.metadata_entity_table t1
+        left join data_factory.metadata_business_table t2
+        on t1.busi_table_id  = t2.id
+        left join data_factory.metadata_entity_column t3
+        on t1.id = t3.entity_table_id
+        left join data_factory.metadata_business_column t4
+        on t3.busi_col_id = t4.id
+      where t1.data_source_id = '1'
+      and t1.table_status = '1'
+
+  # 同步选项
+  options:
+    case_sensitive: false  # 表名和字段名是否区分大小写
+    max_retries: 3         # 最大重试次数
+    retry_delay: 1.0       # 重试延迟（秒）
+
+# FineReport配置
+fine_report:
+  login_url: "http://172.20.96.1:8075/webroot/decision/login"
+  user_name: ""  # 从环境变量 FINE_REPORT_USER_NAME 读取
+  password: ""  # 从环境变量 FINE_REPORT_PASSWORD 读取
+  # 设计器地址列表配置
+  designer_urls:
+    - name: "生产环境设计器"
+      url: "http://172.20.96.1:8075"
+      description: "生产环境FineReport设计器"
+    - name: "测试环境设计器"
+      url: "http://172.20.96.2:8075"
+      description: "测试环境FineReport设计器"
+    - name: "开发环境设计器"
+      url: "http://172.20.96.3:8075"
+      description: "开发环境FineReport设计器"
+    - name: "老环境设计器"
+      url: "http://123.4.5.6:7788"
+      description: "老环境FineReport设计器"
+  browser:
+    headless: true
+    timeout: 30000  # 页面加载超时（毫秒）
+    wait_timeout: 5000  # 元素等待超时（毫秒）
+    download_path: "./downloads/fine_report"  # 下载目录
+    screenshot_path: "./downloads/screenshot"  # 下载目录
+  download_timeout: 60000  # 下载超时（毫秒）
+  disable_browser_init: false  # 是否禁用浏览器初始化（用于不需要浏览器功能的环境）
+
+# FineReport报表同步配置
+fine_report_sync:
+  enabled: false  # 是否启用报表同步
+
+  # 源数据库连接配置
+  source_db:
+    host: "127.0.0.1"
+    port: 3306
+    database: "fine_report_db"
+    user: "fine_report_user"
+    password: "fine_report_password"
+    charset: "utf8mb4"
+    connection_timeout: 30  # 连接超时时间（秒）
+
+  # 同步SQL查询语句，必须返回以下列：report_name, report_cpt_path, report_type, report_design_address, report_mount_path
+  # 可选字段：department_id, description, usage_scenario
+  sync_sql: |
+      SELECT
+        report_name,
+        report_cpt_path,
+        report_type,
+        report_design_address,
+        report_mount_path,
+        department_id,
+        description,
+        usage_scenario
+      FROM fine_report_metadata
+      WHERE is_deleted = 0
+
+  # 同步选项
+  options:
+    case_sensitive: false  # 报表名称是否区分大小写
+    max_retries: 3         # 最大重试次数
+    retry_delay: 1.0       # 重试延迟（秒）
+
+# 环境变量前缀
+env_prefix: "TAOSHA_"
+
+
+# DolphinScheduler 配置
+dolphinscheduler:
+  # DS 服务连接配置
+  gateway:
+    host: "http://localhost:12345"
+    api_port: 25333
+    user: "admin"
+    password: "dolphinscheduler123"
+    tenant: "default"
+    api_token: "70ffd4d0458db3aea6389aaa52d39152"
+
+  # 项目配置
+  project_name: "淘沙分析平台"
+  project_code: "19917269065440"
+  callback_url: "http://127.0.0.1:50011/api/taosha/v1/fraudhunter/wide-table/indicator-runs/callback"
+  
+
+  # 工作流配置
+  workflow:
+    default_timezone: "Asia/Shanghai"
+    timeout: 60
+    params:
+      date: "$[yyyy-MM-dd-1]"
+      hive.user: "bdspk"
+      hive.passwd: "Nybdspk@123"
+      hive.host: "bigdata01"
+      hive.port: "10000"
+
+  # 定时调度配置
+  schedule:
+    cron_expression: "0 0 11 * * ?"
+    online_schedule: true
+
+  # 任务配置
+  task:
+    table_check:
+      timeout: 30
+      fail_retry_times: 288
+      fail_retry_interval: 5
+    sql_task:
+      timeout: 60
+      fail_retry_times: 5
+      fail_retry_interval: 5
+      datasource_name: spark-testdb
+
+# FraudHunter 宽表版本管理配置
+fraudhunter:
+  # 分析数据库配置 (PostgreSQL)
+  analyze_db:
+    db_type: "postgresql"  # 数据库类型: postgresql (仅支持此类型)
+
+    # PostgreSQL配置
+    postgresql:
+      host: "127.0.0.1"
+      port: 5432
+      database: "taosha_fraudhunter"  # 独立数据库
+      user: "taosha"
+      password: "taosha_pg_pass"
+      pool_size: 10  # 连接池大小
+      max_overflow: 20  # 连接池最大溢出连接数
+      pool_recycle: 3600  # 连接回收时间(秒)
+      pool_pre_ping: true  # 连接健康检查
+
+  # 宽表配置
+  wide_table:
+    storage_path: "/data/taosha/indicator_data/wide_tables"  # 保留用于兼容性
+
+    # 离线宽表同步配置
+    sync_lookback_days: 30  # 回溯扫描天数
+    sync_scheduler_interval: 600  # 离线同步调度间隔(秒) - 10分钟
+    source_table: "hxb_dh_data_dwm.dwm_taosha_indicator_details"
+
+    # 离线宽表存储后端: postgresql | duckdb | both（both=灰度双写）
+    offline_store: "postgresql"
+
+    # DuckDB Parquet存储配置（offline_store 含 duckdb 时生效）
+    duckdb:
+      storage_path: "/data/taosha/indicator_data/wide_tables_parquet"  # Parquet根目录，按 {宽表名}_{版本hash前8位}/etl_date=日期 分区
+      compression: "zstd"  # Parquet压缩算法
+      staging_ttl_hours: 24  # staging中转表(_staging_前缀)兜底清理阈值(小时)
+      parquet_cleanup_grace_hours: 48  # 无引用版本目录清理宽限期(小时)，防止误删同步中目录
+
+    # DuckDB 计算模式（docs/duckdb_remote_compute_plan.md）
+    # local: 进程内 import duckdb（要求后端机器 glibc >= 2.27）
+    # remote: 经 HTTP 网关调用 duckdb 容器（build_scripts/duckdb，后端零 duckdb 依赖）
+    duck_compute:
+      mode: "local"                          # local | remote
+      endpoint: "http://127.0.0.1:9495"      # remote 模式: 网关地址（同机容器=127.0.0.1）
+      token: ""                              # remote 模式: 网关 Bearer token
+      timeout_seconds: 300                   # 单条 SQL 超时（秒）
+      # 后端路径前缀 → 容器内路径前缀（同机容器挂载相同路径时无需配置）
+      path_map: {}
+      # path_map:
+      #   "/data/taosha": "/data/taosha"
+
+  # PG 分区导出 Parquet 工具配置（python -m scripts.pg_partition_export）
+  pg_partition_export:
+    output_dir: "/data/taosha/indicator_data/pg_partition_export"  # 默认导出根目录
+    compression: "zstd"  # Parquet 压缩算法: snappy/gzip/zstd
+
+  # 实时数据服务配置
+  realtime_data:
+    enabled: false  # 是否启用实时数据服务（默认关闭）
+    storage_path: "/data/taosha/indicator_data/realtime_data"  # 保留用于兼容性
+    data_retention_days: 7  # 数据保留天数
+
+    # Kafka配置
+    kafka:
+      bootstrap_servers: "bigdata10:9092"
+      topic: "oss_inct_new"
+      group_id: "taosha_realtime_consumer"
+
+      # 消费者配置
+      consumer:
+        session_timeout_ms: 30000
+        heartbeat_interval_ms: 10000
+        max_poll_records: 1000
+        auto_offset_reset: "earliest"  # earliest | latest
+
+    # 写入配置
+    writer:
+      buffer_size: 2000  # 缓冲区大小（条）
+      flush_interval_seconds: 120  # 定时刷新间隔（秒）
+      batch_insert_size: 1000  # 批量插入大小
+
+  # 管控和告警接口配置
+  alert_control:
+    # 管控接口URL
+    control_api_url: "http://125.15.15.15:7799/sspd"
+    # 消息提醒接口URL
+    message_api_url: "http://125.15.15.15:7799/sendwx"
+
+# 调度器配置
+scheduler:
+  offline_wide_table_sync: 28800 # 秒，检查是否可以同步的间隔
+  model_runner_interval: 60  # 秒，实时指标生成间隔（5分钟）
+  metadata_sync_interval: 28800  # 秒，元数据同步间隔（8小时）
+  fine_report_sync_interval: 28800  # 秒，FineReport报表同步间隔（8小时）
+  vector_training_interval: 28800  # 秒，向量数据库训练间隔（8小时）
+  vector_training_max_docs_per_type: 5  # 每种资源类型每次训练的最大文档数（超出的将在下次训练）
+  postgres_data_cleanup_cron: "0 3 * * *"   # cron表达式，Pg文件清理（每日凌晨3点）
+  parquet_cleanup_cron: "0 4 * * *"       # cron表达式，Parquet版本目录引用计数清理（每日凌晨4点）
+  dual_store_reconcile_cron: "30 6 * * *"  # cron表达式，双写存储对账（both灰度期间，每日6:30）

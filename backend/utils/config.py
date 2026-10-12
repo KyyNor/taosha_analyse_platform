@@ -20,6 +20,9 @@ class ConfigManager:
             config_path: 配置文件路径，默认为项目根目录下的config/config.yaml
         """
         if config_path is None:
+            # 环境变量 TAOSHA_CONFIG_FILE 可覆盖默认路径（测试用；未设置时行为不变）
+            config_path = os.environ.get('TAOSHA_CONFIG_FILE')
+        if not config_path:
             # 默认配置文件路径
             current_dir = Path(__file__).parent.parent
             config_path = current_dir / "config" / "config.yaml"

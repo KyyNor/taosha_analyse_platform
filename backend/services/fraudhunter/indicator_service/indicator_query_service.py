@@ -283,11 +283,15 @@ class IndicatorQueryService:
             indicators = self.get_indicators_by_wide_table(snapshot.id)
             indicator_map = {ind['indicator_code']: ind for ind in indicators}
 
-            # 表引用：duckdb 快照 → read_parquet glob；postgresql 快照 → PG表名（现状）
+            # 表引用：duckdb 快照 → read_parquet glob；
+            # postgresql 快照 → parquet_file_path 原值（宽表主表名 + etl_date 过滤，与 main 一致）
             from services.fraudhunter.wide_table_service.store import query_router
 
             duckdb_mode = query_router.requires_duckdb(snapshot)
-            table_ref = query_router.offline_table_ref(snapshot, snapshot.etl_date)
+            table_ref = (
+                query_router.offline_table_ref(snapshot, snapshot.etl_date)
+                if duckdb_mode else storage_path
+            )
 
             sql_query = self._build_query_sql(request, table_ref, snapshot.etl_date, indicator_map)
             count_sql = self._build_count_sql(request, table_ref, snapshot.etl_date)

@@ -289,6 +289,10 @@ async def lifespan(app: FastAPI):
             logger.error(f"数据库初始化或页面同步失败: {e}", exc_info=True)
             # 不影响系统启动，继续运行
 
+        # 宽表快照表结构校验（离线宽表双存储）：不满足时拒绝启动，避免运行期零散报错
+        from models.db_base import verify_wide_table_snapshot_schema
+        verify_wide_table_snapshot_schema(settings.fraudhunter_wide_table_offline_store)
+
         # 初始化系统服务（实时数据消费者等单例服务）
         # 这些服务在多worker环境下只需要运行一次（使用启动锁保护）
         await _initialize_system_services()

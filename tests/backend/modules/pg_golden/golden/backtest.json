@@ -1,0 +1,243 @@
+{
+ "db": {
+  "fraudhunter_dryrun_execution": [
+   {
+    "created_by": null,
+    "error_message": null,
+    "etl_date": null,
+    "execution_id": "EXEC-M1",
+    "log_content": "[模型历史回测执行日志]\n模型: M001 (大额转出)\n执行时间: <NOW>\n日期范围: 2026-10-08 至 2026-10-10\n\n执行结果:\n- 总天数: 3\n- 成功天数: 2\n- 跳过天数: 1\n- 失败天数: 0\n- 总命中记录数: 4\n\n每日执行详情:\n  ✓ 2026-10-08: 执行成功 (命中: 2) [实时:1a2b3c4d 离线:1a2b3c4d 客户:9c0d1e2f]\n  ✓ 2026-10-09: 执行成功 (命中: 2) [实时:5e6f7a8b 离线:1a2b3c4d 客户:9c0d1e2f]\n  ⊘ 2026-10-10: 当天宽表不存在 (命中: 0) [实时: 离线:5e6f7a8b 客户:9c0d1e2f]\n\n警告信息:\n日期 2026-10-10 的宽表不存在，跳过\n",
+    "parameters": "{\"model_id\": 101, \"model_code\": \"M001\", \"start_date\": \"2026-10-08\", \"end_date\": \"2026-10-10\", \"wide_table_name\": \"dep_acct_wide_table\"}",
+    "parent_execution_id": null,
+    "result_summary": "{\"total_days\": 3, \"success_days\": 2, \"skipped_days\": 1, \"failed_days\": 0, \"total_rows_matched\": 4, \"version_fallbacks\": [{\"date\": \"2026-10-08\", \"realtime\": \"1a2b3c4d\", \"offline\": \"1a2b3c4d\", \"cust\": \"9c0d1e2f\"}, {\"date\": \"2026-10-09\", \"realtime\": \"5e6f7a8b\", \"offline\": \"1a2b3c4d\", \"cust\": \"9c0d1e2f\"}, {\"date\": \"2026-10-10\", \"realtime\": \"\", \"offline\": \"5e6f7a8b\", \"cust\": \"9c0d1e2f\"}], \"warnings\": [\"\\u65e5\\u671f 2026-10-10 \\u7684\\u5bbd\\u8868\\u4e0d\\u5b58\\u5728\\uff0c\\u8df3\\u8fc7\"]}",
+    "rows_output": 2,
+    "rows_processed": 3,
+    "status": "running",
+    "task_id": 101,
+    "task_type": "model",
+    "version": null
+   },
+   {
+    "created_by": null,
+    "error_message": null,
+    "etl_date": null,
+    "execution_id": "EXEC-M2",
+    "log_content": "[模型历史回测执行日志]\n模型: M002 (老户异常)\n执行时间: <NOW>\n日期范围: 2026-10-08 至 2026-10-10\n\n执行结果:\n- 总天数: 3\n- 成功天数: 2\n- 跳过天数: 1\n- 失败天数: 0\n- 总命中记录数: 4\n\n每日执行详情:\n  ✓ 2026-10-08: 执行成功 (命中: 2) [实时:1a2b3c4d 离线:1a2b3c4d 客户:9c0d1e2f]\n  ✓ 2026-10-09: 执行成功 (命中: 2) [实时:5e6f7a8b 离线:1a2b3c4d 客户:9c0d1e2f]\n  ⊘ 2026-10-10: 当天宽表不存在 (命中: 0) [实时: 离线:5e6f7a8b 客户:9c0d1e2f]\n\n警告信息:\n日期 2026-10-10 的宽表不存在，跳过\n",
+    "parameters": "{\"model_id\": 102, \"model_code\": \"M002\", \"start_date\": \"2026-10-08\", \"end_date\": \"2026-10-10\", \"wide_table_name\": \"dep_acct_wide_table\"}",
+    "parent_execution_id": null,
+    "result_summary": "{\"total_days\": 3, \"success_days\": 2, \"skipped_days\": 1, \"failed_days\": 0, \"total_rows_matched\": 4, \"version_fallbacks\": [{\"date\": \"2026-10-08\", \"realtime\": \"1a2b3c4d\", \"offline\": \"1a2b3c4d\", \"cust\": \"9c0d1e2f\"}, {\"date\": \"2026-10-09\", \"realtime\": \"5e6f7a8b\", \"offline\": \"1a2b3c4d\", \"cust\": \"9c0d1e2f\"}, {\"date\": \"2026-10-10\", \"realtime\": \"\", \"offline\": \"5e6f7a8b\", \"cust\": \"9c0d1e2f\"}], \"warnings\": [\"\\u65e5\\u671f 2026-10-10 \\u7684\\u5bbd\\u8868\\u4e0d\\u5b58\\u5728\\uff0c\\u8df3\\u8fc7\"]}",
+    "rows_output": 2,
+    "rows_processed": 3,
+    "status": "running",
+    "task_id": 102,
+    "task_type": "model",
+    "version": null
+   }
+  ]
+ },
+ "events": [
+  [
+   "execute_sql",
+   "-- 模型历史回测SQL\n-- 模型: M001 (大额转出)\n-- 执行日期: 2026-10-08\n\nSELECT\n    dep_acct_realtime_indicator.target_id as \"账号\",\n    dep_acct_realtime_indicator.etl_date as \"实时数据日期\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00010 AS \"近30天交易额\",\n    dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001 AS \"[实时]当日转出笔数\"\nFROM\n    dep_acct_wide_table_1a2b3c4d_20261008 as dep_acct_realtime_indicator\nLEFT JOIN\n    dep_acct_wide_table_1a2b3c4d_20261007 as dep_acct_offline_indicator\nON\n    dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id\nLEFT JOIN\n    cust_wide_table_9c0d1e2f_20261007 as cust_offline_indicator\nON\n    dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id\nWHERE\n    (COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001, 0) > 5 AND COALESCE(dep_acct_offline_indicator.i_dep_acct_no_offline_00010, 0) >= 10000)\nLIMIT 10000\n",
+   {},
+   true
+  ],
+  [
+   "execute_sql",
+   "-- 模型历史回测SQL\n-- 模型: M001 (大额转出)\n-- 执行日期: 2026-10-09\n\nSELECT\n    dep_acct_realtime_indicator.target_id as \"账号\",\n    dep_acct_realtime_indicator.etl_date as \"实时数据日期\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00010 AS \"近30天交易额\",\n    dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001 AS \"[实时]当日转出笔数\"\nFROM\n    dep_acct_wide_table_5e6f7a8b_20261009 as dep_acct_realtime_indicator\nLEFT JOIN\n    dep_acct_wide_table_1a2b3c4d_20261008 as dep_acct_offline_indicator\nON\n    dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id\nLEFT JOIN\n    cust_wide_table_9c0d1e2f_20261008 as cust_offline_indicator\nON\n    dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id\nWHERE\n    (COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001, 0) > 5 AND COALESCE(dep_acct_offline_indicator.i_dep_acct_no_offline_00010, 0) >= 10000)\nLIMIT 10000\n",
+   {},
+   true
+  ],
+  [
+   "execute_sql",
+   "-- 模型历史回测SQL\n-- 模型: M002 (老户异常)\n-- 执行日期: 2026-10-08\n\nSELECT\n    dep_acct_realtime_indicator.target_id as \"账号\",\n    dep_acct_realtime_indicator.etl_date as \"实时数据日期\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00010 AS \"近30天交易额\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00011 AS \"开户日期\",\n    cust_offline_indicator.i_cust_no_offline_00001 AS \"客户年龄\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00012 AS \"渠道\",\n    dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001 AS \"[实时]当日转出笔数\"\nFROM\n    dep_acct_wide_table_1a2b3c4d_20261008 as dep_acct_realtime_indicator\nLEFT JOIN\n    dep_acct_wide_table_1a2b3c4d_20261007 as dep_acct_offline_indicator\nON\n    dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id\nLEFT JOIN\n    cust_wide_table_9c0d1e2f_20261007 as cust_offline_indicator\nON\n    dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id\nWHERE\n    (dep_acct_offline_indicator.i_dep_acct_no_offline_00012 ~* 'app\\d+' OR (NULLIF(dep_acct_offline_indicator.i_dep_acct_no_offline_00011, '')::DATE < '2020-01-01' AND COALESCE(cust_offline_indicator.i_cust_no_offline_00001, 0) >= 60 AND COALESCE(dep_acct_offline_indicator.i_dep_acct_no_offline_00010, 0) > COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001, 0)))\nLIMIT 10000\n",
+   {},
+   true
+  ],
+  [
+   "execute_sql",
+   "-- 模型历史回测SQL\n-- 模型: M002 (老户异常)\n-- 执行日期: 2026-10-09\n\nSELECT\n    dep_acct_realtime_indicator.target_id as \"账号\",\n    dep_acct_realtime_indicator.etl_date as \"实时数据日期\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00010 AS \"近30天交易额\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00011 AS \"开户日期\",\n    cust_offline_indicator.i_cust_no_offline_00001 AS \"客户年龄\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00012 AS \"渠道\",\n    dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001 AS \"[实时]当日转出笔数\"\nFROM\n    dep_acct_wide_table_5e6f7a8b_20261009 as dep_acct_realtime_indicator\nLEFT JOIN\n    dep_acct_wide_table_1a2b3c4d_20261008 as dep_acct_offline_indicator\nON\n    dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id\nLEFT JOIN\n    cust_wide_table_9c0d1e2f_20261008 as cust_offline_indicator\nON\n    dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id\nWHERE\n    (dep_acct_offline_indicator.i_dep_acct_no_offline_00012 ~* 'app\\d+' OR (NULLIF(dep_acct_offline_indicator.i_dep_acct_no_offline_00011, '')::DATE < '2020-01-01' AND COALESCE(cust_offline_indicator.i_cust_no_offline_00001, 0) >= 60 AND COALESCE(dep_acct_offline_indicator.i_dep_acct_no_offline_00010, 0) > COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001, 0)))\nLIMIT 10000\n",
+   {},
+   true
+  ]
+ ],
+ "extra": {
+  "backtest_EXEC-M1": {
+   "failed_days": 0,
+   "generated_sqls": [
+    {
+     "date": "2026-10-08",
+     "sql": "-- 模型历史回测SQL\n-- 模型: M001 (大额转出)\n-- 执行日期: 2026-10-08\n\nSELECT\n    dep_acct_realtime_indicator.target_id as \"账号\",\n    dep_acct_realtime_indicator.etl_date as \"实时数据日期\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00010 AS \"近30天交易额\",\n    dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001 AS \"[实时]当日转出笔数\"\nFROM\n    dep_acct_wide_table_1a2b3c4d_20261008 as dep_acct_realtime_indicator\nLEFT JOIN\n    dep_acct_wide_table_1a2b3c4d_20261007 as dep_acct_offline_indicator\nON\n    dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id\nLEFT JOIN\n    cust_wide_table_9c0d1e2f_20261007 as cust_offline_indicator\nON\n    dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id\nWHERE\n    (COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001, 0) > 5 AND COALESCE(dep_acct_offline_indicator.i_dep_acct_no_offline_00010, 0) >= 10000)\nLIMIT 10000\n"
+    },
+    {
+     "date": "2026-10-09",
+     "sql": "-- 模型历史回测SQL\n-- 模型: M001 (大额转出)\n-- 执行日期: 2026-10-09\n\nSELECT\n    dep_acct_realtime_indicator.target_id as \"账号\",\n    dep_acct_realtime_indicator.etl_date as \"实时数据日期\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00010 AS \"近30天交易额\",\n    dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001 AS \"[实时]当日转出笔数\"\nFROM\n    dep_acct_wide_table_5e6f7a8b_20261009 as dep_acct_realtime_indicator\nLEFT JOIN\n    dep_acct_wide_table_1a2b3c4d_20261008 as dep_acct_offline_indicator\nON\n    dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id\nLEFT JOIN\n    cust_wide_table_9c0d1e2f_20261008 as cust_offline_indicator\nON\n    dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id\nWHERE\n    (COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001, 0) > 5 AND COALESCE(dep_acct_offline_indicator.i_dep_acct_no_offline_00010, 0) >= 10000)\nLIMIT 10000\n"
+    }
+   ],
+   "matched_records": [
+    {
+     "model_hit_array": [
+      101
+     ],
+     "是否白名单": false,
+     "模型名称": "大额转出",
+     "模型编码": "M001",
+     "目标ID": "A001",
+     "账号": "A001",
+     "近30天交易额": 12000.5
+    },
+    {
+     "model_hit_array": [
+      101,
+      102
+     ],
+     "是否白名单": false,
+     "模型名称": "大额转出",
+     "模型编码": "M001",
+     "目标ID": "A002",
+     "账号": "A002",
+     "近30天交易额": null
+    },
+    {
+     "model_hit_array": [
+      101
+     ],
+     "是否白名单": false,
+     "模型名称": "大额转出",
+     "模型编码": "M001",
+     "目标ID": "A001",
+     "账号": "A001",
+     "近30天交易额": 12000.5
+    },
+    {
+     "model_hit_array": [
+      101,
+      102
+     ],
+     "是否白名单": false,
+     "模型名称": "大额转出",
+     "模型编码": "M001",
+     "目标ID": "A002",
+     "账号": "A002",
+     "近30天交易额": null
+    }
+   ],
+   "skipped_days": 1,
+   "success_days": 2,
+   "total_days": 3,
+   "total_rows_matched": 4,
+   "version_fallbacks": [
+    {
+     "cust": "9c0d1e2f",
+     "date": "2026-10-08",
+     "offline": "1a2b3c4d",
+     "realtime": "1a2b3c4d"
+    },
+    {
+     "cust": "9c0d1e2f",
+     "date": "2026-10-09",
+     "offline": "1a2b3c4d",
+     "realtime": "5e6f7a8b"
+    },
+    {
+     "cust": "9c0d1e2f",
+     "date": "2026-10-10",
+     "offline": "5e6f7a8b",
+     "realtime": ""
+    }
+   ],
+   "warnings": [
+    "日期 2026-10-10 的宽表不存在，跳过"
+   ]
+  },
+  "backtest_EXEC-M2": {
+   "failed_days": 0,
+   "generated_sqls": [
+    {
+     "date": "2026-10-08",
+     "sql": "-- 模型历史回测SQL\n-- 模型: M002 (老户异常)\n-- 执行日期: 2026-10-08\n\nSELECT\n    dep_acct_realtime_indicator.target_id as \"账号\",\n    dep_acct_realtime_indicator.etl_date as \"实时数据日期\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00010 AS \"近30天交易额\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00011 AS \"开户日期\",\n    cust_offline_indicator.i_cust_no_offline_00001 AS \"客户年龄\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00012 AS \"渠道\",\n    dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001 AS \"[实时]当日转出笔数\"\nFROM\n    dep_acct_wide_table_1a2b3c4d_20261008 as dep_acct_realtime_indicator\nLEFT JOIN\n    dep_acct_wide_table_1a2b3c4d_20261007 as dep_acct_offline_indicator\nON\n    dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id\nLEFT JOIN\n    cust_wide_table_9c0d1e2f_20261007 as cust_offline_indicator\nON\n    dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id\nWHERE\n    (dep_acct_offline_indicator.i_dep_acct_no_offline_00012 ~* 'app\\d+' OR (NULLIF(dep_acct_offline_indicator.i_dep_acct_no_offline_00011, '')::DATE < '2020-01-01' AND COALESCE(cust_offline_indicator.i_cust_no_offline_00001, 0) >= 60 AND COALESCE(dep_acct_offline_indicator.i_dep_acct_no_offline_00010, 0) > COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001, 0)))\nLIMIT 10000\n"
+    },
+    {
+     "date": "2026-10-09",
+     "sql": "-- 模型历史回测SQL\n-- 模型: M002 (老户异常)\n-- 执行日期: 2026-10-09\n\nSELECT\n    dep_acct_realtime_indicator.target_id as \"账号\",\n    dep_acct_realtime_indicator.etl_date as \"实时数据日期\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00010 AS \"近30天交易额\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00011 AS \"开户日期\",\n    cust_offline_indicator.i_cust_no_offline_00001 AS \"客户年龄\",\n    dep_acct_offline_indicator.i_dep_acct_no_offline_00012 AS \"渠道\",\n    dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001 AS \"[实时]当日转出笔数\"\nFROM\n    dep_acct_wide_table_5e6f7a8b_20261009 as dep_acct_realtime_indicator\nLEFT JOIN\n    dep_acct_wide_table_1a2b3c4d_20261008 as dep_acct_offline_indicator\nON\n    dep_acct_realtime_indicator.target_id = dep_acct_offline_indicator.target_id\nLEFT JOIN\n    cust_wide_table_9c0d1e2f_20261008 as cust_offline_indicator\nON\n    dep_acct_realtime_indicator.i_dep_acct_no_offline_00001 = cust_offline_indicator.target_id\nWHERE\n    (dep_acct_offline_indicator.i_dep_acct_no_offline_00012 ~* 'app\\d+' OR (NULLIF(dep_acct_offline_indicator.i_dep_acct_no_offline_00011, '')::DATE < '2020-01-01' AND COALESCE(cust_offline_indicator.i_cust_no_offline_00001, 0) >= 60 AND COALESCE(dep_acct_offline_indicator.i_dep_acct_no_offline_00010, 0) > COALESCE(dep_acct_realtime_indicator.i_dep_acct_no_realtime_00001, 0)))\nLIMIT 10000\n"
+    }
+   ],
+   "matched_records": [
+    {
+     "model_hit_array": [
+      101
+     ],
+     "是否白名单": false,
+     "模型名称": "老户异常",
+     "模型编码": "M002",
+     "目标ID": "A001",
+     "账号": "A001",
+     "近30天交易额": 12000.5
+    },
+    {
+     "model_hit_array": [
+      101,
+      102
+     ],
+     "是否白名单": false,
+     "模型名称": "老户异常",
+     "模型编码": "M002",
+     "目标ID": "A002",
+     "账号": "A002",
+     "近30天交易额": null
+    },
+    {
+     "model_hit_array": [
+      101
+     ],
+     "是否白名单": false,
+     "模型名称": "老户异常",
+     "模型编码": "M002",
+     "目标ID": "A001",
+     "账号": "A001",
+     "近30天交易额": 12000.5
+    },
+    {
+     "model_hit_array": [
+      101,
+      102
+     ],
+     "是否白名单": false,
+     "模型名称": "老户异常",
+     "模型编码": "M002",
+     "目标ID": "A002",
+     "账号": "A002",
+     "近30天交易额": null
+    }
+   ],
+   "skipped_days": 1,
+   "success_days": 2,
+   "total_days": 3,
+   "total_rows_matched": 4,
+   "version_fallbacks": [
+    {
+     "cust": "9c0d1e2f",
+     "date": "2026-10-08",
+     "offline": "1a2b3c4d",
+     "realtime": "1a2b3c4d"
+    },
+    {
+     "cust": "9c0d1e2f",
+     "date": "2026-10-09",
+     "offline": "1a2b3c4d",
+     "realtime": "5e6f7a8b"
+    },
+    {
+     "cust": "9c0d1e2f",
+     "date": "2026-10-10",
+     "offline": "5e6f7a8b",
+     "realtime": ""
+    }
+   ],
+   "warnings": [
+    "日期 2026-10-10 的宽表不存在，跳过"
+   ]
+  }
+ },
+ "storage_backends": null
+}
