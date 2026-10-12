@@ -188,3 +188,6 @@ backend/.worker_registry/.worktrees/
 # ZCode internal files
 .zcode/
 **/.DS_Store
+
+# duckdb 便携客户端构建产物 (85MB 二进制, 用 build-portable-client.sh 重新生成)
+build_scripts/duckdb/portable-client-*/

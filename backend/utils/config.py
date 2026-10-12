@@ -20,6 +20,9 @@ class ConfigManager:
             config_path: 配置文件路径，默认为项目根目录下的config/config.yaml
         """
         if config_path is None:
+            # 环境变量 TAOSHA_CONFIG_FILE 可覆盖默认路径（测试用；未设置时行为不变）
+            config_path = os.environ.get('TAOSHA_CONFIG_FILE')
+        if not config_path:
             # 默认配置文件路径
             current_dir = Path(__file__).parent.parent
             config_path = current_dir / "config" / "config.yaml"
@@ -240,6 +243,28 @@ class ConfigManager:
             fraudhunter_wide_table_sync_lookback_days: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('sync_lookback_days', 30)
             fraudhunter_wide_table_sync_scheduler_interval: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('sync_scheduler_interval', 600)
             fraudhunter_wide_table_source_table: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('source_table', 'hxb_dh_data_dwm.dwm_taosha_indicator_details')
+            # 离线宽表存储后端: postgresql | duckdb | both（灰度双写）
+            fraudhunter_wide_table_offline_store: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('offline_store', 'postgresql')
+            # 离线宽表读后端: postgresql | duckdb；未配置时 offline_store=duckdb 读 duckdb，否则读 postgresql
+            fraudhunter_wide_table_read_backend: Optional[str] = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('read_backend')
+            # DuckDB Parquet存储配置（offline_store 含 duckdb 时生效）
+            fraudhunter_wide_table_duckdb_storage_path: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('storage_path', '/data/taosha/indicator_data/wide_tables_parquet')
+            fraudhunter_wide_table_duckdb_compression: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('compression', 'zstd')
+            fraudhunter_wide_table_duckdb_staging_ttl_hours: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('staging_ttl_hours', 24)
+            fraudhunter_wide_table_duckdb_parquet_cleanup_grace_hours: int = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('parquet_cleanup_grace_hours', 48)
+            # DuckDB 计算模式（docs/duckdb_remote_compute_plan.md）:
+            # local=进程内 import duckdb（现状，要求机器 glibc>=2.27）
+            # remote=经 HTTP 网关调用 duckdb 容器（后端零 duckdb 依赖，老机器可用）
+            fraudhunter_duck_compute_mode: str = self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('mode', 'local')
+            fraudhunter_duck_compute_endpoint: str = self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('endpoint', 'http://127.0.0.1:9495')
+            fraudhunter_duck_compute_token: str = self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('token', '')
+            fraudhunter_duck_compute_path_map: dict = self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('path_map', {})
+            fraudhunter_duck_compute_timeout_seconds: float = float(self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('timeout_seconds', 300))
+            # delegate 模式（DS 侧）：Parquet 相关操作委托淘沙后端内部接口（二期阶段 10）
+            fraudhunter_duck_compute_delegate_endpoint: str = self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('delegate', {}).get('endpoint', '')
+            fraudhunter_duck_compute_delegate_timeout_seconds: float = float(self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('delegate', {}).get('timeout_seconds', 1800))
+            # 内部接口共享 token（淘沙校验、DS 携带，两侧一致；为空时内部接口一律拒绝）
+            fraudhunter_internal_api_token: str = self._config_data.get('fraudhunter', {}).get('internal_api', {}).get('token', '') or ''
 
             # PG 分区导出 Parquet 工具（python -m scripts.pg_partition_export）
             fraudhunter_pg_partition_export_output_dir: str = self._config_data.get('fraudhunter', {}).get('pg_partition_export', {}).get('output_dir', '/data/taosha/indicator_data/pg_partition_export')
@@ -276,6 +301,8 @@ class ConfigManager:
             scheduler_vector_training_max_docs_per_type: int = self._config_data.get('scheduler', {}).get('vector_training_max_docs_per_type', 5)
             scheduler_postgres_data_cleanup_cron: str = self._config_data.get('scheduler', {}).get('postgres_data_cleanup_cron', '0 3 * * *')
             scheduler_mysql_data_cleanup_cron: str = self._config_data.get('scheduler', {}).get('mysql_data_cleanup_cron', '0 3 * * *')
+            scheduler_parquet_cleanup_cron: str = self._config_data.get('scheduler', {}).get('parquet_cleanup_cron', '0 4 * * *')
+            scheduler_dual_store_reconcile_cron: str = self._config_data.get('scheduler', {}).get('dual_store_reconcile_cron', '30 6 * * *')
 
             class Config:
                 env_prefix = self._config_data.get('env_prefix', 'TAOSHA_')

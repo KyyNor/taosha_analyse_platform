@@ -219,6 +219,24 @@ async def sync_all_wide_tables_job(max_success_tables: int = 10):
 def main():
     import asyncio
     from datetime import datetime
+    from models.db_base import verify_wide_table_snapshot_schema
+    from utils.config import settings
+
+    from services.fraudhunter.wide_table_service.store.query_router import validate_store_config
+
+    # DS 入口不建表/不改表：结构不满足（淘沙后端尚未升级）时直接失败
+    verify_wide_table_snapshot_schema(settings.fraudhunter_wide_table_offline_store)
+    for store_warning in validate_store_config(
+        settings.fraudhunter_wide_table_offline_store,
+        settings.fraudhunter_wide_table_read_backend,
+        settings.fraudhunter_duck_compute_mode,
+        role='ds',
+    ):
+        logger.warning(f"[存储配置] {store_warning}")
+    logger.info(
+        f"[存储配置] 写={settings.fraudhunter_wide_table_offline_store} "
+        f"duck_compute={settings.fraudhunter_duck_compute_mode}"
+    )
     logger.info(f"[{datetime.now()}] 淘沙宽表同步任务开始")
     asyncio.run(sync_all_wide_tables_job())
     logger.info(f"[{datetime.now()}] 淘沙宽表同步任务结束")

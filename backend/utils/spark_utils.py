@@ -5,11 +5,7 @@ JDBC模式：通过HiveServer2 JDBC连接执行查询
 PySpark模式：直接提交Spark任务执行查询并输出文件
 """
 
-import os
-import os.path
-import pathlib
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Dict, Any, Optional, List, Union, Literal, Tuple
 
 from retry import retry
@@ -252,67 +248,6 @@ class PySparkService:
     def is_initialized(self) -> bool:
         """检查是否已初始化"""
         return self._initialized and self._spark is not None
-    
-    def execute_sql_to_parquet(
-        self,
-        sql: str,
-        output_path: Union[str, Path],
-        mode: str = 'overwrite'
-    ) -> Tuple[int, int, int]:
-        """
-        执行SQL并将结果保存为Parquet文件
-        
-        Args:
-            sql: Spark SQL查询语句
-            output_path: 输出文件路径
-            mode: 写入模式 ('overwrite', 'append', 'error', 'ignore')
-            partition_by: 分区字段列表
-            
-        Returns:
-            (row_count, column_count, file_size_bytes) 元组
-        """
-        output_path = Path(output_path)
-        
-        logger.info(f"PySpark执行SQL并保存到: {output_path}")
-        logger.debug(f"SQL: {sql[:500]}...")  # 只打印前500字符
-        
-        try:
-            # 执行SQL查询
-            df = self.spark.sql(sql)
-            
-            # 获取列数
-            column_count = len(df.columns)
-            
-            # 确保输出目录存在
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-
-            pandas_df = df.toPandas()
-            pandas_df.to_parquet(
-                output_path,
-                engine='pyarrow',           # 使用pyarrow引擎
-                compression='snappy',       # 压缩算法
-                index=False,               # 不保存索引
-            )
-            
-            # 获取行数（需要重新读取或在保存前计算）
-            row_count = len(pandas_df)
-            
-            # 获取文件大小
-            file_size = output_path.stat().st_size if output_path.exists() else 0
-            
-            logger.info(f"PySpark保存成功: {output_path.name}, "
-                       f"{row_count}行, {column_count}列, {file_size}字节")
-            
-            return (row_count, column_count, file_size)
-            
-        except Exception as e:
-            logger.error(f"PySpark执行SQL失败: {e}", exc_info=True)
-            # 清理可能的临时文件
-            temp_output = output_path.parent / f".temp_{output_path.stem}"
-            if temp_output.exists():
-                import shutil
-                shutil.rmtree(str(temp_output), ignore_errors=True)
-            raise
     
     def execute_sql(
         self,

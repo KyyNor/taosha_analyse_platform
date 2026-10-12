@@ -1,0 +1,64 @@
+{
+ "db": {},
+ "events": [
+  [
+   "execute_sql",
+   "SELECT COUNT(*) AS count FROM dep_acct_wide_table_1a2b3c4d WHERE etl_date = '2026-10-09'",
+   {},
+   true
+  ],
+  [
+   "execute_sql",
+   "SELECT\n    target_id AS \"对象ID\",\n    etl_date AS \"数据日期\",\n    CAST(i_dep_acct_no_offline_00001 AS VARCHAR) AS \"客户号\",\n    CAST(i_dep_acct_no_offline_00002 AS VARCHAR) AS \"机构号\",\n    CAST(i_dep_acct_no_offline_00007 AS VARCHAR) AS \"客户类型\",\n    COALESCE(i_dep_acct_no_offline_00010::DOUBLE PRECISION, 0) AS \"近30天交易额\",\n    CAST(NULLIF(i_dep_acct_no_offline_00011, '') AS DATE) AS \"开户日期\",\n    CAST(i_dep_acct_no_offline_00012 AS VARCHAR) AS \"渠道\",\n    COALESCE(i_dep_acct_no_realtime_00001::DOUBLE PRECISION, 0) AS \"当日转出笔数\"\nFROM dep_acct_wide_table_1a2b3c4d\nWHERE etl_date = '2026-10-09'\nLIMIT 50 OFFSET 0",
+   {},
+   true
+  ],
+  [
+   "execute_sql",
+   "SELECT COUNT(*) AS count FROM dep_acct_wide_table_1a2b3c4d WHERE etl_date = '2026-10-09' AND target_id = 'A0''01' AND i_dep_acct_no_offline_00010 >= 100.0 AND i_dep_acct_no_offline_00012 LIKE '%app%' AND CAST(i_dep_acct_no_offline_00011 AS VARCHAR) < '2020-01-01' AND i_dep_acct_no_offline_00002 = 101.0",
+   {},
+   true
+  ],
+  [
+   "execute_sql",
+   "SELECT\n    target_id AS \"对象ID\",\n    etl_date AS \"数据日期\",\n    CAST(i_dep_acct_no_offline_00001 AS VARCHAR) AS \"客户号\",\n    CAST(i_dep_acct_no_offline_00002 AS VARCHAR) AS \"机构号\",\n    CAST(i_dep_acct_no_offline_00007 AS VARCHAR) AS \"客户类型\",\n    COALESCE(i_dep_acct_no_offline_00010::DOUBLE PRECISION, 0) AS \"近30天交易额\",\n    CAST(NULLIF(i_dep_acct_no_offline_00011, '') AS DATE) AS \"开户日期\",\n    CAST(i_dep_acct_no_offline_00012 AS VARCHAR) AS \"渠道\",\n    COALESCE(i_dep_acct_no_realtime_00001::DOUBLE PRECISION, 0) AS \"当日转出笔数\"\nFROM dep_acct_wide_table_1a2b3c4d\nWHERE etl_date = '2026-10-09' AND target_id = 'A0''01' AND COALESCE(i_dep_acct_no_offline_00010::DOUBLE PRECISION, 0) >= 100.0 AND i_dep_acct_no_offline_00012 LIKE '%app%' AND NULLIF(i_dep_acct_no_offline_00011, '') < '2020-01-01' AND i_dep_acct_no_offline_00002 = '0101'\nLIMIT 20 OFFSET 20",
+   {},
+   true
+  ]
+ ],
+ "extra": {
+  "query_results": [
+   {
+    "items": [
+     {
+      "目标ID": "A001",
+      "近30天交易额": 1.5
+     },
+     {
+      "目标ID": "A002",
+      "近30天交易额": 2.0
+     }
+    ],
+    "page": 1,
+    "page_size": 50,
+    "total": 2
+   },
+   {
+    "items": [
+     {
+      "目标ID": "A001",
+      "近30天交易额": 1.5
+     },
+     {
+      "目标ID": "A002",
+      "近30天交易额": 2.0
+     }
+    ],
+    "page": 2,
+    "page_size": 20,
+    "total": 2
+   }
+  ]
+ },
+ "storage_backends": null
+}

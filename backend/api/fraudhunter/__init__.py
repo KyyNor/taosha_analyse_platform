@@ -10,6 +10,8 @@ from .wide_table_routes import router as wide_table_router
 from .alert_control_record_routes import router as alert_control_record_router
 from .system_config_routes import router as system_config_router
 from .indicator_query_routes import router as indicator_query_router
+from .internal_wide_table_store_routes import router as internal_wide_table_store_router
+from .backend_compare_routes import router as backend_compare_router
 
 __all__ = [
     'indicator_task_router',
@@ -21,4 +23,6 @@ __all__ = [
     'alert_control_record_router',
     'system_config_router',
     'indicator_query_router',
+    'internal_wide_table_store_router',
+    'backend_compare_router',
 ]

@@ -459,6 +459,44 @@ class AnalyzeDBPartitionManager:
         )
 
     @staticmethod
+    def cleanup_stale_staging_tables(ttl_hours: int = 24) -> int:
+        """清理超期的 _staging_ 前缀中转表（DuckDB 路径兜底清理）
+
+        正常流程成功即 DROP；此处按 created_at 超过 TTL 兜底删除
+        同步中途崩溃等场景遗留的孤儿 staging 表。
+
+        Returns:
+            删除的表数量
+        """
+        engine = AnalyzeDBConnector.get_engine()
+        dropped = 0
+        try:
+            with engine.connect() as conn:
+                table_rows = conn.execute(text(
+                    "SELECT tablename FROM pg_tables "
+                    "WHERE schemaname = 'public' AND tablename LIKE '\\_staging\\_%'"
+                )).fetchall()
+
+            for (table_name,) in table_rows:
+                try:
+                    with engine.connect() as conn:
+                        age_seconds = conn.execute(text(
+                            f"SELECT EXTRACT(EPOCH FROM now() - created_at) FROM {table_name} LIMIT 1"
+                        )).scalar()
+                    if age_seconds is None:
+                        continue
+                    if age_seconds < ttl_hours * 3600:
+                        continue
+                    if AnalyzeDBPartitionManager.drop_table(table_name):
+                        dropped += 1
+                        logger.info(f"清理超期staging中转表: {table_name}, 年龄={age_seconds/3600:.1f}h")
+                except Exception as e:
+                    logger.warning(f"检查/删除staging表 {table_name} 失败: {e}")
+        except Exception as e:
+            logger.error(f"扫描 _staging_ 表失败: {e}", exc_info=True)
+        return dropped
+
+    @staticmethod
     def get_old_version_tables(retention_days: int = 30) -> List[str]:
         engine = AnalyzeDBConnector.get_engine()
         cutoff_date = date.today() - timedelta(days=retention_days)
@@ -674,6 +712,10 @@ class AnalyzeDBPartitionManager:
                 engine = AnalyzeDBConnector.get_engine()
 
                 for snapshot in snapshots:
+                    # duckdb 快照的 parquet_file_path 是目录路径而非PG表名，
+                    # 其存在性校验不属于本方法（PG表探测）范围
+                    if getattr(snapshot, 'storage_backend', 'postgresql') != 'postgresql':
+                        continue
                     if snapshot.parquet_file_path:
                         table_name = snapshot.parquet_file_path
 
@@ -756,8 +798,13 @@ class AnalyzeDBPartitionManager:
             return False
 
     @staticmethod
-    def create_heap_table(table_name: str, indicator_metadata: list) -> bool:
-        """创建一个不分区的简易表（仅用于辅助表，创建和删除都快）"""
+    def create_heap_table(table_name: str, indicator_metadata: list, unlogged: bool = False) -> bool:
+        """创建一个不分区的简易表（仅用于辅助表，创建和删除都快）
+
+        Args:
+            unlogged: 创建 UNLOGGED 表（跳过WAL写入快，崩溃自动清空）。
+                      仅用于 DuckDB 路径的 _staging_ 中转表，正式表禁用。
+        """
         long_text_indicator_list = []
         try:
             with get_db_session() as db:
@@ -780,9 +827,10 @@ class AnalyzeDBPartitionManager:
             )
 
         columns_sql = ",\n    ".join(f"{name} {typ}" for name, typ in columns)
-            
+
+        table_kw = "UNLOGGED " if unlogged else ""
         sql = f"""
-            CREATE TABLE IF NOT EXISTS {table_name} (
+            CREATE {table_kw}TABLE IF NOT EXISTS {table_name} (
                 {columns_sql},
                 created_at timestamptz DEFAULT now()
             );

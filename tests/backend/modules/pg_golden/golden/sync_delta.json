@@ -1,0 +1,357 @@
+{
+ "db": {
+  "fraudhunter_wide_table_snapshot": [
+   {
+    "column_count": 5,
+    "error_message": null,
+    "etl_date": "2026-10-07",
+    "file_size_bytes": null,
+    "parquet_file_path": "dep_acct_wide_table_1a2b3c4d",
+    "row_count": 3,
+    "status": "deleted",
+    "version_hash": "1a2b3c4d",
+    "wide_table_name": "dep_acct_wide_table"
+   },
+   {
+    "column_count": 5,
+    "error_message": null,
+    "etl_date": "2026-10-08",
+    "file_size_bytes": null,
+    "parquet_file_path": "dep_acct_wide_table_1a2b3c4d",
+    "row_count": 3,
+    "status": "deleted",
+    "version_hash": "1a2b3c4d",
+    "wide_table_name": "dep_acct_wide_table"
+   },
+   {
+    "column_count": 5,
+    "error_message": null,
+    "etl_date": "2026-10-09",
+    "file_size_bytes": null,
+    "parquet_file_path": "dep_acct_wide_table_1a2b3c4d",
+    "row_count": 3,
+    "status": "deleted",
+    "version_hash": "1a2b3c4d",
+    "wide_table_name": "dep_acct_wide_table"
+   },
+   {
+    "column_count": 7,
+    "error_message": null,
+    "etl_date": "2026-10-07",
+    "file_size_bytes": 0,
+    "parquet_file_path": "dep_acct_wide_table_5e6f7a8b",
+    "row_count": 3,
+    "status": "ready",
+    "version_hash": "5e6f7a8b",
+    "wide_table_name": "dep_acct_wide_table"
+   },
+   {
+    "column_count": 7,
+    "error_message": null,
+    "etl_date": "2026-10-08",
+    "file_size_bytes": 0,
+    "parquet_file_path": "dep_acct_wide_table_5e6f7a8b",
+    "row_count": 1000,
+    "status": "ready",
+    "version_hash": "5e6f7a8b",
+    "wide_table_name": "dep_acct_wide_table"
+   },
+   {
+    "column_count": 7,
+    "error_message": null,
+    "etl_date": "2026-10-09",
+    "file_size_bytes": 0,
+    "parquet_file_path": "dep_acct_wide_table_5e6f7a8b",
+    "row_count": 1000,
+    "status": "ready",
+    "version_hash": "5e6f7a8b",
+    "wide_table_name": "dep_acct_wide_table"
+   }
+  ],
+  "fraudhunter_wide_table_version": [
+   {
+    "created_by": null,
+    "indicator_metadata": "{\"1\": {\"indicator_code\": \"i_dep_acct_no_offline_00001\", \"indicator_name\": \"\\u5ba2\\u6237\\u53f7\", \"data_type\": \"string\", \"indicator_task_id\": 1, \"version\": 1}, \"2\": {\"indicator_code\": \"i_dep_acct_no_offline_00002\", \"indicator_name\": \"\\u673a\\u6784\\u53f7\", \"data_type\": \"string\", \"indicator_task_id\": 1, \"version\": 1}, \"3\": {\"indicator_code\": \"i_dep_acct_no_offline_00007\", \"indicator_name\": \"\\u5ba2\\u6237\\u7c7b\\u578b\", \"data_type\": \"string\", \"indicator_task_id\": 1, \"version\": 1}, \"4\": {\"indicator_code\": \"i_dep_acct_no_offline_00010\", \"indicator_name\": \"\\u8fd130\\u5929\\u4ea4\\u6613\\u989d\", \"data_type\": \"numeric\", \"indicator_task_id\": 1, \"version\": 1}, \"5\": {\"indicator_code\": \"i_dep_acct_no_offline_00011\", \"indicator_name\": \"\\u5f00\\u6237\\u65e5\\u671f\", \"data_type\": \"date\", \"indicator_task_id\": 1, \"version\": 1}}",
+    "status": "history",
+    "version_hash": "1a2b3c4d",
+    "wide_table_name": "dep_acct_wide_table"
+   },
+   {
+    "created_by": null,
+    "indicator_metadata": "{\"1\": {\"indicator_code\": \"i_dep_acct_no_offline_00001\", \"indicator_name\": \"\\u5ba2\\u6237\\u53f7\", \"data_type\": \"string\", \"indicator_task_id\": 1, \"version\": 1}, \"2\": {\"indicator_code\": \"i_dep_acct_no_offline_00002\", \"indicator_name\": \"\\u673a\\u6784\\u53f7\", \"data_type\": \"string\", \"indicator_task_id\": 1, \"version\": 1}, \"3\": {\"indicator_code\": \"i_dep_acct_no_offline_00007\", \"indicator_name\": \"\\u5ba2\\u6237\\u7c7b\\u578b\", \"data_type\": \"string\", \"indicator_task_id\": 1, \"version\": 1}, \"4\": {\"indicator_code\": \"i_dep_acct_no_offline_00010\", \"indicator_name\": \"\\u8fd130\\u5929\\u4ea4\\u6613\\u989d\", \"data_type\": \"numeric\", \"indicator_task_id\": 1, \"version\": 2}, \"6\": {\"indicator_code\": \"i_dep_acct_no_offline_00012\", \"indicator_name\": \"\\u6e20\\u9053\", \"data_type\": \"string\", \"indicator_task_id\": 1, \"version\": 1}}",
+    "status": "current",
+    "version_hash": "5e6f7a8b",
+    "wide_table_name": "dep_acct_wide_table"
+   }
+  ]
+ },
+ "events": [
+  [
+   "engine.execute",
+   "SELECT EXISTS (  SELECT 1 FROM pg_tables   WHERE schemaname = 'public' AND tablename = :table_name)",
+   {
+    "table_name": "dep_acct_wide_table_1a2b3c4d_20261009"
+   }
+  ],
+  [
+   "engine.execute",
+   "SELECT COUNT(*) FROM dep_acct_wide_table_1a2b3c4d_20261009",
+   {}
+  ],
+  [
+   "engine.execute",
+   "\n            CREATE TABLE IF NOT EXISTS dep_acct_wide_table_5e6f7a8b (\n                target_id varchar(100) NOT NULL,\n    etl_date varchar(30) NOT NULL,\n    i_dep_acct_no_offline_00001 varchar(1000),\n    i_dep_acct_no_offline_00002 varchar(1000),\n    i_dep_acct_no_offline_00007 varchar(1000),\n    i_dep_acct_no_offline_00010 DOUBLE PRECISION,\n    i_dep_acct_no_offline_00012 varchar(1000),\n                created_at timestamptz DEFAULT now()\n            ) PARTITION BY RANGE (etl_date);\n        ",
+   {}
+  ],
+  [
+   "engine.execute",
+   "CREATE INDEX IF NOT EXISTS idx_dep_acct_wide_table_5e6f7a8b_target_id ON dep_acct_wide_table_5e6f7a8b (target_id);",
+   {}
+  ],
+  [
+   "engine.execute",
+   "CREATE INDEX IF NOT EXISTS idx_dep_acct_wide_table_5e6f7a8b_etl_date ON dep_acct_wide_table_5e6f7a8b (etl_date);",
+   {}
+  ],
+  [
+   "engine.execute",
+   "CREATE INDEX IF NOT EXISTS idx_dep_acct_wide_table_5e6f7a8b_i_dep_acct_no_offline_00001 ON dep_acct_wide_table_5e6f7a8b (i_dep_acct_no_offline_00001);",
+   {}
+  ],
+  [
+   "engine.execute",
+   "\n            SELECT EXISTS (\n                SELECT 1 FROM pg_tables\n                WHERE schemaname = 'public' AND tablename = :partition_name\n            );\n        ",
+   {
+    "partition_name": "dep_acct_wide_table_5e6f7a8b_20261009"
+   }
+  ],
+  [
+   "engine.execute",
+   "\n                CREATE TABLE IF NOT EXISTS dep_acct_wide_table_5e6f7a8b_20261009\n                PARTITION OF dep_acct_wide_table_5e6f7a8b\n                FOR VALUES FROM ('2026-10-09') TO ('2026-10-10');\n            ",
+   {}
+  ],
+  [
+   "engine.execute",
+   "\n            CREATE TABLE IF NOT EXISTS _delta_dep_acct_wide_table_5e6f7a8b_20261009 (\n                target_id varchar(100) NOT NULL,\n    etl_date varchar(30) NOT NULL,\n    i_dep_acct_no_offline_00010 DOUBLE PRECISION,\n    i_dep_acct_no_offline_00012 varchar(1000),\n                created_at timestamptz DEFAULT now()\n            );\n        ",
+   {}
+  ],
+  [
+   "spark.query_sql",
+   "refresh table hxb_dh_data_dwm.dwm_taosha_indicator_details",
+   null
+  ],
+  [
+   "spark.query_sql",
+   "SELECT\n    target_id,\n    CASE WHEN i_dep_acct_no_offline_00010 IS NULL OR TRIM(CAST(i_dep_acct_no_offline_00010 AS STRING)) = '' THEN CAST(NULL AS DOUBLE) WHEN TRIM(CAST(i_dep_acct_no_offline_00010 AS STRING)) RLIKE '^-?(\\\\d+(\\\\.\\\\d*)?|\\\\.\\\\d+)([eE][+-]?\\\\d+)?$' THEN CAST(TRIM(CAST(i_dep_acct_no_offline_00010 AS STRING)) AS DOUBLE) ELSE CAST(NULL AS DOUBLE) END AS i_dep_acct_no_offline_00010,\n    i_dep_acct_no_offline_00012,\n    '2026-10-09' as etl_date\nFROM (\nSELECT *\nFROM (\n    SELECT\n        target_id,\n        indicator_id,\n        indicator_value\n    FROM hxb_dh_data_dwm.dwm_taosha_indicator_details\n    WHERE etl_date = '2026-10-09'\n      AND object_type = 'dep_acct_no'\n      AND indicator_id IN ('i_dep_acct_no_offline_00010', 'i_dep_acct_no_offline_00012')\n      AND target_id IS NOT NULL\n) AS source_data\nPIVOT (\n    MAX(indicator_value)\n    FOR indicator_id IN ('i_dep_acct_no_offline_00010' AS i_dep_acct_no_offline_00010, 'i_dep_acct_no_offline_00012' AS i_dep_acct_no_offline_00012)\n)\n) AS pivot_result",
+   "dict"
+  ],
+  [
+   "batch_insert",
+   "_delta_dep_acct_wide_table_5e6f7a8b_20261009",
+   [
+    "target_id",
+    "i_dep_acct_no_offline_00010",
+    "i_dep_acct_no_offline_00012",
+    "etl_date"
+   ],
+   3,
+   "append"
+  ],
+  [
+   "engine.execute",
+   "\n            INSERT INTO dep_acct_wide_table_5e6f7a8b (target_id, i_dep_acct_no_offline_00001, i_dep_acct_no_offline_00002, i_dep_acct_no_offline_00007, i_dep_acct_no_offline_00010, i_dep_acct_no_offline_00012, etl_date)\n            SELECT b.target_id, b.i_dep_acct_no_offline_00001, b.i_dep_acct_no_offline_00002, b.i_dep_acct_no_offline_00007, d.i_dep_acct_no_offline_00010, d.i_dep_acct_no_offline_00012, b.etl_date\n            FROM dep_acct_wide_table_1a2b3c4d_20261009 b\nLEFT JOIN _delta_dep_acct_wide_table_5e6f7a8b_20261009 d\n  ON b.target_id = d.target_id\n AND b.etl_date = d.etl_date\n            WHERE b.etl_date = '2026-10-09'\n        ",
+   {}
+  ],
+  [
+   "engine.execute",
+   "DROP TABLE IF EXISTS _delta_dep_acct_wide_table_5e6f7a8b_20261009 CASCADE;",
+   {}
+  ],
+  [
+   "engine.execute",
+   "SELECT EXISTS (  SELECT 1 FROM pg_tables   WHERE schemaname = 'public' AND tablename = :table_name)",
+   {
+    "table_name": "dep_acct_wide_table_1a2b3c4d_20261008"
+   }
+  ],
+  [
+   "engine.execute",
+   "SELECT COUNT(*) FROM dep_acct_wide_table_1a2b3c4d_20261008",
+   {}
+  ],
+  [
+   "engine.execute",
+   "\n            CREATE TABLE IF NOT EXISTS dep_acct_wide_table_5e6f7a8b (\n                target_id varchar(100) NOT NULL,\n    etl_date varchar(30) NOT NULL,\n    i_dep_acct_no_offline_00001 varchar(1000),\n    i_dep_acct_no_offline_00002 varchar(1000),\n    i_dep_acct_no_offline_00007 varchar(1000),\n    i_dep_acct_no_offline_00010 DOUBLE PRECISION,\n    i_dep_acct_no_offline_00012 varchar(1000),\n                created_at timestamptz DEFAULT now()\n            ) PARTITION BY RANGE (etl_date);\n        ",
+   {}
+  ],
+  [
+   "engine.execute",
+   "CREATE INDEX IF NOT EXISTS idx_dep_acct_wide_table_5e6f7a8b_target_id ON dep_acct_wide_table_5e6f7a8b (target_id);",
+   {}
+  ],
+  [
+   "engine.execute",
+   "CREATE INDEX IF NOT EXISTS idx_dep_acct_wide_table_5e6f7a8b_etl_date ON dep_acct_wide_table_5e6f7a8b (etl_date);",
+   {}
+  ],
+  [
+   "engine.execute",
+   "CREATE INDEX IF NOT EXISTS idx_dep_acct_wide_table_5e6f7a8b_i_dep_acct_no_offline_00001 ON dep_acct_wide_table_5e6f7a8b (i_dep_acct_no_offline_00001);",
+   {}
+  ],
+  [
+   "engine.execute",
+   "\n            SELECT EXISTS (\n                SELECT 1 FROM pg_tables\n                WHERE schemaname = 'public' AND tablename = :partition_name\n            );\n        ",
+   {
+    "partition_name": "dep_acct_wide_table_5e6f7a8b_20261008"
+   }
+  ],
+  [
+   "engine.execute",
+   "\n                CREATE TABLE IF NOT EXISTS dep_acct_wide_table_5e6f7a8b_20261008\n                PARTITION OF dep_acct_wide_table_5e6f7a8b\n                FOR VALUES FROM ('2026-10-08') TO ('2026-10-09');\n            ",
+   {}
+  ],
+  [
+   "engine.execute",
+   "\n            CREATE TABLE IF NOT EXISTS _delta_dep_acct_wide_table_5e6f7a8b_20261008 (\n                target_id varchar(100) NOT NULL,\n    etl_date varchar(30) NOT NULL,\n    i_dep_acct_no_offline_00010 DOUBLE PRECISION,\n    i_dep_acct_no_offline_00012 varchar(1000),\n                created_at timestamptz DEFAULT now()\n            );\n        ",
+   {}
+  ],
+  [
+   "spark.query_sql",
+   "refresh table hxb_dh_data_dwm.dwm_taosha_indicator_details",
+   null
+  ],
+  [
+   "spark.query_sql",
+   "SELECT\n    target_id,\n    CASE WHEN i_dep_acct_no_offline_00010 IS NULL OR TRIM(CAST(i_dep_acct_no_offline_00010 AS STRING)) = '' THEN CAST(NULL AS DOUBLE) WHEN TRIM(CAST(i_dep_acct_no_offline_00010 AS STRING)) RLIKE '^-?(\\\\d+(\\\\.\\\\d*)?|\\\\.\\\\d+)([eE][+-]?\\\\d+)?$' THEN CAST(TRIM(CAST(i_dep_acct_no_offline_00010 AS STRING)) AS DOUBLE) ELSE CAST(NULL AS DOUBLE) END AS i_dep_acct_no_offline_00010,\n    i_dep_acct_no_offline_00012,\n    '2026-10-08' as etl_date\nFROM (\nSELECT *\nFROM (\n    SELECT\n        target_id,\n        indicator_id,\n        indicator_value\n    FROM hxb_dh_data_dwm.dwm_taosha_indicator_details\n    WHERE etl_date = '2026-10-08'\n      AND object_type = 'dep_acct_no'\n      AND indicator_id IN ('i_dep_acct_no_offline_00010', 'i_dep_acct_no_offline_00012')\n      AND target_id IS NOT NULL\n) AS source_data\nPIVOT (\n    MAX(indicator_value)\n    FOR indicator_id IN ('i_dep_acct_no_offline_00010' AS i_dep_acct_no_offline_00010, 'i_dep_acct_no_offline_00012' AS i_dep_acct_no_offline_00012)\n)\n) AS pivot_result",
+   "dict"
+  ],
+  [
+   "batch_insert",
+   "_delta_dep_acct_wide_table_5e6f7a8b_20261008",
+   [
+    "target_id",
+    "i_dep_acct_no_offline_00010",
+    "i_dep_acct_no_offline_00012",
+    "etl_date"
+   ],
+   3,
+   "append"
+  ],
+  [
+   "engine.execute",
+   "\n            INSERT INTO dep_acct_wide_table_5e6f7a8b (target_id, i_dep_acct_no_offline_00001, i_dep_acct_no_offline_00002, i_dep_acct_no_offline_00007, i_dep_acct_no_offline_00010, i_dep_acct_no_offline_00012, etl_date)\n            SELECT b.target_id, b.i_dep_acct_no_offline_00001, b.i_dep_acct_no_offline_00002, b.i_dep_acct_no_offline_00007, d.i_dep_acct_no_offline_00010, d.i_dep_acct_no_offline_00012, b.etl_date\n            FROM dep_acct_wide_table_1a2b3c4d_20261008 b\nLEFT JOIN _delta_dep_acct_wide_table_5e6f7a8b_20261008 d\n  ON b.target_id = d.target_id\n AND b.etl_date = d.etl_date\n            WHERE b.etl_date = '2026-10-08'\n        ",
+   {}
+  ],
+  [
+   "engine.execute",
+   "DROP TABLE IF EXISTS _delta_dep_acct_wide_table_5e6f7a8b_20261008 CASCADE;",
+   {}
+  ],
+  [
+   "engine.execute",
+   "SELECT EXISTS (  SELECT 1 FROM pg_tables   WHERE schemaname = 'public' AND tablename = :table_name)",
+   {
+    "table_name": "dep_acct_wide_table_1a2b3c4d_20261007"
+   }
+  ],
+  [
+   "engine.execute",
+   "SELECT COUNT(*) FROM dep_acct_wide_table_1a2b3c4d_20261007",
+   {}
+  ],
+  [
+   "engine.execute",
+   "\n            CREATE TABLE IF NOT EXISTS dep_acct_wide_table_5e6f7a8b (\n                target_id varchar(100) NOT NULL,\n    etl_date varchar(30) NOT NULL,\n    i_dep_acct_no_offline_00001 varchar(1000),\n    i_dep_acct_no_offline_00002 varchar(1000),\n    i_dep_acct_no_offline_00007 varchar(1000),\n    i_dep_acct_no_offline_00010 DOUBLE PRECISION,\n    i_dep_acct_no_offline_00012 varchar(1000),\n                created_at timestamptz DEFAULT now()\n            ) PARTITION BY RANGE (etl_date);\n        ",
+   {}
+  ],
+  [
+   "engine.execute",
+   "CREATE INDEX IF NOT EXISTS idx_dep_acct_wide_table_5e6f7a8b_target_id ON dep_acct_wide_table_5e6f7a8b (target_id);",
+   {}
+  ],
+  [
+   "engine.execute",
+   "CREATE INDEX IF NOT EXISTS idx_dep_acct_wide_table_5e6f7a8b_etl_date ON dep_acct_wide_table_5e6f7a8b (etl_date);",
+   {}
+  ],
+  [
+   "engine.execute",
+   "CREATE INDEX IF NOT EXISTS idx_dep_acct_wide_table_5e6f7a8b_i_dep_acct_no_offline_00001 ON dep_acct_wide_table_5e6f7a8b (i_dep_acct_no_offline_00001);",
+   {}
+  ],
+  [
+   "engine.execute",
+   "\n            SELECT EXISTS (\n                SELECT 1 FROM pg_tables\n                WHERE schemaname = 'public' AND tablename = :partition_name\n            );\n        ",
+   {
+    "partition_name": "dep_acct_wide_table_5e6f7a8b_20261007"
+   }
+  ],
+  [
+   "engine.execute",
+   "\n                CREATE TABLE IF NOT EXISTS dep_acct_wide_table_5e6f7a8b_20261007\n                PARTITION OF dep_acct_wide_table_5e6f7a8b\n                FOR VALUES FROM ('2026-10-07') TO ('2026-10-08');\n            ",
+   {}
+  ],
+  [
+   "spark.query_sql",
+   "refresh table hxb_dh_data_dwm.dwm_taosha_indicator_details",
+   null
+  ],
+  [
+   "spark.query_sql",
+   "SELECT\n    target_id,\n    i_dep_acct_no_offline_00001,\n    i_dep_acct_no_offline_00002,\n    i_dep_acct_no_offline_00007,\n    CASE WHEN i_dep_acct_no_offline_00010 IS NULL OR TRIM(CAST(i_dep_acct_no_offline_00010 AS STRING)) = '' THEN CAST(NULL AS DOUBLE) WHEN TRIM(CAST(i_dep_acct_no_offline_00010 AS STRING)) RLIKE '^-?(\\\\d+(\\\\.\\\\d*)?|\\\\.\\\\d+)([eE][+-]?\\\\d+)?$' THEN CAST(TRIM(CAST(i_dep_acct_no_offline_00010 AS STRING)) AS DOUBLE) ELSE CAST(NULL AS DOUBLE) END AS i_dep_acct_no_offline_00010,\n    i_dep_acct_no_offline_00012,\n    '2026-10-07' as etl_date\nFROM (\nSELECT *\nFROM (\n    SELECT\n        target_id,\n        indicator_id,\n        indicator_value\n    FROM hxb_dh_data_dwm.dwm_taosha_indicator_details\n    WHERE etl_date = '2026-10-07'\n      AND object_type = 'dep_acct_no'\n      AND target_id is not null\n) AS source_data\nPIVOT (\n    MAX(indicator_value)\n    FOR indicator_id IN ('i_dep_acct_no_offline_00001' AS i_dep_acct_no_offline_00001, 'i_dep_acct_no_offline_00002' AS i_dep_acct_no_offline_00002, 'i_dep_acct_no_offline_00007' AS i_dep_acct_no_offline_00007, 'i_dep_acct_no_offline_00010' AS i_dep_acct_no_offline_00010, 'i_dep_acct_no_offline_00012' AS i_dep_acct_no_offline_00012)\n)\n) AS pivot_result",
+   "dict"
+  ],
+  [
+   "batch_insert",
+   "dep_acct_wide_table_5e6f7a8b",
+   [
+    "target_id",
+    "i_dep_acct_no_offline_00001",
+    "i_dep_acct_no_offline_00002",
+    "i_dep_acct_no_offline_00007",
+    "i_dep_acct_no_offline_00010",
+    "i_dep_acct_no_offline_00012",
+    "etl_date"
+   ],
+   3,
+   "append"
+  ],
+  [
+   "engine.execute",
+   "DROP TABLE IF EXISTS dep_acct_wide_table_1a2b3c4d CASCADE;",
+   {}
+  ]
+ ],
+ "extra": {
+  "sync_result": {
+   "details": [
+    {
+     "etl_date": "2026-10-09",
+     "row_count": 1000,
+     "status": "synced"
+    },
+    {
+     "etl_date": "2026-10-08",
+     "row_count": 1000,
+     "status": "synced"
+    },
+    {
+     "etl_date": "2026-10-07",
+     "row_count": 3,
+     "status": "synced"
+    }
+   ],
+   "failed": 0,
+   "new_current_version": "5e6f7a8b",
+   "skipped": 0,
+   "skipped_not_ready": 0,
+   "skipped_ready": 0,
+   "synced": 3,
+   "total_dates": 3,
+   "version_promoted": true,
+   "wide_table_name": "dep_acct_wide_table"
+  }
+ },
+ "storage_backends": null
+}

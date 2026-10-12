@@ -1,0 +1,64 @@
+# syntax=docker/dockerfile:1
+# DuckDB 2.0 Alpha "PG Connector" 镜像: quack 服务端 (9494) + HTTP 网关 (9495)
+# + 构建期预装 PostgreSQL Connector (postgres extension)
+#
+# 与生产镜像 duckdb-quack:2.0-alpha 的差异:
+#   1. duckdb 固定在新 alpha: pip 2.0.0.dev2609222040 == library v2.0.0-alpha43089
+#      (dev379/alpha39998 的 postgres 扩展已从 alpha 频道下架, 无法预装, 见 README §七)
+#   2. 构建期 INSTALL postgres + quack 到镜像内扩展缓存, 启动后无需联网即可
+#      LOAD postgres / ATTACH PostgreSQL (验证: 关闭 autoinstall 后 LOAD 仍成功)
+#   3. 独立 tag duckdb-quack:2.0-alpha-pg, 不替换现有生产镜像
+#
+# 版本说明 (2026-09-23 探测):
+#   - pip install --pre duckdb 解析到 2.0.0.dev2609222040 (v2.0.0-alpha43089)
+#   - alpha 频道仍提供该版本的 postgres(别名 postgres_scanner) 与 quack 扩展二进制
+#   - DuckDB 2.0 中 postgres 扩展注册名为 postgres_scanner, LOAD/INSTALL postgres 为兼容别名
+
+FROM python:3.12-slim
+
+# 固定的 2.0 alpha 版本（不浮动；升级时同步修改 build-alpha-pg.sh 与验证测试）
+ARG DUCKDB_PIP_VERSION=2.0.0.dev2609222040
+
+RUN pip install --no-cache-dir --pre duckdb==${DUCKDB_PIP_VERSION} fastapi uvicorn \
+ && python -c "import duckdb; assert duckdb.__version__ == '${DUCKDB_PIP_VERSION}', duckdb.__version__" \
+ # 构建期预装扩展进镜像（root 的 ~/.duckdb/extensions/<lib_version>/<platform>/）：
+ # postgres = PostgreSQL Connector（ATTACH PostgreSQL）；quack = 远程客户端
+ && python - <<'EOF'
+import duckdb
+c = duckdb.connect()
+for ext in ("postgres", "quack"):
+    c.sql(f"INSTALL {ext}")
+row = c.sql(
+    "SELECT extension_name, extension_version FROM duckdb_extensions() "
+    "WHERE extension_name IN ('postgres_scanner', 'quack') AND installed"
+).fetchall()
+print("pre-installed:", row)
+assert any(r[0] == "postgres_scanner" for r in row), "postgres extension 未预装成功"
+assert any(r[0] == "quack" for r in row), "quack extension 未预装成功"
+# 离线验证：关闭自动安装后 LOAD 仍成功（证明二进制已在镜像内，无需运行时下载）
+c.sql("SET autoinstall_known_extensions=false")
+c.sql("LOAD postgres")
+c.sql("LOAD quack")
+print("offline LOAD postgres/quack OK | duckdb", duckdb.__version__,
+      "| library", c.sql("SELECT version()").fetchone()[0])
+EOF
+
+COPY server.py gateway.py entrypoint.sh /app/
+RUN chmod +x /app/entrypoint.sh
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV DUCKDB_DB_PATH=/data/duck.db \
+    QUACK_BIND=0.0.0.0 \
+    QUACK_PORT=9494 \
+    GATEWAY_PORT=9495
+
+EXPOSE 9494 9495
+VOLUME /data
+
+HEALTHCHECK --interval=5s --timeout=3s --start-period=20s --retries=12 \
+  CMD curl -fsS "http://127.0.0.1:${QUACK_PORT}/" >/dev/null \
+   && curl -fsS "http://127.0.0.1:${GATEWAY_PORT}/health" >/dev/null || exit 1
+
+ENTRYPOINT ["/app/entrypoint.sh"]

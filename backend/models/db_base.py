@@ -110,6 +110,9 @@ def _apply_lightweight_migrations():
         if "fraudhunter_model_definition" in table_names:
             _migrate_model_definition_table(connection, inspector)
 
+        if "fraudhunter_wide_table_snapshot" in table_names:
+            _migrate_wide_table_snapshot_table(connection, inspector)
+
 
 def _migrate_dryrun_execution_table(connection, inspector):
     table_name = "fraudhunter_dryrun_execution"
@@ -162,6 +165,60 @@ def _migrate_model_definition_table(connection, inspector):
             "CREATE INDEX idx_fh_model_type ON fraudhunter_model_definition (model_type)"
         ))
         logger.info("已为 fraudhunter_model_definition.model_type 添加索引")
+
+def _migrate_wide_table_snapshot_table(connection, inspector):
+    """离线宽表双存储：快照表补 storage_backend 列（存量行回填 postgresql）
+
+    与 backend/migrations/add_snapshot_storage_backend.sql 等价。唯一索引扩展
+    （update_snapshot_unique_with_backend.sql）涉及删除重建，不自动执行，
+    由 verify_wide_table_snapshot_schema() 在启用 duckdb/both 时强制校验。
+    """
+    table_name = "fraudhunter_wide_table_snapshot"
+    columns = {column["name"] for column in inspector.get_columns(table_name)}
+
+    if "storage_backend" not in columns:
+        connection.execute(text(
+            "ALTER TABLE fraudhunter_wide_table_snapshot "
+            "ADD COLUMN storage_backend VARCHAR(16) NOT NULL DEFAULT 'postgresql' "
+            "COMMENT '存储后端: postgresql/duckdb'"
+        ))
+        logger.info("已为 fraudhunter_wide_table_snapshot 添加 storage_backend 字段")
+
+
+def verify_wide_table_snapshot_schema(offline_store: str = 'postgresql', bind=None) -> None:
+    """校验快照表结构满足双存储代码的要求，不满足直接抛错（启动/DS 入口调用）
+
+    - storage_backend 列缺失：任何模式都无法运行（ORM 查询会引用该列）；
+    - 唯一索引未包含 storage_backend：仅 PG 模式可运行；duckdb/both 下
+      同一宽表/版本/日期的双后端快照无法共存。
+    """
+    inspector = inspect(bind or engine)
+    table_name = "fraudhunter_wide_table_snapshot"
+    if table_name not in inspector.get_table_names():
+        return  # 全新库由 create_all 建表，结构天然正确
+
+    columns = {column["name"] for column in inspector.get_columns(table_name)}
+    if "storage_backend" not in columns:
+        raise RuntimeError(
+            "fraudhunter_wide_table_snapshot 缺少 storage_backend 列：请执行 "
+            "backend/migrations/add_snapshot_storage_backend.sql（或先启动一次淘沙后端自动补齐）"
+        )
+
+    if offline_store == 'postgresql':
+        return
+    unique_cols = None
+    for index in inspector.get_indexes(table_name):
+        if index["name"] == "uk_fh_ws_table_date":
+            unique_cols = index["column_names"]
+    for constraint in inspector.get_unique_constraints(table_name):
+        if constraint["name"] == "uk_fh_ws_table_date":
+            unique_cols = constraint["column_names"]
+    if unique_cols is not None and "storage_backend" not in unique_cols:
+        raise RuntimeError(
+            f"offline_store={offline_store} 需要唯一索引 uk_fh_ws_table_date 包含 storage_backend：请执行 "
+            "backend/migrations/update_snapshot_unique_with_backend.sql"
+        )
+
 
 def drop_tables():
     """删除所有表"""

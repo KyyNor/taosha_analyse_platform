@@ -39,6 +39,9 @@ async def postgres_data_cleanup_job():
         # 4. 清理孤立的快照记录
         await _cleanup_orphaned_snapshot_records()
 
+        # 5. 清理超期的 _staging_ 中转表（DuckDB 路径兜底）
+        _cleanup_stale_staging_tables()
+
         await _ensure_realtime_partition()
 
         logger.info("PostgreSQL数据清理任务完成")
@@ -264,6 +267,20 @@ async def _cleanup_orphaned_snapshot_records():
 
     except Exception as e:
         logger.error(f"清理孤立快照记录失败: {e}", exc_info=True)
+
+
+def _cleanup_stale_staging_tables():
+    """清理超期的 _staging_ 前缀中转表（DuckDB 存储路径的传输管道）
+
+    正常同步成功即 DROP；此处按 TTL 兜底清理崩溃遗留的孤儿表。
+    """
+    try:
+        ttl_hours = settings.fraudhunter_wide_table_duckdb_staging_ttl_hours
+        dropped = AnalyzeDBPartitionManager.cleanup_stale_staging_tables(ttl_hours)
+        if dropped > 0:
+            logger.info(f"超期staging中转表清理完成: 删除 {dropped} 个 (TTL={ttl_hours}h)")
+    except Exception as e:
+        logger.error(f"清理超期staging中转表失败: {e}", exc_info=True)
 
 
 async def _ensure_realtime_partition():
