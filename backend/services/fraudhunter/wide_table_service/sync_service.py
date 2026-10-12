@@ -161,13 +161,16 @@ class WideTableSyncService:
 
             # 4. 逐后端执行（已有 ready 快照的后端直接复用检查结果；
             #    both 模式下某后端失败不影响另一后端）
+            # both 模式（PG 先、DuckDB 后）：PG 已有本版本该日期的数据时，DuckDB 直接从
+            # PG 拉取，不再跑第二次 Spark（二期阶段 11）
+            dual_write = len(self._stores) > 1
+            pg_source = None
             results = []
             for store in self._stores:
                 if store.name in existing_results:
-                    results.append(existing_results[store.name])
-                    continue
-                results.append(
-                    self._sync_date_for_store(
+                    result = existing_results[store.name]
+                else:
+                    result = self._sync_date_for_store(
                         store=store,
                         wide_table_name=wide_table_name,
                         version_hash=version_hash,
@@ -177,8 +180,11 @@ class WideTableSyncService:
                         old_pg_table=old_pg_table,
                         delta=delta,
                         effective_candidates=effective_candidates,
+                        pg_source=pg_source if store.name == 'duckdb' else None,
                     )
-                )
+                results.append(result)
+                if dual_write and store.name == 'postgresql':
+                    pg_source = self._pg_source_for_duckdb(result, pg_table_name, old_pg_table)
 
             _total_elapsed = time.perf_counter() - _total_start
             logger.info(
@@ -265,6 +271,24 @@ class WideTableSyncService:
 
         return None, None
 
+    @staticmethod
+    def _pg_source_for_duckdb(pg_result: Optional[Dict], pg_table_name: str,
+                              old_pg_table: Optional[str]) -> Optional[Dict]:
+        """both 模式下 DuckDB 可直接拉取的 PG 数据源（无则返回 None，DuckDB 走自身路径）
+
+        - PG 本版本快照 ready（本次新同步或已存在）→ 本版本正式表（按 etl_date 过滤），
+          期望行数 = PG 快照行数；
+        - PG 因"版本无变化且有可复用旧分区"跳过 → 该旧分区（指标集合与本版本一致）。
+        """
+        if not pg_result:
+            return None
+        if pg_result.get('status') == 'ready':
+            return {'table': pg_table_name, 'rows': pg_result.get('row_count'), 'kind': 'current_version'}
+        if (pg_result.get('skip_reason') == 'version_unchanged_with_reusable_base'
+                and old_pg_table):
+            return {'table': old_pg_table, 'rows': None, 'kind': 'reusable_base'}
+        return None
+
     def _sync_date_for_store(
         self,
         store,
@@ -276,6 +300,7 @@ class WideTableSyncService:
         old_pg_table: Optional[str],
         delta: VersionDelta,
         effective_candidates: list,
+        pg_source: Optional[Dict] = None,
     ) -> Optional[Dict]:
         """对单个存储后端执行单日期同步（失败返回 None，不中断其他后端）"""
         snapshot_id = None
@@ -321,9 +346,20 @@ class WideTableSyncService:
                     wide_table_name, etl_date, version_hash, store.name
                 )
 
-            # 数据同步（增量或全量）
+            # 数据同步（PG 复用 / 增量 / 全量）
             with _stage_timer(f"05_数据同步[{store.name}]", wide_table_name, etl_date):
-                if base_ref and store_delta.has_any_change and store.supports_delta_insert_select:
+                if pg_source:
+                    logger.info(
+                        f"[双写复用] DuckDB 直接拉取 PG 数据，跳过 Spark: "
+                        f"wide_table={wide_table_name}, etl_date={etl_date}, "
+                        f"source={pg_source['table']}({pg_source['kind']}), "
+                        f"expected_rows={pg_source['rows']}"
+                    )
+                    row_count, column_count = store.write_from_pg_table(
+                        pg_source['table'], pg_table_name, etl_date,
+                        expected_rows=pg_source['rows'],
+                    )
+                elif base_ref and store_delta.has_any_change and store.supports_delta_insert_select:
                     logger.info(
                         f"[增量] 走delta insert-select路径: backend={store.name}, "
                         f"table={pg_table_name}, "

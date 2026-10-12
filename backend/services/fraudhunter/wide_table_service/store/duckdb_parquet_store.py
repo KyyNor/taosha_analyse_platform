@@ -181,6 +181,34 @@ class DuckdbParquetStore(WideTableStore):
 
         return (spark_rows, column_count)
 
+    def write_from_pg_table(
+        self,
+        pg_table: str,
+        table_name: str,
+        etl_date: date,
+        expected_rows: int | None = None,
+    ) -> Tuple[int, int]:
+        """both 模式复用 PG 数据：PG 表按 etl_date 过滤 → 本版本 Parquet 目录（不跑 Spark）
+
+        对账即 PG 与 Parquet 的行数 + 内容校验和比对（相当于每次同步内置一次双写对账）；
+        expected_rows 给定时额外断言 PG 行数 == 期望行数（PG 快照记录的行数）。
+
+        Returns:
+            (row_count, column_count)
+        """
+        if self._is_delegate():
+            res = self._delegate().pull(
+                source_pg_table=pg_table, source_kind='partition',
+                version_dir_name=table_name, etl_date=etl_date, expected_rows=expected_rows,
+            )
+            self._delegate_version_dirs[(table_name, etl_date)] = res['version_dir']
+            return int(res['rows']), int(res['column_count'] or 0)
+
+        rows, column_count, _size = self.pull_pg_partition_to_parquet(
+            pg_table, etl_date, self.date_dir(table_name, etl_date), expected_rows=expected_rows,
+        )
+        return int(rows), int(column_count)
+
     def land_staging_to_parquet(self, staging: str, final_dir: Path,
                                 spark_rows: int | None) -> int:
         """staging 表 → Parquet：COPY + 三方对账 + 原子落盘（local/remote），返回文件总字节数

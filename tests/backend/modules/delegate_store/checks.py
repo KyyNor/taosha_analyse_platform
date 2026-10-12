@@ -434,9 +434,13 @@ class InMemoryServer:
                 'version_dir': self._vdir(version_dir_name)}
 
     def pull(self, source_pg_table, source_kind, version_dir_name, etl_date, expected_rows=None):
+        from services.fraudhunter.wide_table_service.store.delegate_client import DelegateError
         self.calls.append(('pull', source_pg_table, source_kind, version_dir_name, etl_date, expected_rows))
-        self.dirs[(version_dir_name, etl_date)] = expected_rows
-        return {'rows': expected_rows, 'column_count': None, 'size_bytes': 100,
+        if getattr(self, 'pull_error', None):
+            raise DelegateError(self.pull_error, 'pull 失败（模拟）', 422)
+        rows = expected_rows if expected_rows is not None else 50
+        self.dirs[(version_dir_name, etl_date)] = rows
+        return {'rows': rows, 'column_count': 7 if source_kind == 'partition' else None, 'size_bytes': 100,
                 'final_dir': f"{self._vdir(version_dir_name)}/etl_date={etl_date}",
                 'version_dir': self._vdir(version_dir_name)}
 
@@ -454,7 +458,7 @@ class InMemoryServer:
                 'version_dir': self._vdir(dest_version_dir_name)}
 
 
-def _delegate_sync(scenario_setup, server):
+def _delegate_sync(scenario_setup, server, offline_store='duckdb', pg_tables=None):
     """以 delegate 模式运行 WideTableSyncService.sync_multi_dates，返回 (result, pg, engine)"""
     import harness as h
     from services.fraudhunter.wide_table_service.store import delegate_client as dc
@@ -464,8 +468,9 @@ def _delegate_sync(scenario_setup, server):
     h.install_fake_pg(pg)
     h.install_fake_spark(pg)
     settings.pyspark_enabled = False
-    settings.fraudhunter_wide_table_offline_store = 'duckdb'
+    settings.fraudhunter_wide_table_offline_store = offline_store
     settings.fraudhunter_duck_compute_mode = 'delegate'
+    pg.tables.update(pg_tables or {})
     dc.probe, dc.pull, dc.merge = server.probe, server.pull, server.merge
 
     from models.db_base import get_db_session
@@ -602,6 +607,125 @@ def check_delegate_probe_path_mismatch_not_reused(tmp):
     result, _, _ = _delegate_sync(setup, server)
     assert result['synced'] == 1, result
     assert [c[0] for c in server.calls] == ['probe', 'pull'], server.calls
+
+
+# =============================================================================
+# 阶段 11：both 模式 DuckDB 复用 PG 数据（只跑一次 Spark）
+# =============================================================================
+
+def _spark_pivots(pg):
+    return [e for e in pg.events if e[0] == 'spark.query_sql' and 'PIVOT' in str(e[1])]
+
+
+def _all_snapshots(engine):
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        return [dict(r) for r in conn.execute(text(
+            "SELECT storage_backend, version_hash, parquet_file_path, row_count, status "
+            "FROM fraudhunter_wide_table_snapshot WHERE version_hash='5e6f7a8b' "
+            "ORDER BY storage_backend")).mappings()]
+
+
+def _full_target_setup(db, h):
+    md = h.dep_metadata(include_realtime=False)
+    h.seed_version(db, 'dep_acct_wide_table', h.VH_DEP_NEW, md, 'target', datetime(2026, 10, 1))
+    h._seed_progress(db, md, [ETL])
+
+
+def check_both_full_spark_once(tmp):
+    server = InMemoryServer()
+    result, pg, engine = _delegate_sync(_full_target_setup, server, offline_store='both')
+    assert result['synced'] == 1, result
+    assert len(_spark_pivots(pg)) == 1, f"both 模式 Spark PIVOT 应只执行一次: {len(_spark_pivots(pg))}"
+    assert server.calls == [('pull', 'dep_acct_wide_table_5e6f7a8b', 'partition',
+                             'dep_acct_wide_table_5e6f7a8b', ETL, 3)], server.calls
+    snaps = _all_snapshots(engine)
+    assert [(x['storage_backend'], x['status'], x['row_count']) for x in snaps] == [
+        ('duckdb', 'ready', 3), ('postgresql', 'ready', 3)], snaps
+    assert snaps[0]['parquet_file_path'] == '/srv/taosha/parquet/dep_acct_wide_table_5e6f7a8b'
+    # 没有创建 staging 表
+    assert not any('_staging_' in str(e[1]) for e in pg.events), 'both 复用路径不应创建 staging'
+
+
+def check_both_pg_failed_duckdb_falls_back_to_spark(tmp):
+    from services.fraudhunter.wide_table_service.store.pg_store import PgWideTableStore
+    server = InMemoryServer()
+    original = PgWideTableStore.write_pivot
+
+    def failing(self, sql, table_name, etl_date, refresh_sql=None):
+        if not table_name.startswith('_staging_'):
+            raise RuntimeError('PG 写入失败（模拟）')
+        return original(self, sql, table_name, etl_date, refresh_sql)
+
+    PgWideTableStore.write_pivot = failing
+    try:
+        result, pg, engine = _delegate_sync(_full_target_setup, server, offline_store='both')
+    finally:
+        PgWideTableStore.write_pivot = original
+    assert result['synced'] == 1, result
+    assert [c[2] for c in server.calls] == ['staging'], server.calls
+    snaps = {x['storage_backend']: x for x in _all_snapshots(engine)}
+    assert snaps['postgresql']['status'] == 'failed' and snaps['duckdb']['status'] == 'ready', snaps
+
+
+def check_both_pull_reconcile_failure_marks_duckdb_failed(tmp):
+    server = InMemoryServer()
+    server.pull_error = 'RECONCILE_FAILED'
+    result, pg, engine = _delegate_sync(_full_target_setup, server, offline_store='both')
+    assert result['synced'] == 1, result  # PG 成功即本日期成功
+    snaps = {x['storage_backend']: x for x in _all_snapshots(engine)}
+    assert snaps['postgresql']['status'] == 'ready' and snaps['duckdb']['status'] == 'failed', snaps
+    assert len(_spark_pivots(pg)) == 1, '对账失败不应静默改跑 Spark'
+
+
+def check_both_unchanged_pulls_reusable_pg_partition(tmp):
+    """PG 因版本无变化跳过、DuckDB 无旧 Parquet：从 PG 可复用旧分区拉取"""
+    server = InMemoryServer()
+
+    def setup(db, h):
+        _versions(db, h, BASE, BASE)
+        h.seed_snapshot(db, 'dep_acct_wide_table', h.VH_DEP_OLD, ETL, 'dep_acct_wide_table_1a2b3c4d')
+
+    result, pg, engine = _delegate_sync(
+        setup, server, offline_store='both',
+        pg_tables={'dep_acct_wide_table_1a2b3c4d_20261009': 80},
+    )
+    assert not _spark_pivots(pg), 'PG 跳过 + 复用旧分区时不应执行 Spark'
+    assert server.calls == [('pull', 'dep_acct_wide_table_1a2b3c4d_20261009', 'partition',
+                             'dep_acct_wide_table_5e6f7a8b', ETL, None)], server.calls
+    snaps = {x['storage_backend']: x for x in _all_snapshots(engine)}
+    assert snaps['duckdb']['status'] == 'ready' and 'postgresql' not in snaps, snaps
+
+
+def check_both_existing_pg_snapshot_reused(tmp):
+    """PG 本版本快照已存在（上一轮已同步）、DuckDB 尚无：DuckDB 拉取 PG 本版本表"""
+    server = InMemoryServer()
+
+    def setup(db, h):
+        _full_target_setup(db, h)
+        h.seed_snapshot(db, 'dep_acct_wide_table', h.VH_DEP_NEW, ETL, 'dep_acct_wide_table_5e6f7a8b', rows=321)
+
+    result, pg, engine = _delegate_sync(setup, server, offline_store='both')
+    assert not _spark_pivots(pg)
+    assert server.calls == [('pull', 'dep_acct_wide_table_5e6f7a8b', 'partition',
+                             'dep_acct_wide_table_5e6f7a8b', ETL, 321)], server.calls
+
+
+def check_both_duckdb_zero_copy_preferred(tmp):
+    """DuckDB 有旧版本 Parquet 且版本无变化：零拷贝优先于从 PG 拉取"""
+    server = InMemoryServer()
+    server.dirs[('dep_acct_wide_table_1a2b3c4d', ETL)] = 120
+
+    def setup(db, h):
+        _versions(db, h, BASE, BASE)
+        h.seed_snapshot(db, 'dep_acct_wide_table', h.VH_DEP_OLD, ETL, 'dep_acct_wide_table_1a2b3c4d')
+        _seed_old_duck_snapshot(db, h)
+
+    result, pg, engine = _delegate_sync(
+        setup, server, offline_store='both',
+        pg_tables={'dep_acct_wide_table_1a2b3c4d_20261009': 120},
+    )
+    assert [c[0] for c in server.calls] == ['probe'], server.calls
 
 
 # =============================================================================

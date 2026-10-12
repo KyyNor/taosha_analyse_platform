@@ -622,6 +622,16 @@ fraudhunter:
 
 **验收**：内网 `both` 同步时，Spark 任务数与纯 PG 模式相同；`[阶段耗时]` 日志中 DuckDB 后端没有 PIVOT 阶段。
 
+**实施记录（2026-10-11）**：
+- `sync_wide_table` 在 `both` 模式下根据 PG 结果确定 DuckDB 的数据源（`_pg_source_for_duckdb`）：
+  - PG 本版本快照 ready（本次新同步或已存在）→ 拉取 PG 本版本表（按 etl_date 过滤），`expected_rows` = PG 快照行数；
+  - PG 因"版本无变化且有可复用旧分区"跳过 → 拉取该旧分区（实施中补充的情形，计划未列出）；
+  - 其他（PG 失败等）→ DuckDB 走自身原有路径（Spark → staging）。
+- 优先级：DuckDB 版本无变化零拷贝 > 从 PG 拉取 > 自身增量/全量；
+- 从 PG 拉取失败（如对账不一致）时 DuckDB 快照标记 failed，**不**静默改跑 Spark（对账失败意味着两侧数据真实不一致，应暴露）；
+- 新增 `DuckdbParquetStore.write_from_pg_table()`（local/remote 复用 `pull_pg_partition_to_parquet`，delegate 走 `pull(source_kind=partition)`）；
+- 日志关键字：`[双写复用]`；测试见 `delegate_store/checks.py` 的 `check_both_*`（6 项）。
+
 ---
 
 ### 阶段 12：实时预警试跑工具（G5）
