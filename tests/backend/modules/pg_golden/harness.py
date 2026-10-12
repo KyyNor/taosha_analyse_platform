@@ -432,6 +432,11 @@ def seed_version(db, wide_table, vh, metadata, status, created_at):
     return v
 
 
+# 影子写模式（--shadow-duckdb，仅当前分支）：offline_store=both、不配置 read_backend，
+# 每条 PG 快照旁再种一条生成时间更晚的 duckdb 快照，验证读路径仍选 PG 且 SQL 与 main 一致
+SHADOW = {"enabled": False}
+
+
 def seed_snapshot(db, wide_table, vh, etl_date, path, rows=3, gen=None):
     from models.fraudhunter.wide_table import FraudHunterWideTableSnapshot
 
@@ -442,6 +447,14 @@ def seed_snapshot(db, wide_table, vh, etl_date, path, rows=3, gen=None):
     )
     db.add(s)
     db.flush()
+    if SHADOW["enabled"]:
+        db.add(FraudHunterWideTableSnapshot(
+            wide_table_name=wide_table, version_hash=vh, etl_date=etl_date,
+            parquet_file_path=f"/data/parquet/{path}", row_count=rows, column_count=5,
+            status="ready", generation_time=datetime(2026, 10, 10, 23, 0, 0),
+            storage_backend="duckdb",
+        ))
+        db.flush()
     return s
 
 
@@ -798,12 +811,18 @@ def forbid_duckdb():
     duckdb_parquet_store.DuckdbParquetStore.__init__ = _forbidden
 
 
-def run_scenario(name, forbid=False):
+def run_scenario(name, forbid=False, shadow=False):
     # 按应用启动的导入顺序先初始化 services 包（直接导入 utils.analyze_db_utils 会触发循环导入）
     import services  # noqa: F401
 
     if forbid:
         forbid_duckdb()
+    if shadow:
+        from utils.config import settings
+
+        settings.fraudhunter_wide_table_offline_store = "both"
+        settings.fraudhunter_wide_table_read_backend = None
+        SHADOW["enabled"] = True
 
     engine = install_sqlite()
     pg = FakePG()
@@ -843,6 +862,8 @@ def main():
     parser.add_argument("--write-config", action="store_true")
     parser.add_argument("--forbid-duckdb", action="store_true",
                         help="启用 PG 模式守卫（仅当前分支可用）")
+    parser.add_argument("--shadow-duckdb", action="store_true",
+                        help="影子写模式：both 写 + 默认读，并种入更新的 duckdb 快照（仅当前分支，仅读路径场景）")
     args = parser.parse_args()
 
     # 规则引擎指标别名映射的遍历顺序依赖字符串哈希（main 同样如此），固定哈希种子以保证可比
@@ -859,7 +880,7 @@ def main():
     os.chdir(backend_root)
     sys.path.insert(0, str(backend_root))
 
-    result = run_scenario(args.scenario, forbid=args.forbid_duckdb)
+    result = run_scenario(args.scenario, forbid=args.forbid_duckdb, shadow=args.shadow_duckdb)
     out_path.write_text(
         json.dumps(result, ensure_ascii=False, indent=1, sort_keys=True, default=str),
         encoding="utf-8",

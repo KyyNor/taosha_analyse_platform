@@ -524,6 +524,11 @@ fraudhunter:
 
 **验收**：`offline_store=both` 且 `read_backend=postgresql` 时，实时任务、回测选中的都是 PG 快照，生成的 SQL 与阶段 8 的 golden 一致。
 
+**实施记录（2026-10-11）**：
+- `query_router.resolve_read_backend()` / `validate_store_config()` 为纯函数；`preferred_snapshot_backend()` 改为返回读后端；`main.py` 启动与 DS 入口调用校验并打印 `[存储配置] 写=… 读=… duck_compute=…`；
+- `config.yaml.example` 增加 `read_backend` 注释示例；
+- 验收由 `test_pg_golden.py::test_shadow_write_keeps_pg_read_path` 覆盖：`both` 写、不配置读后端、库内存在生成时间更晚的 duckdb 快照时，实时任务、回测、指标查询的 SQL 与 main 基准一致，且全程未进入 DuckDB 路径。
+
 ---
 
 ### 阶段 10：淘沙内部存储接口 + DS delegate 模式（G3）

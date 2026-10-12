@@ -27,20 +27,64 @@ def snapshot_backend(snapshot) -> str:
     return getattr(snapshot, 'storage_backend', None) or 'postgresql'
 
 
-def preferred_snapshot_backend() -> str:
-    """当前配置偏好的快照存储后端（Issue #9，统一策略防各调用点漂移）
+VALID_WRITE_BACKENDS = ('postgresql', 'duckdb', 'both')
+VALID_READ_BACKENDS = ('postgresql', 'duckdb')
+VALID_COMPUTE_MODES = ('local', 'remote', 'delegate')
 
-    - offline_store=duckdb/both → 优先 duckdb
-    - offline_store=postgresql（默认）→ 优先 postgresql
+
+def resolve_read_backend(offline_store: Optional[str], read_backend: Optional[str]) -> str:
+    """读后端推导（二期阶段 9，读写分离）
+
+    - 显式配置 read_backend → 按配置；
+    - 未配置 → offline_store=duckdb 读 duckdb，其余（postgresql/both）读 postgresql。
+      注意 both 未配置读后端时读 PG（影子写），一期 both 读 duckdb 的语义已有意修正。
     """
-    offline_store = getattr(
-        settings, 'fraudhunter_wide_table_offline_store', 'postgresql',
+    if read_backend:
+        return str(read_backend).strip().lower()
+    return 'duckdb' if (offline_store or 'postgresql').strip().lower() == 'duckdb' else 'postgresql'
+
+
+def validate_store_config(
+    offline_store: Optional[str],
+    read_backend: Optional[str],
+    compute_mode: Optional[str] = 'local',
+    role: str = 'backend',
+) -> list:
+    """校验存储读写配置组合；非法组合抛 ValueError，可运行但有风险的组合返回告警列表
+
+    Args:
+        role: backend=淘沙后端进程；ds=DS 离线同步入口
+    """
+    write = (offline_store or 'postgresql').strip().lower()
+    read = resolve_read_backend(write, read_backend)
+    mode = (compute_mode or 'local').strip().lower()
+    warnings = []
+
+    if write not in VALID_WRITE_BACKENDS:
+        raise ValueError(f"offline_store 取值非法: {write}（可选: {'/'.join(VALID_WRITE_BACKENDS)}）")
+    if read not in VALID_READ_BACKENDS:
+        raise ValueError(f"read_backend 取值非法: {read}（可选: {'/'.join(VALID_READ_BACKENDS)}）")
+    if mode not in VALID_COMPUTE_MODES:
+        raise ValueError(f"duck_compute.mode 取值非法: {mode}（可选: {'/'.join(VALID_COMPUTE_MODES)}）")
+    if write == 'postgresql' and read == 'duckdb':
+        raise ValueError("offline_store=postgresql 不会产生 duckdb 快照，read_backend 不能为 duckdb")
+    if role == 'backend' and mode == 'delegate':
+        raise ValueError("duck_compute.mode=delegate 仅用于 DS 离线同步入口，淘沙后端请配置 local 或 remote")
+    if write == 'duckdb' and read == 'postgresql':
+        warnings.append("offline_store=duckdb 且 read_backend=postgresql：PG 离线数据将停止更新，读到的是切换前的旧快照")
+    return warnings
+
+
+def preferred_snapshot_backend() -> str:
+    """当前配置偏好的快照存储后端（读后端，Issue #9 统一策略防各调用点漂移）"""
+    return resolve_read_backend(
+        getattr(settings, 'fraudhunter_wide_table_offline_store', 'postgresql'),
+        getattr(settings, 'fraudhunter_wide_table_read_backend', None),
     )
-    return 'duckdb' if offline_store in ('duckdb', 'both') else 'postgresql'
 
 
 def offline_store_uses_duckdb() -> bool:
-    """离线存储配置是否含 DuckDB（DuckDB 专属维护任务的启用条件，Issue #10）"""
+    """离线存储（写）配置是否含 DuckDB（DuckDB 专属维护任务的启用条件，Issue #10）"""
     return getattr(
         settings, 'fraudhunter_wide_table_offline_store', 'postgresql',
     ) in ('duckdb', 'both')
@@ -49,8 +93,8 @@ def offline_store_uses_duckdb() -> bool:
 def select_snapshot_by_preferred_backend(snapshots) -> Optional[object]:
     """按配置偏好从（已按新→旧排序的）快照列表中选择一条
 
-    优先返回 preferred_snapshot_backend() 对应的快照；配置偏好的后端
-    完全没有快照时回退最新一条并告警（例如 both 切回 postgresql 但
+    优先返回 preferred_snapshot_backend()（读后端）对应的快照；读后端
+    完全没有快照时回退最新一条并告警（例如读切回 postgresql 但
     PG 侧尚未补数时，避免直接不可用）。
     """
     snapshots = [s for s in snapshots if s is not None]
@@ -62,7 +106,7 @@ def select_snapshot_by_preferred_backend(snapshots) -> Optional[object]:
             return s
     fallback = snapshots[0]
     logger.warning(
-        f"[快照选择] 未找到偏好的 {preferred} 快照，回退使用 "
+        f"[快照选择] 未找到读后端（read_backend={preferred}）的快照，回退使用 "
         f"{snapshot_backend(fallback)} 快照（generation_time={getattr(fallback, 'generation_time', None)}）"
     )
     return fallback

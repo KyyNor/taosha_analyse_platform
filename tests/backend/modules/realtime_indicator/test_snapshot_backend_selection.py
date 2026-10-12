@@ -1,11 +1,12 @@
 """
-Issue #9：快照选择尊重 offline_store 配置（统一策略防调用点漂移）
+Issue #9 + 二期阶段 9：快照选择尊重读后端配置（统一策略防调用点漂移）
 
 覆盖 query_router 的公共选择函数（realtime_indicator_job._get_latest_offline_snapshot
 与 ModelExecutor._get_latest_version_snapshot 均委托至此）：
-- offline_store=postgresql → 优先 PG 快照（切回 PG 后实时任务完全走原 PG 链路）
-- offline_store=duckdb/both → 优先 DuckDB 快照
-- 偏好后端无快照时回退最新一条并告警
+- 读后端 = read_backend 显式配置；未配置时 offline_store=duckdb 读 duckdb，其余读 postgresql
+  （both 未配置读后端 = 影子写，线上仍读 PG）
+- 读后端无快照时回退最新一条并告警
+- validate_store_config 读写/计算模式组合校验
 以及生产调用点确实接入了公共函数（源码级防漂移）。
 """
 
@@ -15,25 +16,28 @@ import types
 from datetime import date, datetime
 from pathlib import Path
 
+import pytest
+
 _backend_root = Path(__file__).parents[4] / "backend"
 sys.path.insert(0, str(_backend_root))
 
 ETL = date(2026, 9, 10)
 
 
-def _fake_settings(offline_store):
+def _fake_settings(offline_store, read_backend=None):
     return types.SimpleNamespace(
         fraudhunter_wide_table_offline_store=offline_store,
+        fraudhunter_wide_table_read_backend=read_backend,
     )
 
 
-def _load_query_router(monkeypatch, offline_store):
+def _load_query_router(monkeypatch, offline_store, read_backend=None):
     for name in ('services', 'services.fraudhunter',
                  'services.fraudhunter.wide_table_service',
                  'services.fraudhunter.wide_table_service.store'):
         monkeypatch.setitem(sys.modules, name, sys.modules.get(name) or types.ModuleType(name))
     config_module = types.ModuleType('utils.config')
-    config_module.settings = _fake_settings(offline_store)
+    config_module.settings = _fake_settings(offline_store, read_backend)
     monkeypatch.setitem(sys.modules, 'utils.config', config_module)
     logger_module = types.ModuleType('utils.logger')
     logger_module.logger = types.SimpleNamespace(
@@ -86,10 +90,30 @@ class TestPreferredBackend:
         assert qr.preferred_snapshot_backend() == 'duckdb'
         assert qr.offline_store_uses_duckdb() is True
 
-    def test_both_mode_prefers_duckdb(self, monkeypatch):
+    def test_both_mode_without_read_backend_prefers_pg(self, monkeypatch):
+        """both 未配置读后端 = 影子写：线上仍读 PG，DuckDB 维护任务按写配置启用"""
         qr = _load_query_router(monkeypatch, 'both')
-        assert qr.preferred_snapshot_backend() == 'duckdb'
+        assert qr.preferred_snapshot_backend() == 'postgresql'
         assert qr.offline_store_uses_duckdb() is True
+
+    def test_write_read_matrix(self, monkeypatch):
+        expected = {
+            ('postgresql', None): 'postgresql',
+            ('postgresql', 'postgresql'): 'postgresql',
+            ('both', None): 'postgresql',
+            ('both', 'postgresql'): 'postgresql',
+            ('both', 'duckdb'): 'duckdb',
+            ('duckdb', None): 'duckdb',
+            ('duckdb', 'duckdb'): 'duckdb',
+            ('duckdb', 'postgresql'): 'postgresql',
+        }
+        for (write, read), want in expected.items():
+            qr = _load_query_router(monkeypatch, write, read)
+            assert qr.preferred_snapshot_backend() == want, (write, read)
+
+    def test_read_backend_case_insensitive(self, monkeypatch):
+        qr = _load_query_router(monkeypatch, 'both', ' DuckDB ')
+        assert qr.preferred_snapshot_backend() == 'duckdb'
 
 
 class TestSelectSnapshot:
@@ -104,8 +128,14 @@ class TestSelectSnapshot:
         picked = qr.select_snapshot_by_preferred_backend(_dual_snapshots())
         assert qr.snapshot_backend(picked) == 'duckdb'
 
-    def test_both_mode_picks_duckdb(self, monkeypatch):
+    def test_both_mode_default_picks_pg(self, monkeypatch):
+        """both 影子写：即使 DuckDB 快照更新，线上仍选 PG 快照"""
         qr = _load_query_router(monkeypatch, 'both')
+        picked = qr.select_snapshot_by_preferred_backend(_dual_snapshots())
+        assert qr.snapshot_backend(picked) == 'postgresql'
+
+    def test_both_mode_read_duckdb_picks_duckdb(self, monkeypatch):
+        qr = _load_query_router(monkeypatch, 'both', 'duckdb')
         picked = qr.select_snapshot_by_preferred_backend(_dual_snapshots())
         assert qr.snapshot_backend(picked) == 'duckdb'
 
@@ -130,6 +160,43 @@ class TestSelectSnapshot:
             generation_time=datetime(2026, 9, 10, 8, 0, 0))
         picked = qr.select_snapshot_by_preferred_backend([legacy])
         assert picked is legacy  # 兜底 postgresql = 偏好命中
+
+
+class TestValidateStoreConfig:
+    def _qr(self, monkeypatch):
+        return _load_query_router(monkeypatch, 'postgresql')
+
+    def test_valid_combinations_no_warning(self, monkeypatch):
+        qr = self._qr(monkeypatch)
+        for write, read in (('postgresql', None), ('both', None), ('both', 'duckdb'),
+                            ('duckdb', None), ('duckdb', 'duckdb')):
+            assert qr.validate_store_config(write, read, 'local') == [], (write, read)
+            assert qr.validate_store_config(write, read, 'remote') == [], (write, read)
+
+    def test_write_pg_read_duckdb_rejected(self, monkeypatch):
+        qr = self._qr(monkeypatch)
+        with pytest.raises(ValueError, match='read_backend'):
+            qr.validate_store_config('postgresql', 'duckdb')
+
+    def test_write_duckdb_read_pg_warns(self, monkeypatch):
+        qr = self._qr(monkeypatch)
+        warnings = qr.validate_store_config('duckdb', 'postgresql')
+        assert len(warnings) == 1 and '停止更新' in warnings[0]
+
+    def test_invalid_values_rejected(self, monkeypatch):
+        qr = self._qr(monkeypatch)
+        with pytest.raises(ValueError, match='offline_store'):
+            qr.validate_store_config('mysql', None)
+        with pytest.raises(ValueError, match='read_backend'):
+            qr.validate_store_config('both', 'both')
+        with pytest.raises(ValueError, match='duck_compute.mode'):
+            qr.validate_store_config('both', None, 'cloud')
+
+    def test_delegate_only_for_ds(self, monkeypatch):
+        qr = self._qr(monkeypatch)
+        with pytest.raises(ValueError, match='delegate'):
+            qr.validate_store_config('both', None, 'delegate', role='backend')
+        assert qr.validate_store_config('both', None, 'delegate', role='ds') == []
 
 
 class TestProdCallSitesWired:

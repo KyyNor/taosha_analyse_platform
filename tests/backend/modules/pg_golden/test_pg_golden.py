@@ -40,10 +40,14 @@ SCENARIOS = [
 ]
 
 
-def _run_harness(scenario: str, out: Path) -> None:
+# 读路径场景：影子写模式下（both 写、未配置读后端、库里有更新的 duckdb 快照）也必须与 main 一致
+READ_SCENARIOS = ["realtime", "backtest", "indicator_query"]
+
+
+def _run_harness(scenario: str, out: Path, *extra: str) -> None:
     proc = subprocess.run(
         [sys.executable, str(_harness), "--backend-root", str(_backend_root),
-         "--scenario", scenario, "--out", str(out), "--forbid-duckdb"],
+         "--scenario", scenario, "--out", str(out), "--forbid-duckdb", *extra],
         capture_output=True, text=True, timeout=300,
     )
     if proc.returncode != 0:
@@ -51,26 +55,46 @@ def _run_harness(scenario: str, out: Path) -> None:
         pytest.fail(f"harness 场景 {scenario} 执行失败:\n{tail}")
 
 
-@pytest.mark.parametrize("scenario", SCENARIOS)
-def test_pg_behavior_identical_to_main(scenario, tmp_path):
-    out = tmp_path / f"{scenario}.json"
-    _run_harness(scenario, out)
-
+def _load_pair(scenario, out):
     actual = json.loads(out.read_text(encoding="utf-8"))
     golden = json.loads((_here / "golden" / f"{scenario}.json").read_text(encoding="utf-8"))
-
-    # 分支新增的 storage_backend 列：PG 模式下所有快照必须为 postgresql
-    backends = actual.pop("storage_backends")
-    assert backends in ([], ["postgresql"]), f"PG 模式出现非 postgresql 快照: {backends}"
     golden.pop("storage_backends")
+    return actual, golden
 
-    # 逐项对比，失败时定位到具体部分
+
+def _assert_same(scenario, actual, golden):
     for key in ("events", "db", "extra"):
         assert actual[key] == golden[key], (
             f"场景 {scenario} 的 {key} 与 main 不一致；"
             f"运行 harness 输出 JSON 后与 golden/{scenario}.json 做 diff 定位"
         )
     assert actual.keys() == golden.keys()
+
+
+@pytest.mark.parametrize("scenario", READ_SCENARIOS)
+def test_shadow_write_keeps_pg_read_path(scenario, tmp_path):
+    """阶段 9 验收：offline_store=both 且未配置 read_backend 时，读路径与 main 完全一致"""
+    out = tmp_path / f"{scenario}.json"
+    _run_harness(scenario, out, "--shadow-duckdb")
+    actual, golden = _load_pair(scenario, out)
+    assert actual.pop("storage_backends") == ["duckdb", "postgresql"]
+    # db 快照表中多出影子 duckdb 行属预期，只对比非快照表与 SQL/结果
+    actual["db"].pop("fraudhunter_wide_table_snapshot", None)
+    golden["db"].pop("fraudhunter_wide_table_snapshot", None)
+    _assert_same(scenario, actual, golden)
+
+
+@pytest.mark.parametrize("scenario", SCENARIOS)
+def test_pg_behavior_identical_to_main(scenario, tmp_path):
+    out = tmp_path / f"{scenario}.json"
+    _run_harness(scenario, out)
+    actual, golden = _load_pair(scenario, out)
+
+    # 分支新增的 storage_backend 列：PG 模式下所有快照必须为 postgresql
+    backends = actual.pop("storage_backends")
+    assert backends in ([], ["postgresql"]), f"PG 模式出现非 postgresql 快照: {backends}"
+
+    _assert_same(scenario, actual, golden)
 
 
 def test_golden_covers_pg_paths():

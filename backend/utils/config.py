@@ -245,6 +245,8 @@ class ConfigManager:
             fraudhunter_wide_table_source_table: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('source_table', 'hxb_dh_data_dwm.dwm_taosha_indicator_details')
             # 离线宽表存储后端: postgresql | duckdb | both（灰度双写）
             fraudhunter_wide_table_offline_store: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('offline_store', 'postgresql')
+            # 离线宽表读后端: postgresql | duckdb；未配置时 offline_store=duckdb 读 duckdb，否则读 postgresql
+            fraudhunter_wide_table_read_backend: Optional[str] = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('read_backend')
             # DuckDB Parquet存储配置（offline_store 含 duckdb 时生效）
             fraudhunter_wide_table_duckdb_storage_path: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('storage_path', '/data/taosha/indicator_data/wide_tables_parquet')
             fraudhunter_wide_table_duckdb_compression: str = self._config_data.get('fraudhunter', {}).get('wide_table', {}).get('duckdb', {}).get('compression', 'zstd')

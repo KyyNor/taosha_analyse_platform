@@ -293,6 +293,22 @@ async def lifespan(app: FastAPI):
         from models.db_base import verify_wide_table_snapshot_schema
         verify_wide_table_snapshot_schema(settings.fraudhunter_wide_table_offline_store)
 
+        # 离线宽表读写配置校验（非法组合拒绝启动）
+        from services.fraudhunter.wide_table_service.store.query_router import (
+            preferred_snapshot_backend, validate_store_config,
+        )
+        for store_warning in validate_store_config(
+            settings.fraudhunter_wide_table_offline_store,
+            settings.fraudhunter_wide_table_read_backend,
+            settings.fraudhunter_duck_compute_mode,
+            role='backend',
+        ):
+            logger.warning(f"[存储配置] {store_warning}")
+        logger.info(
+            f"[存储配置] 写={settings.fraudhunter_wide_table_offline_store} "
+            f"读={preferred_snapshot_backend()} duck_compute={settings.fraudhunter_duck_compute_mode}"
+        )
+
         # 初始化系统服务（实时数据消费者等单例服务）
         # 这些服务在多worker环境下只需要运行一次（使用启动锁保护）
         await _initialize_system_services()
