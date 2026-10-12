@@ -200,6 +200,7 @@ class WideTableSyncService:
 
     def _find_duckdb_copy_source(
         self,
+        store,
         wide_table_name: str,
         etl_date: date,
         copy_candidates: list,
@@ -207,7 +208,8 @@ class WideTableSyncService:
         """从历史版本候选中找旧 duckdb 快照的 Parquet 版本目录（增量基准/零拷贝复用）
 
         与 _find_copy_source（PG分区探测）平行：按候选顺序查该日期的 ready duckdb
-        快照，校验 Parquet 日期目录存在且有数据（DuckDB元数据计数，行数>0）。
+        快照，经 store.probe_parquet 校验日期目录存在且有数据（行数>0）。
+        probe 在 local/remote 模式探测本机目录，delegate 模式（DS）经淘沙接口探测。
 
         Returns:
             (旧版本Parquet目录绝对路径, 旧版本指标元数据) 或 (None, None)
@@ -217,11 +219,8 @@ class WideTableSyncService:
         if not copy_candidates:
             return None, None
 
-        etl_date_str = etl_date.strftime('%Y-%m-%d')
-        date_dir_name = f"etl_date={etl_date_str}"
-
         with get_db_session() as db:
-            for index, cand in enumerate(copy_candidates, start=1):
+            for cand in copy_candidates:
                 version_hash = cand.get('version_hash')
                 if not version_hash:
                     continue
@@ -237,30 +236,23 @@ class WideTableSyncService:
                 if not snapshot or not snapshot.parquet_file_path:
                     continue
 
-                version_dir = Path(snapshot.parquet_file_path)
-                date_glob = version_dir / date_dir_name / "*.parquet"
-                if not any(date_glob.parent.glob("*.parquet")):
+                version_dir = snapshot.parquet_file_path
+                try:
+                    probe = store.probe_parquet(version_dir, etl_date)
+                except Exception as e:
+                    logger.warning(f"[duckdb增量诊断] 探测失败: {version_hash[:8]}, {e}")
+                    continue
+                if probe.get('error'):
+                    logger.warning(f"[duckdb增量诊断] 计数失败: {version_hash[:8]}, {probe['error']}")
+                    continue
+                if not probe.get('exists'):
                     logger.info(
                         f"[duckdb增量诊断] 候选无数据文件: version={version_hash[:8]}, "
-                        f"dir={date_glob.parent}"
+                        f"dir={version_dir}, etl_date={etl_date}"
                     )
                     continue
 
-                # 行数校验（parquet元数据计数，代价低）
-                # 经会话工厂执行：local=进程内 duckdb（现状），remote=duckdb 容器网关
-                try:
-                    from services.fraudhunter.wide_table_service.store import query_router
-
-                    with query_router.get_query_session(attach_pg=False) as duck_session:
-                        count_df = duck_session.execute_df(
-                            f"SELECT count(*) AS cnt FROM read_parquet('{date_glob.as_posix()}', "
-                            f"hive_partitioning=false)"
-                        )
-                        rows = int(count_df.iloc[0]['cnt'])
-                except Exception as e:
-                    logger.warning(f"[duckdb增量诊断] 计数失败: {version_hash[:8]}, {e}")
-                    continue
-
+                rows = int(probe.get('rows') or 0)
                 if rows <= 0:
                     continue
 
@@ -292,7 +284,7 @@ class WideTableSyncService:
             # 各后端独立解析增量基准与差异（duckdb 基准为旧 Parquet 目录）
             if store.name == 'duckdb':
                 base_ref, base_meta = self._find_duckdb_copy_source(
-                    wide_table_name, etl_date, effective_candidates
+                    store, wide_table_name, etl_date, effective_candidates
                 )
                 store_delta = self._build_sync_delta(base_meta or {}, indicator_metadata)
             else:
@@ -399,7 +391,6 @@ class WideTableSyncService:
             self._update_snapshot_failed(snapshot_id, str(e))
             return None
 
-    @staticmethod
     def _zero_copy_snapshot(
         self,
         store,

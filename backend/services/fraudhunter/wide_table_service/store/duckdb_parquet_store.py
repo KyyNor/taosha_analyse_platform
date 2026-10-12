@@ -63,11 +63,16 @@ class DuckdbParquetStore(WideTableStore):
         self._compression = settings.fraudhunter_wide_table_duckdb_compression
         # 复用已验证的 PySpark/JDBC → PG 执行器（写 staging）
         self._pg_writer = PgWideTableStore()
+        # delegate 模式：淘沙接口返回的实际版本目录 {(table_name, etl_date): version_dir}
+        # 快照引用以服务端路径为准，不用 DS 侧 storage_path 拼接（防两侧配置不一致）
+        self._delegate_version_dirs: dict = {}
 
     # ------------------------------------------------------------------
     # 计算模式 (docs/duckdb_remote_compute_plan.md):
     # local=进程内 import duckdb（现状）；remote=经 HTTP 网关在 duckdb 容器执行
-    # （后端机器 glibc < 2.27 装不了 duckdb 时用 remote）
+    # （后端机器 glibc < 2.27 装不了 duckdb 时用 remote）；
+    # delegate=DS 侧专用，Parquet 相关操作经淘沙后端内部接口完成（二期阶段 10），
+    # 本进程只跑 Spark → PG 与 MySQL 元数据，不访问本地文件系统、不加载 duckdb
     # ------------------------------------------------------------------
     @staticmethod
     def _duck_compute_mode() -> str:
@@ -82,6 +87,14 @@ class DuckdbParquetStore(WideTableStore):
     def _remote():
         from services.fraudhunter.wide_table_service.store import remote_session
         return remote_session
+
+    @staticmethod
+    def _delegate():
+        from services.fraudhunter.wide_table_service.store import delegate_client
+        return delegate_client
+
+    def _is_delegate(self) -> bool:
+        return self._duck_compute_mode() == 'delegate'
 
     # ------------------------------------------------------------------
     # 路径与表名规范
@@ -110,8 +123,12 @@ class DuckdbParquetStore(WideTableStore):
         indicator_metadata: dict,
         etl_date: date,
     ) -> None:
-        """准备落盘目录与 UNLOGGED staging 中转表（幂等：重建 staging）"""
-        self._storage_path.mkdir(parents=True, exist_ok=True)
+        """准备落盘目录与 UNLOGGED staging 中转表（幂等：重建 staging）
+
+        delegate 模式不建本地目录（落盘目录在淘沙机器，由服务端创建）。
+        """
+        if not self._is_delegate():
+            self._storage_path.mkdir(parents=True, exist_ok=True)
 
         staging = self.staging_table_name(table_name, etl_date)
         AnalyzeDBPartitionManager.drop_table(staging)
@@ -149,33 +166,52 @@ class DuckdbParquetStore(WideTableStore):
         )
 
         # 2-4. COPY staging → Parquet + 三方对账 + 原子落盘
-        # remote: 计算与落盘在 duckdb 容器内（网关分段写协议）；local: 进程内（现状）
-        if self._duck_compute_mode() == 'remote':
-            self._write_pivot_remote(staging, final_dir, spark_rows)
+        if self._is_delegate():
+            # delegate: 委托淘沙后端完成（服务端按其 local/remote 模式执行同一实现）
+            res = self._delegate().pull(
+                source_pg_table=staging, source_kind='staging',
+                version_dir_name=table_name, etl_date=etl_date, expected_rows=spark_rows,
+            )
+            self._delegate_version_dirs[(table_name, etl_date)] = res['version_dir']
+            final_dir = res['final_dir']
         else:
-            tmp_dir = self._prepare_tmp_dir(final_dir)
-            conn = self._attach_pg()
-            try:
-                copy_sql = self._build_copy_sql(staging, tmp_dir)
-                logger.debug(f"[duckdb] COPY SQL: {copy_sql}")
-                conn.execute(copy_sql)
-
-                # 3. 三方对账：Spark行数 vs staging行数 vs parquet行数 + 内容checksum
-                # 失败抛异常，保留 tmp 目录与 staging 便于排障（staging 由 TTL 兜底清理）
-                self._reconcile(conn, staging, tmp_dir, spark_rows)
-            finally:
-                try:
-                    conn.execute("DETACH pg_src")
-                except Exception:
-                    pass
-                conn.close()
-
-            # 4. 原子落盘（remote 模式由网关完成）
-            self._atomic_landing(tmp_dir, final_dir)
+            self.land_staging_to_parquet(staging, final_dir, spark_rows)
         AnalyzeDBPartitionManager.drop_table(staging)
         logger.info(f"[duckdb] Parquet落盘完成: {final_dir}")
 
         return (spark_rows, column_count)
+
+    def land_staging_to_parquet(self, staging: str, final_dir: Path,
+                                spark_rows: int | None) -> int:
+        """staging 表 → Parquet：COPY + 三方对账 + 原子落盘（local/remote），返回文件总字节数
+
+        淘沙内部接口 /parquet/pull（source_kind=staging）同样调用本方法。
+        """
+        # remote: 计算与落盘在 duckdb 容器内（网关分段写协议）；local: 进程内（现状）
+        if self._duck_compute_mode() == 'remote':
+            land = self._write_pivot_remote(staging, final_dir, spark_rows)
+            return int((land or {}).get('size_bytes', 0))
+
+        tmp_dir = self._prepare_tmp_dir(final_dir)
+        conn = self._attach_pg()
+        try:
+            copy_sql = self._build_copy_sql(staging, tmp_dir)
+            logger.debug(f"[duckdb] COPY SQL: {copy_sql}")
+            conn.execute(copy_sql)
+
+            # 3. 三方对账：Spark行数 vs staging行数 vs parquet行数 + 内容checksum
+            # 失败抛异常，保留 tmp 目录与 staging 便于排障（staging 由 TTL 兜底清理）
+            self._reconcile(conn, staging, tmp_dir, spark_rows)
+        finally:
+            try:
+                conn.execute("DETACH pg_src")
+            except Exception:
+                pass
+            conn.close()
+
+        # 4. 原子落盘（remote 模式由网关完成）
+        self._atomic_landing(tmp_dir, final_dir)
+        return sum(f.stat().st_size for f in final_dir.glob(PARQUET_FILE_PATTERN))
 
     def write_pivot_to_pg(
         self,
@@ -217,6 +253,27 @@ class DuckdbParquetStore(WideTableStore):
             新版本行数（= 旧版本行数，对账保证）
         """
         etl = date.fromisoformat(etl_date)
+        if self._is_delegate():
+            # delegate: 旧版本目录以名称传递，服务端按其 storage_path 定位（不传路径）
+            try:
+                res = self._delegate().merge(
+                    base_version_dir_name=Path(base_table).name,
+                    dest_version_dir_name=dest_table, etl_date=etl,
+                    delta_table=delta_table, static_cols=static_cols, inc_cols=inc_cols,
+                )
+            except self._delegate().DelegateError as e:
+                if e.error_code == 'TARGET_UNIVERSE_CHANGED':
+                    raise TargetUniverseChangedError(e.message) from e
+                if e.error_code == 'RECONCILE_FAILED':
+                    raise ReconcileError(e.message) from e
+                raise
+            self._delegate_version_dirs[(dest_table, etl)] = res['version_dir']
+            logger.info(
+                f"[duckdb-delegate] 增量落盘完成: {res['final_dir']}, {res['rows']}行, "
+                f"static={len(static_cols)}, inc={len(inc_cols)}"
+            )
+            return int(res['rows'])
+
         new_dir = self.date_dir(dest_table, etl)
         old_glob = (
             (Path(base_table) / f"etl_date={etl_date}" / PARQUET_FILE_PATTERN).as_posix()
@@ -267,8 +324,49 @@ class DuckdbParquetStore(WideTableStore):
         return int(new_rows)
 
     def snapshot_ref(self, table_name: str, etl_date: date) -> str:
-        """快照引用为版本 Parquet 目录绝对路径"""
+        """快照引用为版本 Parquet 目录绝对路径（delegate 模式取服务端返回的路径）"""
+        delegated = self._delegate_version_dirs.get((table_name, etl_date))
+        if delegated:
+            return delegated
         return str(self.version_dir(table_name).resolve())
+
+    def probe_parquet(self, version_dir: str, etl_date: date) -> dict:
+        """探测版本目录下某日期的 Parquet 数据：{exists, rows, error, version_dir}
+
+        - exists=False：日期目录无 parquet 文件；
+        - error 非空：文件存在但计数失败（调用方按不可复用处理并告警）；
+        - delegate 模式经淘沙接口探测（服务端按其 storage_path 定位同名目录，
+          返回路径与快照记录不一致时视为不可复用）。
+        淘沙内部接口 /parquet/probe 同样调用本方法（local/remote）。
+        """
+        if self._is_delegate():
+            res = self._delegate().probe(Path(version_dir).name, etl_date)
+            if res.get('version_dir') != str(version_dir):
+                return {
+                    'exists': False, 'rows': 0, 'version_dir': res.get('version_dir'),
+                    'error': f"服务端版本目录({res.get('version_dir')})与快照记录({version_dir})不一致",
+                }
+            return res
+
+        date_dir = Path(version_dir) / f"etl_date={etl_date.strftime('%Y-%m-%d')}"
+        result = {'exists': False, 'rows': 0, 'error': None, 'version_dir': str(version_dir)}
+        if not any(date_dir.glob("*.parquet")):
+            return result
+        result['exists'] = True
+        # 行数校验（parquet元数据计数，代价低）
+        # 经会话工厂执行：local=进程内 duckdb（现状），remote=duckdb 容器网关
+        try:
+            from services.fraudhunter.wide_table_service.store import query_router
+
+            with query_router.get_query_session(attach_pg=False) as duck_session:
+                count_df = duck_session.execute_df(
+                    f"SELECT count(*) AS cnt FROM read_parquet('{(date_dir / '*.parquet').as_posix()}', "
+                    f"hive_partitioning=false)"
+                )
+                result['rows'] = int(count_df.iloc[0]['cnt'])
+        except Exception as e:
+            result['error'] = str(e)
+        return result
 
     # ------------------------------------------------------------------
     # DuckDB 连接与 SQL 构建（独立方法便于单测）
@@ -509,7 +607,7 @@ class DuckdbParquetStore(WideTableStore):
                 f"{alias}.public.{staging}", self._parquet_relation(tmp_dir),
                 tmp_dir, spark_rows,
             )
-            rs.remote_write_land(tmp_dir.as_posix(), final_dir.as_posix())
+            return rs.remote_write_land(tmp_dir.as_posix(), final_dir.as_posix())
         except Exception as e:
             self._remote_failure_dispatch(tmp_dir, e)
             raise
@@ -588,10 +686,15 @@ class DuckdbParquetStore(WideTableStore):
         pg_table: str,
         etl_date: date,
         dest_dir: Path,
+        expected_rows: int | None = None,
     ) -> Tuple[int, int, int]:
         """PG 正式宽表指定日期分区 → Parquet 目录（pg2duckdb 核心）
 
         与 staging 全量路径同源：COPY 列式直转 → 对账 → 原子落盘。
+
+        Args:
+            expected_rows: 期望行数（如 both 模式下 PG 刚写入的行数）；
+                给定时对账额外断言 PG 分区行数 == 期望行数
 
         Returns:
             (row_count, column_count, file_size_bytes)
@@ -605,7 +708,7 @@ class DuckdbParquetStore(WideTableStore):
 
         if self._duck_compute_mode() == 'remote':
             return self._pull_pg_partition_remote(
-                pg_table, etl_date, dest_dir, alias, source_relation,
+                pg_table, etl_date, dest_dir, alias, source_relation, expected_rows,
             )
 
         tmp_dir = self._prepare_tmp_dir(dest_dir)
@@ -619,7 +722,8 @@ class DuckdbParquetStore(WideTableStore):
                 f"SELECT count(*) FROM {source_relation}"
             ).fetchone()[0]
             self._reconcile_relations(
-                conn, source_relation, self._parquet_relation(tmp_dir), source_rows
+                conn, source_relation, self._parquet_relation(tmp_dir),
+                source_rows if expected_rows is None else expected_rows,
             )
             parquet_cols = [
                 row[0] for row in conn.execute(
@@ -638,7 +742,8 @@ class DuckdbParquetStore(WideTableStore):
         return (int(source_rows), len(parquet_cols), size_bytes)
 
     def _pull_pg_partition_remote(self, pg_table: str, etl_date: date, dest_dir: Path,
-                                  alias: str, source_relation: str) -> Tuple[int, int, int]:
+                                  alias: str, source_relation: str,
+                                  expected_rows: int | None = None) -> Tuple[int, int, int]:
         """pg2duckdb 互转 remote：COPY + 双侧对账 + 原子落盘（容器内完成）
 
         Returns:
@@ -654,7 +759,8 @@ class DuckdbParquetStore(WideTableStore):
             )
             source_rows = int(res['results'][1]['rows'][0][0])
             self._remote_reconcile(
-                source_relation, self._parquet_relation(tmp_dir), tmp_dir, source_rows,
+                source_relation, self._parquet_relation(tmp_dir), tmp_dir,
+                source_rows if expected_rows is None else expected_rows,
             )
             describe = rs.remote_write_sqls(
                 [f"DESCRIBE SELECT * FROM {self._parquet_relation(tmp_dir)}"],

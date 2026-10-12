@@ -35,7 +35,8 @@ from api.fraudhunter import (
     wide_table_router,
     alert_control_record_router,
     system_config_router,
-    indicator_query_router
+    indicator_query_router,
+    internal_wide_table_store_router,
 )
 from services.query_engine import get_query_engine
 from models.db_base import get_db_session
@@ -443,6 +444,7 @@ app.include_router(wide_table_router, prefix=fraudhunter_prefix)
 app.include_router(alert_control_record_router, prefix=fraudhunter_prefix)  # 告警管控记录
 app.include_router(system_config_router, prefix=fraudhunter_prefix)  # 系统配置
 app.include_router(indicator_query_router, prefix=fraudhunter_prefix)  # 指标数据查询
+app.include_router(internal_wide_table_store_router, prefix=fraudhunter_prefix)  # 内部接口：DS delegate 模式的 Parquet 存储操作
 
 # API 根路径信息
 @app.get(f"{api_prefix}/", tags=["API信息"])

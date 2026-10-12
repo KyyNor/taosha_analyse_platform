@@ -260,6 +260,11 @@ class ConfigManager:
             fraudhunter_duck_compute_token: str = self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('token', '')
             fraudhunter_duck_compute_path_map: dict = self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('path_map', {})
             fraudhunter_duck_compute_timeout_seconds: float = float(self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('timeout_seconds', 300))
+            # delegate 模式（DS 侧）：Parquet 相关操作委托淘沙后端内部接口（二期阶段 10）
+            fraudhunter_duck_compute_delegate_endpoint: str = self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('delegate', {}).get('endpoint', '')
+            fraudhunter_duck_compute_delegate_timeout_seconds: float = float(self._config_data.get('fraudhunter', {}).get('duck_compute', {}).get('delegate', {}).get('timeout_seconds', 1800))
+            # 内部接口共享 token（淘沙校验、DS 携带，两侧一致；为空时内部接口一律拒绝）
+            fraudhunter_internal_api_token: str = self._config_data.get('fraudhunter', {}).get('internal_api', {}).get('token', '') or ''
 
             # PG 分区导出 Parquet 工具（python -m scripts.pg_partition_export）
             fraudhunter_pg_partition_export_output_dir: str = self._config_data.get('fraudhunter', {}).get('pg_partition_export', {}).get('output_dir', '/data/taosha/indicator_data/pg_partition_export')

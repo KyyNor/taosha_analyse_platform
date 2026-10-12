@@ -596,6 +596,15 @@ fraudhunter:
 
 **验收**：在内网 DS 上以 delegate 模式完成一次 `both` 同步；`[duckdb增量诊断]` 日志能正确选中旧 Parquet 目录（不再静默退化为全量）；DS worker 本地没有产生任何 Parquet 相关目录。
 
+**实施记录（2026-10-11）**：
+- 服务端：`store/parquet_ops.py`（`ParquetOpsService`，复用 `DuckdbParquetStore` 的 local/remote 实现）+ `api/fraudhunter/internal_wide_table_store_routes.py`（4 个同步 `def` 路由，`X-Internal-Token` 常量时间比较，token 为空时 503）；
+- DS 侧：`store/delegate_client.py`；`DuckdbParquetStore` 增加 delegate 分支（`write_pivot` → `pull`，`merge_delta_insert_select` → `merge`，`ensure_table` 不建本地目录，`snapshot_ref` 取服务端返回路径）；新增公共方法 `land_staging_to_parquet()`、`probe_parquet()`，服务端与本地模式共用；`_find_duckdb_copy_source` 改为调用 `store.probe_parquet()`；
+- `pull_pg_partition_to_parquet()` 增加可选 `expected_rows`（阶段 11 使用）；
+- 配置：`fraudhunter.duck_compute.delegate.{endpoint,timeout_seconds}`、`fraudhunter.internal_api.token`；同时修正 `config.yaml.example` 中 `duck_compute` 误缩进在 `wide_table` 下的问题（代码读取的是 `fraudhunter.duck_compute`，原示例会被静默忽略）；
+- 修复既有 bug：`sync_service._zero_copy_snapshot` 误加 `@staticmethod`，导致 DuckDB "版本无变化零拷贝"路径在任何模式下都会报参数缺失；
+- 测试：`tests/backend/modules/delegate_store/`（20 项检查，独立子进程运行），包含 DS delegate 全链路同步在"禁止本地文件系统 + 禁止 duckdb"下的全量、增量、对象范围变化回退全量、零拷贝、路径不一致不复用。
+- 已知未改（main 既有行为）：同一日期所有后端都失败时 `sync_wide_table` 返回 `None`，`_sync_dates` 会因 `None.get` 抛错，由外层按宽表捕获。
+
 ---
 
 ### 阶段 11：`both` 模式复用 PG 正式分区，只跑一次 Spark（G4）
