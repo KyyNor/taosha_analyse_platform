@@ -673,6 +673,10 @@ async def generate_realtime_wide_table_job():
 
             step3_hit_record(db, today, matched_df, execution_record, hit_time)
             logger.debug("实时指标宽表生成及模型匹配完成")
+
+            # 步骤4: 受害人预警（未启用时直接返回；内部异常只记日志，不影响执行记录状态）
+            from services.fraudhunter.model_service.victim_alert_service import process_victim_alerts
+            process_victim_alerts(db, execution_record.id, today)
         except Exception as e:
             # session 仍然存活：将执行记录标记为失败并提交，避免状态丢失。
             # 注意：必须在 with 块内部处理，此时 session 未关闭；
