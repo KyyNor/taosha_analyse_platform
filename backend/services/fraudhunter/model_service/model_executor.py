@@ -456,13 +456,6 @@ LIMIT 10000
                 cust_offline_table = cust_offline_result.pg_table_name
                 cust_realtime_table = cust_realtime_result.pg_table_name
 
-                # 按快照存储后端路由：任一离线快照为 duckdb → DuckDB 执行，
-                # PG 侧表（实时表/PG离线表）经 ATTACH 别名 pg_rt 引用
-                duckdb_mode = query_router.requires_duckdb(
-                    dep_acct_offline_result, cust_offline_result
-                )
-                sql_dialect = 'duckdb' if duckdb_mode else 'postgresql'
-
                 if not dep_acct_realtime_table:
                     warning_msg = f"日期 {current_date} 的宽表不存在，跳过"
                     logger.warning(warning_msg)
@@ -503,22 +496,27 @@ LIMIT 10000
                     current_date += timedelta(days=1)
                     continue
 
-                # 表引用转换（duckdb 模式：duckdb 快照 → read_parquet，PG 侧表 → pg_rt 前缀）
-                dep_acct_realtime_ref = query_router.offline_table_ref(
-                    dep_acct_realtime_result, current_date, duckdb_mode
+                # 表引用转换：把本次 SQL 实际 JOIN 的全部快照一次性交给
+                # query_router.resolve_offline_table_refs，由它按全部快照判定一次
+                # duckdb_mode 后再统一生成引用（与实时预警任务同源，混合后端安全）。
+                # 客户实时指标为可选 JOIN，仅在模型引用时才纳入判定与引用；
+                # 漏判会让 duckdb 快照的 read_parquet 引用落到 PG 执行引擎上。
+                joined_snapshots = {
+                    'dep_acct_realtime': dep_acct_realtime_result,
+                    'dep_acct_offline': dep_acct_offline_result,
+                    'cust_offline': cust_offline_result,
+                }
+                if uses_cust_realtime:
+                    joined_snapshots['cust_realtime'] = cust_realtime_result
+                table_refs, duckdb_mode = query_router.resolve_offline_table_refs(
+                    joined_snapshots
                 )
-                dep_acct_offline_ref = query_router.offline_table_ref(
-                    dep_acct_offline_result, previous_date, duckdb_mode
-                )
-                cust_offline_ref = query_router.offline_table_ref(
-                    cust_offline_result, previous_date, duckdb_mode
-                )
-                cust_realtime_ref = (
-                    query_router.offline_table_ref(
-                        cust_realtime_result, current_date, duckdb_mode
-                    )
-                    if uses_cust_realtime else None
-                )
+                sql_dialect = 'duckdb' if duckdb_mode else 'postgresql'
+
+                dep_acct_realtime_ref = table_refs['dep_acct_realtime']
+                dep_acct_offline_ref = table_refs['dep_acct_offline']
+                cust_offline_ref = table_refs['cust_offline']
+                cust_realtime_ref = table_refs.get('cust_realtime')
 
                 # 生成SQL（仅当模型引用客户实时指标时才传入当天客户宽表，避免无谓 JOIN）
                 sql = self._generate_backtest_sql(
