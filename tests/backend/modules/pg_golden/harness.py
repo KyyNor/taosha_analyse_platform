@@ -564,8 +564,7 @@ def scenario_realtime(ctx):
     pg.fetch_handlers.append((lambda s: "实时模型匹配SQL" in s, lambda s: __import__("pandas").DataFrame()))
 
     today_str = TODAY.strftime("%Y-%m-%d")
-    with get_db_session() as db:
-        out = rij.step1_generate_realtime_indicators(db, TODAY, today_str, NOW_STR)
+    out = rij.step1_generate_realtime_indicators(TODAY, today_str, NOW_STR)
     if len(out) == 3:
         offline_tables, duckdb_mode, generated = out
         assert duckdb_mode is False, "PG 模式下实时任务不应进入 duckdb_mode"
