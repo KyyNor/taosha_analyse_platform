@@ -13,6 +13,7 @@ FraudHunter规则引擎核心服务
 """
 
 import re
+from functools import lru_cache
 from typing import Dict, List, Set, Any, Optional, Union
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -1094,7 +1095,17 @@ class RuleEngine:
 
         sql_dialect.py 为零依赖纯模块，按文件路径加载：
         避免经 services 包链导入（单测环境直接 exec 本文件时包链不可用）。
+
+        模块由 _load_dialect_module() 进程内只加载一次：回测按天 × 每条规则
+        都会调用本方法，每次重新 exec_module 会产生重复的文件读取与模块执行。
+        方言实例本身由 sql_dialect._DIALECTS 字典复用，取用仍是廉价查表。
         """
+        return RuleEngine._load_dialect_module().get_dialect(name)
+
+    @staticmethod
+    @lru_cache(maxsize=1)
+    def _load_dialect_module():
+        """按文件路径加载 sql_dialect 模块（进程内只执行一次，结果被 lru_cache 持有）"""
         import importlib.util
         from pathlib import Path as _Path
 
@@ -1102,7 +1113,7 @@ class RuleEngine:
         spec = importlib.util.spec_from_file_location("fraudhunter_sql_dialect", path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        return module.get_dialect(name)
+        return module
 
     def generate_sql_expression(
         self,
