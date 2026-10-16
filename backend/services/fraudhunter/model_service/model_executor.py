@@ -82,7 +82,7 @@ class VersionSelectionResult:
     version_hash: str
     wide_table_name: str
     etl_date: date
-    parquet_path: Optional[str]
+    parquet_file_path: Optional[str]
     message: str = ""
     storage_backend: str = 'postgresql'
 
@@ -181,7 +181,7 @@ class ModelExecutor:
                 version_hash='',
                 wide_table_name=wide_table_name,
                 etl_date=etl_date,
-                parquet_path=None,
+                parquet_file_path=None,
                 message=f"未找到 {wide_table_name} 在 {etl_date} 的可用快照"
             )
 
@@ -204,7 +204,7 @@ class ModelExecutor:
             version_hash=version_hash,
             wide_table_name=latest_snapshot.wide_table_name,
             etl_date=latest_snapshot.etl_date,
-            parquet_path=latest_snapshot.parquet_file_path,
+            parquet_file_path=latest_snapshot.parquet_file_path,
             message=f"使用版本 {version_hash[:8]}",
             storage_backend=storage_backend
         )

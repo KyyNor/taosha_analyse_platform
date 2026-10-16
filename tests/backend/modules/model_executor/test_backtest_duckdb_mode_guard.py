@@ -23,12 +23,15 @@ query_router.resolve_offline_table_refs()，由它按全量快照判定一次再
 2. 行为测试：用真实 query_router 覆盖「只有可选快照是 duckdb」的组合。
 """
 
+import ast
 import importlib.util
 import re
 import sys
 import types
 from datetime import date
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
@@ -63,9 +66,21 @@ def _load_query_router(monkeypatch):
     return module
 
 
+def _load_version_selection_result():
+    """执行生产 DTO 定义，避开 services 包初始化；不维护字段副本。"""
+    tree = ast.parse(_MODEL_EXECUTOR.read_text(encoding="utf-8"))
+    definition = next(
+        node for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "VersionSelectionResult"
+    )
+    namespace = {"dataclass": dataclass, "date": date, "Optional": Optional}
+    exec(compile(ast.Module(body=[definition], type_ignores=[]), str(_MODEL_EXECUTOR), "exec"), namespace)
+    return namespace["VersionSelectionResult"]
+
+
 def _snap(backend, wide_table, etl_date, parquet_path=None, version_hash="abcd1234efgh5678"):
-    """构造与 VersionSelectionResult 同构的快照选择结果"""
-    return types.SimpleNamespace(
+    """使用真实 VersionSelectionResult，防止测试替身掩盖路由接口不兼容。"""
+    return _load_version_selection_result()(
         wide_table_name=wide_table,
         version_hash=version_hash,
         parquet_file_path=parquet_path,
