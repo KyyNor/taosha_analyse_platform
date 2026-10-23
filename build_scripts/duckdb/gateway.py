@@ -208,11 +208,12 @@ def _under_timeout(conn, timeout: float, fn):
 def _exec_fetch(conn, sql: str, max_rows: int, fmt: str, timeout: float) -> dict:
     """在给定连接上执行单条 SQL 并完整 materialize 结果（Issue #4）.
 
-    relation 的 fetchall 具有惰性执行特征，必须在归还连接前完成物化；
+    使用 DB-API execute 结果逐批获取（2.0 Relation 不再支持 fetchmany）；
+    必须在归还连接前完成物化；
     timeout 同时覆盖 SQL 执行与 fetch 阶段（超时经 conn.interrupt 中断）。
     """
     def run():
-        result = conn.sql(_pushdown_sql(sql))
+        result = conn.execute(_pushdown_sql(sql))
         return _result_payload(result, max_rows, fmt)
     return _under_timeout(conn, timeout, run)
 
@@ -221,8 +222,8 @@ def _result_payload(result, max_rows: int, fmt: str) -> dict:
     if result is None:  # DDL/DML 无结果集
         return {"columns": [], "types": [], "rows": [], "row_count": 0,
                 "truncated": False}
-    columns = result.columns
-    types = [str(t) for t in result.types]
+    columns = [column[0] for column in result.description]
+    types = [str(column[1]) for column in result.description]
     # fetchmany 而非 fetchall+切片: 真正限制物化规模, MAX_ROWS 之外的分片不进内存
     fetched = result.fetchmany(max_rows + 1)
     truncated = len(fetched) > max_rows

@@ -49,7 +49,7 @@ def http_health():
 
 
 def main():
-    print(f"client library : {duckdb.sql('SELECT version()').fetchone()[0]}")
+    print(f"client library : {duckdb.sql('SELECT version()').fetchall()[0][0]}")
     print(f"target server  : {QUACK_URI}")
 
     check("HTTP health (GET /)", http_health)
@@ -64,7 +64,7 @@ def main():
         lambda: con.sql(
             f"SELECT * FROM quack_query('{QUACK_URI}', 'SELECT 42 AS answer', "
             f"token => '{QUACK_TOKEN}', disable_ssl => true)"
-        ).fetchone(),
+        ).fetchall()[0],
     )
 
     con.sql(
@@ -72,7 +72,7 @@ def main():
     )
     try:
         if PERSIST_ONLY:
-            rows = con.sql(f"SELECT count(*), sum(i) FROM remote.{TABLE}").fetchone()
+            rows = con.sql(f"SELECT count(*), sum(i) FROM remote.{TABLE}").fetchall()[0]
             assert rows == (100, 4950), f"persistence mismatch: {rows}"
             return rows
         con.sql(f"DROP TABLE IF EXISTS remote.{TABLE}")
@@ -82,17 +82,17 @@ def main():
         )
         check(
             "remote table write (100 rows)",
-            lambda: con.sql(f"SELECT count(*) FROM remote.{TABLE}").fetchone(),
+            lambda: con.sql(f"SELECT count(*) FROM remote.{TABLE}").fetchall()[0],
         )
         check(
             "remote aggregate pushdown",
-            lambda: con.sql(f"SELECT count(*), sum(i) FROM remote.{TABLE}").fetchone(),
+            lambda: con.sql(f"SELECT count(*), sum(i) FROM remote.{TABLE}").fetchall()[0],
         )
         check(
             "remote filter",
             lambda: con.sql(
                 f"SELECT s FROM remote.{TABLE} WHERE i = 7"
-            ).fetchone(),
+            ).fetchall()[0],
         )
         return None
     finally:

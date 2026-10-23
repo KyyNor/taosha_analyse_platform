@@ -129,8 +129,7 @@ class TestQueryLeaseLifecycle:
         events = []
 
         class _LazyRelation:
-            columns = ['v']
-            types = ['INTEGER']
+            description = [('v', 'INTEGER')]
 
             def fetchmany(self, n):
                 events.append('fetch_start')
@@ -146,7 +145,7 @@ class TestQueryLeaseLifecycle:
 
         def conn_with_sql():
             conn = original_conn()
-            conn.sql = fake_sql
+            conn.execute = fake_sql
             return conn
 
         pool._new_conn = conn_with_sql
@@ -172,8 +171,7 @@ class TestQueryLeaseLifecycle:
         interrupts = []
 
         class _SlowRelation:
-            columns = ['v']
-            types = ['INTEGER']
+            description = [('v', 'INTEGER')]
 
             def fetchmany(self, n):
                 time.sleep(0.3)
@@ -184,7 +182,7 @@ class TestQueryLeaseLifecycle:
         def conn_with_instrumentation():
             conn = original_conn()
             conn.interrupt = lambda: interrupts.append(time.monotonic())
-            conn.sql = lambda s: _SlowRelation()
+            conn.execute = lambda s: _SlowRelation()
             return conn
 
         pool._new_conn = conn_with_instrumentation
@@ -215,11 +213,10 @@ class TestQueryLeaseLifecycle:
                 if calls['n'] == 1:
                     raise gw.duckdb.IOException('connection reset')
                 class _R:
-                    columns = ['v']
-                    types = ['INTEGER']
+                    description = [('v', 'INTEGER')]
                     fetchmany = lambda self, n: [(42,)][:n]
                 return _R()
-            conn.sql = sql
+            conn.execute = sql
             return conn
 
         pool._new_conn = flaky_conn

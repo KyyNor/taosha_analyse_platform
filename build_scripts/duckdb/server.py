@@ -53,7 +53,7 @@ if PG_ATTACH_DSN:
 
 rows = con.sql(
     f"CALL quack_serve('quack:{QUACK_BIND}:{QUACK_PORT}', "
-    f"token => '{QUACK_TOKEN}', allow_other_hostname => true)"
+    f"token => '{QUACK_TOKEN}', allow_other_hostname => true, disable_ssl => true)"
 ).fetchall()
 print(f"[server] duckdb={duckdb.__version__} serving={rows[0][0]} url={rows[0][1]}", flush=True)
 

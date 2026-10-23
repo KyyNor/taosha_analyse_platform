@@ -1,0 +1,38 @@
+# Isolated integration environment; no host ports or existing data volumes.
+services:
+  duckdb:
+    image: duckdb-quack:2.0.0-pg
+    platform: linux/amd64
+    init: true
+    environment:
+      QUACK_TOKEN: verify-only-token
+      PG_ATTACH_DSN: dbname=verify host=postgres user=verify password=verify
+      MAX_ROWS: 100
+    depends_on:
+      postgres:
+        condition: service_healthy
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: verify
+      POSTGRES_PASSWORD: verify
+      POSTGRES_DB: verify
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U verify -d verify]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  verify:
+    image: duckdb-quack:2.0.0-pg
+    platform: linux/amd64
+    entrypoint: [python, /tests/test_stable_image.py]
+    environment:
+      QUACK_URI: quack:duckdb:9494
+      QUACK_TOKEN: verify-only-token
+      GATEWAY_URL: http://duckdb:9495
+      PG_DSN: dbname=verify host=postgres user=verify password=verify
+    volumes:
+      - ./test:/tests:ro
+    depends_on:
+      duckdb:
+        condition: service_healthy

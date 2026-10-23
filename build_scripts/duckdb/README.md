@@ -1,4 +1,29 @@
-# DuckDB 2.0 Alpha — Quack 远程查询服务端 (Docker)
+# DuckDB 2.0.0 LTS — Linux amd64 + PostgreSQL
+
+默认 `Dockerfile` / `docker-compose.yml` 使用 **正式版 duckdb==2.0.0**，镜像标签 `duckdb-quack:2.0.0-pg`，目标平台 `linux/amd64`。预装 postgres、quack、httpfs、json、parquet、icu，保留 9494 Quack 和 9495 HTTP 网关。
+
+```bash
+cd build_scripts/duckdb
+./build-stable-pg.sh --verify   # 构建、隔离环境集成测试、重启持久化测试、自动清理测试环境
+QUACK_TOKEN=your-token docker compose up -d
+# 远程 Python 客户端也应固定 duckdb==2.0.0
+# 需要离线转移镜像时：
+docker save duckdb-quack:2.0.0-pg | gzip > duckdb-quack-2.0.0-pg-linux-amd64.tar.gz
+```
+
+`--verify` 不占用宿主端口，使用独立 Compose 项目和临时数据卷；退出时清理测试环境，保留镜像。覆盖版本/架构、离线扩展加载、SQL/事务、CSV/JSON/Parquet、HTTP 文件读取、时区、VARIANT/触发器、PG CRUD/回滚/类型/跨库 JOIN、只读 PG 挂载、Quack 查询/ATTACH/鉴权、网关格式/截断/错误/批处理/文件落盘/并发，以及重启后的数据与 PG 挂载。
+
+2026-10-23 实测：linux/amd64 镜像的 9 组容器集成测试全部通过，重启后数据库/Parquet/PG 重新挂载通过，禁网加载六个扩展通过；网关及远程计算回归 36 passed。验证范围为本镜像及其接口，未执行整个平台业务端到端测试。
+
+发布依据：[DuckDB 2.0.0 LTS 公告（2026-10-21）](https://duckdb.org/2026/10/21/announcing-duckdb-200)。2.0 新建数据库默认使用旧版本无法读取的存储格式；旧式 `x -> ...` lambda 默认关闭，应使用 `lambda x: ...`。已有数据先备份，并使用对应版本客户端验证迁移。
+
+镜像内已适配 2.0 Python DB-API 取数方式，Quack 显式使用 HTTP 以兼容现有网关；健康检查要求网关成功查询上游。Quack/HTTP 端口沿用原部署方式，公网访问应由现有反向代理终止 TLS。
+
+下文为历史 alpha 调研记录，旧 `Dockerfile.alpha-pg`、`build-alpha-pg.sh` 与 `docker-compose.alpha-pg.yml` 仅供历史复现，默认构建不再使用它们。
+
+---
+
+## 历史记录：DuckDB 2.0 Alpha — Quack 远程查询服务端 (Docker)
 
 > 调研 + 镜像构建日期: 2026-09-09。alpha 版本迭代很快, 本文的版本号以当天官方渠道为准。
 > 位置: `taosha_analyse_platform/build_scripts/duckdb/`

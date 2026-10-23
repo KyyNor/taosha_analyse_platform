@@ -1,4 +1,4 @@
-# DuckDB 2.0 alpha (Quack 协议) 单容器: 服务端 + HTTP 网关
+# DuckDB 2.0.0 LTS (Quack 协议) 单容器: 服务端 + HTTP 网关
 #
 #   docker compose up -d --build          # 构建并启动
 #   docker compose run --rm quack-client  # 跑一次容器间远程查询测试 (duckdb 客户端)
@@ -15,7 +15,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: duckdb-quack:2.0-alpha
+    image: duckdb-quack:2.0.0-pg
+    platform: linux/amd64
     container_name: duckdb-quack
     init: true
     ports:
@@ -37,7 +38,7 @@ services:
       # 以相同路径挂入容器, path_map 重写为空操作。取消注释并改路径:
       # - /data/taosha/indicator_data/wide_tables_parquet:/data/taosha/indicator_data/wide_tables_parquet
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9494/ >/dev/null && curl -fsS http://127.0.0.1:9495/health >/dev/null"]
+      test: ["CMD", "python", "/app/healthcheck.py"]
       interval: 5s
       timeout: 3s
       retries: 12
@@ -47,7 +48,9 @@ services:
   # 一次性测试容器: 与服务端容器间通信, 验证跨容器/跨主机远程查询
   # 默认不启动, 需要 `docker compose run --rm quack-client`
   quack-client:
-    image: python:3.12-slim
+    image: duckdb-quack:2.0.0-pg
+    platform: linux/amd64
+    entrypoint: ["python"]
     profiles: ["tools"]
     environment:
       QUACK_URI: quack:duckdb-quack:9494
@@ -55,7 +58,7 @@ services:
     volumes:
       - ./test:/tests:ro
     command: >
-      bash -c "pip install -q --pre duckdb && python /tests/test_remote_query.py"
+      /tests/test_remote_query.py
     depends_on:
       duckdb-quack:
         condition: service_healthy
