@@ -1,0 +1,8 @@
+__pycache__
+*.pyc
+portable-client-amd64
+test
+dist
+*.tar
+*.tar.gz
+*.sha256

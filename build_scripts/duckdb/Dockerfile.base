@@ -1,0 +1,52 @@
+# syntax=docker/dockerfile:1
+# DuckDB Runtime Base：稳定的运行环境（依赖变更时才重建）
+#   - linux/amd64, Python 3.12
+#   - duckdb==2.0.0 + fastapi + uvicorn（含传递依赖，见 requirements-runtime.txt）
+#   - 六个 DuckDB 扩展预装进镜像缓存，禁用自动下载后可离线 LOAD
+#   - 不包含服务代码；服务代码在 Dockerfile / Dockerfile.app 中叠加
+#
+# 构建（需联网，仅依赖或版本变更时执行）:
+#   ./build-base.sh              # 构建 + 离线扩展自检
+#   ./build-base.sh --save       # 额外导出 tar.gz + SHA256
+#
+# 命名: taosha-duckdb-runtime:<duckdb版本>-r<修订号>
+FROM python:3.12-slim-bookworm
+
+ARG TARGETARCH
+RUN test "$TARGETARCH" = "amd64"
+
+COPY requirements-runtime.txt /tmp/requirements-runtime.txt
+RUN pip install --no-cache-dir --root-user-action=ignore -r /tmp/requirements-runtime.txt \
+ && rm /tmp/requirements-runtime.txt
+
+# 以运行用户（root）安装扩展，缓存随镜像交付；关闭自动下载后逐一 LOAD 验证
+RUN python - <<'EOF'
+import duckdb
+
+assert duckdb.__version__ == "2.0.0", duckdb.__version__
+con = duckdb.connect()
+assert con.sql("SELECT version()").fetchall()[0][0] == "v2.0.0"
+
+extensions = ("postgres", "quack", "httpfs", "json", "parquet", "icu")
+for ext in extensions:
+    con.execute(f"INSTALL {ext}")
+
+con.execute("SET autoinstall_known_extensions=false")
+con.execute("SET autoload_known_extensions=false")
+for ext in extensions:
+    con.execute(f"LOAD {ext}")
+
+loaded = con.sql(
+    "SELECT extension_name, extension_version FROM duckdb_extensions() WHERE loaded"
+).fetchall()
+print("offline-loaded extensions:", loaded)
+con.close()
+EOF
+
+ENV DUCKDB_DB_PATH=/data/duck.db \
+    QUACK_BIND=0.0.0.0 \
+    QUACK_PORT=9494 \
+    GATEWAY_PORT=9495
+
+EXPOSE 9494 9495
+VOLUME /data
