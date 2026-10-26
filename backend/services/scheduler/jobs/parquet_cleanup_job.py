@@ -13,8 +13,12 @@ Parquet 版本目录清理定时任务（双存储方案阶段6）
 ORM 级联删除其快照 → 目录引用归零 → 本任务延迟物理删除。
 """
 
+import fcntl
+import os
+import re
 import shutil
 import time
+from contextlib import contextmanager, ExitStack
 from pathlib import Path
 
 from models.db_base import get_db_session
@@ -41,8 +45,36 @@ def _referenced_parquet_dirs() -> set:
 
 def _dir_age_hours(path: Path) -> float:
     """目录最近修改时间距今的小时数"""
-    latest = max((f.stat().st_mtime for f in path.rglob("*") if f.is_file()), default=0)
+    latest = max(path.stat().st_mtime, max(
+        (f.stat().st_mtime for f in path.rglob("*")), default=0,
+    ))
     return (time.time() - latest) / 3600
+
+
+@contextmanager
+def _version_cleanup_lock(storage_path: Path, version_dir: Path):
+    """持有已有写入锁及日期目录对应锁直至清理结束；忙碌时跳过整个版本。
+
+    与 ParquetOpsService._target_lock 共用锁文件，禁止删除/重建锁文件，
+    否则另一个 worker 可能锁住不同 inode。
+    """
+    lock_dir = storage_path / '.locks'
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_paths = set(lock_dir.glob(f'{version_dir.name}__*.lock'))
+    for child in version_dir.iterdir():
+        match = re.fullmatch(r'etl_date=(\d{4})-(\d{2})-(\d{2})(?:\.(?:tmp|trash))?', child.name)
+        if match:
+            lock_paths.add(lock_dir / f"{version_dir.name}__{''.join(match.groups())}.lock")
+    with ExitStack() as stack:
+        for lock_path in sorted(lock_paths):
+            fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o644)
+            stack.callback(os.close, fd)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                yield False
+                return
+        yield True
 
 
 def _is_intermediate_dir(path: Path) -> bool:
@@ -106,27 +138,31 @@ async def parquet_cleanup_job():
                     logger.info(f"清理残留中间目录: {entry}")
                 continue
 
-            # 版本目录内的中间目录（同步中断现场）：仅扫一层，布局为
-            # {version_dir}/{etl_date=YYYY-MM-DD}.tmp
-            try:
-                children = list(entry.iterdir())
-            except OSError as e:
-                logger.warning(f"无法列出版本目录，跳过中间目录清理: {entry}: {e}")
-                children = []
-            for child in children:
-                if _is_intermediate_dir(child) and _dir_age_hours(child) > grace_hours:
-                    _remove_dir(child, compute_mode)
-                    deleted_tmp += 1
-                    logger.info(f"清理残留中间目录: {child}")
+            with _version_cleanup_lock(storage_path, entry) as acquired:
+                if not acquired:
+                    logger.debug(f"版本目录正在写入，跳过清理: {entry}")
+                    continue
+                # 版本目录内的中间目录（同步中断现场）：仅扫一层，布局为
+                # {version_dir}/{etl_date=YYYY-MM-DD}.tmp
+                try:
+                    children = list(entry.iterdir())
+                except OSError as e:
+                    logger.warning(f"无法列出版本目录，跳过中间目录清理: {entry}: {e}")
+                    children = []
+                for child in children:
+                    if _is_intermediate_dir(child) and _dir_age_hours(child) > grace_hours:
+                        _remove_dir(child, compute_mode)
+                        deleted_tmp += 1
+                        logger.info(f"清理残留中间目录: {child}")
 
-            # 正式版本目录：引用计数为0且过宽限期才删
-            resolved = entry.resolve().as_posix()
-            if resolved in referenced:
-                continue
-            if _dir_age_hours(entry) > grace_hours:
-                _remove_dir(entry, compute_mode)
-                deleted_dirs += 1
-                logger.info(f"清理无引用Parquet版本目录: {entry}")
+                # 正式版本目录：引用计数为0且过宽限期才删
+                resolved = entry.resolve().as_posix()
+                if resolved in referenced:
+                    continue
+                if _dir_age_hours(entry) > grace_hours:
+                    _remove_dir(entry, compute_mode)
+                    deleted_dirs += 1
+                    logger.info(f"清理无引用Parquet版本目录: {entry}")
 
         logger.info(
             f"Parquet目录清理完成: 删除版本目录{deleted_dirs}个, "

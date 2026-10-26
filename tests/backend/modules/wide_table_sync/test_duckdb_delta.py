@@ -9,9 +9,12 @@
 """
 
 import asyncio
+import fcntl
 import importlib.util
+import os
 import shutil
 import sys
+import time
 import types
 from datetime import date
 from pathlib import Path
@@ -382,6 +385,56 @@ class TestParquetCleanupJob:
         asyncio.run(job.parquet_cleanup_job())
 
         assert locks.exists()
+
+    def test_fresh_empty_tmp_kept_with_default_grace(self, monkeypatch, tmp_path):
+        version_dir = tmp_path / "cust_wide_table_keep1234"
+        nested_tmp = version_dir / "etl_date=2026-08-20.tmp"
+        nested_tmp.mkdir(parents=True)
+        job = self._load_job(monkeypatch, tmp_path, referenced=[str(version_dir)])
+        job.settings.fraudhunter_wide_table_duckdb_parquet_cleanup_grace_hours = 48
+
+        asyncio.run(job.parquet_cleanup_job())
+
+        assert nested_tmp.is_dir()
+        assert 0 <= job._dir_age_hours(nested_tmp) < 1
+
+    def test_stale_empty_tmp_cleaned_with_default_grace(self, monkeypatch, tmp_path):
+        version_dir = tmp_path / "cust_wide_table_keep1234"
+        nested_tmp = version_dir / "etl_date=2026-08-20.tmp"
+        nested_tmp.mkdir(parents=True)
+        old = time.time() - 72 * 3600
+        os.utime(nested_tmp, (old, old))
+        job = self._load_job(monkeypatch, tmp_path, referenced=[str(version_dir)])
+        job.settings.fraudhunter_wide_table_duckdb_parquet_cleanup_grace_hours = 48
+
+        asyncio.run(job.parquet_cleanup_job())
+
+        assert not nested_tmp.exists()
+
+    @pytest.mark.parametrize("referenced", [True, False])
+    @pytest.mark.parametrize("suffix", ["tmp", "trash"])
+    def test_active_writer_keeps_stale_directory_until_unlock(
+        self, monkeypatch, tmp_path, referenced, suffix,
+    ):
+        version_dir = tmp_path / "cust_wide_table_keep1234"
+        intermediate = version_dir / f"etl_date=2026-08-20.{suffix}"
+        intermediate.mkdir(parents=True)
+        locks = tmp_path / ".locks"
+        locks.mkdir()
+        lock_path = locks / f"{version_dir.name}__20260820.lock"
+        job = self._load_job(
+            monkeypatch, tmp_path, referenced=[str(version_dir)] if referenced else [],
+        )
+        with lock_path.open('w') as writer_lock:
+            fcntl.flock(writer_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            asyncio.run(job.parquet_cleanup_job())
+            assert intermediate.is_dir()
+            assert version_dir.is_dir()
+
+        asyncio.run(job.parquet_cleanup_job())
+        assert not intermediate.exists()
+        assert lock_path.exists()
+        assert version_dir.exists() == referenced
 
     def test_remote_mode_cleans_via_gateway(self, monkeypatch, tmp_path):
         """remote 模式经网关删除容器写入的中间目录（属主可能不同）"""

@@ -29,7 +29,7 @@ docker buildx build --platform "${PLATFORM}" --load \
   -f Dockerfile.base -t "${IMAGE}" .
 
 echo "==> 离线扩展自检（--network=none）"
-docker run --rm --platform "${PLATFORM}" --network none \
+docker run --rm -i --platform "${PLATFORM}" --network none \
   --entrypoint python "${IMAGE}" - <<'EOF'
 import duckdb
 
@@ -39,7 +39,7 @@ con.execute("SET autoinstall_known_extensions=false")
 con.execute("SET autoload_known_extensions=false")
 for ext in ("postgres", "quack", "httpfs", "json", "parquet", "icu"):
     con.execute(f"LOAD {ext}")
-print("PASS: 6 extensions offline |", con.sql("SELECT version()").fetchone()[0])
+print("PASS: 6 extensions offline |", con.sql("SELECT version()").fetchall()[0][0])
 EOF
 
 if [[ "${SAVE}" == "1" ]]; then
