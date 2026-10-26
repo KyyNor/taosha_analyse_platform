@@ -667,7 +667,7 @@ class DuckdbParquetStore(WideTableStore):
     @staticmethod
     def _parquet_relation(tmp_dir: Path) -> str:
         glob = (tmp_dir / PARQUET_FILE_PATTERN).as_posix()
-        return f"read_parquet('{glob}')"
+        return f"read_parquet('{glob}', hive_partitioning=false)"
 
     @staticmethod
     def _prepare_tmp_dir(final_dir: Path) -> Path:

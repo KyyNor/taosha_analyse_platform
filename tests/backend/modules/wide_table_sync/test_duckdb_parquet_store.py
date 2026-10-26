@@ -260,6 +260,36 @@ class TestReconciliation:
         )
 
 
+class TestTmpDirHivePartitionTrap:
+    """tmp 目录名形如 etl_date=YYYY-MM-DD.tmp，不得被 Hive 分区推断遮蔽物理列"""
+
+    def test_tmp_dir_readback_keeps_physical_etl_date(self, monkeypatch, tmp_path):
+        module, _ = _load_duckdb_store(monkeypatch, storage_path=str(tmp_path))
+        store = module.DuckdbParquetStore()
+        import duckdb
+
+        conn = duckdb.connect()
+        conn.execute(
+            "CREATE TABLE staging AS SELECT 'A001' AS target_id, "
+            "DATE '2026-08-19' AS etl_date, 100 AS i_amt"
+        )
+        tmp_dir = tmp_path / "cust_wide_table_abcd1234" / "etl_date=2026-08-19.tmp"
+        tmp_dir.mkdir(parents=True)
+        conn.execute(
+            f"COPY staging TO '{(tmp_dir / 'part-00000.parquet').as_posix()}' "
+            f"(FORMAT PARQUET)"
+        )
+
+        relation = store._parquet_relation(tmp_dir)
+        assert conn.execute(f"SELECT typeof(etl_date) FROM {relation}").fetchone()[0] == "DATE"
+        store._reconcile_relations(
+            conn,
+            staging_relation="staging",
+            parquet_relation=relation,
+            spark_rows=1,
+        )
+
+
 class TestAtomicLanding:
     def test_prepare_tmp_dir_creates_nested_parents(self, monkeypatch, tmp_path):
         """DuckDB COPY 不自动建父目录——_prepare_tmp_dir 统一自动创建多层目录"""
