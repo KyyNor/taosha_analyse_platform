@@ -6,6 +6,8 @@ Parquet 版本目录清理定时任务（双存储方案阶段6）
    避免与同步中的任务竞态）；
 2. 未被引用且超过宽限期的版本目录 → 删除（零拷贝复用/版本退役后自然释放）；
 3. 残留的 .tmp/.trash 中间目录超过宽限期 → 删除（同步中断遗留）。
+   中间目录既可能在 storage_path 顶层（历史布局），也可能在版本目录下一层
+   （{version_dir}/{etl_date}.tmp），两处都要扫。
 
 版本退役链路：PG侧 _cleanup_history_wide_table_versions 删除版本记录时
 ORM 级联删除其快照 → 目录引用归零 → 本任务延迟物理删除。
@@ -19,6 +21,8 @@ from models.db_base import get_db_session
 from models.fraudhunter.wide_table import FraudHunterWideTableSnapshot
 from utils.config import settings
 from utils.logger import logger
+
+INTERMEDIATE_SUFFIXES = ('.tmp', '.trash')
 
 
 def _referenced_parquet_dirs() -> set:
@@ -39,6 +43,22 @@ def _dir_age_hours(path: Path) -> float:
     """目录最近修改时间距今的小时数"""
     latest = max((f.stat().st_mtime for f in path.rglob("*") if f.is_file()), default=0)
     return (time.time() - latest) / 3600
+
+
+def _is_intermediate_dir(path: Path) -> bool:
+    return path.is_dir() and path.name.endswith(INTERMEDIATE_SUFFIXES)
+
+
+def _remove_dir(path: Path, compute_mode: str) -> None:
+    """删除目录：remote 模式下容器写入的文件属主可能不同，优先经网关在容器内删除"""
+    if compute_mode == 'remote':
+        try:
+            from services.fraudhunter.wide_table_service.store import remote_session
+            remote_session.remote_write_cleanup(path.as_posix())
+            return
+        except Exception as e:
+            logger.warning(f"经网关删除失败，回退本地删除: {path}: {e}")
+    shutil.rmtree(path, ignore_errors=True)
 
 
 async def parquet_cleanup_job():
@@ -62,6 +82,7 @@ async def parquet_cleanup_job():
             'fraudhunter_wide_table_duckdb_parquet_cleanup_grace_hours',
             48,
         )
+        compute_mode = getattr(settings, 'fraudhunter_duck_compute_mode', 'local')
         if not storage_path.is_dir():
             logger.debug(f"Parquet存储目录不存在，跳过清理: {storage_path}")
             return
@@ -73,21 +94,37 @@ async def parquet_cleanup_job():
         for entry in storage_path.iterdir():
             if not entry.is_dir():
                 continue
+            # .locks 等工作目录不属于数据目录，禁止按引用计数清理
+            if entry.name.startswith('.'):
+                continue
 
-            # 中间目录（同步中断遗留）
-            if entry.name.endswith(('.tmp', '.trash')):
+            # 顶层中间目录（历史布局/落盘中断）
+            if _is_intermediate_dir(entry):
                 if _dir_age_hours(entry) > grace_hours:
-                    shutil.rmtree(entry, ignore_errors=True)
+                    _remove_dir(entry, compute_mode)
                     deleted_tmp += 1
                     logger.info(f"清理残留中间目录: {entry}")
                 continue
+
+            # 版本目录内的中间目录（同步中断现场）：仅扫一层，布局为
+            # {version_dir}/{etl_date=YYYY-MM-DD}.tmp
+            try:
+                children = list(entry.iterdir())
+            except OSError as e:
+                logger.warning(f"无法列出版本目录，跳过中间目录清理: {entry}: {e}")
+                children = []
+            for child in children:
+                if _is_intermediate_dir(child) and _dir_age_hours(child) > grace_hours:
+                    _remove_dir(child, compute_mode)
+                    deleted_tmp += 1
+                    logger.info(f"清理残留中间目录: {child}")
 
             # 正式版本目录：引用计数为0且过宽限期才删
             resolved = entry.resolve().as_posix()
             if resolved in referenced:
                 continue
             if _dir_age_hours(entry) > grace_hours:
-                shutil.rmtree(entry, ignore_errors=True)
+                _remove_dir(entry, compute_mode)
                 deleted_dirs += 1
                 logger.info(f"清理无引用Parquet版本目录: {entry}")
 

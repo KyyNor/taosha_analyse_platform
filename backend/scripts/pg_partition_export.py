@@ -126,9 +126,11 @@ class PgPartitionExporter:
 
     @staticmethod
     def _build_checksum_sql(relation: str, columns: List[str]) -> str:
-        """构建行数 + 顺序无关内容校验和（sum(hash(行拼接))）"""
-        joined = ", ".join(f"{col}::VARCHAR" for col in columns)
-        return f"SELECT count(*), sum(hash(concat_ws('|', {joined}))) FROM {relation}"
+        """构建行数 + 顺序无关内容校验和（与宽表同步共用结构化 hash）"""
+        from services.fraudhunter.wide_table_service.store.checksum import (
+            build_checksum_sql,
+        )
+        return build_checksum_sql(relation, columns)
 
     def _reconcile(self, conn, source_relation: str, parquet_relation: str,
                    source_rows: int) -> None:

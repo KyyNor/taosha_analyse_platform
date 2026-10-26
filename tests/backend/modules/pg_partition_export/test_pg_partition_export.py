@@ -88,9 +88,7 @@ class TestBuildChecksumSql:
 
     def test_checksum_counts_and_hashes_all_columns_as_varchar(self):
         sql = PgPartitionExporter._build_checksum_sql("rel", ["a", "b"])
-        assert sql == (
-            "SELECT count(*), sum(hash(concat_ws('|', a::VARCHAR, b::VARCHAR))) FROM rel"
-        )
+        assert sql == "SELECT count(*), sum(hash(a::VARCHAR, b::VARCHAR)) FROM rel"
 
 
 # =============================================================================
