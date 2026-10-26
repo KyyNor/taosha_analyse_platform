@@ -1,15 +1,33 @@
 # DuckDB 2.0.0 LTS — Linux amd64 + PostgreSQL
 
-默认 `Dockerfile` / `docker-compose.yml` 使用 **正式版 duckdb==2.0.0**，镜像标签 `duckdb-quack:2.0.0-pg`，目标平台 `linux/amd64`。预装 postgres、quack、httpfs、json、parquet、icu，保留 9494 Quack 和 9495 HTTP 网关。
+镜像拆分为两层，稳定的运行环境与频繁变更的服务代码解耦：
+
+| 镜像 | 定义 | 何时重建 |
+|---|---|---|
+| `taosha-duckdb-runtime:2.0.0-r1` | `Dockerfile.base` + `requirements-runtime.txt` | DuckDB / FastAPI / uvicorn / 扩展升级 |
+| `taosha-duckdb-service:2.0.0-pg` | `Dockerfile`（`FROM` runtime，仅 COPY 服务代码） | 修改 server.py / gateway.py 等 |
+
+目标平台 `linux/amd64`（当前仅支持该架构，不提供 ARM 多架构镜像）。Base 预装 postgres、quack、httpfs、json、parquet、icu（构建期已验证禁用自动下载后可离线 LOAD）；服务保留 9494 Quack 与 9495 HTTP 网关。
+
+### 联网准备 Base → 内网离线构建 App
 
 ```bash
 cd build_scripts/duckdb
-./build-stable-pg.sh --verify   # 构建、隔离环境集成测试、重启持久化测试、自动清理测试环境
+
+# 1) 联网机器：构建 Base 并导出（tar.gz + SHA256）
+./build-base.sh --save
+#    -> dist/taosha-duckdb-runtime-2.0.0-r1-linux-amd64.tar.gz (+ .sha256)
+
+# 2) 内网机器：导入 Base 后构建 App；--network=none 证明构建全程不联网
+docker load < dist/taosha-duckdb-runtime-2.0.0-r1-linux-amd64.tar.gz
+./build-stable-pg.sh --offline
+
+# 3) 启动（QUACK_TOKEN 必填）
 QUACK_TOKEN=your-token docker compose up -d
-# 远程 Python 客户端也应固定 duckdb==2.0.0
-# 需要离线转移镜像时：
-docker save duckdb-quack:2.0.0-pg | gzip > duckdb-quack-2.0.0-pg-linux-amd64.tar.gz
 ```
+
+仅修改 `server.py` / `gateway.py` / `healthcheck.py` / `entrypoint.sh` 时，重建 App 不会触发 pip、apt 或扩展下载。
+完整集成验证：`./build-stable-pg.sh --verify`（隔离 Compose + 临时卷，自动清理）。
 
 `--verify` 不占用宿主端口，使用独立 Compose 项目和临时数据卷；退出时清理测试环境，保留镜像。覆盖版本/架构、离线扩展加载、SQL/事务、CSV/JSON/Parquet、HTTP 文件读取、时区、VARIANT/触发器、PG CRUD/回滚/类型/跨库 JOIN、只读 PG 挂载、Quack 查询/ATTACH/鉴权、网关格式/截断/错误/批处理/文件落盘/并发，以及重启后的数据与 PG 挂载。
 
@@ -62,7 +80,11 @@ token 完全正确也一律 `Authentication failed` (容器内 127.0.0.1 loopbac
 
 ```
 build_scripts/duckdb/
-├── Dockerfile            # 单容器镜像: duckdb 服务端 (9494) + HTTP 网关 (9495)
+├── Dockerfile.base       # Runtime Base: Python/duckdb/fastapi/uvicorn + 6 扩展缓存
+├── requirements-runtime.txt  # Base 固定依赖（含传递依赖）
+├── Dockerfile            # 应用镜像: FROM base, 仅复制服务代码
+├── build-base.sh         # 联网构建 Base (+ --save 导出 tar.gz/SHA256)
+├── build-stable-pg.sh    # 构建应用镜像 (+ --offline/--verify)
 ├── server.py             # duckdb 服务端: 打开持久库 + quack_serve + 常驻
 ├── gateway.py            # HTTP 网关: POST /query (SQL 永远推到 duckdb 服务端执行)
 ├── entrypoint.sh         # 容器入口: 双进程拉起与信号处理

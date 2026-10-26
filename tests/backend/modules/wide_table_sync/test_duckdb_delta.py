@@ -9,8 +9,12 @@
 """
 
 import asyncio
+import fcntl
 import importlib.util
+import os
+import shutil
 import sys
+import time
 import types
 from datetime import date
 from pathlib import Path
@@ -291,7 +295,7 @@ class TestDeltaMergeLocalEndToEnd:
 class TestParquetCleanupJob:
     """引用计数清理逻辑（替换引用集合查询，验证目录处置）"""
 
-    def _load_job(self, monkeypatch, storage_path, referenced):
+    def _load_job(self, monkeypatch, storage_path, referenced, compute_mode='local'):
         spec = importlib.util.spec_from_file_location(
             "parquet_cleanup_job_for_test",
             _backend_root / "services" / "scheduler" / "jobs" / "parquet_cleanup_job.py",
@@ -304,6 +308,7 @@ class TestParquetCleanupJob:
             fraudhunter_wide_table_duckdb_parquet_cleanup_grace_hours=0,
             # 清理逻辑本体仅在 offline_store 含 duckdb 时执行（Issue #10 no-op 守卫）
             fraudhunter_wide_table_offline_store='duckdb',
+            fraudhunter_duck_compute_mode=compute_mode,
         )
         logger_module = types.ModuleType("utils.logger")
         logger_module.logger = types.SimpleNamespace(
@@ -352,6 +357,121 @@ class TestParquetCleanupJob:
         asyncio.run(job.parquet_cleanup_job())
 
         assert not tmp_dir.exists()
+
+    def test_nested_tmp_dir_under_version_dir_cleaned(self, monkeypatch, tmp_path):
+        """同步中断的 tmp 位于版本目录下一层，必须一并清理"""
+        version_dir = tmp_path / "cust_wide_table_keep1234"
+        date_dir = version_dir / "etl_date=2026-08-19"
+        date_dir.mkdir(parents=True)
+        (date_dir / "part-00000.parquet").write_bytes(b"x")
+        nested_tmp = version_dir / "etl_date=2026-08-20.tmp"
+        nested_tmp.mkdir()
+        (nested_tmp / "part-00000.parquet").write_bytes(b"x")
+
+        job = self._load_job(monkeypatch, tmp_path, referenced=[str(version_dir)])
+        asyncio.run(job.parquet_cleanup_job())
+
+        assert version_dir.exists()
+        assert date_dir.exists()
+        assert not nested_tmp.exists()
+
+    def test_locks_dir_is_not_cleaned(self, monkeypatch, tmp_path):
+        """版本目录锁文件所在的 .locks 不参与引用计数清理"""
+        locks = tmp_path / ".locks"
+        locks.mkdir()
+        (locks / "cust_wide_table_keep1234__20260819.lock").write_text("")
+
+        job = self._load_job(monkeypatch, tmp_path, referenced=[])
+        asyncio.run(job.parquet_cleanup_job())
+
+        assert locks.exists()
+
+    def test_fresh_empty_tmp_kept_with_default_grace(self, monkeypatch, tmp_path):
+        version_dir = tmp_path / "cust_wide_table_keep1234"
+        nested_tmp = version_dir / "etl_date=2026-08-20.tmp"
+        nested_tmp.mkdir(parents=True)
+        job = self._load_job(monkeypatch, tmp_path, referenced=[str(version_dir)])
+        job.settings.fraudhunter_wide_table_duckdb_parquet_cleanup_grace_hours = 48
+
+        asyncio.run(job.parquet_cleanup_job())
+
+        assert nested_tmp.is_dir()
+        assert 0 <= job._dir_age_hours(nested_tmp) < 1
+
+    def test_stale_empty_tmp_cleaned_with_default_grace(self, monkeypatch, tmp_path):
+        version_dir = tmp_path / "cust_wide_table_keep1234"
+        nested_tmp = version_dir / "etl_date=2026-08-20.tmp"
+        nested_tmp.mkdir(parents=True)
+        old = time.time() - 72 * 3600
+        os.utime(nested_tmp, (old, old))
+        job = self._load_job(monkeypatch, tmp_path, referenced=[str(version_dir)])
+        job.settings.fraudhunter_wide_table_duckdb_parquet_cleanup_grace_hours = 48
+
+        asyncio.run(job.parquet_cleanup_job())
+
+        assert not nested_tmp.exists()
+
+    @pytest.mark.parametrize("referenced", [True, False])
+    @pytest.mark.parametrize("suffix", ["tmp", "trash"])
+    def test_active_writer_keeps_stale_directory_until_unlock(
+        self, monkeypatch, tmp_path, referenced, suffix,
+    ):
+        version_dir = tmp_path / "cust_wide_table_keep1234"
+        intermediate = version_dir / f"etl_date=2026-08-20.{suffix}"
+        intermediate.mkdir(parents=True)
+        locks = tmp_path / ".locks"
+        locks.mkdir()
+        lock_path = locks / f"{version_dir.name}__20260820.lock"
+        job = self._load_job(
+            monkeypatch, tmp_path, referenced=[str(version_dir)] if referenced else [],
+        )
+        with lock_path.open('w') as writer_lock:
+            fcntl.flock(writer_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            asyncio.run(job.parquet_cleanup_job())
+            assert intermediate.is_dir()
+            assert version_dir.is_dir()
+
+        asyncio.run(job.parquet_cleanup_job())
+        assert not intermediate.exists()
+        assert lock_path.exists()
+        assert version_dir.exists() == referenced
+
+    def test_remote_mode_cleans_via_gateway(self, monkeypatch, tmp_path):
+        """remote 模式经网关删除容器写入的中间目录（属主可能不同）"""
+        version_dir = tmp_path / "cust_wide_table_keep1234"
+        version_dir.mkdir()
+        nested_tmp = version_dir / "etl_date=2026-08-20.tmp"
+        nested_tmp.mkdir()
+        (nested_tmp / "part-00000.parquet").write_bytes(b"x")
+
+        calls = []
+
+        def _fake_cleanup(path):
+            calls.append(path)
+            shutil.rmtree(path, ignore_errors=True)
+
+        for name in (
+            "services",
+            "services.fraudhunter",
+            "services.fraudhunter.wide_table_service",
+        ):
+            monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
+        store_pkg = types.ModuleType("services.fraudhunter.wide_table_service.store")
+        store_pkg.remote_session = types.SimpleNamespace(
+            remote_write_cleanup=_fake_cleanup,
+        )
+        monkeypatch.setitem(
+            sys.modules, "services.fraudhunter.wide_table_service.store", store_pkg,
+        )
+
+        job = self._load_job(
+            monkeypatch, tmp_path, referenced=[str(version_dir)], compute_mode='remote',
+        )
+        asyncio.run(job.parquet_cleanup_job())
+
+        assert calls == [nested_tmp.as_posix()]
+        assert not nested_tmp.exists()
+        assert version_dir.exists()
 
     def test_noop_when_offline_store_is_postgresql(self, monkeypatch, tmp_path):
         """Issue #10：纯 PG 模式 no-op——即使目录存在（历史残留/手工文件）也不清理"""

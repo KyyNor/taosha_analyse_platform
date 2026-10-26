@@ -88,9 +88,7 @@ class TestBuildChecksumSql:
 
     def test_checksum_counts_and_hashes_all_columns_as_varchar(self):
         sql = PgPartitionExporter._build_checksum_sql("rel", ["a", "b"])
-        assert sql == (
-            "SELECT count(*), sum(hash(concat_ws('|', a::VARCHAR, b::VARCHAR))) FROM rel"
-        )
+        assert sql == "SELECT count(*), sum(hash(a::VARCHAR, b::VARCHAR)) FROM rel"
 
 
 # =============================================================================
@@ -129,6 +127,28 @@ class TestTmpDirAndAtomicLanding:
         final_dir = tmp_path / "etl_date=2026-08-01"
         with pytest.raises(RuntimeError, match="临时目录不存在"):
             PgPartitionExporter._atomic_landing(tmp_path / "nope", final_dir)
+
+
+class TestTmpDirHivePartitionTrap:
+    """tmp 目录名形如 etl_date=YYYY-MM-DD.tmp，对账读回不得被 Hive 分区推断遮蔽物理列"""
+
+    def test_tmp_dir_readback_keeps_physical_etl_date(self, tmp_path):
+        duckdb = pytest.importorskip("duckdb")
+        conn = duckdb.connect()
+        conn.execute(
+            "CREATE TABLE source AS SELECT 'A001' AS target_id, "
+            "DATE '2026-08-01' AS etl_date, 100 AS i_amt"
+        )
+        tmp_dir = tmp_path / "t1" / "etl_date=2026-08-01.tmp"
+        tmp_dir.mkdir(parents=True)
+        conn.execute(
+            f"COPY source TO '{(tmp_dir / 'part-00000.parquet').as_posix()}' "
+            f"(FORMAT PARQUET)"
+        )
+
+        relation = PgPartitionExporter._parquet_relation(tmp_dir)
+        assert conn.execute(f"SELECT typeof(etl_date) FROM {relation}").fetchone()[0] == "DATE"
+        PgPartitionExporter()._reconcile(conn, "source", relation, 1)
 
 
 # =============================================================================

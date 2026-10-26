@@ -1,38 +1,21 @@
-# syntax=docker/dockerfile:1
-# DuckDB 2.0.0 LTS: Quack (9494), HTTP gateway (9495), PostgreSQL connector.
-# Build: docker buildx build --platform linux/amd64 --load -t duckdb-quack:2.0.0-pg .
-FROM python:3.12-slim-bookworm
+# Taosha DuckDB Service 应用镜像：只叠加服务代码，不装依赖
+#   FROM taosha-duckdb-runtime（Dockerfile.base）
+#   服务: Quack 9494 + HTTP 网关 9495, 数据卷 /data
+#
+# 不写 `# syntax=` 前端指令：内网无外网拉取 dockerfile 前端镜像时也能构建。
+#
+# 构建（Base 已 load 后可在内网离线执行）:
+#   ./build-stable-pg.sh             # 构建应用镜像
+#   ./build-stable-pg.sh --offline   # 以 --network=none 验证零联网构建
+#   ./build-stable-pg.sh --verify    # 构建 + 隔离环境集成测试
+ARG BASE_IMAGE=taosha-duckdb-runtime:2.0.0-r1
+FROM ${BASE_IMAGE}
 
-ARG TARGETARCH
-RUN test "$TARGETARCH" = "amd64"
-
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
- && rm -rf /var/lib/apt/lists/*
-RUN pip install --no-cache-dir duckdb==2.0.0 fastapi==0.119.0 uvicorn==0.37.0
-
-# Install into the runtime user's cache; verify signed release extensions offline.
-RUN python - <<'EOF'
-import duckdb
-assert duckdb.__version__ == "2.0.0"
-c = duckdb.connect()
-assert c.sql("SELECT version()").fetchall()[0][0] == "v2.0.0"
-for ext in ("postgres", "quack", "httpfs", "json", "parquet", "icu"):
-    c.execute(f"INSTALL {ext}")
-c.execute("SET autoinstall_known_extensions=false")
-c.execute("SET autoload_known_extensions=false")
-for ext in ("postgres", "quack", "httpfs", "json", "parquet", "icu"):
-    c.execute(f"LOAD {ext}")
-print(c.sql("SELECT extension_name, extension_version FROM duckdb_extensions() WHERE loaded").fetchall())
-EOF
-
+WORKDIR /app
 COPY server.py gateway.py healthcheck.py entrypoint.sh /app/
 RUN chmod +x /app/entrypoint.sh
-ENV DUCKDB_DB_PATH=/data/duck.db \
-    QUACK_BIND=0.0.0.0 \
-    QUACK_PORT=9494 \
-    GATEWAY_PORT=9495
-EXPOSE 9494 9495
-VOLUME /data
+
 HEALTHCHECK --interval=5s --timeout=3s --start-period=20s --retries=12 \
   CMD ["python", "/app/healthcheck.py"]
+
 ENTRYPOINT ["/app/entrypoint.sh"]

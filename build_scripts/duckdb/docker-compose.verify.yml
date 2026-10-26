@@ -1,7 +1,7 @@
 # Isolated integration environment; no host ports or existing data volumes.
 services:
   duckdb:
-    image: duckdb-quack:2.0.0-pg
+    image: ${DUCKDB_APP_IMAGE:-taosha-duckdb-service:2.0.0-pg}
     platform: linux/amd64
     init: true
     environment:
@@ -23,7 +23,7 @@ services:
       timeout: 3s
       retries: 30
   verify:
-    image: duckdb-quack:2.0.0-pg
+    image: ${DUCKDB_APP_IMAGE:-taosha-duckdb-service:2.0.0-pg}
     platform: linux/amd64
     entrypoint: [python, /tests/test_stable_image.py]
     environment:
