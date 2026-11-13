@@ -45,6 +45,8 @@ export interface HitRecord {
 export interface AlertControlRecordDetail {
   record: AlertControlRecord;
   hit_record: HitRecord;
+  // 该账号近30天（含今天）管控已执行的命中次数；统计失败时为 null
+  recent_hit_count?: number | null;
 }
 
 export interface AlertControlFilters {
@@ -161,6 +163,14 @@ export const alertControlRecordService = {
       indicator_codes: indicatorCodes,
     });
     return response.data.values;
+  },
+
+  // 批量获取账号近30天命中次数（仅统计管控已执行，供列表页异步加载，单次最多500个）
+  async fetchAccountHitCounts(accountIds: string[]): Promise<Record<string, number>> {
+    const response = await api.post(`${BASE_PATH}/alert-control-records/account-hit-counts`, {
+      account_ids: accountIds,
+    });
+    return response.data.counts;
   },
 };
 

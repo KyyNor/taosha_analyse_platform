@@ -137,13 +137,13 @@ class FraudHunterModelAlertControlRecord(Base):
     hit_model_names = Column(JSON, nullable=False, comment='命中模型名称列表')
 
     # 告警相关字段
-    alert_status = Column(String(16), default='not_configured', comment='告警状态：not_configured/sent/duplicate')
+    alert_status = Column(String(16), default='not_configured', comment='告警状态：not_configured/sent/duplicate/whitelist')
     alert_message = Column(Text, comment='告警消息内容')
     alert_person = Column(String(64), comment='告警人')
     alert_time = Column(DateTime, comment='告警时间')
 
     # 管控相关字段
-    control_status = Column(String(16), default='not_configured', comment='管控状态：not_configured/executed/duplicate')
+    control_status = Column(String(16), default='not_configured', comment='管控状态：not_configured/executed/duplicate/whitelist')
     control_time = Column(DateTime, comment='管控时间')
     control_serial_number = Column(String(64), comment='管控流水号')
 
