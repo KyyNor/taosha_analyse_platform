@@ -263,6 +263,7 @@ async def get_indicator_values(
 async def get_account_hit_counts(
     body: AccountHitCountsRequest,
 
+    current_user: UserInfo = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """

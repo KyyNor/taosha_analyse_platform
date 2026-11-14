@@ -258,6 +258,64 @@ class TestDetailRecentHitCount:
 @pytest.mark.ahc
 class TestAccountHitCountsEndpoint:
 
+    @pytest.fixture
+    def http_client(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from middleware import auth_middleware
+        from services.token_service import TokenService, UserInfo
+
+        app = FastAPI()
+        app.include_router(routes.router)
+        app.dependency_overrides[routes.get_db] = lambda: MagicMock()
+        token_service = TokenService(secret_key="account-hit-count-auth-regression-test-key")
+        user = UserInfo(
+            user_id="test-user", user_name="测试用户", branch_no="1100",
+            branch_name="测试机构", role_id_list=["测试角色"], access_time=datetime.now(),
+        )
+        tokens = {
+            "valid": token_service.generate_token(user),
+            "expired": TokenService(
+                secret_key=token_service.secret_key, token_expire_hours=-1,
+            ).generate_token(user),
+        }
+        with (
+            patch.object(auth_middleware, "get_token_service", return_value=token_service),
+            patch.object(auth_middleware, "get_db_session"),
+            patch.object(routes, "ModelHitAlertManager") as manager_cls,
+            TestClient(app) as client,
+        ):
+            manager = manager_cls.return_value
+            manager.get_account_recent_hit_counts.return_value = {"ACC-E": 2}
+            yield client, manager_cls, tokens
+
+    @pytest.mark.parametrize("auth", ["missing", "malformed", "invalid", "expired"])
+    def test_http_rejects_unauthenticated_requests(self, http_client, auth):
+        client, manager_cls, tokens = http_client
+        headers = {
+            "missing": {},
+            "malformed": {"Authorization": "Basic invalid"},
+            "invalid": {"Authorization": "Bearer invalid"},
+            "expired": {"Authorization": f"Bearer {tokens['expired']}"},
+        }[auth]
+        response = client.post(
+            "/alert-control-records/account-hit-counts",
+            json={"account_ids": ["ACC-E"]}, headers=headers,
+        )
+        assert response.status_code == 401
+        manager_cls.assert_not_called()
+
+    def test_http_authenticated_request_returns_counts(self, http_client):
+        client, manager_cls, tokens = http_client
+        response = client.post(
+            "/alert-control-records/account-hit-counts",
+            json={"account_ids": ["ACC-E"]},
+            headers={"Authorization": f"Bearer {tokens['valid']}"},
+        )
+        assert response.status_code == 200
+        assert response.json() == {"counts": {"ACC-E": 2}}
+        manager_cls.return_value.get_account_recent_hit_counts.assert_called_once_with(["ACC-E"])
+
     @pytest.mark.parametrize("size", [0, 501])
     def test_request_rejects_empty_or_oversized(self, size):
         with pytest.raises(ValueError):
