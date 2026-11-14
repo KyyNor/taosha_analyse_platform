@@ -7,14 +7,16 @@
 export const alertStatusBadgeConfig = {
   not_configured: { variant: "secondary" as const, label: "未配置" },
   sent: { variant: "default" as const, label: "已发送" },
-  duplicate: { variant: "outline" as const, label: "重复告警" }
+  duplicate: { variant: "outline" as const, label: "重复告警" },
+  whitelist: { variant: "secondary" as const, label: "白名单" }
 };
 
 // 管控状态标签配置
 export const controlStatusBadgeConfig = {
   not_configured: { variant: "secondary" as const, label: "未配置" },
   executed: { variant: "default" as const, label: "已执行" },
-  duplicate: { variant: "outline" as const, label: "重复管控" }
+  duplicate: { variant: "outline" as const, label: "重复管控" },
+  whitelist: { variant: "secondary" as const, label: "白名单" }
 };
 
 // 通用状态标签配置

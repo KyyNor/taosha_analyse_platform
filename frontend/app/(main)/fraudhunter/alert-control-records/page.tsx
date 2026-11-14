@@ -62,6 +62,11 @@ export default function AlertControlRecordsPage() {
   const [indicatorValues, setIndicatorValues] = useState<IndicatorValuesMap>({});
   const [valuesLoading, setValuesLoading] = useState(false);
 
+  // 账号近30天命中次数（批量异步加载；失败时显示 — 而非 0）
+  const [hitCounts, setHitCounts] = useState<Record<string, number>>({});
+  const [hitCountsLoading, setHitCountsLoading] = useState(false);
+  const [hitCountsFailed, setHitCountsFailed] = useState(false);
+
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);
@@ -156,6 +161,35 @@ export default function AlertControlRecordsPage() {
     return () => { cancelled = true; };
   }, [data, tagIndicators]);
 
+  // 列表数据到达后，按本页账号批量拉取近30天命中次数（单次请求）
+  useEffect(() => {
+    if (data.length === 0) {
+      setHitCounts({});
+      setHitCountsFailed(false);
+      return;
+    }
+    let cancelled = false;
+    const loadCounts = async () => {
+      setHitCountsLoading(true);
+      setHitCountsFailed(false);
+      try {
+        const accountIds = Array.from(new Set(data.map(record => record.account_id)));
+        const counts = await alertControlRecordService.fetchAccountHitCounts(accountIds);
+        if (!cancelled) setHitCounts(counts);
+      } catch (error) {
+        console.error("批量加载账号近30天命中次数失败:", error);
+        if (!cancelled) {
+          setHitCounts({});
+          setHitCountsFailed(true);
+        }
+      } finally {
+        if (!cancelled) setHitCountsLoading(false);
+      }
+    };
+    loadCounts();
+    return () => { cancelled = true; };
+  }, [data]);
+
   // 筛选条件或搜索变化时重置到第一页
   useEffect(() => {
     setCurrentPage(1);
@@ -227,6 +261,26 @@ export default function AlertControlRecordsPage() {
 
   const baseColumns = [
     { key: "account_id", label: "账号", type: "text" as const, width: "160px" },
+    {
+      key: "recent_hit_count",
+      label: "近30天命中次数",
+      type: "custom" as const,
+      width: "130px",
+      render: (_: unknown, row: AlertControlRecord) => {
+        if (hitCountsFailed) {
+          return <span className="text-muted-foreground" title="命中次数加载失败">—</span>;
+        }
+        if (hitCountsLoading) {
+          return <span className="text-xs text-muted-foreground">加载中…</span>;
+        }
+        const count = hitCounts[row.account_id];
+        return (
+          <span title="近30天（含今天）管控已执行的命中次数">
+            {count ?? "—"}
+          </span>
+        );
+      }
+    },
     { key: "branch_no", label: "机构号", type: "text" as const, width: "110px" },
     { key: "record_date", label: "日期", type: "text" as const, width: "115px" },
     {
@@ -269,7 +323,7 @@ export default function AlertControlRecordsPage() {
 
   // 「指标值」列插在「模型」列之后
   const columns = tagIndicators.length > 0
-    ? [...baseColumns.slice(0, 4), indicatorValueColumn, ...baseColumns.slice(4)]
+    ? [...baseColumns.slice(0, 5), indicatorValueColumn, ...baseColumns.slice(5)]
     : baseColumns;
 
   // 获取今天的日期字符串
@@ -388,6 +442,7 @@ export default function AlertControlRecordsPage() {
                   <SelectItem value="not_configured">未配置</SelectItem>
                   <SelectItem value="sent">已发送</SelectItem>
                   <SelectItem value="duplicate">重复告警</SelectItem>
+                  <SelectItem value="whitelist">白名单</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -407,6 +462,7 @@ export default function AlertControlRecordsPage() {
                   <SelectItem value="not_configured">未配置</SelectItem>
                   <SelectItem value="executed">已执行</SelectItem>
                   <SelectItem value="duplicate">重复管控</SelectItem>
+                  <SelectItem value="whitelist">白名单</SelectItem>
                 </SelectContent>
               </Select>
             </div>

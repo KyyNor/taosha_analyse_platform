@@ -25,8 +25,8 @@ class AlertControlFilters(BaseModel):
     model_name: Optional[str] = Field(None, description="模型名称")
     
     # 状态筛选
-    alert_status: Optional[str] = Field(None, description="告警状态：not_configured/sent/duplicate")
-    control_status: Optional[str] = Field(None, description="管控状态：not_configured/executed/duplicate")
+    alert_status: Optional[str] = Field(None, description="告警状态：not_configured/sent/duplicate/whitelist")
+    control_status: Optional[str] = Field(None, description="管控状态：not_configured/executed/duplicate/whitelist")
     
     # 搜索关键词
     search: Optional[str] = Field(None, description="搜索关键词")
@@ -108,6 +108,9 @@ class AlertControlRecordDetailResponse(BaseModel):
     # 关联的命中记录
     hit_record: HitRecordResponse
 
+    # 该账号近30天（含今天）管控已执行的命中次数；统计失败时为 null（区别于 0 次）
+    recent_hit_count: Optional[int] = None
+
 
 class TrendRequest(BaseModel):
     """历史趋势请求参数"""
@@ -152,8 +155,8 @@ class AlertControlListRequest(BaseModel):
     branch_no: Optional[str] = Field(None, description="机构号（精确匹配）")
     model_ids: Optional[List[int]] = Field(None, description="模型ID列表（多选）")
     model_name: Optional[str] = Field(None, description="模型名称（模糊匹配）")
-    alert_status: Optional[str] = Field(None, description="告警状态：not_configured/sent/duplicate")
-    control_status: Optional[str] = Field(None, description="管控状态：not_configured/executed/duplicate")
+    alert_status: Optional[str] = Field(None, description="告警状态：not_configured/sent/duplicate/whitelist")
+    control_status: Optional[str] = Field(None, description="管控状态：not_configured/executed/duplicate/whitelist")
     search: Optional[str] = Field(None, description="搜索关键词")
     hide_inactive: Optional[bool] = Field(None, description="隐藏无效记录")
 
@@ -167,8 +170,8 @@ class AlertControlExportRequest(BaseModel):
     branch_no: Optional[str] = Field(None, description="机构号（精确匹配）")
     model_ids: Optional[List[int]] = Field(None, description="模型ID列表（多选）")
     model_name: Optional[str] = Field(None, description="模型名称（模糊匹配）")
-    alert_status: Optional[str] = Field(None, description="告警状态：not_configured/sent/duplicate")
-    control_status: Optional[str] = Field(None, description="管控状态：not_configured/executed/duplicate")
+    alert_status: Optional[str] = Field(None, description="告警状态：not_configured/sent/duplicate/whitelist")
+    control_status: Optional[str] = Field(None, description="管控状态：not_configured/executed/duplicate/whitelist")
     search: Optional[str] = Field(None, description="搜索关键词")
     hide_inactive: Optional[bool] = Field(None, description="隐藏无效记录")
     format: Literal["csv", "excel"] = Field("excel", description="导出格式")
@@ -209,3 +212,19 @@ class IndicatorValuesResponse(BaseModel):
     """
 
     values: Dict[int, Dict[str, Any]] = Field(default_factory=dict, description="按命中记录ID组织的指标值映射")
+
+
+class AccountHitCountsRequest(BaseModel):
+    """账号近30天命中次数批量查询请求"""
+
+    account_ids: List[str] = Field(..., min_length=1, max_length=500, description="账号列表，单次最多500个")
+
+
+class AccountHitCountsResponse(BaseModel):
+    """账号近30天命中次数批量查询响应
+
+    counts: {account_id: 次数}，统计窗口为近30天（含今天），
+    仅统计管控状态为 executed 的记录；窗口内无记录时为 0
+    """
+
+    counts: Dict[str, int] = Field(default_factory=dict, description="按账号组织的近30天命中次数映射")

@@ -3,7 +3,7 @@
 """
 
 from typing import List, Dict, Any, Optional, Literal
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func, String, Integer, text
 from dataclasses import dataclass
@@ -840,11 +840,63 @@ class ModelHitAlertManager:
         
         if not hit_record:
             return None
-        
+
+        # 统计失败时返回 null，避免把查询异常误展示为 0 次
+        try:
+            recent_hit_count = self.get_account_recent_hit_counts(
+                [alert_record.account_id]
+            ).get(alert_record.account_id, 0)
+        except Exception as e:
+            logger.warning(
+                f"统计账号近30天命中次数失败: account_id={alert_record.account_id}, error={e}"
+            )
+            recent_hit_count = None
+
         return AlertControlRecordDetailResponse(
             record=AlertControlRecordResponse.from_orm(alert_record),
-            hit_record=HitRecordResponse.from_orm(hit_record)
+            hit_record=HitRecordResponse.from_orm(hit_record),
+            recent_hit_count=recent_hit_count
         )
+
+    def get_account_recent_hit_counts(
+        self,
+        account_ids: List[str],
+        days: int = 30
+    ) -> Dict[str, int]:
+        """批量统计账号近 N 天（含今天）的命中次数
+
+        口径：按 record_date 过滤滚动窗口，仅统计管控状态为 executed 的记录
+        （duplicate/not_configured/whitelist 不计入）；窗口内无记录的账号返回 0。
+        单条 GROUP BY 聚合查询，走 (account_id, record_date) 复合索引。
+
+        Args:
+            account_ids: 账号列表（允许重复，内部去重）
+            days: 滚动窗口天数，默认30
+
+        Returns:
+            {account_id: 命中次数}，覆盖所有入参账号
+        """
+        if not account_ids:
+            return {}
+
+        unique_ids = list(dict.fromkeys(account_ids))
+        start_date = date.today() - timedelta(days=days - 1)
+        tbl = FraudHunterModelAlertControlRecord
+        rows = (
+            self.db.query(tbl.account_id, func.count(tbl.id))
+            .filter(
+                tbl.account_id.in_(unique_ids),
+                tbl.record_date >= start_date,
+                tbl.control_status == 'executed'
+            )
+            .group_by(tbl.account_id)
+            .all()
+        )
+
+        counts = {account_id: 0 for account_id in unique_ids}
+        for account_id, count in rows:
+            counts[account_id] = count
+        return counts
 
     def resolve_indicator_codes(self, codes: List[str]) -> List[Dict[str, str]]:
         """校验指标编码并返回指标元数据列表

@@ -29,6 +29,8 @@ from schemas.fraudhunter.alert_control_record import (
     IndicatorTagConfigUpdateRequest,
     IndicatorValuesRequest,
     IndicatorValuesResponse,
+    AccountHitCountsRequest,
+    AccountHitCountsResponse,
 )
 from services.fraudhunter.model_service.model_hit_alert_manager import ModelHitAlertManager
 from utils.logger import logger
@@ -76,11 +78,12 @@ async def list_alert_control_records(
     - sent: 已发送（告警已发送）
     - executed: 已执行（管控已执行）
     - duplicate: 重复（当天已告警/管控过）
+    - whitelist: 白名单（跳过告警和管控）
     """
     try:
         # 验证状态参数
-        valid_alert_statuses = ["not_configured", "sent", "duplicate"]
-        valid_control_statuses = ["not_configured", "executed", "duplicate"]
+        valid_alert_statuses = ["not_configured", "sent", "duplicate", "whitelist"]
+        valid_control_statuses = ["not_configured", "executed", "duplicate", "whitelist"]
 
         if body.alert_status and body.alert_status not in valid_alert_statuses:
             raise HTTPException(
@@ -145,6 +148,8 @@ async def list_alert_control_records(
         
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"获取告警管控记录列表失败: {e}", exc_info=True)
         raise HTTPException(
@@ -250,6 +255,42 @@ async def get_indicator_values(
         )
 
 
+@router.post(
+    "/account-hit-counts",
+    response_model=AccountHitCountsResponse,
+    summary="批量获取账号近30天命中次数"
+)
+async def get_account_hit_counts(
+    body: AccountHitCountsRequest,
+
+    current_user: UserInfo = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    按账号批量统计近30天（含今天）命中次数（供列表页异步加载）
+
+    统计口径:
+    - 按 record_date 过滤滚动30天窗口
+    - 仅统计管控状态为 executed 的记录（重复/未配置/白名单不计入）
+
+    参数:
+    - account_ids: 账号列表，单次最多500个
+
+    返回:
+    - counts: {account_id: 次数}，窗口内无记录的账号为 0
+    """
+    try:
+        manager = ModelHitAlertManager(db)
+        counts = manager.get_account_recent_hit_counts(body.account_ids)
+        return AccountHitCountsResponse(counts=counts)
+    except Exception as e:
+        logger.error(f"批量获取账号近30天命中次数失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"批量获取账号近30天命中次数失败: {str(e)}"
+        )
+
+
 @router.get(
     "/{record_id}",
     response_model=AlertControlRecordDetailResponse,
@@ -274,6 +315,7 @@ async def get_alert_control_record_detail(
     - 告警信息：告警状态、消息、告警人、告警时间
     - 管控信息：管控状态、管控时间、管控流水号
     - 关联命中记录：命中时间、指标数据、命中模型列表
+    - 近30天命中次数：该账号滚动30天内管控已执行的命中次数（统计失败为 null）
     """
     try:
         manager = ModelHitAlertManager(db)
@@ -329,8 +371,8 @@ async def export_alert_control_records(
     """
     try:
         # 验证状态参数
-        valid_alert_statuses = ["not_configured", "sent", "duplicate"]
-        valid_control_statuses = ["not_configured", "executed", "duplicate"]
+        valid_alert_statuses = ["not_configured", "sent", "duplicate", "whitelist"]
+        valid_control_statuses = ["not_configured", "executed", "duplicate", "whitelist"]
 
         if body.alert_status and body.alert_status not in valid_alert_statuses:
             raise HTTPException(

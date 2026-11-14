@@ -58,7 +58,8 @@ export default function AlertControlRecordDetailPage() {
       },
       sent: { variant: "default" as const, label: "已发送" },
       executed: { variant: "default" as const, label: "已执行" },
-      duplicate: { variant: "outline" as const, label: type === 'alert' ? "重复告警" : "重复管控" }
+      duplicate: { variant: "outline" as const, label: type === 'alert' ? "重复告警" : "重复管控" },
+      whitelist: { variant: "secondary" as const, label: "白名单" }
     };
 
     const config = statusConfig[status as keyof typeof statusConfig] || {
@@ -189,6 +190,16 @@ export default function AlertControlRecordDetailPage() {
             <InfoRow 
               label="记录日期" 
               value={formatDate(data.record.record_date)} 
+            />
+            <InfoRow
+              label="近30天命中次数"
+              value={
+                data.recent_hit_count === null || data.recent_hit_count === undefined ? (
+                  <span className="text-muted-foreground" title="命中次数统计失败">—</span>
+                ) : (
+                  <span title="该账号近30天（含今天）管控已执行的命中次数">{data.recent_hit_count}</span>
+                )
+              }
             />
             <InfoRow 
               label="创建时间" 
